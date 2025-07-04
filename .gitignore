@@ -1,0 +1,6 @@
+.vscode/
+build/
+models/
+/test.cpp
+/test.exe
+note/
