@@ -1,6 +1,6 @@
 #pragma once
 #include "GLMVector.h"
-#include <QVector4D>
+#include <QVector2D>
 
 namespace lcf {
     using Vector2D = QVector2D;

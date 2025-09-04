@@ -12,6 +12,13 @@ lcf::render::VulkanShader::VulkanShader(VulkanContext * context, ShaderTypeFlagB
 {
 }
 
+lcf::render::VulkanShader::~VulkanShader()
+{
+    for (auto & layout : m_descriptor_set_layout_list) {
+        m_context->getDevice().destroyDescriptorSetLayout(layout);
+    }
+}
+
 lcf::render::VulkanShader::operator bool() const
 {
     return this->isCompiled();

@@ -3,22 +3,25 @@
 
 lcf::render::VulkanSwapchain::VulkanSwapchain(VulkanContext *context, vk::SurfaceKHR surface) :
     RenderTarget(),
-    m_context(context),
-    m_surface(surface)
+    m_context(context)
 {
+    vk::Instance instance = context->getInstance();
+    m_surface = vk::UniqueSurfaceKHR(surface, vk::ObjectDestroy<vk::Instance, vk::DispatchLoaderStatic>(instance));
+    // m_surface = vk::UniqueSurfaceKHR(surface, vk::ObjectDestroy<vk::Instance, vk::DispatchLoaderDynamic>(instance));
 }
 
 lcf::render::VulkanSwapchain::~VulkanSwapchain()
 {
+    this->destroy();
 }
 
 void lcf::render::VulkanSwapchain::create()
 {
     if (this->isCreated()) { return; }
     vk::PhysicalDevice physical_device = m_context->getPhysicalDevice();
-    auto surface_formats = physical_device.getSurfaceFormatsKHR(m_surface);
-    auto present_modes = physical_device.getSurfacePresentModesKHR(m_surface);
-    vk::SurfaceCapabilitiesKHR surface_capabilities = physical_device.getSurfaceCapabilitiesKHR(m_surface);
+    auto surface_formats = physical_device.getSurfaceFormatsKHR(m_surface.get());
+    auto present_modes = physical_device.getSurfacePresentModesKHR(m_surface.get());
+    vk::SurfaceCapabilitiesKHR surface_capabilities = physical_device.getSurfaceCapabilitiesKHR(m_surface.get());
     
     vk::SurfaceFormatKHR best_surface_format = surface_formats.front();
     vk::PresentModeKHR best_present_mode = vk::PresentModeKHR::eFifo;
@@ -36,13 +39,18 @@ void lcf::render::VulkanSwapchain::create()
     }
     m_surface_format = best_surface_format;
     m_present_mode = best_present_mode;   
+    auto device = m_context->getDevice();
+    vk::SemaphoreCreateInfo semaphore_info;
+    for (auto &swapchain_resource : m_swapchain_resources_list) {
+        swapchain_resource.target_available = device.createSemaphoreUnique(semaphore_info);
+    }
 }
 
 void lcf::render::VulkanSwapchain::recreate()
 {
     vk::Device device = m_context->getDevice();
     vk::SwapchainCreateInfoKHR swapchain_info;
-    swapchain_info.setSurface(m_surface)
+    swapchain_info.setSurface(m_surface.get())
         .setMinImageCount(m_swapchain_resources_list.size())
         .setImageFormat(m_surface_format.format)
         .setImageColorSpace(m_surface_format.colorSpace)
@@ -87,30 +95,35 @@ void lcf::render::VulkanSwapchain::recreate()
 void lcf::render::VulkanSwapchain::destroy()
 {
     m_swapchain.reset();
-    m_context->getInstance().destroySurfaceKHR(m_surface);
-    m_surface = nullptr;
+    m_surface.reset();
 }
 
-bool lcf::render::VulkanSwapchain::prepareForRender(RenderExchangeInfo *exchange_info)
+bool lcf::render::VulkanSwapchain::prepareForRender()
 {
     if (not m_surface) { return false; }
     auto physical_device = m_context->getPhysicalDevice();
-    m_surface_capabilities = physical_device.getSurfaceCapabilitiesKHR(m_surface);
+    m_surface_capabilities = physical_device.getSurfaceCapabilitiesKHR(m_surface.get());
     if (this->getWidth() == 0 or this->getHeight() == 0) { return false; }
     if (m_need_to_update) { this->recreate(); }
-    m_exchange_info = static_cast<VulkanRenderExchangeInfo *>(exchange_info);
     this->acquireAvailableTarget();
     return true;
 }
 
-void lcf::render::VulkanSwapchain::finishRender()
+void lcf::render::VulkanSwapchain::finishRender(vk::Semaphore present_ready)
 {
+    m_present_ready = present_ready;
+    ++m_target_available_index %= m_swapchain_resources_list.size();
+    this->present();
+}
+
+void lcf::render::VulkanSwapchain::present()
+{
+    if (not m_swapchain) { return; }
     auto device = m_context->getDevice();
     vk::PresentInfoKHR present_info;
-    vk::Semaphore present_ready = m_exchange_info->getRenderFinishedSemaphore();
-    present_info.setWaitSemaphores(present_ready)
+    present_info.setWaitSemaphores(m_present_ready)
         .setSwapchains(m_swapchain.get())
-        .setPImageIndices(&m_current_index);
+        .setPImageIndices(&m_image_index);
     auto present_result = m_context->getQueue(vk::QueueFlagBits::eGraphics).presentKHR(present_info);
     if (present_result == vk::Result::eErrorOutOfDateKHR or present_result == vk::Result::eSuboptimalKHR) {
         this->recreate();
@@ -122,14 +135,11 @@ void lcf::render::VulkanSwapchain::finishRender()
 void lcf::render::VulkanSwapchain::acquireAvailableTarget()
 {
     auto device = m_context->getDevice();
-    vk::Semaphore target_available = m_exchange_info->getTargetAvailableSemaphore();
-    auto [acquire_result, index] = device.acquireNextImageKHR(m_swapchain.get(), UINT64_MAX, target_available, nullptr);
+    auto [acquire_result, index] = device.acquireNextImageKHR(m_swapchain.get(), UINT64_MAX, this->getTargetAvailableSemaphore(), nullptr);
     if (acquire_result == vk::Result::eErrorOutOfDateKHR) {
         this->recreate();
     } else if (acquire_result != vk::Result::eSuccess and acquire_result != vk::Result::eSuboptimalKHR) {
         throw std::runtime_error("lcf::render::VulkanSwapchain::acquireAvailableTarget(): Failed to acquire swapchain image!");
     }
-    m_current_index = index;
-    m_exchange_info->setTargetImage(m_swapchain_resources_list[m_current_index].image)
-        .setTargetImageView(m_swapchain_resources_list[m_current_index].image_view.get());
+    m_image_index = index;
 }

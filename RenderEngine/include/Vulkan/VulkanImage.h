@@ -34,7 +34,7 @@ namespace lcf::render {
         void create();
         void create(const vk::ImageCreateInfo & info);
         void setData(const Image & image); 
-        void transitLayout(vk::CommandBuffer cmd, vk::ImageLayout new_layout);
+        void transitLayout(vk::ImageLayout new_layout);
         vk::Image getHandle() const { return m_image.get(); }
         vk::ImageView getDefaultView() const;
         Self & setImageType(vk::ImageType image_type) { m_image_type = image_type; return *this; }

@@ -1,10 +1,10 @@
 #include "VulkanContext.h"
 #include <QLoggingCategory>
+#include <QDebug>
 #include <set>
 #include <string>
 #include <algorithm>
 
-#include <QDebug>
 
 lcf::render::VulkanContext::VulkanContext()
 {
@@ -13,9 +13,6 @@ lcf::render::VulkanContext::VulkanContext()
 
 lcf::render::VulkanContext::~VulkanContext()
 {
-    for (auto render_target : m_surface_render_targets) {
-        delete render_target;
-    }
 }
 
 void lcf::render::VulkanContext::registerWindow(RenderWindow * window)
@@ -24,15 +21,10 @@ void lcf::render::VulkanContext::registerWindow(RenderWindow * window)
     window->setVulkanInstance(&m_vk_instance);
     window->create();
     vk::SurfaceKHR surface = QVulkanInstance::surfaceForWindow(window); //! surface is available after window is created
-    auto render_target = new VulkanSwapchain(this, surface);
+    window->setVulkanInstance(nullptr);
+    auto render_target = VulkanSwapchain::makeShared(this, surface);
     window->setRenderTarget(render_target);
     m_surface_render_targets.emplace_back(render_target);
-}
-
-void lcf::render::VulkanContext::unregisterWindow(RenderWindow *window)
-{
-    window->getRenderTarget()->destroy();
-    window->setVulkanInstance(nullptr);
 }
 
 void lcf::render::VulkanContext::create()
@@ -43,6 +35,13 @@ void lcf::render::VulkanContext::create()
     this->createLogicalDevice();
     this->createCommandPool();
     m_memory_allocator.create(this);
+    SurfaceRenderTargetList{}.swap(m_surface_render_targets);
+}
+
+vk::CommandBuffer lcf::render::VulkanContext::getCurrentCommandBuffer() const
+{
+    if (m_bound_cmd_buffer_stack.empty()) { return nullptr; }
+    return m_bound_cmd_buffer_stack.top();
 }
 
 void lcf::render::VulkanContext::setupVulkanInstance()
@@ -54,21 +53,20 @@ void lcf::render::VulkanContext::setupVulkanInstance()
         qDebug() << static_cast<const VkDebugUtilsMessengerCallbackDataEXT *>(message)->pMessage;
         return true;
     };
+    QByteArrayList extensions = {};
+    QByteArrayList layers = { "VK_LAYER_KHRONOS_validation" };
+    m_vk_instance.setApiVersion({1, 3, 2});
     m_vk_instance.installDebugOutputFilter(debug_utils_filter);
-    m_vk_instance.setApiVersion({1, 3, 0});
-    m_vk_instance.setLayers({ "VK_LAYER_KHRONOS_validation" });
-    QByteArrayList extensions {
-        VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
-        VK_EXT_DEPTH_RANGE_UNRESTRICTED_EXTENSION_NAME,
-    };
     m_vk_instance.setExtensions(extensions);
+    m_vk_instance.setLayers(layers);
     QLoggingCategory::setFilterRules(QStringLiteral("qt.vulkan=true"));
     if (not m_vk_instance.create()) {
         qFatal("Failed to create Vulkan instance: %d", m_vk_instance.errorCode());
     }
-    vk::DispatchLoaderDynamic loader;
-    loader.init();
-    loader.init(vk::Instance(m_vk_instance.vkInstance()));
+    #if ( VULKAN_HPP_DISPATCH_LOADER_DYNAMIC == 1 )
+      VULKAN_HPP_DEFAULT_DISPATCHER.init();
+      VULKAN_HPP_DEFAULT_DISPATCHER.init(vk::Instance(m_vk_instance.vkInstance()));
+    #endif
 }
 
 void lcf::render::VulkanContext::pickPhysicalDevice()
@@ -138,11 +136,14 @@ void lcf::render::VulkanContext::createLogicalDevice()
     queue_infos[0].setQueueFamilyIndex(this->getQueueFamilyIndex(vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute))
         .setQueuePriorities(queue_priorities);
 
-    std::vector<const char *> required_extensions;
+    std::vector<const char *> required_extensions = {
+        VK_KHR_MAINTENANCE1_EXTENSION_NAME,
+        VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME,
+        VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME,
+    };
     if (not m_surface_render_targets.empty()) {
         std::vector<const char *> extensions = {
             VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-            VK_KHR_MAINTENANCE1_EXTENSION_NAME,
         };
         required_extensions.insert(required_extensions.end(), extensions.begin(), extensions.end());
     }
@@ -155,24 +156,23 @@ void lcf::render::VulkanContext::createLogicalDevice()
         qWarning() << "Required extension not available: " << extension;
     }
 
-    vk::PhysicalDeviceVulkan13Features features13;
 
-    features13.setSynchronization2(true)
+    vk::StructureChain<vk::DeviceCreateInfo,
+        vk::PhysicalDeviceFeatures2,
+        vk::PhysicalDeviceVulkan12Features,
+        vk::PhysicalDeviceVulkan13Features> device_info;
+    device_info.get<vk::PhysicalDeviceVulkan13Features>().setSynchronization2(true)
         .setDynamicRendering(true);
-    vk::PhysicalDeviceVulkan12Features features12;
-    features12.setBufferDeviceAddress(true)
+    device_info.get<vk::PhysicalDeviceVulkan12Features>().setBufferDeviceAddress(true)
         .setDescriptorIndexing(true)
-        .setPNext(&features13);
-    vk::PhysicalDeviceFeatures2 device_features2 = m_physical_device.getFeatures2();
-    device_features2.setPNext(&features12);
+        .setTimelineSemaphore(true);
+    device_info.get<vk::PhysicalDeviceFeatures2>().setFeatures(m_physical_device.getFeatures());
 
-    vk::DeviceCreateInfo device_info;
-    device_info.setQueueCreateInfos(queue_infos)
-        .setPEnabledExtensionNames(required_extensions)
-        .setPNext(&device_features2);
+    device_info.get<vk::DeviceCreateInfo>().setQueueCreateInfos(queue_infos)
+        .setPEnabledExtensionNames(required_extensions);
 
     try {
-        m_device = m_physical_device.createDeviceUnique(device_info);
+        m_device = m_physical_device.createDeviceUnique(device_info.get());
     } catch (const vk::SystemError &e) {
         qFatal() << "Failed to create logical device: " << e.what();
     }

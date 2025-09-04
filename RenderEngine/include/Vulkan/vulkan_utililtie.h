@@ -24,5 +24,5 @@ namespace lcf::render::vkutils {
         vk::CommandBuffer m_cmd = nullptr;
     };
 
-    void immediate_submit(VulkanContext * context, std::function<void(vk::CommandBuffer)> && submit_func);
+    void immediate_submit(VulkanContext * context, std::function<void()> && submit_func);
 }

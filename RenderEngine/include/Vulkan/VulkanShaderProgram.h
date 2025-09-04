@@ -6,6 +6,7 @@
 #include <vector>
 #include <span>
 
+
 namespace lcf::render {
     class VulkanContext;
     class VulkanShaderProgram : public ShaderProgram, public PointerDefs<VulkanShaderProgram>

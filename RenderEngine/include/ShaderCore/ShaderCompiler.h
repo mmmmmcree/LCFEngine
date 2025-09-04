@@ -17,6 +17,8 @@ namespace lcf {
     private:
         ShaderResource parseResource(const spirv_cross::Compiler &spv_compiler, const spirv_cross::Resource &resource);
         void parseResourceMembers(ShaderResourceMember &resource, const spirv_cross::Compiler &spv_compiler, spirv_cross::TypeID type_id);
+        ShaderResource parseInputResource(const spirv_cross::Compiler &spv_compiler, const spirv_cross::Resource &resource);
+        void parseInputResourceMembers(ShaderResourceMember &resource, const spirv_cross::Compiler &spv_compiler, spirv_cross::TypeID type_id);
     private:
         std::vector<std::string> m_macro_definitions;
         std::vector<std::string> m_include_directories;

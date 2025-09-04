@@ -25,7 +25,7 @@ namespace lcf::impl {
             m_stride = other.m_stride;
             return *this;
         }
-        reference operator*() const { return *reinterpret_cast<const pointer>(m_data); }
+        reference operator*() const { return *reinterpret_cast<pointer>(m_data); }
         pointer operator->() const { return reinterpret_cast<const pointer>(m_data); }
         Self &operator++() { m_data += m_stride; return *this; }
         Self operator++(int) { Self tmp(*this); m_data += m_stride; return tmp; }
@@ -39,6 +39,7 @@ namespace lcf::impl {
         reference operator[](difference_type n) const { return *(*this + n); }
         bool operator==(const Self &other) const { return m_data == other.m_data; }
         auto operator<=>(const Self &other) const { return m_data <=> other.m_data; }
+        friend Self operator+(difference_type n, const Self& iter) { return iter + n; }
     private:
         BytePtr m_data = nullptr;
         size_t m_stride = 0;

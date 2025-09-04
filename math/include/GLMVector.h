@@ -12,7 +12,7 @@ namespace lcf {
     public:
         static GLMVector3D crossProduct(const GLMVector3D &lhs, const GLMVector3D &rhs);
         static float dotProduct(const GLMVector3D &lhs, const GLMVector3D &rhs);
-        GLMVector3D() = default;
+        GLMVector3D() : glm::vec3(0.0f, 0.0f, 0.0f) {}
         GLMVector3D(float x, float y, float z);
         GLMVector3D(const glm::vec3 &vec);
         GLMVector3D(const GLMVector4D &vec);
@@ -45,7 +45,7 @@ namespace lcf {
     {
         friend QDebug operator<<(QDebug dbg, const GLMVector4D &vec);
     public:
-        GLMVector4D() = default;
+        GLMVector4D() : glm::vec4(0.0f, 0.0f, 0.0f, 0.0f) {};
         GLMVector4D(float x, float y, float z, float w);
         GLMVector4D(const GLMVector3D &vec, float w);
         GLMVector4D(const glm::vec4 &vec);

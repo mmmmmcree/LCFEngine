@@ -1,7 +1,6 @@
 #pragma once
 
 #include <utility>
-#include "RenderExchangeInfo.h"
 #include "PointerDefs.h"
 
 namespace lcf::render {
@@ -19,8 +18,6 @@ namespace lcf::render {
         virtual bool isValid() const = 0;
         void requireUpdate() { m_need_to_update = true; }
         bool isUpdated() const { return not m_need_to_update; }
-        virtual bool prepareForRender(RenderExchangeInfo * exchange_info) = 0;
-        virtual void finishRender() = 0;
     protected:
         bool m_need_to_update = true;
     };

@@ -13,10 +13,10 @@ if(WIN32)
         WINDOWS_EXPORT_ALL_SYMBOLS ON
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>
         ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/$<CONFIG>
-    )
-endif()
-
-find_package(Qt6 REQUIRED COMPONENTS Gui Widgets)  
+    )    
+endif() 
+  
+find_package(Qt6 REQUIRED COMPONENTS Gui Widgets Core)  
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
@@ -32,4 +32,5 @@ target_link_libraries(${PROJECT_NAME}
     PUBLIC
         Qt::Gui
         Qt::Widgets
+        Qt::Core
 )

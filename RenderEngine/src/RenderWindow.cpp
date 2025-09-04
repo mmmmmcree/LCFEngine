@@ -2,15 +2,9 @@
 #include "VulkanRenderer.h"
 #include <QDebug>
 
-lcf::RenderWindow::RenderWindow(render::Context *context, Window *parent) :
-    Window(parent), 
-    m_context(context)
+lcf::RenderWindow::RenderWindow(Window *parent) :
+    Window(parent)
 {
-    if (context->isCreated()) {
-        qDebug() << "RenderWindow should be constructed before the context is created";
-        return;
-    }
-    context->registerWindow(this);
 }
 
 lcf::RenderWindow::~RenderWindow()
@@ -26,7 +20,9 @@ void lcf::RenderWindow::show()
 
 void lcf::RenderWindow::closeEvent(QCloseEvent *event)
 {
-    m_context->unregisterWindow(this);
+    if (m_render_target) {
+        m_render_target->destroy();
+    }
     Window::closeEvent(event);
 }
 

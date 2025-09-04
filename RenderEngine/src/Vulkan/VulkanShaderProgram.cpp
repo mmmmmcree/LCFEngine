@@ -77,6 +77,9 @@ void lcf::render::VulkanShaderProgram::createDescriptorSetLayoutBindingTable()
     std::vector<ResourceInfo> resource_info_list;
     for (const auto &[stage, shader] : m_stage_to_shader_map) {
         const ShaderResources &resources = shader->getResources();
+        for (const auto &resource : resources.uniform_buffers) {
+            resource_info_list.emplace_back(enum_cast<vk::ShaderStageFlagBits>(stage), vk::DescriptorType::eUniformBuffer, resource);
+        }
         for (const auto &resource : resources.sampled_images) {
             resource_info_list.emplace_back(enum_cast<vk::ShaderStageFlagBits>(stage), vk::DescriptorType::eCombinedImageSampler, resource);
         }
@@ -111,9 +114,12 @@ void lcf::render::VulkanShaderProgram::createDescriptorSetLayoutBindingTable()
 void lcf::render::VulkanShaderProgram::createDescriptorSetLayoutList()
 {
     auto device = m_context->getDevice();
-    for (const auto &descriptor_set_layout_bindings : m_descriptor_set_layout_binding_table) {
+    m_descriptor_set_layout_binding_table[0][0].setDescriptorType(vk::DescriptorType::eUniformBufferDynamic);
+    for (uint32_t set = 0; set < m_descriptor_set_layout_binding_table.size(); ++set) {
+        const auto &descriptor_set_layout_bindings = m_descriptor_set_layout_binding_table[set];
         vk::DescriptorSetLayoutCreateInfo descriptor_set_layout_info;
         descriptor_set_layout_info.setBindings(descriptor_set_layout_bindings);
+            // .setFlags(vk::DescriptorSetLayoutCreateFlagBits::eDescriptorBufferEXT);
         m_descriptor_set_layout_list.emplace_back(device.createDescriptorSetLayout(descriptor_set_layout_info));
     }
 }

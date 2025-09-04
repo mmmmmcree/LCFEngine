@@ -16,6 +16,5 @@ namespace lcf::render {
         virtual bool isCreated() const = 0;
         virtual bool isValid() const = 0;
         virtual void registerWindow(RenderWindow * window) = 0;
-        virtual void unregisterWindow(RenderWindow * window) = 0;
     };
 }

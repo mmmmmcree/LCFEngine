@@ -46,18 +46,20 @@ void lcf::render::vkutils::CopyAssistant::copy(vk::Image src, vk::Image dst, vk:
     m_cmd.blitImage2(blit_info);
 }
 
-void lcf::render::vkutils::immediate_submit(VulkanContext *context, std::function<void(vk::CommandBuffer)> &&submit_func)
+void lcf::render::vkutils::immediate_submit(VulkanContext *context, std::function<void()> &&submit_func)
 {
     auto device = context->getDevice();
     vk::FenceCreateInfo fence_info;
     vk::Fence fence = device.createFence(fence_info);
     vk::CommandBufferAllocateInfo cmd_alloc_info(context->getCommandPool(), vk::CommandBufferLevel::ePrimary, 1);
     vk::CommandBuffer cmd = device.allocateCommandBuffers(cmd_alloc_info).front();
+    context->bindCommandBuffer(cmd);
     vk::CommandBufferBeginInfo cmd_begin_info;
     cmd_begin_info.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
     cmd.begin(cmd_begin_info);
-    submit_func(cmd);
+    submit_func();
     cmd.end();
+    context->releaseCommandBuffer();
     vk::SubmitInfo submit_info;
     submit_info.setCommandBuffers(cmd);
     vk::Queue queue = context->getQueue(vk::QueueFlagBits::eGraphics);

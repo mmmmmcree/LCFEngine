@@ -12,7 +12,7 @@ namespace lcf {
         using Self = ShaderResourceMember;
     public:
         using MemberList = std::vector<ShaderResourceMember>;
-        Self & setBaseDataType(uint32_t base_type) { m_base_type = base_type; return *this; }
+        Self & setBaseDataType(ShaderDataType base_type) { m_base_type = base_type; return *this; }
         Self & setWidth(uint32_t width) { m_width = width; return *this; }
         Self & setVecSize(uint32_t vecsize) { m_vecsize = vecsize; return *this; }
         Self & setColumns(uint32_t columns) { m_columns = columns; return *this; }
@@ -20,7 +20,7 @@ namespace lcf {
         Self & setArraySize(uint32_t array_size) { m_array_size = std::max(1u, array_size); return *this; }
         Self & addMember(const ShaderResourceMember &member) { m_members.emplace_back(member); return *this; }
         Self & setSizeInBytes(uint32_t size) { m_size = size; return *this; }
-        uint32_t getBaseDataType() const { return m_base_type; }
+        ShaderDataType getBaseDataType() const { return m_base_type; }
         uint32_t getWidth() const { return m_width; }
         uint32_t getVecSize() const { return m_vecsize; }
         uint32_t getColumns() const { return m_columns; }
@@ -31,7 +31,7 @@ namespace lcf {
         const MemberList & getMembers() const { return m_members; }
         std::string toString() const;
     private:
-        uint32_t m_base_type = 0;
+        ShaderDataType m_base_type = ShaderDataType::Unknown;
         uint32_t m_width = 0;
         uint32_t m_vecsize = 1;
         uint32_t m_columns = 1;

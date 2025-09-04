@@ -13,7 +13,7 @@ std::string lcf::ShaderResourceMember::toString() const
         "  array_size: {}\n"
         "  offset: {}\n"
         "  size: {}",
-        m_base_type, m_width, m_vecsize, m_columns, m_array_size, m_offset, m_size);
+        static_cast<int>(m_base_type), m_width, m_vecsize, m_columns, m_array_size, m_offset, m_size);
     for (int i = 0; i < m_members.size(); ++i) {
         const auto &member = m_members[i];
         std::string member_str = "member[" + std::to_string(i) + "]\n" + member.toString();

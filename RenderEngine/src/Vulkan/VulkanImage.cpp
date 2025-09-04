@@ -49,19 +49,21 @@ void lcf::render::VulkanImage::setData(const Image &image)
     VulkanBuffer staging_buffer(m_context);
     staging_buffer.setUsageFlags(vk::BufferUsageFlagBits::eTransferSrc);
     staging_buffer.setData(image.getData(), image.getSizeInBytes());
-    vkutils::immediate_submit(m_context, [&](vk::CommandBuffer cmd) {
+    vkutils::immediate_submit(m_context, [&] {
+        auto cmd = m_context->getCurrentCommandBuffer();
         vk::BufferImageCopy region;
         region.setImageSubresource({ this->getAspectFlags(), 0, 0, 1 })
         .setImageOffset({ 0, 0, 0 })
         .setImageExtent(m_extent);
-        this->transitLayout(cmd, vk::ImageLayout::eTransferDstOptimal);
+        this->transitLayout(vk::ImageLayout::eTransferDstOptimal);
         cmd.copyBufferToImage(staging_buffer.getHandle(), m_image.get(), vk::ImageLayout::eTransferDstOptimal, region);
-        this->transitLayout(cmd, vk::ImageLayout::eShaderReadOnlyOptimal);
+        this->transitLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
     });
 }
 
-void lcf::render::VulkanImage::transitLayout(vk::CommandBuffer cmd, vk::ImageLayout new_layout)
+void lcf::render::VulkanImage::transitLayout(vk::ImageLayout new_layout)
 {
+    auto cmd = m_context->getCurrentCommandBuffer();
     vk::ImageMemoryBarrier2 barrier;
     barrier.setImage(m_image.get())
         .setOldLayout(m_layout)

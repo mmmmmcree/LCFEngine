@@ -15,6 +15,7 @@ namespace lcf {
         virtual bool link();
         bool isLinked() const { return m_is_linked; }
         bool containsStage(ShaderTypeFlagBits stage) const { return m_stage_to_shader_map.contains(stage); }
+        Shader * getShader(ShaderTypeFlagBits stage) const;
     protected:
         void addShader(const Shader::SharedPointer & shader);
     protected:

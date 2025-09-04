@@ -1,21 +1,20 @@
 #version 450
 #extension GL_EXT_buffer_reference : require
 
-#if defined (VULKAN_SHADER)
+layout(location = 0) in vec3 position;
+layout(location = 1) in vec3 normal;
+layout(location = 2) in vec2 uv;
 
-struct Vertex {
-	vec3 position;
-	vec3 normal;
-	vec2 uv;
-}; 
-
-layout(buffer_reference, std430) readonly buffer VertexBuffer { 
-	Vertex vertices[];
+layout(set = 0, binding = 0) uniform global_uniform_buffer {
+    // mat4 view;
+    // mat4 projection;
+    mat4 projection_view;
 };
+
+#if defined (VULKAN_SHADER)
 
 layout(push_constant) uniform vs_push_constant {
     mat4 model;
-    VertexBuffer vertex_buffer;
 };
 
 #elif defined (OPENGL_SHADER)
@@ -30,8 +29,7 @@ layout(location = 0) out VS_OUT {
 
 void main()
 {
-    Vertex vertex = vertex_buffer.vertices[gl_VertexIndex];
-    vs_out.color = vertex.normal;
-    vs_out.uv = vertex.uv;
-    gl_Position = model * vec4(vertex.position, 1.0) ;
+    vs_out.color = normal;
+    vs_out.uv = uv;
+    gl_Position = projection_view * model * vec4(position, 1.0) ;
 }

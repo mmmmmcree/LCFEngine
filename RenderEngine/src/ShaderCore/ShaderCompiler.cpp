@@ -53,11 +53,10 @@ lcf::ShaderResources lcf::ShaderCompiler::analyzeSpvCode(const SpvCode &spv_code
     spirv_cross::Compiler spv_compiler(spv_code);
     spirv_cross::ShaderResources resources = spv_compiler.get_shader_resources();
     ShaderResources result;
-    // for (const auto &resources : resources.stage_inputs) {
-    //     ShaderResource shader_resource = this->parseResource(spv_compiler, resources);
-    //     result.stage_inputs[shader_resource.getLocation()] = std::move(shader_resource);
-    // }
-    //! currently ,the parsing process of stage inputs and outputs is not implemented, if you parse them, the program will crash;
+    for (const auto &resources : resources.stage_inputs) {
+        result.stage_inputs.emplace_back(this->parseInputResource(spv_compiler, resources));
+    }
+    std::ranges::sort(result.stage_inputs, [](const auto &a, const auto &b) { return a.getLocation() < b.getLocation(); });
     for (const auto &resources : resources.uniform_buffers) {
         result.uniform_buffers.emplace_back(this->parseResource(spv_compiler, resources));
     }
@@ -93,7 +92,7 @@ lcf::ShaderResource lcf::ShaderCompiler::parseResource(const spirv_cross::Compil
 void lcf::ShaderCompiler::parseResourceMembers(ShaderResourceMember &resource, const spirv_cross::Compiler &spv_compiler, spirv_cross::TypeID type_id)
 {
     const auto &type = spv_compiler.get_type(type_id);
-    resource.setBaseDataType(type.basetype)
+    resource.setBaseDataType(enum_cast<ShaderDataType>(type.basetype))
         .setWidth(type.width)
         .setColumns(type.columns)
         .setVecSize(type.vecsize)
@@ -110,4 +109,33 @@ void lcf::ShaderCompiler::parseResourceMembers(ShaderResourceMember &resource, c
         this->parseResourceMembers(member, spv_compiler, type.member_types[i]);
         resource.addMember(member);
     }
+}
+
+lcf::ShaderResource lcf::ShaderCompiler::parseInputResource(const spirv_cross::Compiler &spv_compiler, const spirv_cross::Resource &resource)
+{
+    ShaderResource result;
+    result.setName(spv_compiler.get_name(resource.base_type_id))
+        .setLocation(spv_compiler.get_decoration(resource.id, spv::DecorationLocation))
+        .setBinding(spv_compiler.get_decoration(resource.id, spv::DecorationBinding));
+    this->parseInputResourceMembers(result, spv_compiler, resource.type_id);
+    return result;
+}
+
+void lcf::ShaderCompiler::parseInputResourceMembers(ShaderResourceMember &resource, const spirv_cross::Compiler &spv_compiler, spirv_cross::TypeID type_id)
+{
+    const auto &type = spv_compiler.get_type(type_id);
+    resource.setBaseDataType(enum_cast<ShaderDataType>(type.basetype))
+        .setWidth(type.width)
+        .setColumns(type.columns)
+        .setVecSize(type.vecsize)
+        .setArraySize(type.array.size());
+    uint32_t size = resource.getWidth() / 8u * resource.getVecSize() * resource.getColumns() * resource.getArraySize();
+    for (int i = 0; i < type.member_types.size(); ++i) {
+        ShaderResource member;
+        this->parseInputResourceMembers(member, spv_compiler, type.member_types[i]);
+        member.setOffset(size);
+        resource.addMember(member);
+        size += member.getSizeInBytes();
+    }
+    resource.setSizeInBytes(size);
 }

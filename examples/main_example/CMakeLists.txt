@@ -5,6 +5,7 @@ add_executable(main_example main.cpp)
 target_link_libraries(main_example
     PRIVATE
         RenderEngine
+        Modules
 )
 
 add_custom_command(TARGET main_example POST_BUILD
