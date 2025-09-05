@@ -1,6 +1,7 @@
 #include "GLMQuaternion.h"
 #include "GLMVector.h"
 #include "GLMMatrix.h"
+#include <format>
 
 
 lcf::GLMQuaternion lcf::GLMQuaternion::fromAxisAndAngle(const GLMVector3D &axis, float angle_deg)
@@ -171,8 +172,7 @@ void lcf::GLMQuaternion::getAxisAndAngle(float *x, float *y, float *z, float *an
     }
 }
 
-QDebug lcf::operator<<(QDebug debug, const GLMQuaternion &quaternion)
+std::string lcf::to_string(const GLMQuaternion &quat)
 {
-    debug.nospace() << "GLMQuaternion(" << quaternion.x << ", " << quaternion.y << ", " << quaternion.z << ", " << quaternion.w << ")";
-    return debug.space();
+    return std::format("GLMQuaternion({}, {}, {}, {})", quat.getX(), quat.getY(), quat.getZ(), quat.getScalar());
 }

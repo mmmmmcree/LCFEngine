@@ -18,7 +18,6 @@ namespace lcf::render {
         bool isValid() const override { return m_surface and m_swapchain.get(); }
         uint32_t getWidth() const override { return m_surface_capabilities.currentExtent.width; }
         uint32_t getHeight() const override { return m_surface_capabilities.currentExtent.height; }
-        // bool prepareForRender(RenderExchangeInfo * exchange_info) override;
         bool prepareForRender();
         vk::Image getTargetImage() const { return m_swapchain_resources_list[m_image_index].image; }
         vk::Semaphore getTargetAvailableSemaphore() const { return m_swapchain_resources_list[m_target_available_index].target_available.get(); }
@@ -26,7 +25,7 @@ namespace lcf::render {
         void finishRender(vk::Semaphore present_ready);
         void present();
         vk::SwapchainKHR getHandle() const { return m_swapchain.get(); }
-        vk::SurfaceKHR getSurface() const { return m_surface.get(); }
+        vk::SurfaceKHR getSurface() const { return m_surface; }
         vk::Extent2D getExtent() const { return m_surface_capabilities.currentExtent; }
     private:
         void acquireAvailableTarget();
@@ -34,8 +33,7 @@ namespace lcf::render {
         inline static constexpr uint32_t SWAPCHAIN_BUFFER_COUNT = 4;
         VulkanContext * m_context = nullptr;
         vk::UniqueSwapchainKHR m_swapchain;
-        // vk::SurfaceKHR m_surface;
-        vk::UniqueSurfaceKHR m_surface;
+        vk::SurfaceKHR m_surface;
         vk::SurfaceFormatKHR m_surface_format;
         vk::PresentModeKHR  m_present_mode;
         vk::SurfaceCapabilitiesKHR m_surface_capabilities;

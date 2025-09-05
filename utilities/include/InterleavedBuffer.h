@@ -1,8 +1,7 @@
 #pragma once
 
 #include "StrideIterator.h"
-#include "concepts/type_alignment_info_concept.h"
-#include "type_traits/AlignmentInfoOf.h"
+#include "concepts/alignment_concept.h"
 #include <vector>
 #include <span>
 #include <ranges>
@@ -36,10 +35,10 @@ namespace lcf {
             m_offsets.emplace_back(size_in_bytes);
             return *this;
         }
-        template <type_alignment_info_c TypeAlignmentInfo>
+        template <alignment_c TypeAlignmentInfo>
         InterleavedBuffer & addField()
         {
-            return this->addField(TypeAlignmentInfo::s_type_size, TypeAlignmentInfo::s_value);
+            return this->addField(TypeAlignmentInfo::s_type_size, TypeAlignmentInfo::s_alignment);
         }
         void create(size_t size)
         {

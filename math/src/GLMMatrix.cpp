@@ -1,4 +1,5 @@
 #include "GLMMatrix.h"
+#include <format>
 
 lcf::GLMMatrix4x4::GLMMatrix4x4() :
     glm::mat4(1.0f)
@@ -297,14 +298,12 @@ lcf::GLMVector4D lcf::GLMMatrix4x4::row(int index) const
     return GLMVector4D(this->operator[](0)[index], this->operator[](1)[index], this->operator[](2)[index], this->operator[](3)[index]);
 }
 
-QDebug lcf::operator<<(QDebug debug, const GLMMatrix4x4 &mat)
+std::string lcf::to_string(const GLMMatrix4x4 &mat)
 {
-    debug.nospace() << "GLMTransformMatrix(type:" << '\n'
-        << qSetFieldWidth(10)
-        << mat[0][0] << mat[1][0] << mat[2][0] << mat[3][0] << '\n'
-        << mat[0][1] << mat[1][1] << mat[2][1] << mat[3][1] << '\n'
-        << mat[0][2] << mat[1][2] << mat[2][2] << mat[3][2] << '\n'
-        << mat[0][3] << mat[1][3] << mat[2][3] << mat[3][3] << '\n'
-        << qSetFieldWidth(0) << ')';
-    return debug.space();
+    return std::format("GLMTransformMatrix({:.4f}, {:.4f}, {:.4f}, {:.4f}\n, {:.4f}, {:.4f}, {:.4f}, {:.4f}\n, {:.4f}, {:.4f}, {:.4f}, {:.4f}\n, {:.4f}, {:.4f})", 
+        mat[0][0], mat[1][0], mat[2][0], mat[3][0],
+        mat[0][1], mat[1][1], mat[2][1], mat[3][1],
+        mat[0][2], mat[1][2], mat[2][2], mat[3][2],
+        mat[0][3], mat[1][3], mat[2][3], mat[3][3]
+    );
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "glm.h"
+#include <string>
 
 namespace lcf {
     class GLMVector3D;
@@ -9,7 +10,6 @@ namespace lcf {
     class GLMMatrix4x4;
     class GLMQuaternion : public glm::quat
     {
-        friend QDebug operator<<(QDebug debug, const GLMQuaternion &quaternion);
     public:
         static GLMQuaternion fromAxisAndAngle(const GLMVector3D &axis, float angle_deg);
         static GLMQuaternion fromAxisAndAngle(float x, float y, float z, float angle_deg);
@@ -44,4 +44,6 @@ namespace lcf {
         GLMMatrix4x4 toMatrix4x4() const;
         void getAxisAndAngle(float *x, float *y, float *z, float *angle_deg);
     };
+
+    std::string to_string(const GLMQuaternion& quat);
 }
