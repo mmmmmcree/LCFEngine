@@ -1,0 +1,48 @@
+{
+  "name": "lcf-engine",
+  "version": "1.0.0",
+  "description": "LCF Engine - A C++ game engine with Vulkan rendering support",
+  "dependencies": [
+    "boost-headers",
+    "boost-align",
+    "boost-container",
+    {  
+      "name": "glm",
+      "version>=": "1.0.1#3"
+    },
+    {
+      "name": "qtbase",
+      "default-features": false,
+      "features": ["gui", "widgets", "vulkan"]
+    },
+    {
+      "name": "qttools",
+      "default-features": false,
+      "features": []
+    },
+    {
+      "name": "stb",
+      "version>=": "2024-07-29#1"
+    },
+    {
+      "name": "magic-enum",
+      "version>=": "0.9.7"
+    },
+    {
+      "name": "entt",
+      "version>=": "3.15.0"
+    },
+    {
+      "name": "shaderc",
+      "version>=": "2025.2"
+    },
+    {
+      "name": "spirv-cross",
+      "version>=": "1.4.309.0"
+    }, 
+    {
+      "name": "vulkan-memory-allocator",
+      "version>=": "3.3.0"
+    }
+  ]
+}

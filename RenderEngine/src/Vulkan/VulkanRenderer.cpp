@@ -250,16 +250,10 @@ void lcf::VulkanRenderer::create()
         {0.0f, 0.0f},
     };
 
-    // InterleavedBuffer vertex_data(std::size(cube_positions), { sizeof(Vector3D), sizeof(Vector3D), sizeof(Vector2D) });
-    // vertex_data.setPlainData(0, cube_positions);
-    // vertex_data.setPlainData(1, cube_colors);
-    // vertex_data.setPlainData(2, cube_uvs);
     InterleavedBuffer vertex_data;
-    // vertex_data.addFields({sizeof(Vector3D), sizeof(Vector3D), sizeof(Vector2D)})
-    //     .create(std::size(cube_positions));
-    vertex_data.addField<STDAlignmentInfoOf<Vector3D>>()
-        .addField<STDAlignmentInfoOf<Vector3D>>()
-        .addField<STDAlignmentInfoOf<Vector2D>>()
+    vertex_data.addField<std_alignment_traits<Vector3D>>()
+        .addField<std_alignment_traits<Vector3D>>()
+        .addField<std_alignment_traits<Vector2D>>()
         .create(std::size(cube_positions));
     vertex_data.setData(0, std::span(cube_positions));
     vertex_data.setData(1, std::span(cube_colors));

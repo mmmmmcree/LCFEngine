@@ -4,12 +4,13 @@
 #include "glm.h"
 #include "GLMVector.h"
 #include "GLMQuaternion.h"
+#include <string>
 
 namespace lcf {
     using GLMMatrix3x3 = glm::mat3;
+    
     class GLMMatrix4x4 : public glm::mat4
     {
-        friend QDebug operator<<(QDebug debug, const GLMMatrix4x4 &mat);
     public:
         GLMMatrix4x4();
         GLMMatrix4x4(const GLMMatrix4x4 &mat) = default;
@@ -68,4 +69,6 @@ namespace lcf {
         void setRow(int index, const GLMVector4D &row);
         GLMVector4D row(int index) const;
     };
+
+    std::string to_string(const GLMMatrix4x4 &mat);
 }

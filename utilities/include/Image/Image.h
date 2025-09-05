@@ -1,12 +1,11 @@
 #pragma once
-#include <QString>
+#include <string_view>
 
 namespace lcf {
     class Image
     {
     public:
-        Image(const char *filename, int requested_channels = 0, bool flip_y = false);
-        Image(const QString &filename, int requested_channels = 0, bool flip_y = false);
+        Image(std::string_view file_path, int requested_channels = 0, bool flip_y = false);
         ~Image();
         operator bool() const;
         const void *getData() const;

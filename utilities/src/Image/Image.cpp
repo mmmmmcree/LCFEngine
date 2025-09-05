@@ -1,31 +1,26 @@
 #include "Image.h"
+#include <filesystem>
+#include <iostream>
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image.h>
 #include <stb_image_write.h>
-#include <QFileInfo>
  
 
-lcf::Image::Image(const char *filename, int requested_channels, bool flip_y)
+lcf::Image::Image(std::string_view file_path, int requested_channels, bool flip_y)
 {
-    QFileInfo file_info(filename);
-    if (not file_info.exists()) {
-        qDebug() << "lcf::Image: file not found: " << filename;
+    if (not std::filesystem::exists(file_path)) {
+        std::cerr << "lcf::Image: file not found: " << file_path << std::endl;
         return;
     }
     stbi_set_flip_vertically_on_load(flip_y);
-    if (stbi_is_hdr(filename)) {
-        m_data = stbi_loadf(filename, &m_width, &m_height, &m_channels, requested_channels);
+    if (stbi_is_hdr(file_path.data())) {
+        m_data = stbi_loadf(file_path.data(), &m_width, &m_height, &m_channels, requested_channels);
     } else {
-        m_data = stbi_load(filename, &m_width, &m_height, &m_channels, requested_channels);
+        m_data = stbi_load(file_path.data(), &m_width, &m_height, &m_channels, requested_channels);
     }
     stbi_set_flip_vertically_on_load(false);
     m_channels = std::max(m_channels, requested_channels);
-}
-
-lcf::Image::Image(const QString &filename, int requested_channels, bool flip_y) :
-    Image(filename.toLocal8Bit().constData(), requested_channels, flip_y)
-{
 }
 
 lcf::Image::~Image()

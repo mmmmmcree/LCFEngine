@@ -1,14 +1,22 @@
 #pragma once
 
 #include "glm.h"
+#include <string>
 
 namespace lcf {
     class GLMVector3D;
     class GLMVector4D;
+    class GLMVector2D;
+
+    class GLMVector2D : public glm::vec2
+    {
+    public:
+        GLMVector2D() : glm::vec2(0.0f, 0.0f) {}
+        GLMVector2D(float x, float y) : glm::vec2(x, y) {}
+    };
 
     class GLMVector3D : public glm::vec3
     {
-        friend QDebug operator<<(QDebug dbg, const GLMVector3D &vec);
     public:
         static GLMVector3D crossProduct(const GLMVector3D &lhs, const GLMVector3D &rhs);
         static float dotProduct(const GLMVector3D &lhs, const GLMVector3D &rhs);
@@ -43,7 +51,6 @@ namespace lcf {
 
     class GLMVector4D : public glm::vec4
     {
-        friend QDebug operator<<(QDebug dbg, const GLMVector4D &vec);
     public:
         GLMVector4D() : glm::vec4(0.0f, 0.0f, 0.0f, 0.0f) {};
         GLMVector4D(float x, float y, float z, float w);
@@ -64,4 +71,8 @@ namespace lcf {
         GLMVector4D normalized() const;
         bool isNull() const;
     };
+
+    std::string to_string(const GLMVector3D &vec);
+
+    std::string to_string(const GLMVector4D &vec);
 }

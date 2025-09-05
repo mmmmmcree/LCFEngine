@@ -29,7 +29,6 @@ include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/include 
   ${DIRS_ONLY}
 )     
- 
 
 target_include_directories(${PROJECT_NAME}
     PUBLIC
@@ -47,7 +46,7 @@ target_link_libraries(${PROJECT_NAME}
         utilities 
         WindowSystem 
         core
-        Boost::boost  
+        Boost::headers  
     PRIVATE
         ${Vulkan_LIBRARY}/vulkan-1.lib
         unofficial::shaderc::shaderc

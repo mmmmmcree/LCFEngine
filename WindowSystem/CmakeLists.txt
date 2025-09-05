@@ -30,7 +30,7 @@ target_include_directories(${PROJECT_NAME}
  
 target_link_libraries(${PROJECT_NAME} 
     PUBLIC
-        Qt::Gui
-        Qt::Widgets
-        Qt::Core
+        Qt6::Gui
+        Qt6::Widgets
+        Qt6::Core
 )

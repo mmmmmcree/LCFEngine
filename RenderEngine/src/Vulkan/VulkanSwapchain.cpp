@@ -6,8 +6,8 @@ lcf::render::VulkanSwapchain::VulkanSwapchain(VulkanContext *context, vk::Surfac
     m_context(context)
 {
     vk::Instance instance = context->getInstance();
-    m_surface = vk::UniqueSurfaceKHR(surface, vk::ObjectDestroy<vk::Instance, vk::DispatchLoaderStatic>(instance));
-    // m_surface = vk::UniqueSurfaceKHR(surface, vk::ObjectDestroy<vk::Instance, vk::DispatchLoaderDynamic>(instance));
+    // m_surface = vk::UniqueSurfaceKHR(surface, vk::ObjectDestroy<vk::Instance, vk::DispatchLoaderStatic>(instance));
+    m_surface = surface;
 }
 
 lcf::render::VulkanSwapchain::~VulkanSwapchain()
@@ -19,9 +19,9 @@ void lcf::render::VulkanSwapchain::create()
 {
     if (this->isCreated()) { return; }
     vk::PhysicalDevice physical_device = m_context->getPhysicalDevice();
-    auto surface_formats = physical_device.getSurfaceFormatsKHR(m_surface.get());
-    auto present_modes = physical_device.getSurfacePresentModesKHR(m_surface.get());
-    vk::SurfaceCapabilitiesKHR surface_capabilities = physical_device.getSurfaceCapabilitiesKHR(m_surface.get());
+    auto surface_formats = physical_device.getSurfaceFormatsKHR(m_surface);
+    auto present_modes = physical_device.getSurfacePresentModesKHR(m_surface);
+    vk::SurfaceCapabilitiesKHR surface_capabilities = physical_device.getSurfaceCapabilitiesKHR(m_surface);
     
     vk::SurfaceFormatKHR best_surface_format = surface_formats.front();
     vk::PresentModeKHR best_present_mode = vk::PresentModeKHR::eFifo;
@@ -50,7 +50,7 @@ void lcf::render::VulkanSwapchain::recreate()
 {
     vk::Device device = m_context->getDevice();
     vk::SwapchainCreateInfoKHR swapchain_info;
-    swapchain_info.setSurface(m_surface.get())
+    swapchain_info.setSurface(m_surface)
         .setMinImageCount(m_swapchain_resources_list.size())
         .setImageFormat(m_surface_format.format)
         .setImageColorSpace(m_surface_format.colorSpace)
@@ -95,14 +95,16 @@ void lcf::render::VulkanSwapchain::recreate()
 void lcf::render::VulkanSwapchain::destroy()
 {
     m_swapchain.reset();
-    m_surface.reset();
+    auto instance = m_context->getInstance();
+    instance.destroySurfaceKHR(m_surface);
+    m_surface = nullptr;
 }
 
 bool lcf::render::VulkanSwapchain::prepareForRender()
 {
     if (not m_surface) { return false; }
     auto physical_device = m_context->getPhysicalDevice();
-    m_surface_capabilities = physical_device.getSurfaceCapabilitiesKHR(m_surface.get());
+    m_surface_capabilities = physical_device.getSurfaceCapabilitiesKHR(m_surface);
     if (this->getWidth() == 0 or this->getHeight() == 0) { return false; }
     if (m_need_to_update) { this->recreate(); }
     this->acquireAvailableTarget();

@@ -17,7 +17,6 @@ if(WIN32)
 endif()
 
 find_package(Stb REQUIRED)
-find_package(Qt6 REQUIRED COMPONENTS Core) 
 find_package(Boost REQUIRED)
 find_package(magic_enum CONFIG REQUIRED)
 
@@ -47,5 +46,4 @@ target_link_libraries(${PROJECT_NAME}
       magic_enum::magic_enum
       Boost::headers 
     PRIVATE
-      Qt6::Core
 )

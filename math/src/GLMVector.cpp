@@ -1,4 +1,5 @@
 #include "GLMVector.h"
+#include <format>
 
 lcf::GLMVector3D lcf::GLMVector3D::crossProduct(const GLMVector3D &lhs, const GLMVector3D &rhs)
 {
@@ -226,14 +227,12 @@ bool lcf::GLMVector4D::isNull() const
     return this->x == 0.0f and this->y == 0.0f and this->z == 0.0f and this->w == 0.0f;
 }
 
-QDebug lcf::operator<<(QDebug dbg, const GLMVector3D &vec)
+std::string lcf::to_string(const GLMVector3D &vec)
 {
-    dbg.nospace() << "GLMVector3D(" << vec.x << ", " << vec.y << ", " << vec.z << ", " << ")";
-    return dbg.space();
+    return std::format("GLMVector3D({}, {}, {})", vec.x, vec.y, vec.z);
 }
 
-QDebug lcf::operator<<(QDebug dbg, const GLMVector4D &vec)
+std::string lcf::to_string(const GLMVector4D &vec)
 {
-    dbg.nospace() << "GLMVector4D(" << vec.x << ", " << vec.y << ", " << vec.z << ", " << vec.w << ", " << ")";
-    return dbg.space();
+    return std::format("GLMVector4D({}, {}, {}, {})", vec.x, vec.y, vec.z, vec.w);
 }
