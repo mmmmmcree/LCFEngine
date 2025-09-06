@@ -1,7 +1,7 @@
 #include "VulkanDescriptorWriter.h"
 
 lcf::render::VulkanDescriptorWriter::VulkanDescriptorWriter(VulkanContext *context, const DescriptorSetLayoutBindingTable &binding_table, const DescriptorSetList &descriptor_sets) :
-    m_context(context),
+    m_context_p(context),
     m_binding_table(binding_table),
     m_descriptor_sets(descriptor_sets)
 {
@@ -45,6 +45,6 @@ lcf::render::VulkanDescriptorWriter &lcf::render::VulkanDescriptorWriter::add(ui
 
 void lcf::render::VulkanDescriptorWriter::write()
 {
-    auto device = m_context->getDevice();
+    auto device = m_context_p->getDevice();
     device.updateDescriptorSets(m_write_descriptor_sets, nullptr); //todo: replace nullptr with descriptorCopies
 }

@@ -10,6 +10,7 @@
 #include "VulkanFramebuffer.h"
 #include "Entity.h"
 #include "VulkanTimelineSemaphore.h"
+#include "VulkanCommandBuffer.h"
 
 namespace lcf {
     using namespace lcf::render;
@@ -22,23 +23,20 @@ namespace lcf {
         void setRenderTarget(const RenderTarget::SharedPointer & render_target);
         void setCamera(const Entity & camera_entity);
         void create();
-        // bool isValid() const override { return m_context and m_context->isValid() and m_render_target and m_render_target->isValid(); }
+        // bool isValid() const override { return m_context_p and m_context_p->isValid() and m_render_target and m_render_target->isValid(); }
         void render();
     private:
-        VulkanContext * m_context;
+        VulkanContext * m_context_p;
         VulkanSwapchain::WeakPointer m_render_target;
         struct FrameResources
         {
             FrameResources() = default;
             vk::UniqueSemaphore render_finished;
-            vk::CommandBuffer command_buffer;
+            VulkanCommandBuffer command_buffer;
             VulkanDescriptorManager descriptor_manager;
             // temporary
             VulkanFramebuffer::UniquePointer framebuffer;
-            bool is_render_initiated = true;
-            VulkanTimelineSemaphore::UniquePointer timeline_semaphore;
         };
-        // VulkanStaticMultiBuffer::UniquePointer m_global_uniform_buffer;
         VulkanTimelineBuffer::UniquePointer m_global_uniform_buffer;
         std::vector<FrameResources> m_frame_resources;
         uint32_t m_current_frame_index = 0;

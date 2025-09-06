@@ -43,7 +43,7 @@ namespace lcf::render {
         void beginRendering();
         void endRendering() const;
     private:
-        VulkanContext * m_context;
+        VulkanContext * m_context_p;
         vk::Extent2D m_extent = {};
         vk::SampleCountFlagBits m_sample_count = vk::SampleCountFlagBits::e1;
         vk::Format m_color_format = vk::Format::eR8G8B8A8Srgb;

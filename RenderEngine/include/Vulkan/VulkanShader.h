@@ -18,7 +18,7 @@ namespace lcf::render {
 		virtual bool isCompiled() const override;
 		vk::PipelineShaderStageCreateInfo getShaderStageInfo() const;
 	private:
-		VulkanContext * m_context = nullptr;
+		VulkanContext * m_context_p = nullptr;
 		vk::UniqueShaderModule m_module;
 		std::vector<vk::DescriptorSetLayout> m_descriptor_set_layout_list;
 	};

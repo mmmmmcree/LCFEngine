@@ -4,7 +4,7 @@
 #include "vulkan_utililtie.h"
 
 lcf::render::VulkanImage::VulkanImage(VulkanContext * context) :
-    m_context(context)
+    m_context_p(context)
 {
 }
 
@@ -22,7 +22,7 @@ void lcf::render::VulkanImage::create()
         .setUsage(m_usage)
         .setInitialLayout(m_layout)
         .setSharingMode(vk::SharingMode::eExclusive);
-    m_image = m_context->getMemoryAllocator()->createImage(image_info);
+    m_image = m_context_p->getMemoryAllocator()->createImage(image_info);
 }
 
 void lcf::render::VulkanImage::create(const vk::ImageCreateInfo &info)
@@ -36,7 +36,7 @@ void lcf::render::VulkanImage::create(const vk::ImageCreateInfo &info)
     m_tiling = info.tiling;
     m_usage = info.usage;
     m_layout = info.initialLayout;
-    m_image = m_context->getMemoryAllocator()->createImage(info);
+    m_image = m_context_p->getMemoryAllocator()->createImage(info);
 }
 
 void lcf::render::VulkanImage::setData(const Image &image)
@@ -46,11 +46,11 @@ void lcf::render::VulkanImage::setData(const Image &image)
     m_usage |= vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
     this->create();
     
-    VulkanBuffer staging_buffer(m_context);
+    VulkanBuffer staging_buffer(m_context_p);
     staging_buffer.setUsageFlags(vk::BufferUsageFlagBits::eTransferSrc);
     staging_buffer.setData(image.getData(), image.getSizeInBytes());
-    vkutils::immediate_submit(m_context, [&] {
-        auto cmd = m_context->getCurrentCommandBuffer();
+    vkutils::immediate_submit(m_context_p, [&] {
+        auto cmd = m_context_p->getCurrentCommandBuffer();
         vk::BufferImageCopy region;
         region.setImageSubresource({ this->getAspectFlags(), 0, 0, 1 })
         .setImageOffset({ 0, 0, 0 })
@@ -63,7 +63,7 @@ void lcf::render::VulkanImage::setData(const Image &image)
 
 void lcf::render::VulkanImage::transitLayout(vk::ImageLayout new_layout)
 {
-    auto cmd = m_context->getCurrentCommandBuffer();
+    auto cmd = m_context_p->getCurrentCommandBuffer();
     vk::ImageMemoryBarrier2 barrier;
     barrier.setImage(m_image.get())
         .setOldLayout(m_layout)
@@ -98,7 +98,7 @@ vk::UniqueImageView lcf::render::VulkanImage::generateView(const vk::ImageSubres
         .setViewType(this->deduceImageViewType())
         .setFormat(m_format)
         .setSubresourceRange(subresource_range);
-    return m_context->getDevice().createImageViewUnique(view_info);
+    return m_context_p->getDevice().createImageViewUnique(view_info);
 }
 
 vk::ImageView lcf::render::VulkanImage::getDefaultView() const

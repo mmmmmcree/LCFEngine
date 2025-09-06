@@ -2,13 +2,13 @@
 #include "VulkanContext.h"
 
 lcf::render::VulkanFramebuffer::VulkanFramebuffer(VulkanContext *context) :
-    m_context(context)
+    m_context_p(context)
 {
 }
 
 lcf::render::VulkanFramebuffer & lcf::render::VulkanFramebuffer::addColorAttachment2D()
 {
-    VulkanImage::UniquePointer color_image = VulkanImage::makeUnique(m_context);
+    VulkanImage::UniquePointer color_image = VulkanImage::makeUnique(m_context_p);
     color_image->setImageType(vk::ImageType::e2D);
     m_color_attachments.emplace_back(std::make_pair(std::move(color_image), nullptr));
     return *this;
@@ -17,7 +17,7 @@ lcf::render::VulkanFramebuffer & lcf::render::VulkanFramebuffer::addColorAttachm
 lcf::render::VulkanFramebuffer & lcf::render::VulkanFramebuffer::setDepthStencilAttachmentFormat(vk::Format depth_stencil_format)
 {
     m_depth_stencil_attachment = DepthStencilAttachment{};
-    m_depth_stencil_attachment->depth_stencil_image = VulkanImage::makeUnique(m_context);
+    m_depth_stencil_attachment->depth_stencil_image = VulkanImage::makeUnique(m_context_p);
     m_depth_stencil_attachment->depth_stencil_image->setImageType(vk::ImageType::e2D)
         .setFormat(depth_stencil_format);
     return *this;
@@ -44,7 +44,7 @@ bool lcf::render::VulkanFramebuffer::create()
         depth_view = depth_stencil_image->getDefaultView(); //todo add method VulkanImage::getView(vk::ImageSubresourceRange), return nullptr if the format is not supported
     }
     if (m_sample_count > vk::SampleCountFlagBits::e1) {
-        VulkanImage::UniquePointer msaa_color_image = VulkanImage::makeUnique(m_context);
+        VulkanImage::UniquePointer msaa_color_image = VulkanImage::makeUnique(m_context_p);
         msaa_color_image->setImageType(vk::ImageType::e2D)
             .setUsage(vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eColorAttachment)
             .setFormat(m_color_format)
@@ -61,7 +61,7 @@ bool lcf::render::VulkanFramebuffer::create()
 
 void lcf::render::VulkanFramebuffer::beginRendering()
 {
-    auto cmd = m_context->getCurrentCommandBuffer();
+    auto cmd = m_context_p->getCurrentCommandBuffer();
     std::vector<vk::RenderingAttachmentInfo> color_attachment_infos(m_color_attachments.size());
     for (uint32_t i = 0; i < m_color_attachments.size(); ++i) {
         auto & [color_image, color_image_view] = m_color_attachments[i];
@@ -99,6 +99,6 @@ void lcf::render::VulkanFramebuffer::beginRendering()
 
 void lcf::render::VulkanFramebuffer::endRendering() const
 {
-    auto cmd = m_context->getCurrentCommandBuffer();
+    auto cmd = m_context_p->getCurrentCommandBuffer();
     cmd.endRendering();
 }

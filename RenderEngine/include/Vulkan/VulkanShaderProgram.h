@@ -34,7 +34,7 @@ namespace lcf::render {
         void createDescriptorSetLayoutList();
         void createPipelineLayout();
     private:
-        VulkanContext * m_context = nullptr;
+        VulkanContext * m_context_p = nullptr;
         ShaderStageInfoList m_shader_stage_info_list;
         DescriptorSetLayoutBindingTable m_descriptor_set_layout_binding_table;
         DescriptorSetLayoutList m_descriptor_set_layout_list;

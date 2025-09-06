@@ -4,12 +4,12 @@
 
 void lcf::render::VulkanDescriptorManager::create(VulkanContext * context)
 {
-    m_context = context;
+    m_context_p = context;
 }
 
 lcf::render::VulkanDescriptorManager::~VulkanDescriptorManager()
 {
-    auto device = m_context->getDevice();
+    auto device = m_context_p->getDevice();
     for (auto &pool : m_full_pools) {
         device.destroyDescriptorPool(pool); 
     }
@@ -30,7 +30,7 @@ std::optional<lcf::render::VulkanDescriptorManager::DescriptorSetList> lcf::rend
     DescriptorSetList descriptor_sets;
     if (m_available_pools.empty()) { this->createNewPool(); }
     if (m_available_pools.empty()) { return std::nullopt; }
-    auto device = m_context->getDevice();
+    auto device = m_context_p->getDevice();
     auto pool = m_available_pools.back();
     vk::DescriptorSetAllocateInfo alloc_info;
     alloc_info.setDescriptorPool(pool).setSetLayouts(layouts);
@@ -55,7 +55,7 @@ std::optional<lcf::render::VulkanDescriptorManager::DescriptorSetList> lcf::rend
 
 void lcf::render::VulkanDescriptorManager::resetAllocatedSets()
 {
-    auto device = m_context->getDevice();
+    auto device = m_context_p->getDevice();
     m_available_pools.insert(m_available_pools.end(), m_full_pools.begin(), m_full_pools.end());
     for (auto &pool : m_available_pools) {
         device.resetDescriptorPool(pool);
@@ -80,7 +80,7 @@ void lcf::render::VulkanDescriptorManager::createNewPool()
         { vk::DescriptorType::eInputAttachment, static_cast<uint32_t>(SETS_PER_POOL * 0.5f) }
     };
     //todo -------------------------------------------------------------------------
-    auto device = m_context->getDevice();
+    auto device = m_context_p->getDevice();
     vk::DescriptorPoolCreateInfo pool_info;
     pool_info.setMaxSets(SETS_PER_POOL) .setPoolSizes(pool_sizes);
     vk::DescriptorPool pool;

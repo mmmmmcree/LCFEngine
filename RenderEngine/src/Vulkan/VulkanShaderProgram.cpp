@@ -4,13 +4,13 @@
 
 lcf::render::VulkanShaderProgram::VulkanShaderProgram(VulkanContext *context) :
     ShaderProgram(),
-    m_context(context)
+    m_context_p(context)
 {
 }
 
 lcf::render::VulkanShaderProgram::~VulkanShaderProgram()
 {
-    auto device = m_context->getDevice();
+    auto device = m_context_p->getDevice();
     for (auto descriptor_set_layout : m_descriptor_set_layout_list) {
         device.destroyDescriptorSetLayout(descriptor_set_layout);
     }
@@ -18,7 +18,7 @@ lcf::render::VulkanShaderProgram::~VulkanShaderProgram()
 
 void lcf::render::VulkanShaderProgram::addShaderFromGlslFile(ShaderTypeFlagBits stage, std::string_view file_path)
 {
-    VulkanShader::SharedPointer shader = VulkanShader::makeShared(m_context, stage);
+    VulkanShader::SharedPointer shader = VulkanShader::makeShared(m_context_p, stage);
     if (shader->compileGlslFile(file_path)) {
         this->addShader(shader);
     }
@@ -113,7 +113,7 @@ void lcf::render::VulkanShaderProgram::createDescriptorSetLayoutBindingTable()
 
 void lcf::render::VulkanShaderProgram::createDescriptorSetLayoutList()
 {
-    auto device = m_context->getDevice();
+    auto device = m_context_p->getDevice();
     m_descriptor_set_layout_binding_table[0][0].setDescriptorType(vk::DescriptorType::eUniformBufferDynamic);
     for (uint32_t set = 0; set < m_descriptor_set_layout_binding_table.size(); ++set) {
         const auto &descriptor_set_layout_bindings = m_descriptor_set_layout_binding_table[set];
@@ -171,7 +171,7 @@ void lcf::render::VulkanShaderProgram::createPipelineLayout()
         push_constant_range_list.emplace_back(std::move(push_constant_range));
     } // step4
 
-    auto device = m_context->getDevice();
+    auto device = m_context_p->getDevice();
     vk::PipelineLayoutCreateInfo pipeline_layout_info;
     pipeline_layout_info.setSetLayouts(m_descriptor_set_layout_list)
         .setPushConstantRanges(push_constant_range_list);

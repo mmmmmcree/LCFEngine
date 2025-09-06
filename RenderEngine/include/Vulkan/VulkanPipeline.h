@@ -25,7 +25,7 @@ namespace lcf::render {
         bool createComputePipeline();
         bool createGraphicsPipeline();
     private:
-        VulkanContext * m_context = nullptr;
+        VulkanContext * m_context_p = nullptr;
         vk::PipelineBindPoint m_type;
         vk::UniquePipeline m_pipeline;
         VulkanShaderProgram::SharedPointer m_shader_program;

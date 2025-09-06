@@ -22,7 +22,7 @@ namespace lcf::render {
     private:
         void createNewPool();
     private:
-        VulkanContext * m_context = nullptr;
+        VulkanContext * m_context_p = nullptr;
         DescriptorPoolList m_full_pools;
         DescriptorPoolList m_available_pools;
     };

@@ -8,14 +8,14 @@
 
 lcf::render::VulkanShader::VulkanShader(VulkanContext * context, ShaderTypeFlagBits type) :
     Shader(type),
-    m_context(context)
+    m_context_p(context)
 {
 }
 
 lcf::render::VulkanShader::~VulkanShader()
 {
     for (auto & layout : m_descriptor_set_layout_list) {
-        m_context->getDevice().destroyDescriptorSetLayout(layout);
+        m_context_p->getDevice().destroyDescriptorSetLayout(layout);
     }
 }
 
@@ -35,7 +35,7 @@ bool lcf::render::VulkanShader::compileGlslFile(std::string_view file_path)
     vk::ShaderModuleCreateInfo module_info;
     module_info.setCode(spirv_code);
     try {
-        m_module = m_context->getDevice().createShaderModuleUnique(module_info);
+        m_module = m_context_p->getDevice().createShaderModuleUnique(module_info);
     } catch (const vk::Error& e) {
         qDebug() << "VulkanShader::compileGlslFile: " << e.what();
     }

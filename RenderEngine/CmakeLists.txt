@@ -46,7 +46,7 @@ target_link_libraries(${PROJECT_NAME}
         utilities 
         WindowSystem 
         core
-        Boost::headers  
+        Boost::headers   
     PRIVATE
         ${Vulkan_LIBRARY}/vulkan-1.lib
         unofficial::shaderc::shaderc

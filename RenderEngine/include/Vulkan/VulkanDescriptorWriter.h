@@ -19,7 +19,7 @@ namespace lcf::render {
         VulkanDescriptorWriter & add(uint32_t set, uint32_t binding, uint32_t index, const vk::DescriptorBufferInfo & buffer_info);
         void write();
     private:
-        VulkanContext * m_context;
+        VulkanContext * m_context_p;
         const DescriptorSetLayoutBindingTable & m_binding_table;
         const DescriptorSetList & m_descriptor_sets;
         WriteDescriptorSetList m_write_descriptor_sets;

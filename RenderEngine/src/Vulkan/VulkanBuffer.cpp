@@ -4,13 +4,13 @@
 #include <boost/align.hpp>
 
 lcf::render::VulkanBuffer::VulkanBuffer(VulkanContext *context) :
-    m_context(context)
+    m_context_p(context)
 {
 }
 
 bool lcf::render::VulkanBuffer::create()
 {
-    auto memory_allocator = m_context->getMemoryAllocator();
+    auto memory_allocator = m_context_p->getMemoryAllocator();
     vk::BufferCreateInfo buffer_info = {{}, m_size, m_usage_flags, m_sharing_mode};
     vk::MemoryPropertyFlags memory_flags;
     switch (m_usage_pattern) {
@@ -25,7 +25,7 @@ bool lcf::render::VulkanBuffer::create()
 void lcf::render::VulkanBuffer::setSize(uint32_t size_in_bytes)
 {
     uint32_t alignment = 4;
-    vk::PhysicalDeviceLimits limits = m_context->getPhysicalDevice().getProperties().limits;
+    vk::PhysicalDeviceLimits limits = m_context_p->getPhysicalDevice().getProperties().limits;
     if (m_usage_flags & vk::BufferUsageFlagBits::eUniformBuffer) {
         alignment = limits.minUniformBufferOffsetAlignment;
     } else if (m_usage_flags & vk::BufferUsageFlagBits::eStorageBuffer) {
@@ -79,9 +79,9 @@ void lcf::render::VulkanBuffer::copyFrom(const VulkanBuffer &src, uint32_t data_
     }
     if (data_size_in_bytes == 0u) { data_size_in_bytes = src.getSize() - src_offset_in_bytes; }
     vk::BufferCopy copy_region(src_offset_in_bytes, dst_offset_in_bytes, data_size_in_bytes);
-    auto cmd = m_context->getCurrentCommandBuffer();
-    vkutils::immediate_submit(m_context, [&] {
-        auto cmd = m_context->getCurrentCommandBuffer();
+    auto cmd = m_context_p->getCurrentCommandBuffer();
+    vkutils::immediate_submit(m_context_p, [&] {
+        auto cmd = m_context_p->getCurrentCommandBuffer();
         cmd.copyBuffer(src.getHandle(), this->getHandle(), copy_region);
     });
 }
@@ -99,7 +99,7 @@ vk::DeviceAddress lcf::render::VulkanBuffer::getDeviceAddress() const
     if (not (m_usage_flags & vk::BufferUsageFlagBits::eShaderDeviceAddress)) {
         return vk::DeviceAddress{};
     }
-    auto device = m_context->getDevice();
+    auto device = m_context_p->getDevice();
     return device.getBufferAddress(vk::BufferDeviceAddressInfo(this->getHandle()));
 }
 
@@ -111,7 +111,7 @@ void lcf::render::VulkanBuffer::setSubDataByMap(const void *data, uint32_t size_
 
 void lcf::render::VulkanBuffer::setSubDataByStagingBuffer(const void *data, uint32_t size_in_bytes, uint32_t offset_in_bytes)
 {
-    VulkanBuffer staging_buffer(m_context);
+    VulkanBuffer staging_buffer(m_context_p);
     staging_buffer.setUsagePattern(UsagePattern::Dynamic);
     staging_buffer.setUsageFlags(vk::BufferUsageFlagBits::eTransferSrc);
     staging_buffer.setData(data, size_in_bytes);
@@ -120,16 +120,16 @@ void lcf::render::VulkanBuffer::setSubDataByStagingBuffer(const void *data, uint
 
 
 lcf::render::VulkanDynamicMultiBuffer::VulkanDynamicMultiBuffer(VulkanContext *context) :
-    m_context(context)
+    m_context_p(context)
 {
-    m_buffers.emplace_back(VulkanBuffer::makeUnique(m_context));
+    m_buffers.emplace_back(VulkanBuffer::makeUnique(m_context_p));
 }
 
 void lcf::render::VulkanDynamicMultiBuffer::setBufferCount(uint32_t count)
 {
     const auto *buffer_prototype = m_buffers[0].get(); //! must be pointer, not reference to avoid memory tranfer
     for (size_t i = m_buffers.size(); i < count; ++i) {
-        auto &new_buffer = m_buffers.emplace_back(VulkanBuffer::makeUnique(m_context));
+        auto &new_buffer = m_buffers.emplace_back(VulkanBuffer::makeUnique(m_context_p));
         new_buffer->setUsageFlags(buffer_prototype->getUsageFlags());
         new_buffer->setUsagePattern(buffer_prototype->getUsagePattern());
     }
@@ -188,11 +188,10 @@ void lcf::render::VulkanStaticMultiBuffer::setSubData(const void *data, uint32_t
 
 
 lcf::render::VulkanTimelineBuffer::VulkanTimelineBuffer(VulkanContext * context) :
-    VulkanBuffer(context),
-    m_timeline_semaphore(context)
+    VulkanBuffer(context)
 {
     this->setUsagePattern(UsagePattern::Dynamic);
-    m_timeline_semaphore.create();
+    m_timeline_semaphore.create(m_context_p);
 }
 
 // ---VulkanTimelineBuffer---
@@ -225,7 +224,7 @@ void lcf::render::VulkanTimelineBuffer::beginWrite()
         m_current_writing_buffer = staging_buffer.get();
         return;
     }
-    auto &staging_buffer = m_staging_buffers.emplace(VulkanTimelineBuffer::makeUnique(m_context));
+    auto &staging_buffer = m_staging_buffers.emplace(VulkanTimelineBuffer::makeUnique(m_context_p));
     staging_buffer->setSize(m_size);
     staging_buffer->setUsagePattern(UsagePattern::Dynamic);
     staging_buffer->setUsageFlags(vk::BufferUsageFlagBits::eTransferSrc);
@@ -245,7 +244,7 @@ void lcf::render::VulkanTimelineBuffer::endWrite()
         m_timeline_semaphore.increaseTargetValue();
     } else {
         vk::BufferCopy copy_region(0u, 0u, m_size);
-        auto cmd = m_context->getCurrentCommandBuffer();
+        auto cmd = m_context_p->getCurrentCommandBuffer();
         cmd.copyBuffer(m_current_writing_buffer->getHandle(), this->getHandle(), copy_region);
         
         vk::MemoryBarrier2 barrier;

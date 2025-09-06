@@ -60,7 +60,7 @@ namespace lcf::render {
         vk::ImageAspectFlags getAspectFlags() const;
         vk::ImageViewType deduceImageViewType() const;
     private:
-        VulkanContext * m_context;
+        VulkanContext * m_context_p;
         vk::ImageCreateFlags m_flags = {};
         vk::ImageType m_image_type = vk::ImageType::e2D;
         vk::Format m_format = vk::Format::eUndefined;

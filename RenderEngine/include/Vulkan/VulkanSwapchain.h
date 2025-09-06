@@ -31,7 +31,7 @@ namespace lcf::render {
         void acquireAvailableTarget();
     private:
         inline static constexpr uint32_t SWAPCHAIN_BUFFER_COUNT = 4;
-        VulkanContext * m_context = nullptr;
+        VulkanContext * m_context_p = nullptr;
         vk::UniqueSwapchainKHR m_swapchain;
         vk::SurfaceKHR m_surface;
         vk::SurfaceFormatKHR m_surface_format;

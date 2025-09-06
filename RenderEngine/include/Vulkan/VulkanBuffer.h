@@ -33,7 +33,7 @@ namespace lcf::render {
         void setSubDataByMap(const void *data, uint32_t size_in_bytes, uint32_t offset_in_bytes);
         void setSubDataByStagingBuffer(const void *data, uint32_t size_in_bytes, uint32_t offset_in_bytes);
     protected:
-        VulkanContext * m_context = nullptr;
+        VulkanContext * m_context_p = nullptr;
         VMAUniqueBuffer m_buffer;
         std::byte *m_mapped_memory_ptr = nullptr;
         vk::BufferUsageFlags m_usage_flags;
@@ -55,7 +55,7 @@ namespace lcf::render {
         void acquireNextBuffer() { m_current_index = (m_current_index + 1) % m_buffers.size(); }
         vk::Buffer getHandle() const { return m_buffers[m_current_index]->getHandle(); }
     private:
-        VulkanContext * m_context = nullptr;
+        VulkanContext * m_context_p = nullptr;
         bool m_is_created = false;
         BufferList m_buffers;
         uint32_t m_current_index = 0;

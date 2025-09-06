@@ -4,7 +4,7 @@
 
 
 lcf::render::VulkanPipeline::VulkanPipeline(VulkanContext * context, const VulkanShaderProgram::SharedPointer & shader_program) :
-    m_context(context),
+    m_context_p(context),
     m_shader_program(shader_program)
 {
     if (not m_shader_program or not m_shader_program->isLinked()) {
@@ -29,7 +29,7 @@ bool lcf::render::VulkanPipeline::create()
 
 bool lcf::render::VulkanPipeline::createComputePipeline()
 {
-    auto device = m_context->getDevice();
+    auto device = m_context_p->getDevice();
     vk::PipelineLayoutCreateInfo pipeline_layout_info;
     pipeline_layout_info.setSetLayouts(m_shader_program->getDescriptorSetLayoutList());
     vk::ComputePipelineCreateInfo compute_pipeline_info;
@@ -42,7 +42,7 @@ bool lcf::render::VulkanPipeline::createComputePipeline()
 
 bool lcf::render::VulkanPipeline::createGraphicsPipeline()
 {
-    auto device = m_context->getDevice();
+    auto device = m_context_p->getDevice();
 
     vk::PipelineViewportStateCreateInfo viewport_info;
     viewport_info.setScissorCount(1) .setViewportCount(1);
