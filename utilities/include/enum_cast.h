@@ -5,19 +5,19 @@
 #include <tuple>
 
 namespace lcf {
-    template <EnumConcept Dst, EnumConcept Src>
+    template <enum_c Dst, enum_c Src>
     struct enum_category
     {
         using type = typename enum_category<Src, Dst>::type;
     };
 
-    template <EnumConcept Dst, EnumConcept Src>
+    template <enum_c Dst, enum_c Src>
     using enum_category_t = typename enum_category<Dst, Src>::type;
 
     template <typename Tag>
     struct enum_mapping_traits;
 
-    template <EnumConcept Dst, EnumConcept Src>
+    template <enum_c Dst, enum_c Src>
     constexpr Dst enum_cast(Src src)
     {
         using Category = enum_category_t<Dst, Src>;
@@ -30,7 +30,7 @@ namespace lcf {
         return static_cast<Dst>(0);
     }
 
-    template <EnumConcept Dst, EnumConcept Src>
+    template <enum_c Dst, enum_c Src>
     constexpr Dst enum_flag_bits_cast(Src src)
     {
         using Category = enum_category_t<Dst, Src>;

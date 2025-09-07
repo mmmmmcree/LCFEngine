@@ -33,8 +33,7 @@ void lcf::render::VulkanTimelineSemaphore::waitFor(uint64_t value) const
 
 uint64_t lcf::render::VulkanTimelineSemaphore::getCurrentValue() const
 {
-    auto device = m_context_p->getDevice();
-    return device.getSemaphoreCounterValue(m_semaphore.get());
+    return m_context_p->getDevice().getSemaphoreCounterValue(m_semaphore.get());
 }
 
 vk::SemaphoreSubmitInfo lcf::render::VulkanTimelineSemaphore::generateSubmitInfo() const

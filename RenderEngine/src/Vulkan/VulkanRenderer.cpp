@@ -114,139 +114,44 @@ void lcf::VulkanRenderer::create()
     //     {1.0f, 0.0f},
     //     {0.0f, 0.0f}
     // };
-    // constexpr Vertex CubeVerts[] =
-    //     {
-    //         {float3{-1, -1, -1}, float2{0, 1}},
-    //         {float3{-1, +1, -1}, float2{0, 0}},
-    //         {float3{+1, +1, -1}, float2{1, 0}},
-    //         {float3{+1, -1, -1}, float2{1, 1}},
-
-    //         {float3{-1, -1, -1}, float2{0, 1}},
-    //         {float3{-1, -1, +1}, float2{0, 0}},
-    //         {float3{+1, -1, +1}, float2{1, 0}},
-    //         {float3{+1, -1, -1}, float2{1, 1}},
-
-    //         {float3{+1, -1, -1}, float2{0, 1}},
-    //         {float3{+1, -1, +1}, float2{1, 1}},
-    //         {float3{+1, +1, +1}, float2{1, 0}},
-    //         {float3{+1, +1, -1}, float2{0, 0}},
-
-    //         {float3{+1, +1, -1}, float2{0, 1}},
-    //         {float3{+1, +1, +1}, float2{0, 0}},
-    //         {float3{-1, +1, +1}, float2{1, 0}},
-    //         {float3{-1, +1, -1}, float2{1, 1}},
-
-    //         {float3{-1, +1, -1}, float2{1, 0}},
-    //         {float3{-1, +1, +1}, float2{0, 0}},
-    //         {float3{-1, -1, +1}, float2{0, 1}},
-    //         {float3{-1, -1, -1}, float2{1, 1}},
-
-    //         {float3{-1, -1, +1}, float2{1, 1}},
-    //         {float3{+1, -1, +1}, float2{0, 1}},
-    //         {float3{+1, +1, +1}, float2{0, 0}},
-    //         {float3{-1, +1, +1}, float2{1, 0}},
-    //     };
+    // uint16_t index_data[] = { 0, 1, 2, 2, 3, 0 };
     Vector3D cube_positions[] = {
-        {-1.0f, -1.0f, -1.0f},
-        {-1.0f, +1.0f, -1.0f},
-        {+1.0f, +1.0f, -1.0f},
-        {+1.0f, -1.0f, -1.0f},
-
-        {-1.0f, -1.0f, -1.0f},
-        {-1.0f, -1.0f, +1.0f},
-        {+1.0f, -1.0f, +1.0f},
-        {+1.0f, -1.0f, -1.0f},
-
-        {+1.0f, -1.0f, -1.0f},
-        {+1.0f, -1.0f, +1.0f},
-        {+1.0f, +1.0f, +1.0f},
-        {+1.0f, +1.0f, -1.0f},
-
-        {+1.0f, +1.0f, -1.0f},
-        {+1.0f, +1.0f, +1.0f},
-        {-1.0f, +1.0f, +1.0f},
-        {-1.0f, +1.0f, -1.0f},
-
-        {-1.0f, +1.0f, -1.0f},
-        {-1.0f, +1.0f, +1.0f},
-        {-1.0f, -1.0f, +1.0f},
-        {-1.0f, -1.0f, -1.0f},
-
-        {-1.0f, -1.0f, +1.0f},
-        {+1.0f, -1.0f, +1.0f},
-        {+1.0f, +1.0f, +1.0f},
-        {-1.0f, +1.0f, +1.0f},
+        {-1.0f, -1.0f, -1.0f}, {-1.0f, +1.0f, -1.0f}, {+1.0f, +1.0f, -1.0f}, {+1.0f, -1.0f, -1.0f},
+        {-1.0f, -1.0f, -1.0f}, {-1.0f, -1.0f, +1.0f}, {+1.0f, -1.0f, +1.0f}, {+1.0f, -1.0f, -1.0f},
+        {+1.0f, -1.0f, -1.0f}, {+1.0f, -1.0f, +1.0f}, {+1.0f, +1.0f, +1.0f}, {+1.0f, +1.0f, -1.0f},
+        {+1.0f, +1.0f, -1.0f}, {+1.0f, +1.0f, +1.0f}, {-1.0f, +1.0f, +1.0f}, {-1.0f, +1.0f, -1.0f},
+        {-1.0f, +1.0f, -1.0f}, {-1.0f, +1.0f, +1.0f}, {-1.0f, -1.0f, +1.0f}, {-1.0f, -1.0f, -1.0f},
+        {-1.0f, -1.0f, +1.0f}, {+1.0f, -1.0f, +1.0f}, {+1.0f, +1.0f, +1.0f}, {-1.0f, +1.0f, +1.0f},
     };
-
     Vector3D cube_colors[] = {
-        {1.0f, 0.0f, 0.0f},
-        {0.0f, 1.0f, 0.0f},
-        {0.0f, 0.0f, 1.0f},
-        {1.0f, 1.0f, 1.0f},
-
-        {1.0f, 0.0f, 0.0f},
-        {0.0f, 1.0f, 0.0f},
-        {0.0f, 0.0f, 1.0f},
-        {1.0f, 1.0f, 1.0f},
-
-        {1.0f, 0.0f, 0.0f},
-        {0.0f, 1.0f, 0.0f},
-        {0.0f, 0.0f, 1.0f},
-        {1.0f, 1.0f, 1.0f},
-
-        {1.0f, 0.0f, 0.0f},
-        {0.0f, 1.0f, 0.0f},
-        {0.0f, 0.0f, 1.0f},
-        {1.0f, 1.0f, 1.0f},
-
-        {1.0f, 0.0f, 0.0f},
-        {0.0f, 1.0f, 0.0f},
-        {0.0f, 0.0f, 1.0f},
-        {1.0f, 1.0f, 1.0f},
-
-        {1.0f, 0.0f, 0.0f},
-        {0.0f, 1.0f, 0.0f},
-        {0.0f, 0.0f, 1.0f},
-        {1.0f, 1.0f, 1.0f},
+        {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 1.0f},
+        {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 1.0f},
+        {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 1.0f},
+        {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 1.0f},
+        {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 1.0f},
+        {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 1.0f},
     };
-
     Vector2D cube_uvs[] = {
-        {0.0f, 1.0f},
-        {1.0f, 1.0f},
-        {1.0f, 0.0f},
-        {0.0f, 0.0f},
-
-        {0.0f, 1.0f},
-        {1.0f, 1.0f},
-        {1.0f, 0.0f},
-        {0.0f, 0.0f},
-
-        {0.0f, 1.0f},
-        {1.0f, 1.0f},
-        {1.0f, 0.0f},
-        {0.0f, 0.0f},
-
-        {0.0f, 1.0f},
-        {1.0f, 1.0f},
-        {1.0f, 0.0f},
-        {0.0f, 0.0f},
-
-        {0.0f, 1.0f},
-        {1.0f, 1.0f},
-        {1.0f, 0.0f},
-        {0.0f, 0.0f},
-
-        {0.0f, 1.0f},
-        {1.0f, 1.0f},
-        {1.0f, 0.0f},
-        {0.0f, 0.0f},
+        {0.0f, 1.0f}, {1.0f, 1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f},
+        {0.0f, 1.0f}, {1.0f, 1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f},
+        {0.0f, 1.0f}, {1.0f, 1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f},
+        {0.0f, 1.0f}, {1.0f, 1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f},
+        {0.0f, 1.0f}, {1.0f, 1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f},
+        {0.0f, 1.0f}, {1.0f, 1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f},
     };
-
+    uint16_t index_data[] = {
+        2, 0, 1, 2, 3, 0,
+        4, 6, 5, 4, 7, 6,
+        8, 10 ,9, 8, 11, 10,
+        12, 14, 13, 12, 15, 14,
+        16, 18,17, 16, 19, 18,
+        20, 21, 22, 20, 22, 23
+    };
     InterleavedBuffer vertex_data;
     vertex_data.addField<std_alignment_traits<Vector3D>>()
         .addField<std_alignment_traits<Vector3D>>()
         .addField<std_alignment_traits<Vector2D>>()
-        .create(std::size(cube_positions));
+        .create(std::size(index_data));
     vertex_data.setData(0, std::span(cube_positions));
     vertex_data.setData(1, std::span(cube_colors));
     vertex_data.setData(2, std::span(cube_uvs));
@@ -256,15 +161,6 @@ void lcf::VulkanRenderer::create()
     m_vertext_buffer->setUsageFlags(vk::BufferUsageFlagBits::eVertexBuffer);
     m_vertext_buffer->setData(vertex_data.getData(), vertex_data.getSizeInBytes());
 
-    // uint16_t index_data[] = { 0, 1, 2, 2, 3, 0 };
-    uint16_t index_data[] = {
-        2, 0, 1, 2, 3, 0,
-        4, 6, 5, 4, 7, 6,
-        8, 10 ,9, 8, 11, 10,
-        12, 14, 13, 12, 15, 14,
-        16, 18,17, 16, 19, 18,
-        20, 21, 22, 20, 22, 23
-    };
     m_index_buffer = VulkanBuffer::makeUnique(m_context_p);
     m_index_buffer->setUsagePattern(GPUBuffer::UsagePattern::Static);
     m_index_buffer->setUsageFlags(vk::BufferUsageFlagBits::eIndexBuffer);
