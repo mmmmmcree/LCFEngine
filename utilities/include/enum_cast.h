@@ -31,7 +31,7 @@ namespace lcf {
     }
 
     template <enum_c Dst, enum_c Src>
-    constexpr Dst enum_flag_bits_cast(Src src)
+    constexpr Dst enum_flags_cast(Src src)
     {
         using Category = enum_category_t<Dst, Src>;
         using MappingTraits = enum_mapping_traits<Category>;

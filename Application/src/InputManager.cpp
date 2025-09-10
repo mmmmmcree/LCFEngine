@@ -44,10 +44,12 @@ void lcf::InputManager::handleMouseReleaseEvent(QMouseEvent *event)
 
 void lcf::InputManager::handleMouseMoveEvent(QMouseEvent *event)
 {
-    m_current_mouse_pos = event->position();
+    auto [x, y] = event->position();
+    m_current_mouse_pos = Vector2D_D(x, y);
 }
 
 void lcf::InputManager::handleWheelEvent(QWheelEvent *event)
 {
-    m_wheel_delta += event->angleDelta();
+    auto [dx, dy] = event->angleDelta();
+    m_wheel_delta += Vector2D_I(dx, dy);
 }

@@ -7,8 +7,8 @@ namespace lcf::render {
     public:
         enum class UsagePattern
         {
-            Dynamic,
-            Static,
+            eDynamic,
+            eStatic,
         };
         GPUBuffer() = default;
         virtual ~GPUBuffer() = default;
@@ -17,6 +17,6 @@ namespace lcf::render {
         UsagePattern getUsagePattern() const { return m_usage_pattern; }
     protected:
         uint32_t m_size = 0;
-        UsagePattern m_usage_pattern = UsagePattern::Dynamic;
+        UsagePattern m_usage_pattern = UsagePattern::eDynamic;
     };
 }

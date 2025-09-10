@@ -1,6 +1,6 @@
 #pragma once
 
-#include "RHI/RenderTarget.h"
+#include "common/RenderTarget.h"
 #include <vulkan/vulkan.hpp>
 
 namespace lcf::render {
@@ -16,8 +16,6 @@ namespace lcf::render {
         void recreate();
         void destroy() override;
         bool isValid() const override { return m_surface and m_swapchain.get(); }
-        uint32_t getWidth() const override { return m_surface_capabilities.currentExtent.width; }
-        uint32_t getHeight() const override { return m_surface_capabilities.currentExtent.height; }
         bool prepareForRender();
         vk::Image getTargetImage() const { return m_swapchain_resources_list[m_image_index].image; }
         vk::Semaphore getTargetAvailableSemaphore() const { return m_swapchain_resources_list[m_target_available_index].target_available.get(); }

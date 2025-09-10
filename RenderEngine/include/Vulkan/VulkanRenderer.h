@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Renderer.h"
 #include "VulkanContext.h"
 #include "VulkanSwapchain.h"
 #include "VulkanDescriptorManager.h"
@@ -15,7 +14,7 @@
 namespace lcf {
     using namespace lcf::render;
 
-    class VulkanRenderer : public Renderer
+    class VulkanRenderer
     {
     public:
         VulkanRenderer(VulkanContext * context);
@@ -23,7 +22,6 @@ namespace lcf {
         void setRenderTarget(const RenderTarget::SharedPointer & render_target);
         void setCamera(const Entity & camera_entity);
         void create();
-        // bool isValid() const override { return m_context_p and m_context_p->isValid() and m_render_target and m_render_target->isValid(); }
         void render();
     private:
         VulkanContext * m_context_p;

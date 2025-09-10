@@ -8,7 +8,7 @@ namespace lcf {
     {
     public:
         Window(QWindow *parent = nullptr);
-        InputManager * getInputManager() const { return m_input_manager; }
+        const InputManager * getInputManager() const { return m_input_manager; }
     protected:
         InputManager * m_input_manager;
     };

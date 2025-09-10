@@ -3,7 +3,6 @@
 #include "VulkanRenderer.h"
 #include "VulkanShaderProgram.h"
 #include "vulkan_utililtie.h"
-#include "ScreenManager.h"
 #include "Vector.h"
 #include "InterleavedBuffer.h"
 #include "Matrix.h"
@@ -16,7 +15,6 @@
 #include <boost/container/small_vector.hpp>
 
 lcf::VulkanRenderer::VulkanRenderer(VulkanContext *context) :
-    Renderer(),
     m_context_p(context)
 {
     m_camera_entity.requireComponent<Transform>();
@@ -55,12 +53,12 @@ void lcf::VulkanRenderer::create()
         .setCommandBufferCount(1);
     auto memory_allocator = m_context_p->getMemoryAllocator();
     vk::ImageCreateInfo image_info;
-    auto current_screen = ScreenManager::getInstance()->getPrimaryScreen();
-    auto [width, height] = current_screen->size() * current_screen->devicePixelRatio(); // todo add setResolution method to Renderer, call it before Renderer is created;
+
+    auto render_target = m_render_target.lock();
+    auto [width, height] = render_target->getMaximalExtent();
 
     for (auto &resources : m_frame_resources) {
         resources.render_finished = device.createSemaphoreUnique(semaphore_info);
-        // resources.command_buffer = device.allocateCommandBuffers(command_buffer_info).front();
         resources.command_buffer.create(m_context_p);
         resources.descriptor_manager.create(m_context_p);
 
@@ -157,12 +155,12 @@ void lcf::VulkanRenderer::create()
     vertex_data.setData(2, std::span(cube_uvs));
 
     m_vertext_buffer = VulkanBuffer::makeUnique(m_context_p);
-    m_vertext_buffer->setUsagePattern(GPUBuffer::UsagePattern::Static);
+    m_vertext_buffer->setUsagePattern(GPUBuffer::UsagePattern::eStatic);
     m_vertext_buffer->setUsageFlags(vk::BufferUsageFlagBits::eVertexBuffer);
     m_vertext_buffer->setData(vertex_data.getData(), vertex_data.getSizeInBytes());
 
     m_index_buffer = VulkanBuffer::makeUnique(m_context_p);
-    m_index_buffer->setUsagePattern(GPUBuffer::UsagePattern::Static);
+    m_index_buffer->setUsagePattern(GPUBuffer::UsagePattern::eStatic);
     m_index_buffer->setUsageFlags(vk::BufferUsageFlagBits::eIndexBuffer);
     m_index_buffer->setData(index_data, sizeof(index_data));
 
@@ -187,7 +185,7 @@ void lcf::VulkanRenderer::render()
     
     VulkanCommandBuffer & cmd_buffer = current_frame_resources.command_buffer; 
 
-    auto [width, height] = render_target->getSize();
+    auto [width, height] = render_target->getExtent();
     auto clear_value = vk::ClearValue{ { 0.0f, 1.0f, 0.0f, 1.0f } };
     vk::Viewport viewport;
     viewport.setX(0.0f).setY(height)
@@ -248,7 +246,7 @@ void lcf::VulkanRenderer::render()
     }
     
     m_global_uniform_buffer->beginWrite();
-    m_global_uniform_buffer->setData(projection_view.constData(), sizeof(Matrix4x4));
+    m_global_uniform_buffer->setData(projection_view.getConstData(), sizeof(Matrix4x4));
     m_global_uniform_buffer->endWrite();
 
     cmd_buffer.setViewport(0, viewport);
@@ -271,7 +269,7 @@ void lcf::VulkanRenderer::render()
 
     cmd_buffer.bindDescriptorSets(m_graphics_pipeline->getType(), m_graphics_pipeline->getPipelineLayout(), 1, descriptor_sets[1], nullptr);
 
-    shader_program->setPushConstantData(vk::ShaderStageFlagBits::eVertex, {model.constData()});
+    shader_program->setPushConstantData(vk::ShaderStageFlagBits::eVertex, {model.getConstData()});
     shader_program->bindPushConstants(cmd_buffer);
     cmd_buffer.drawIndexed(36, 1, 0, 0, 0);
     static float angle = 0.0f;

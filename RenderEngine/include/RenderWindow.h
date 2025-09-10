@@ -1,8 +1,7 @@
 #pragma once
 
 #include "Window.h"
-#include "RHI/RenderTarget.h"
-#include "Renderer.h"
+#include "common/RenderTarget.h"
 #include <QScreen>
 
 namespace lcf {
@@ -12,7 +11,7 @@ namespace lcf {
         RenderWindow(Window * parent = nullptr);
         ~RenderWindow() override;
         void show();
-        void setRenderTarget(const render::RenderTarget::SharedPointer &render_target) { m_render_target = render_target; }
+        void setRenderTarget(const render::RenderTarget::SharedPointer &render_target);
         const render::RenderTarget::SharedPointer & getRenderTarget() const { return m_render_target; }
     protected:
         void closeEvent(QCloseEvent *event) override;

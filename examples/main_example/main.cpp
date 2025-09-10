@@ -1,4 +1,4 @@
-#include <QGuiApplication>
+#include "Application.h"
 #include "RenderWindow.h"
 #include "Vulkan/VulkanContext.h"
 #include "Vulkan/VulkanRenderer.h"
@@ -7,7 +7,7 @@
 #include <QTimer>
 
 int main(int argc, char* argv[]) {
-    QGuiApplication app(argc, argv);
+    lcf::GuiApplication app(argc, argv);
 
     lcf::render::VulkanContext context;
     lcf::RenderWindow render_window;
@@ -23,9 +23,8 @@ int main(int argc, char* argv[]) {
     auto & camera_transform = camera_entity.requireComponent<lcf::Transform>();
     auto & projection_matrix = camera_entity.requireComponent<lcf::Matrix4x4>();
     projection_matrix.perspective(glm::radians(90.0f), 1.0f, 0.1f, 100.0f);
-    lcf::InputManager * input_manager = render_window.getInputManager();
     lcf::modules::TrackballController trackball_controller;
-    trackball_controller.setInputManager(input_manager);
+    trackball_controller.setInputManager(render_window.getInputManager());
     trackball_controller.controls(camera_transform);
 
     renderer.setCamera(camera_entity);

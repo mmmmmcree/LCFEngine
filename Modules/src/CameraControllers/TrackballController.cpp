@@ -6,8 +6,11 @@ void lcf::modules::TrackballController::update()
     float delta_yaw = 0.0f, delta_pitch = 0.0f, delta_front = 0.0f, delta_up = 0.0f, delta_right = 0.0f;
     auto current_mouse_pos = m_input_manager->getMousePosition();
     auto current_wheel_delta = m_input_manager->getWheelDelta();
+    // auto delta_pos = current_mouse_pos - m_last_mouse_pos;
+    // float dx = delta_pos.getX();
+    // float dy = delta_pos.getY();
     auto [dx, dy] = current_mouse_pos - m_last_mouse_pos;
-    delta_front += (current_wheel_delta.y() - m_last_wheel_delta.y()) * m_zoom_speed;
+    delta_front += (current_wheel_delta.getY() - m_last_wheel_delta.getY()) * m_zoom_speed;
     m_last_mouse_pos = current_mouse_pos;
     m_last_wheel_delta = current_wheel_delta;
     if (m_input_manager->isMouseButtonPressed(InputManager::MouseButton::LeftButton)) {

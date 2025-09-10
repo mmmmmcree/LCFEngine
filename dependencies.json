@@ -16,11 +16,6 @@
       "features": ["gui", "widgets", "vulkan"]
     },
     {
-      "name": "qttools",
-      "default-features": false,
-      "features": []
-    },
-    {
       "name": "stb",
       "version>=": "2024-07-29#1"
     },

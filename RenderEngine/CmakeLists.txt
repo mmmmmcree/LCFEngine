@@ -44,7 +44,7 @@ target_link_libraries(${PROJECT_NAME}
     PUBLIC  
         math
         utilities 
-        WindowSystem 
+        Application 
         core
         Boost::headers   
     PRIVATE

@@ -44,7 +44,7 @@ void lcf::Transform::translateWorld(float x, float y, float z)
 void lcf::Transform::translateWorld(const Vector3D &translation)
 {
     if (translation.isNull()) { return; }
-    m_matrix.setColumn(3, Vector4D(this->getTranslation() + translation, 1.0f));
+    m_matrix.setColumn(3, Vector4D(this->getTranslation() + translation));
     this->requireUpdate();
 }
 

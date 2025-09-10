@@ -1,6 +1,6 @@
 #pragma once
-#include "GLMQuaternion.h"
+#include "GLM/GLMQuaternion.h"
 
 namespace lcf {
-    using Quaternion = GLMQuaternion;
+    using Quaternion = GLMQuaternion<float>;
 }

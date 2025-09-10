@@ -1,6 +1,6 @@
 #pragma once
 
-#include "RHI/GPUBuffer.h"
+#include "common/GPUBuffer.h"
 #include "VulkanMemoryAllocator.h"
 #include <vulkan/vulkan.hpp>
 #include "VulkanTimelineSemaphore.h"

@@ -38,7 +38,7 @@ namespace lcf {
         template <alignment_c TypeAlignmentInfo>
         InterleavedBuffer & addField()
         {
-            return this->addField(TypeAlignmentInfo::s_type_size, TypeAlignmentInfo::s_alignment);
+            return this->addField(TypeAlignmentInfo::type_size, TypeAlignmentInfo::alignment);
         }
         void create(size_t size)
         {

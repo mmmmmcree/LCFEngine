@@ -14,8 +14,8 @@ bool lcf::render::VulkanBuffer::create()
     vk::BufferCreateInfo buffer_info = {{}, m_size, m_usage_flags, m_sharing_mode};
     vk::MemoryPropertyFlags memory_flags;
     switch (m_usage_pattern) {
-        case UsagePattern::Dynamic : { memory_flags = vk::MemoryPropertyFlagBits::eHostVisible; } break;
-        case UsagePattern::Static : { memory_flags = vk::MemoryPropertyFlagBits::eDeviceLocal; } break;
+        case UsagePattern::eDynamic : { memory_flags = vk::MemoryPropertyFlagBits::eHostVisible; } break;
+        case UsagePattern::eStatic : { memory_flags = vk::MemoryPropertyFlagBits::eDeviceLocal; } break;
         default : { memory_flags = vk::MemoryPropertyFlagBits::eDeviceLocal; } break;
     }
     m_buffer = memory_allocator->createBuffer(buffer_info, memory_flags, m_mapped_memory_ptr);
@@ -52,7 +52,7 @@ void lcf::render::VulkanBuffer::setSubData(const void *data, uint32_t size_in_by
     uint32_t required_size = offset_in_bytes + size_in_bytes;
     if (required_size > m_size) { this->resize(required_size); }
     if (not this->isCreated()) { this->create(); }
-    if (m_usage_pattern == UsagePattern::Static) {
+    if (m_usage_pattern == UsagePattern::eStatic) {
         this->setSubDataByStagingBuffer(data, size_in_bytes, offset_in_bytes);
     } else {
         this->setSubDataByMap(data, size_in_bytes, offset_in_bytes);
@@ -89,7 +89,7 @@ void lcf::render::VulkanBuffer::copyFrom(const VulkanBuffer &src, uint32_t data_
 void lcf::render::VulkanBuffer::setUsageFlags(vk::BufferUsageFlags flags)
 {
     m_usage_flags = flags;
-    if (m_usage_pattern == UsagePattern::Static) {
+    if (m_usage_pattern == UsagePattern::eStatic) {
         m_usage_flags |= vk::BufferUsageFlagBits::eTransferDst;
     }
 }
@@ -112,7 +112,7 @@ void lcf::render::VulkanBuffer::setSubDataByMap(const void *data, uint32_t size_
 void lcf::render::VulkanBuffer::setSubDataByStagingBuffer(const void *data, uint32_t size_in_bytes, uint32_t offset_in_bytes)
 {
     VulkanBuffer staging_buffer(m_context_p);
-    staging_buffer.setUsagePattern(UsagePattern::Dynamic);
+    staging_buffer.setUsagePattern(UsagePattern::eDynamic);
     staging_buffer.setUsageFlags(vk::BufferUsageFlagBits::eTransferSrc);
     staging_buffer.setData(data, size_in_bytes);
     this->copyFrom(staging_buffer, size_in_bytes, 0u, offset_in_bytes);
@@ -187,14 +187,15 @@ void lcf::render::VulkanStaticMultiBuffer::setSubData(const void *data, uint32_t
 }
 
 
+// ---VulkanTimelineBuffer---
+
 lcf::render::VulkanTimelineBuffer::VulkanTimelineBuffer(VulkanContext * context) :
     VulkanBuffer(context)
 {
-    this->setUsagePattern(UsagePattern::Dynamic);
+    this->setUsagePattern(UsagePattern::eDynamic);
     m_timeline_semaphore.create(m_context_p);
 }
 
-// ---VulkanTimelineBuffer---
 
 void lcf::render::VulkanTimelineBuffer::setData(const void *data, uint32_t size_in_bytes)
 {
@@ -226,7 +227,7 @@ void lcf::render::VulkanTimelineBuffer::beginWrite()
     }
     auto &staging_buffer = m_staging_buffers.emplace(VulkanTimelineBuffer::makeUnique(m_context_p));
     staging_buffer->setSize(m_size);
-    staging_buffer->setUsagePattern(UsagePattern::Dynamic);
+    staging_buffer->setUsagePattern(UsagePattern::eDynamic);
     staging_buffer->setUsageFlags(vk::BufferUsageFlagBits::eTransferSrc);
     staging_buffer->create();
     m_current_writing_buffer = staging_buffer.get();

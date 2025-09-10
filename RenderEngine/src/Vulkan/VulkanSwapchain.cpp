@@ -1,7 +1,7 @@
 #include "VulkanSwapchain.h"
 #include "VulkanContext.h"
 #include "error.h"
-#include <magic_enum/magic_enum.hpp>
+#include "enum_name.h"
 
 lcf::render::VulkanSwapchain::VulkanSwapchain(VulkanContext *context, vk::SurfaceKHR surface) :
     RenderTarget(),
@@ -106,6 +106,7 @@ bool lcf::render::VulkanSwapchain::prepareForRender()
     if (not m_surface) { return false; }
     auto physical_device = m_context_p->getPhysicalDevice();
     m_surface_capabilities = physical_device.getSurfaceCapabilitiesKHR(m_surface);
+    this->setExtent(m_surface_capabilities.currentExtent.width, m_surface_capabilities.currentExtent.height);
     if (this->getWidth() == 0 or this->getHeight() == 0) { return false; }
     if (m_need_to_update) { this->recreate(); }
     this->acquireAvailableTarget();
@@ -133,7 +134,7 @@ void lcf::render::VulkanSwapchain::present()
     } else if (present_result != vk::Result::eSuccess) {
         LCF_THROW_RUNTIME_ERROR(std::format(
             "lcf::render::VulkanSwapchain::present(): Failed to present swapchain image! Error code: {}",
-            magic_enum::enum_name(present_result)));
+            enum_name(present_result)));
     }
 }
 
@@ -146,7 +147,7 @@ void lcf::render::VulkanSwapchain::acquireAvailableTarget()
     } else if (acquire_result != vk::Result::eSuccess and acquire_result != vk::Result::eSuboptimalKHR) {
         LCF_THROW_RUNTIME_ERROR(std::format(
             "lcf::render::VulkanSwapchain::acquireAvailableTarget(): Failed to acquire swapchain image! Error code: {}",
-            magic_enum::enum_name(acquire_result)));
+            enum_name(acquire_result)));
     }
     m_image_index = index;
 }

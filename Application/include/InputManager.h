@@ -6,6 +6,7 @@
 #include <QMouseEvent>
 #include <QWheelEvent>
 #include <QHash>
+#include "Vector.h"
 
 namespace lcf {
     class InputManager : QObject
@@ -18,9 +19,8 @@ namespace lcf {
         bool isKeyPressed(Key key) const { return m_pressed_keys.value(key, false); }
         bool isMouseButtonPressed(MouseButton button) const { return m_pressed_mouse_buttons & button; }
         bool isMouseButtonsPressed(MouseButtons buttons) const { return m_pressed_mouse_buttons & buttons; }
-        QPointF getMousePosition() const { return m_current_mouse_pos; }
-        QPointF getMouseDelta() const { return m_current_mouse_pos - m_last_mouse_pos; }
-        QPoint getWheelDelta() const { return m_wheel_delta; }
+        const Vector2D_D & getMousePosition() const { return m_current_mouse_pos; }
+        const Vector2D_I & getWheelDelta() const { return m_wheel_delta; }
     protected:
         bool eventFilter(QObject *watched, QEvent *event) override;
     private:
@@ -33,7 +33,7 @@ namespace lcf {
     private:
         QHash<Key, bool> m_pressed_keys;
         MouseButtons m_pressed_mouse_buttons = MouseButton::NoButton;
-        QPointF m_current_mouse_pos, m_last_mouse_pos;
-        QPoint m_wheel_delta;
+        Vector2D_D m_current_mouse_pos;
+        Vector2D_I m_wheel_delta;
     };
 }

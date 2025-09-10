@@ -10,21 +10,21 @@ namespace lcf {
     struct enum_flags_true_type 
     {
         using enum_type = std::remove_cvref_t<Enum>;
-        static constexpr bool s_is_flags = true;
+        static constexpr bool is_flags = true;
     };
 
     template <enum_c Enum>
     struct enum_flags_false_type
     {
         using enum_type = std::remove_cvref_t<Enum>;
-        static constexpr bool s_is_flags = false;
+        static constexpr bool is_flags = false;
     };
 
     template <enum_c Enum>
     struct enum_flags_traits : enum_flags_false_type<Enum> { };
 
     template <enum_c Enum>
-    static constexpr bool enum_flags_traits_v = enum_flags_traits<std::remove_cvref_t<Enum>>::s_is_flags;
+    static constexpr bool enum_flags_traits_v = enum_flags_traits<std::remove_cvref_t<Enum>>::is_flags;
 
     template <enum_c Enum>
     using enum_flags_traits_t = typename enum_flags_traits<std::remove_cvref_t<Enum>>::enum_type;
