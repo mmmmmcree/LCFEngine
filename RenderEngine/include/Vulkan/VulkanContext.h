@@ -3,6 +3,7 @@
 #include "common/Context.h"
 #include "VulkanSwapchain.h"
 #include "VulkanMemoryAllocator.h"
+#include "VulkanCommandBuffer.h"
 #include "RenderWindow.h"
 #include <vulkan/vulkan.hpp>
 #include <QVulkanInstance>
@@ -18,7 +19,7 @@ namespace lcf::render {
         using SurfaceRenderTargetList = std::vector<VulkanSwapchain::SharedPointer>;
         using QueueFamilyIndexMap = std::unordered_map<uint32_t, uint32_t>; // <vk::QueueFlagBits, index>
         using QueueMap = std::unordered_map<uint32_t, vk::Queue>; // <vk::QueueFlagBits, vk::Queue>
-        using CommandBufferStack = std::stack<vk::CommandBuffer>;
+        using CommandBufferStack = std::stack<VulkanCommandBuffer *>;
         VulkanContext();
         ~VulkanContext();
         void registerWindow(RenderWindow * window);
@@ -33,8 +34,8 @@ namespace lcf::render {
         uint32_t getQueueFamilyIndex(vk::QueueFlags flags) const { return m_queue_family_indices.at(static_cast<uint32_t>(flags)); }
         vk::Queue getQueue(vk::QueueFlags flags) const { return m_queues.at(static_cast<uint32_t>(flags)); }
         VulkanMemoryAllocator * getMemoryAllocator() { return &m_memory_allocator; }
-        void bindCommandBuffer(vk::CommandBuffer command_buffer) { m_bound_cmd_buffer_stack.emplace(command_buffer); }
-        vk::CommandBuffer getCurrentCommandBuffer() const;
+        void bindCommandBuffer(VulkanCommandBuffer * command_buffer_p) { m_bound_cmd_buffer_stack.emplace(command_buffer_p); }
+        VulkanCommandBuffer * getCurrentCommandBuffer() const noexcept;
         void releaseCommandBuffer() { m_bound_cmd_buffer_stack.pop(); }
     private:
         void setupVulkanInstance();
@@ -46,8 +47,6 @@ namespace lcf::render {
     private:
         QVulkanInstance m_vk_instance;
         vk::PhysicalDevice m_physical_device;
-        uint32_t m_host_visible_memory_index = -1u;
-        uint32_t m_device_local_memory_index = -1u;
         vk::UniqueDevice m_device;
         SurfaceRenderTargetList m_surface_render_targets;
         QueueFamilyIndexMap m_queue_family_indices;

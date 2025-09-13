@@ -94,11 +94,11 @@ void lcf::render::VulkanFramebuffer::beginRendering()
         .setLayerCount(1)
         .setColorAttachments(color_attachment_infos)
         .setPDepthAttachment(&depth_attachment_info);
-    cmd.beginRendering(rendering_info);
+    cmd->beginRendering(rendering_info);
 }
 
 void lcf::render::VulkanFramebuffer::endRendering() const
 {
     auto cmd = m_context_p->getCurrentCommandBuffer();
-    cmd.endRendering();
+    cmd->endRendering();
 }

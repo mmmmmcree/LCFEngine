@@ -2,6 +2,7 @@
 #include "VulkanContext.h"
 #include "vulkan_utililtie.h"
 #include <boost/align.hpp>
+#include "VulkanBuffer2.h"
 
 lcf::render::VulkanBuffer::VulkanBuffer(VulkanContext *context) :
     m_context_p(context)
@@ -82,7 +83,7 @@ void lcf::render::VulkanBuffer::copyFrom(const VulkanBuffer &src, uint32_t data_
     auto cmd = m_context_p->getCurrentCommandBuffer();
     vkutils::immediate_submit(m_context_p, [&] {
         auto cmd = m_context_p->getCurrentCommandBuffer();
-        cmd.copyBuffer(src.getHandle(), this->getHandle(), copy_region);
+        cmd->copyBuffer(src.getHandle(), this->getHandle(), copy_region);
     });
 }
 
@@ -238,7 +239,9 @@ void lcf::render::VulkanTimelineBuffer::endWrite()
     if (not m_is_writing) { return; }
     m_is_writing = false;
     m_current_writing_buffer->m_timeline_semaphore.increaseTargetValue();
-    if (not this->isUsingStagingBufferForWrite()) { return; }
+    if (not this->isUsingStagingBufferForWrite()) {
+        return;
+    }
     if (m_current_writing_buffer->getSize() > m_size) { this->resize(m_current_writing_buffer->getSize()); }
     if (this->isPendingComplete()) {
         memcpy(m_mapped_memory_ptr, m_current_writing_buffer->m_mapped_memory_ptr, m_size);
@@ -246,7 +249,7 @@ void lcf::render::VulkanTimelineBuffer::endWrite()
     } else {
         vk::BufferCopy copy_region(0u, 0u, m_size);
         auto cmd = m_context_p->getCurrentCommandBuffer();
-        cmd.copyBuffer(m_current_writing_buffer->getHandle(), this->getHandle(), copy_region);
+        cmd->copyBuffer(m_current_writing_buffer->getHandle(), this->getHandle(), copy_region);
         
         vk::MemoryBarrier2 barrier;
         barrier.setSrcStageMask(vk::PipelineStageFlagBits2KHR::eAllTransfer)
@@ -255,7 +258,7 @@ void lcf::render::VulkanTimelineBuffer::endWrite()
             .setDstAccessMask(vk::AccessFlagBits2KHR::eShaderRead | vk::AccessFlagBits2KHR::eUniformRead);
         vk::DependencyInfo dependency_info;
         dependency_info.setMemoryBarriers(barrier);
-        cmd.pipelineBarrier2(dependency_info);
+        cmd->pipelineBarrier2(dependency_info);
     }
     while (not m_staging_buffers.empty()) {
         auto &staging_buffer = m_staging_buffers.front();

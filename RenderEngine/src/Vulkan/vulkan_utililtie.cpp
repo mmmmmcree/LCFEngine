@@ -49,24 +49,13 @@ void lcf::render::vkutils::CopyAssistant::copy(vk::Image src, vk::Image dst, vk:
 void lcf::render::vkutils::immediate_submit(VulkanContext *context, std::function<void()> &&submit_func)
 {
     auto device = context->getDevice();
-    vk::FenceCreateInfo fence_info;
-    vk::Fence fence = device.createFence(fence_info);
-    vk::CommandBufferAllocateInfo cmd_alloc_info(context->getCommandPool(), vk::CommandBufferLevel::ePrimary, 1);
-    vk::CommandBuffer cmd = device.allocateCommandBuffers(cmd_alloc_info).front();
-    context->bindCommandBuffer(cmd);
+    VulkanCommandBuffer cmd;
+    cmd.create(context);
     vk::CommandBufferBeginInfo cmd_begin_info;
     cmd_begin_info.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
     cmd.begin(cmd_begin_info);
     submit_func();
     cmd.end();
-    context->releaseCommandBuffer();
-    vk::SubmitInfo submit_info;
-    submit_info.setCommandBuffers(cmd);
-    vk::Queue queue = context->getQueue(vk::QueueFlagBits::eGraphics);
-    queue.submit(submit_info, fence);
-    if (device.waitForFences(fence, true, UINT64_MAX) != vk::Result::eSuccess) {
-        throw std::runtime_error("lcf::render::vkutils::immediate_submit: waitForFences failed");
-    }
-    device.destroyFence(fence);
-    device.freeCommandBuffers(context->getCommandPool(), cmd);
+    cmd.submit(vk::QueueFlagBits::eGraphics);
+    cmd.getTimelineSemaphore()->wait();
 }

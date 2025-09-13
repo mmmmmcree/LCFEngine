@@ -18,7 +18,7 @@ namespace lcf::render {
         const uint64_t & getTargetValue() const { return m_target_value; }
         uint64_t getCurrentValue() const;
         bool isTargetReached() const { return m_target_value <= this->getCurrentValue(); }
-        vk::SemaphoreSubmitInfo generateSubmitInfo() const;
+        vk::SemaphoreSubmitInfo generateSubmitInfo() const noexcept;
     private:
         VulkanContext * m_context_p = nullptr;
         vk::UniqueSemaphore m_semaphore;

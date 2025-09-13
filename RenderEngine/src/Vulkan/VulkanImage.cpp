@@ -56,7 +56,7 @@ void lcf::render::VulkanImage::setData(const Image &image)
         .setImageOffset({ 0, 0, 0 })
         .setImageExtent(m_extent);
         this->transitLayout(vk::ImageLayout::eTransferDstOptimal);
-        cmd.copyBufferToImage(staging_buffer.getHandle(), m_image.get(), vk::ImageLayout::eTransferDstOptimal, region);
+        cmd->copyBufferToImage(staging_buffer.getHandle(), m_image.get(), vk::ImageLayout::eTransferDstOptimal, region);
         this->transitLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
     });
 }
@@ -87,7 +87,7 @@ void lcf::render::VulkanImage::transitLayout(vk::ImageLayout new_layout)
     }
     vk::DependencyInfo dependency_info;
     dependency_info.setImageMemoryBarriers(barrier);
-    cmd.pipelineBarrier2(dependency_info);
+    cmd->pipelineBarrier2(dependency_info);
     m_layout = new_layout;
 }
 

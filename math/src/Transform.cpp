@@ -190,22 +190,22 @@ void lcf::Transform::setTRS(const Vector3D &translation, const Quaternion &rotat
 
 lcf::Vector3D lcf::Transform::getXAxis() const
 {
-    return this->getLocalMatrix().column(0).toVector3D();
+    return this->getLocalMatrix().getColumn(0).toVector3D();
 }
 
 lcf::Vector3D lcf::Transform::getYAxis() const
 {
-    return this->getLocalMatrix().column(1).toVector3D();
+    return this->getLocalMatrix().getColumn(1).toVector3D();
 }
 
 lcf::Vector3D lcf::Transform::getZAxis() const
 {
-    return this->getLocalMatrix().column(2).toVector3D();
+    return this->getLocalMatrix().getColumn(2).toVector3D();
 }
 
 lcf::Vector3D lcf::Transform::getTranslation() const
 {
-    return m_matrix.column(3).toVector3D();
+    return m_matrix.getColumn(3).toVector3D();
 }
 
 lcf::Quaternion lcf::Transform::getRotation() const

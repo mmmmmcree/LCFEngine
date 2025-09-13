@@ -23,23 +23,14 @@ void lcf::render::VulkanSwapchain::create()
     auto surface_formats = physical_device.getSurfaceFormatsKHR(m_surface);
     auto present_modes = physical_device.getSurfacePresentModesKHR(m_surface);
     vk::SurfaceCapabilitiesKHR surface_capabilities = physical_device.getSurfaceCapabilitiesKHR(m_surface);
-    
-    vk::SurfaceFormatKHR best_surface_format = surface_formats.front();
-    vk::PresentModeKHR best_present_mode = vk::PresentModeKHR::eFifo;
-    for (const auto &surface_format : surface_formats) {
-        if (surface_format.format == vk::Format::eB8G8R8A8Srgb and surface_format.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear) {
-            best_surface_format = surface_format;
-            break;
-        }
-    }
-    for (const auto &present_mode : present_modes) {
-        if (present_mode == vk::PresentModeKHR::eMailbox) {
-            best_present_mode = present_mode;
-            break;
-        }
-    }
-    m_surface_format = best_surface_format;
-    m_present_mode = best_present_mode;   
+    auto surface_it = std::ranges::find_if(surface_formats, [](const auto& f) {
+        return f == vk::SurfaceFormatKHR{vk::Format::eB8G8R8A8Srgb, vk::ColorSpaceKHR::eSrgbNonlinear};
+    });
+    auto present_it = std::ranges::find_if(present_modes, [](const auto& m) {
+        return m == vk::PresentModeKHR::eMailbox;
+    });
+    m_surface_format = surface_it != surface_formats.end() ? *surface_it : surface_formats.front();
+    m_present_mode = present_it != present_modes.end() ? *present_it : vk::PresentModeKHR::eFifo;   
     auto device = m_context_p->getDevice();
     vk::SemaphoreCreateInfo semaphore_info;
     for (auto &swapchain_resource : m_swapchain_resources_list) {

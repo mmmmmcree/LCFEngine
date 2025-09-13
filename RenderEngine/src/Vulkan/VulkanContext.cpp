@@ -38,7 +38,7 @@ void lcf::render::VulkanContext::create()
     SurfaceRenderTargetList{}.swap(m_surface_render_targets);
 }
 
-vk::CommandBuffer lcf::render::VulkanContext::getCurrentCommandBuffer() const
+lcf::render::VulkanCommandBuffer * lcf::render::VulkanContext::getCurrentCommandBuffer() const noexcept 
 {
     if (m_bound_cmd_buffer_stack.empty()) { return nullptr; }
     return m_bound_cmd_buffer_stack.top();
@@ -81,17 +81,6 @@ void lcf::render::VulkanContext::pickPhysicalDevice()
         return calculatePhysicalDeviceScore(a) > calculatePhysicalDeviceScore(b);
     });
     m_physical_device = devices.front();
-    vk::PhysicalDeviceMemoryProperties memory_properties = m_physical_device.getMemoryProperties();
-    vk::MemoryPropertyFlags host_visible_memory_flags = vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent;
-    for (uint32_t i = 0; i < memory_properties.memoryTypeCount; ++i) {
-        auto memory_type = memory_properties.memoryTypes[i];
-        if (m_host_visible_memory_index == -1 and (memory_type.propertyFlags & (vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent))) {
-            m_host_visible_memory_index = i;
-        }
-        if (m_device_local_memory_index == -1 and memory_type.propertyFlags & vk::MemoryPropertyFlagBits::eDeviceLocal) {
-            m_device_local_memory_index = i;
-        }
-    }
 }
 
 int lcf::render::VulkanContext::calculatePhysicalDeviceScore(const vk::PhysicalDevice &device)
@@ -155,7 +144,6 @@ void lcf::render::VulkanContext::createLogicalDevice()
     for (const auto &extension : required_extensions_set) {
         qWarning() << "Required extension not available: " << extension;
     }
-
 
     vk::StructureChain<vk::DeviceCreateInfo,
         vk::PhysicalDeviceFeatures2,

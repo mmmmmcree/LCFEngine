@@ -27,5 +27,6 @@ namespace lcf::render {
         eIndex,
         eUniform,
         eShaderStorage,
+        eStaging,
     };
 }

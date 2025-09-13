@@ -10,6 +10,7 @@
 #include "Entity.h"
 #include "VulkanTimelineSemaphore.h"
 #include "VulkanCommandBuffer.h"
+#include "VulkanBuffer2.h"
 
 namespace lcf {
     using namespace lcf::render;
@@ -36,6 +37,7 @@ namespace lcf {
             VulkanFramebuffer::UniquePointer framebuffer;
         };
         VulkanTimelineBuffer::UniquePointer m_global_uniform_buffer;
+        VulkanBuffer2::UniquePointer m_global_uniform_buffer2;
         std::vector<FrameResources> m_frame_resources;
         uint32_t m_current_frame_index = 0;
 
@@ -43,6 +45,7 @@ namespace lcf {
         VulkanPipeline::UniquePointer m_compute_pipeline;
         VulkanPipeline::UniquePointer m_graphics_pipeline;
         VulkanBuffer::UniquePointer m_vertext_buffer;
+        VulkanBuffer2::UniquePointer m_vertext_buffer2;
         VulkanBuffer::UniquePointer m_index_buffer;
 
         VulkanBuffer::UniquePointer m_descriptor_buffer;

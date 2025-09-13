@@ -81,6 +81,11 @@ void lcf::VulkanRenderer::create()
     m_global_uniform_buffer->setSize(sizeof(Matrix4x4));
     m_global_uniform_buffer->create();
 
+    m_global_uniform_buffer2 = VulkanBuffer2::makeUnique();
+    m_global_uniform_buffer2->setUsage(GPUBufferUsage::eUniform)
+        .setSize(sizeof(Matrix4x4))
+        .create(m_context_p);
+
     VulkanShaderProgram::SharedPointer compute_shader_program = std::make_shared<VulkanShaderProgram>(m_context_p);
     compute_shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::Compute, "assets/shaders/gradient.comp");
     compute_shader_program->link();
@@ -159,6 +164,14 @@ void lcf::VulkanRenderer::create()
     m_vertext_buffer->setUsageFlags(vk::BufferUsageFlagBits::eVertexBuffer);
     m_vertext_buffer->setData(vertex_data.getData(), vertex_data.getSizeInBytes());
 
+    m_vertext_buffer2 = VulkanBuffer2::makeUnique();
+    m_vertext_buffer2->setUsage(GPUBufferUsage::eVertex)
+        .setSize(vertex_data.getSizeInBytes())
+        .create(m_context_p);
+    m_vertext_buffer2->addWriteSegment({vertex_data.getDataSpan()});
+    m_vertext_buffer2->commitWriteSegments();
+    
+
     m_index_buffer = VulkanBuffer::makeUnique(m_context_p);
     m_index_buffer->setUsagePattern(GPUBuffer::UsagePattern::eStatic);
     m_index_buffer->setUsageFlags(vk::BufferUsageFlagBits::eIndexBuffer);
@@ -226,15 +239,14 @@ void lcf::VulkanRenderer::render()
             .setSampler(m_texture_sampler.get());
         vk::DescriptorBufferInfo buffer_info;
         
-
         VulkanDescriptorWriter writer(m_context_p, m_graphics_pipeline->getShaderProgram()->getDescriptorSetLayoutBindingTable(), descriptor_sets) ;
         writer.add(1, 0, image_info)
             .write();
 
         vk::DescriptorBufferInfo test_buffer_info;
-        test_buffer_info.setBuffer(m_global_uniform_buffer->getHandle())
+        test_buffer_info.setBuffer(m_global_uniform_buffer2->getHandle())
             .setOffset(0)
-            .setRange(m_global_uniform_buffer->getSize());
+            .setRange(m_global_uniform_buffer2->getSize());
         vk::WriteDescriptorSet write_descriptor_set;
         write_descriptor_set.setDstSet(descriptor_sets[0])
             .setDstBinding(0)
@@ -245,9 +257,14 @@ void lcf::VulkanRenderer::render()
         device.updateDescriptorSets(write_descriptor_set, nullptr);
     }
     
-    m_global_uniform_buffer->beginWrite();
-    m_global_uniform_buffer->setData(projection_view.getConstData(), sizeof(Matrix4x4));
-    m_global_uniform_buffer->endWrite();
+    // m_global_uniform_buffer->beginWrite();
+    // m_global_uniform_buffer->setData(projection_view.getConstData(), sizeof(Matrix4x4));
+    // m_global_uniform_buffer->endWrite();
+
+
+    // m_global_uniform_buffer2->addWriteSegment({std::span(projection_view.getConstData(), 16), 0u});
+    m_global_uniform_buffer2->addWriteSegment({std::span(&projection_view, 1), 0u});
+    m_global_uniform_buffer2->commitWriteSegments();
 
     cmd_buffer.setViewport(0, viewport);
     cmd_buffer.setScissor(0, scissor);
@@ -260,7 +277,7 @@ void lcf::VulkanRenderer::render()
 
     auto shader_program = m_graphics_pipeline->getShaderProgram();
     vk::DeviceSize offset = 0;
-    cmd_buffer.bindVertexBuffers(0, m_vertext_buffer->getHandle(), offset);
+    cmd_buffer.bindVertexBuffers(0, m_vertext_buffer2->getHandle(), offset);
     cmd_buffer.bindIndexBuffer(m_index_buffer->getHandle(), 0, vk::IndexType::eUint16);
 
 
@@ -299,8 +316,8 @@ void lcf::VulkanRenderer::render()
     wait_info.setSemaphore(render_target->getTargetAvailableSemaphore())
         .setStageMask(vk::PipelineStageFlagBits2::eColorAttachmentOutput);
     cmd_buffer.addWaitSubmitInfo(wait_info)
-        .addSignalSubmitInfo(render_finished)
-        .addSignalSubmitInfo(m_global_uniform_buffer->generateSubmitInfo());
+        .addSignalSubmitInfo(render_finished);
+        // .addSignalSubmitInfo(m_global_uniform_buffer->generateSubmitInfo());
     cmd_buffer.submit(vk::QueueFlagBits::eGraphics);
 
     render_target->finishRender(render_finished);

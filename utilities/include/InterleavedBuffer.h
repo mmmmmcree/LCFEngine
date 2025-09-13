@@ -19,7 +19,7 @@ namespace lcf {
         size_t getSize() const { return this->isCreated() ? m_data.size() / this->getStrideInBytes() : 0; }
         std::byte * getData() { return m_data.data(); }
         const std::byte * getData() const { return m_data.data(); }
-        std::span<std::byte> getSpan() { return m_data; }
+        std::span<std::byte> getDataSpan() { return m_data; }
         const std::span<const std::byte> getSpan() const { return m_data; }
         InterleavedBuffer & setStructuralAlignment(size_t alignment)
         {
@@ -77,7 +77,8 @@ namespace lcf {
         auto view(size_t field_index)
         {
             using Iterator = lcf::StrideIterator<T>;
-            if (field_index >= m_offsets.size() - 1 or not this->isCreated()) { return std::ranges::subrange(Iterator{}, Iterator{}); }
+            if (field_index >= m_offsets.size() - 1 or not this->isCreated())
+            { return std::ranges::subrange(Iterator{}, Iterator{}); }
             Iterator begin(m_data.data() + m_offsets[field_index], this->getStrideInBytes());
             Iterator end(m_data.data() + m_offsets[field_index] + m_data.size(), this->getStrideInBytes());
             return std::ranges::subrange(begin, end);
@@ -86,7 +87,8 @@ namespace lcf {
         auto view(size_t field_index) const
         {
             using Iterator = lcf::ConstStrideIterator<T>;
-            if (field_index >= m_offsets.size() - 1 or not this->isCreated()) { return std::ranges::subrange(Iterator{}, Iterator{}); }
+            if (field_index >= m_offsets.size() - 1 or not this->isCreated())
+            { return std::ranges::subrange(Iterator{}, Iterator{}); }
             Iterator begin(m_data.data() + m_offsets[field_index], this->getStrideInBytes());
             Iterator end(m_data.data() + m_offsets[field_index] + m_data.size(), this->getStrideInBytes());
             return std::ranges::subrange(begin, end);

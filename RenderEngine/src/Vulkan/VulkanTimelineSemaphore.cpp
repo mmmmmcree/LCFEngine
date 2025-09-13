@@ -36,7 +36,7 @@ uint64_t lcf::render::VulkanTimelineSemaphore::getCurrentValue() const
     return m_context_p->getDevice().getSemaphoreCounterValue(m_semaphore.get());
 }
 
-vk::SemaphoreSubmitInfo lcf::render::VulkanTimelineSemaphore::generateSubmitInfo() const
+vk::SemaphoreSubmitInfo lcf::render::VulkanTimelineSemaphore::generateSubmitInfo() const noexcept
 {
     return vk::SemaphoreSubmitInfo(m_semaphore.get(), m_target_value);
 }

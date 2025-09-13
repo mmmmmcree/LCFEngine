@@ -86,6 +86,7 @@ namespace lcf {
     template <number_c T, glm::qualifier qualifier = glm::defaultp>
     std::string to_string(const GLMQuaternion<T, qualifier> &quat)
     {
-        return std::format("GLMQuaternion({}, {}, {}, {})", quat.getX(), quat.getY(), quat.getZ(), quat.getScalar());
+        return std::format("GLMQuaternion(scalar: {}, x: {}, y: {}, z: {})",
+            quat.getScalar(), quat.getX(), quat.getY(), quat.getZ());
     }
 }
