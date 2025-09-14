@@ -53,4 +53,3 @@ target_link_libraries(${PROJECT_NAME}
         spirv-cross-core spirv-cross-glsl spirv-cross-cpp
         GPUOpen::VulkanMemoryAllocator
 )
- 

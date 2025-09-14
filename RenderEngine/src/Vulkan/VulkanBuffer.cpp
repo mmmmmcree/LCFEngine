@@ -2,7 +2,6 @@
 #include "VulkanContext.h"
 #include "vulkan_utililtie.h"
 #include <boost/align.hpp>
-#include "VulkanBuffer2.h"
 
 lcf::render::VulkanBuffer::VulkanBuffer(VulkanContext *context) :
     m_context_p(context)

@@ -38,7 +38,7 @@ void lcf::render::VulkanContext::create()
     SurfaceRenderTargetList{}.swap(m_surface_render_targets);
 }
 
-lcf::render::VulkanCommandBuffer * lcf::render::VulkanContext::getCurrentCommandBuffer() const noexcept 
+lcf::render::VulkanCommandBufferObject * lcf::render::VulkanContext::getCurrentCommandBuffer() const noexcept 
 {
     if (m_bound_cmd_buffer_stack.empty()) { return nullptr; }
     return m_bound_cmd_buffer_stack.top();

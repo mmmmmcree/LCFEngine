@@ -2,6 +2,7 @@
 #include "VulkanContext.h"
 #define VMA_IMPLEMENTATION
 #include <vk_mem_alloc.h>
+#include "error.h"
 
 lcf::render::VulkanMemoryAllocator::~VulkanMemoryAllocator()
 {
@@ -42,11 +43,9 @@ lcf::render::VMAUniqueImage lcf::render::VulkanMemoryAllocator::createImage(cons
         nullptr
     );
     if (result != VK_SUCCESS) {
-        const char * error_message = "lcf::render::VulkanMemoryAllocator::createImage: Failed to create image with VMA.";
-        qDebug() << error_message;
-        throw std::runtime_error(error_message);
+        LCF_THROW_RUNTIME_ERROR("lcf::render::VulkanMemoryAllocator::createImage: Failed to create image with VMA.");
     }
-    return VMAUniqueImage(image, [=](VkImage image) { vmaDestroyImage(m_allocator, image, allocation); });
+    return VMAUniqueImage(image, VMAImageDeleter(m_allocator, allocation));
 }
 
 lcf::render::VMAUniqueBuffer lcf::render::VulkanMemoryAllocator::createBuffer(const vk::BufferCreateInfo &buffer_info, vk::MemoryPropertyFlags memory_flags, std::byte * & mapped_data)
@@ -67,10 +66,32 @@ lcf::render::VMAUniqueBuffer lcf::render::VulkanMemoryAllocator::createBuffer(co
         &allocation_info
     );
     if (result != VK_SUCCESS) {
-        const char * error_message = "lcf::render::VulkanMemoryAllocator::createBuffer: Failed to create buffer with VMA.";
-        qDebug() << error_message;
-        throw std::runtime_error(error_message);
+        LCF_THROW_RUNTIME_ERROR("lcf::render::VulkanMemoryAllocator::createBuffer: Failed to create buffer with VMA.");
     }
     mapped_data = static_cast<std::byte *>(allocation_info.pMappedData);
-    return VMAUniqueBuffer(buffer, [=](VkBuffer buffer) { vmaDestroyBuffer(m_allocator, buffer, allocation); });
+    return VMAUniqueBuffer(buffer, VMABufferDeleter(m_allocator, allocation));
+}
+
+//- Deleters
+
+lcf::render::VMABufferDeleter::VMABufferDeleter(VmaAllocator_T *allocator, VmaAllocation_T *allocation) :
+    m_allocator(allocator),
+    m_allocation(allocation)
+{
+}
+
+void lcf::render::VMABufferDeleter::operator()(VkBuffer buffer) const noexcept
+{
+    vmaDestroyBuffer(m_allocator, buffer, m_allocation);
+}
+
+lcf::render::VMAImageDeleter::VMAImageDeleter(VmaAllocator_T *allocator, VmaAllocation_T *allocation) :
+    m_allocator(allocator),
+    m_allocation(allocation)
+{
+}
+
+void lcf::render::VMAImageDeleter::operator()(VkImage image) const noexcept
+{
+    vmaDestroyImage(m_allocator, image, m_allocation);
 }

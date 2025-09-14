@@ -3,7 +3,7 @@
 #include "common/Context.h"
 #include "VulkanSwapchain.h"
 #include "VulkanMemoryAllocator.h"
-#include "VulkanCommandBuffer.h"
+#include "VulkanCommandBufferObject.h"
 #include "RenderWindow.h"
 #include <vulkan/vulkan.hpp>
 #include <QVulkanInstance>
@@ -19,7 +19,7 @@ namespace lcf::render {
         using SurfaceRenderTargetList = std::vector<VulkanSwapchain::SharedPointer>;
         using QueueFamilyIndexMap = std::unordered_map<uint32_t, uint32_t>; // <vk::QueueFlagBits, index>
         using QueueMap = std::unordered_map<uint32_t, vk::Queue>; // <vk::QueueFlagBits, vk::Queue>
-        using CommandBufferStack = std::stack<VulkanCommandBuffer *>;
+        using CommandBufferStack = std::stack<VulkanCommandBufferObject *>;
         VulkanContext();
         ~VulkanContext();
         void registerWindow(RenderWindow * window);
@@ -34,8 +34,8 @@ namespace lcf::render {
         uint32_t getQueueFamilyIndex(vk::QueueFlags flags) const { return m_queue_family_indices.at(static_cast<uint32_t>(flags)); }
         vk::Queue getQueue(vk::QueueFlags flags) const { return m_queues.at(static_cast<uint32_t>(flags)); }
         VulkanMemoryAllocator * getMemoryAllocator() { return &m_memory_allocator; }
-        void bindCommandBuffer(VulkanCommandBuffer * command_buffer_p) { m_bound_cmd_buffer_stack.emplace(command_buffer_p); }
-        VulkanCommandBuffer * getCurrentCommandBuffer() const noexcept;
+        void bindCommandBuffer(VulkanCommandBufferObject * command_buffer_p) { m_bound_cmd_buffer_stack.emplace(command_buffer_p); }
+        VulkanCommandBufferObject * getCurrentCommandBuffer() const noexcept;
         void releaseCommandBuffer() { m_bound_cmd_buffer_stack.pop(); }
     private:
         void setupVulkanInstance();

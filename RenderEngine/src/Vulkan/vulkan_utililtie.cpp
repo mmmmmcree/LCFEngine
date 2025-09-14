@@ -49,7 +49,7 @@ void lcf::render::vkutils::CopyAssistant::copy(vk::Image src, vk::Image dst, vk:
 void lcf::render::vkutils::immediate_submit(VulkanContext *context, std::function<void()> &&submit_func)
 {
     auto device = context->getDevice();
-    VulkanCommandBuffer cmd;
+    VulkanCommandBufferObject cmd;
     cmd.create(context);
     vk::CommandBufferBeginInfo cmd_begin_info;
     cmd_begin_info.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
