@@ -1,7 +1,7 @@
-#include "VulkanCommandBuffer.h"
+#include "VulkanCommandBufferObject.h"
 #include "VulkanContext.h"
 
-bool lcf::render::VulkanCommandBuffer::create(VulkanContext * context_p)
+bool lcf::render::VulkanCommandBufferObject::create(VulkanContext * context_p)
 {
     if (not context_p or not context_p->isCreated()) { return false; }
     m_context_p = context_p;
@@ -16,28 +16,22 @@ bool lcf::render::VulkanCommandBuffer::create(VulkanContext * context_p)
     return true;
 }
 
-void lcf::render::VulkanCommandBuffer::begin(const vk::CommandBufferBeginInfo &begin_info)
+void lcf::render::VulkanCommandBufferObject::prepareForRecording()
 {
     m_timeline_semaphore_sp->wait();
-    while (not m_resources.empty()) {
-        auto resource_sp = m_resources.front();
-        if (resource_sp->isPendingComplete()) {
-            m_resources.pop();
-        }
-    }
-    /*
-        todo
-        与command buffer共用一个timeline的resource，
-        可以之间按照timeline valu进行清理， <= target value的一次弹出，不用循环判断
-    */
+    m_resources.clear();
+    this->reset();
+}
+
+void lcf::render::VulkanCommandBufferObject::begin(const vk::CommandBufferBeginInfo &begin_info)
+{
     m_wait_infos.clear();
     m_signal_infos.clear();
-    this->reset();
     vk::CommandBuffer::begin(begin_info);
     m_context_p->bindCommandBuffer(this);
 }
 
-void lcf::render::VulkanCommandBuffer::submit(vk::QueueFlags queue_flags)
+void lcf::render::VulkanCommandBufferObject::submit(vk::QueueFlags queue_flags)
 {
     m_timeline_semaphore_sp->increaseTargetValue();
     m_signal_infos.emplace_back(m_timeline_semaphore_sp->generateSubmitInfo());
@@ -51,9 +45,7 @@ void lcf::render::VulkanCommandBuffer::submit(vk::QueueFlags queue_flags)
     m_context_p->releaseCommandBuffer();
 }
 
-void lcf::render::VulkanCommandBuffer::acquireResource(const VulkanResource::SharedPointer &resource_sp)
+void lcf::render::VulkanCommandBufferObject::acquireResource(const GPUResource::SharedPointer &resource_sp)
 {
-    m_resources.emplace(resource_sp);
-    resource_sp->markAsInUse();
-    this->addSignalSubmitInfo(resource_sp->generateSubmitInfo());
+    m_resources.emplace_back(resource_sp);
 }
