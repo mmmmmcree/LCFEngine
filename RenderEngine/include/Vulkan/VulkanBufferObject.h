@@ -5,7 +5,11 @@
 #include "PointerDefs.h"
 #include <span>
 #include <boost/icl/interval_map.hpp>
+<<<<<<< HEAD
 #include <vulkan/vulkan.hpp>
+=======
+#include <boost/container/devector.hpp>
+>>>>>>> 20160bf0f13d6de1b0ad9f1b7e8ec1090adaae6f
 
 namespace lcf::render {
     class VulkanContext;
@@ -53,6 +57,10 @@ namespace lcf::render {
     public:
         IMPORT_POINTER_DEFS(VulkanBufferObject);
         using WriteSegmentIntervalMap = boost::icl::interval_map<uint32_t, BufferWriteSegment>;
+<<<<<<< HEAD
+=======
+        using WriteSegmentList = boost::container::devector<BufferWriteSegment>;
+>>>>>>> 20160bf0f13d6de1b0ad9f1b7e8ec1090adaae6f
         using ExecuteWriteSequenceMethod = void (Self::*)();
         VulkanBufferObject() = default;
         bool create(VulkanContext * context_p);

@@ -1,6 +1,7 @@
 #include "VulkanBufferObject.h"
 #include "VulkanContext.h"
 #include <boost/align.hpp>
+#include <algorithm>
 #include "vulkan_utililtie.h"
 
 using namespace lcf::render;
