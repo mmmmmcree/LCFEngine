@@ -6,11 +6,34 @@
 #include "PointerDefs.h"
 #include <queue>
 #include <span>
+#include <boost/icl/interval_map.hpp>
+#include <boost/container/devector.hpp>
 
 namespace lcf::render {
     class VulkanContext;
 
-    class BufferWriteSegment;
+    class BufferWriteSegment
+    {
+    public:
+        BufferWriteSegment() = default;
+        template <std::ranges::range Range>
+        BufferWriteSegment(const Range& data, uint32_t offset_in_bytes = 0u) :
+            m_data(std::as_bytes(std::span(data))), m_offset_in_bytes(offset_in_bytes) {}
+        BufferWriteSegment(std::span<const std::byte> data, uint32_t offset_in_bytes = 0u) :
+            m_data(data), m_offset_in_bytes(offset_in_bytes) {}
+        BufferWriteSegment(const BufferWriteSegment& other) = default;
+        BufferWriteSegment(BufferWriteSegment&& other) noexcept = default;
+        BufferWriteSegment& operator=(const BufferWriteSegment& other) = default;
+        std::span<const std::byte> getDataSpan() const noexcept { return m_data; }
+        const std::byte * getData() const noexcept { return m_data.data(); }
+        uint32_t getBeginOffsetInBytes() const noexcept { return m_offset_in_bytes; }
+        uint32_t getEndOffsetInBytes() const noexcept { return m_offset_in_bytes + m_data.size_bytes(); }
+        bool operator==(const BufferWriteSegment& other) const noexcept; // equality rule for boost::icl::interval_map
+        BufferWriteSegment & operator+=(const BufferWriteSegment& other) noexcept; //merge rule for boost::icl::interval_map
+    private:
+        std::span<const std::byte> m_data;
+        uint32_t m_offset_in_bytes = 0;
+    };
 
     class VulkanBufferResource : public GPUResource, public PointerDefs<VulkanBufferResource>
     {
@@ -22,7 +45,7 @@ namespace lcf::render {
         vk::Buffer getHandle() const noexcept { return m_buffer.get(); }
         std::byte * getMappedMemoryPtr() const noexcept { return m_mapped_memory_p; }
     private:
-        VMAUniqueBuffer m_buffer;       
+        VMAUniqueBuffer m_buffer;
         std::byte *m_mapped_memory_p = nullptr;
     };
     
@@ -31,14 +54,15 @@ namespace lcf::render {
         using Self = VulkanBufferObject;
     public:
         IMPORT_POINTER_DEFS(VulkanBufferObject);
-        using WriteSegmentList = std::vector<BufferWriteSegment>;
-        using WriteSegmentMethod = void (Self::*)(const WriteSegmentList &segment);
+        using WriteSegmentIntervalMap = boost::icl::interval_map<uint32_t, BufferWriteSegment>;
+        using WriteSegmentList = boost::container::devector<BufferWriteSegment>;
+        using ExecuteWriteSequenceMethod = void (Self::*)();
         VulkanBufferObject() = default;
         bool create(VulkanContext * context_p);
         bool isCreated() const noexcept { return m_buffer_sp->getHandle(); }
         Self & setSize(uint32_t size_in_bytes);
-        Self & resize(uint32_t size_in_bytes);
-        void addWriteSegment(const BufferWriteSegment &segment) noexcept;
+        void addWriteSegment(const BufferWriteSegment &segment) noexcept; // overwrite if overlaps
+        void addWriteSegmentIfAbsent(const BufferWriteSegment &segment) noexcept; // don't overwrite if overlaps
         void commitWriteSegments();
         uint32_t getSize() const noexcept { return m_size; }
         vk::BufferUsageFlags getUsageFlags() const noexcept { return m_usage_flags; }
@@ -47,16 +71,21 @@ namespace lcf::render {
         vk::DeviceAddress getDeviceAddress() const;
         std::byte * getMappedMemoryPtr() const noexcept { return m_buffer_sp->getMappedMemoryPtr(); }
     private:
+        Self & resize(uint32_t size_in_bytes);
         Self & setUsagePattern(GPUBufferPattern pattern) noexcept { m_pattern = pattern; return *this; }
         Self & addUsageFlags(vk::BufferUsageFlags flags) noexcept { m_usage_flags |= flags; return *this; }
         const VulkanBufferResource::SharedPointer & getBufferResource() const noexcept { return m_buffer_sp; }
-        void writeSegments(const WriteSegmentList &segments);
-        void writeSegmentsByMapping(const WriteSegmentList &segments);
-        void writeSegmentsByStaging(const WriteSegmentList &segments);
-        void writeSegmentsByStagingImediate(const WriteSegmentList &segments);
+        void copyFromBufferWithBarriers(vk::Buffer src,
+            uint32_t data_size_in_bytes,
+            uint32_t src_offset_in_bytes = 0u,
+            uint32_t dst_offset_in_bytes = 0u);
+        void executeWriteSequence();
+        void executeCpuWriteSequence();
+        void executeGpuWriteSequence();
+        void executeGpuWriteSequenceImediate();
     private:
         VulkanContext * m_context_p = nullptr;
-        VulkanTimelineSemaphore m_timeline_semaphore;
+        VulkanTimelineSemaphore::SharedPointer m_timeline_semaphore_sp;
         VulkanBufferResource::SharedPointer m_buffer_sp;
         uint32_t m_size = 0;
         GPUBufferPattern m_pattern = GPUBufferPattern::eDynamic;
@@ -64,25 +93,8 @@ namespace lcf::render {
         vk::PipelineStageFlags2 m_stage_flags = vk::PipelineStageFlagBits2KHR::eAllGraphics;
         vk::AccessFlags2 m_access_flags = vk::AccessFlagBits2KHR::eMemoryRead;
         vk::BufferUsageFlags m_usage_flags;
-        std::priority_queue<BufferWriteSegment> m_write_segments;
-        WriteSegmentMethod m_write_segment_method = nullptr; // up to GPUBufferPattern
+        WriteSegmentIntervalMap m_write_segment_map;
+        ExecuteWriteSequenceMethod m_execute_write_sequence_method = nullptr; // up to GPUBufferPattern
         bool m_is_prev_write_by_staging = false;
-    };
-
-    struct BufferWriteSegment
-    {
-        BufferWriteSegment() = default;
-        template <std::ranges::range Range>
-        BufferWriteSegment(const Range& _data, uint32_t _offset_in_bytes = 0u) :
-            data(std::as_bytes(std::span(_data))), offset_in_bytes(_offset_in_bytes) {}
-        BufferWriteSegment(std::span<const std::byte> _data, uint32_t _offset_in_bytes = 0u) :
-            data(_data), offset_in_bytes(_offset_in_bytes) {}
-        BufferWriteSegment(const BufferWriteSegment& other) = default;
-        BufferWriteSegment(BufferWriteSegment&& other) noexcept = default;
-        BufferWriteSegment& operator=(const BufferWriteSegment& other) = default;
-        auto operator<=>(const BufferWriteSegment& other) const noexcept
-        { return offset_in_bytes <=> other.offset_in_bytes; };
-        std::span<const std::byte> data;
-        uint32_t offset_in_bytes = 0;
     };
 }
