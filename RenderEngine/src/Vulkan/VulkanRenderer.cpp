@@ -76,7 +76,7 @@ void lcf::VulkanRenderer::create()
 
     m_global_uniform_buffer = VulkanBufferObject::makeUnique();
     m_global_uniform_buffer->setUsage(GPUBufferUsage::eUniform)
-        .setSize(sizeof(Matrix4x4))
+        // .setSize(sizeof(Matrix4x4))
         .create(m_context_p);
 
     VulkanShaderProgram::SharedPointer compute_shader_program = std::make_shared<VulkanShaderProgram>(m_context_p);
@@ -220,6 +220,8 @@ void lcf::VulkanRenderer::render()
     if (m_current_frame_index % 3 == 1) {
         projection_view.setToIdentity();
     }
+    m_global_uniform_buffer->addWriteSegment({std::span(&projection_view, 1), 0u});
+    m_global_uniform_buffer->commitWriteSegments();
 
     descriptor_sets = *descriptor_manager.allocate(m_graphics_pipeline->getDescriptorSetLayoutList());
     {
@@ -247,9 +249,6 @@ void lcf::VulkanRenderer::render()
         device.updateDescriptorSets(write_descriptor_set, nullptr);
     }
     
-    m_global_uniform_buffer->addWriteSegment({std::span(&projection_view, 1), 0u});
-    m_global_uniform_buffer->commitWriteSegments();
-
     cmd_buffer.setViewport(0, viewport);
     cmd_buffer.setScissor(0, scissor);
     cmd_buffer.bindPipeline(m_graphics_pipeline->getType(), m_graphics_pipeline->getHandle());

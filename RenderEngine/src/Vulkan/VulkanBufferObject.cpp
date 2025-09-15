@@ -12,8 +12,10 @@ bool VulkanBufferObject::create(VulkanContext * context_p)
         use different create stategy, like recreate, create without timeline,
     */
     m_context_p = context_p;
-    m_timeline_semaphore.create(m_context_p);
-    
+    if (not m_timeline_semaphore_sp) {
+        m_timeline_semaphore_sp = VulkanTimelineSemaphore::makeShared();
+        m_timeline_semaphore_sp->create(m_context_p);
+    }
     auto memory_allocator = m_context_p->getMemoryAllocator();
     uint32_t alignment = 4;
     vk::PhysicalDeviceLimits limits = m_context_p->getPhysicalDevice().getProperties().limits;
@@ -25,20 +27,20 @@ bool VulkanBufferObject::create(VulkanContext * context_p)
         alignment = limits.minTexelBufferOffsetAlignment;
     }
     m_size = boost::alignment::align_up(m_size, alignment);
-
     vk::BufferCreateInfo buffer_info = {{}, m_size, m_usage_flags, m_sharing_mode};
     vk::MemoryPropertyFlags memory_flags;
     switch (m_pattern) {
         case GPUBufferPattern::eDynamic : {
             memory_flags = vk::MemoryPropertyFlagBits::eHostVisible;
-            m_write_segment_method = &Self::writeSegments;
+            m_execute_write_sequence_method = &Self::executeWriteSequence;
         } break;
         case GPUBufferPattern::eStatic : {
             memory_flags = vk::MemoryPropertyFlagBits::eDeviceLocal;
-            m_write_segment_method = &Self::writeSegmentsByStagingImediate;
+            m_execute_write_sequence_method = &Self::executeGpuWriteSequenceImediate;
         } break;
     }
     m_buffer_sp = VulkanBufferResource::makeShared();
+    if (m_size == 0u) { return false; }
     m_buffer_sp->create(m_context_p, buffer_info, memory_flags);
     return this->isCreated();
 }
@@ -51,27 +53,38 @@ VulkanBufferObject & VulkanBufferObject::setSize(uint32_t size_in_bytes)
 
 VulkanBufferObject & VulkanBufferObject::resize(uint32_t size_in_bytes)
 {
-    /*
-        
-    */
+    auto old_buffer_sp = m_buffer_sp;
+    uint32_t old_size = m_size;
+    m_size = size_in_bytes;
+    this->create(m_context_p);
+    if (m_timeline_semaphore_sp->isTargetReached()) {
+        memcpy(this->getMappedMemoryPtr(), old_buffer_sp->getMappedMemoryPtr(), std::min(old_size, m_size));
+    } else {
+        this->copyFromBufferWithBarriers(old_buffer_sp->getHandle(), std::min(old_size, m_size));
+        auto cmd = m_context_p->getCurrentCommandBuffer();
+        cmd->acquireResource(old_buffer_sp);
+        m_timeline_semaphore_sp->increaseTargetValue();
+        cmd->addSignalSubmitInfo(m_timeline_semaphore_sp->generateSubmitInfo());
+    }
     return *this;
 }
 
 void VulkanBufferObject::addWriteSegment(const BufferWriteSegment &segment) noexcept
 {
-    m_write_segments.emplace(segment);
+    auto segment_interval = boost::icl::interval<uint32_t>::right_open(segment.getBeginOffsetInBytes(), segment.getEndOffsetInBytes());
+    m_write_segment_map.set(std::make_pair(segment_interval, segment));
+}
+
+void lcf::render::VulkanBufferObject::addWriteSegmentIfAbsent(const BufferWriteSegment &segment) noexcept
+{
+    auto segment_interval = boost::icl::interval<uint32_t>::right_open(segment.getBeginOffsetInBytes(), segment.getEndOffsetInBytes());
+    m_write_segment_map.add(std::make_pair(segment_interval, segment));
 }
 
 void VulkanBufferObject::commitWriteSegments()
 {
-    WriteSegmentList segments(m_write_segments.size());
-    while (not m_write_segments.empty()) {
-        // TODO: remove redundant segments
-        segments.emplace_back(m_write_segments.top());
-        m_write_segments.pop();
-    }
-    //todo check if segments out of range, call resize if necessary
-    (this->*m_write_segment_method)(segments);
+    if (m_write_segment_map.empty()) { return; }
+    (this->*m_execute_write_sequence_method)();
 }
 
 VulkanBufferObject & VulkanBufferObject::setUsage(GPUBufferUsage usage) noexcept
@@ -101,39 +114,10 @@ VulkanBufferObject & VulkanBufferObject::setUsage(GPUBufferUsage usage) noexcept
     return *this;
 }
 
-void VulkanBufferObject::writeSegments(const VulkanBufferObject::WriteSegmentList &segments)
+void lcf::render::VulkanBufferObject::copyFromBufferWithBarriers(vk::Buffer src, uint32_t data_size_in_bytes, uint32_t src_offset_in_bytes, uint32_t dst_offset_in_bytes)
 {
-    if (m_timeline_semaphore.isTargetReached()) {
-        this->writeSegmentsByMapping(segments);
-        auto cmd = m_context_p->getCurrentCommandBuffer();
-        m_timeline_semaphore.increaseTargetValue();
-        cmd->addSignalSubmitInfo(m_timeline_semaphore.generateSubmitInfo());
-    } else {
-        this->writeSegmentsByStaging(segments);
-    }
-}
-
-void lcf::render::VulkanBufferObject::writeSegmentsByMapping(const WriteSegmentList &segments)
-{
-    for (const auto &segment : segments) {
-        memcpy(this->getMappedMemoryPtr() + segment.offset_in_bytes, segment.data.data(), segment.data.size_bytes());
-    }
-    m_is_prev_write_by_staging = false;
-}
-
-void VulkanBufferObject::writeSegmentsByStaging(const VulkanBufferObject::WriteSegmentList &segments)
-{
-    if (segments.empty()) { return; }
     auto cmd = m_context_p->getCurrentCommandBuffer();
-    VulkanBufferObject::SharedPointer staging_buffer = VulkanBufferObject::makeShared();
-    const auto &last_segment = segments.back();
-    uint32_t staging_size = last_segment.offset_in_bytes + last_segment.data.size_bytes();
-    staging_buffer->setUsage(GPUBufferUsage::eStaging)
-        .setSize(staging_size)
-        .create(m_context_p);
-    staging_buffer->writeSegmentsByMapping(segments);
-
-    if (m_is_prev_write_by_staging) {
+    if (m_is_prev_write_by_staging) [[unlikely]] {
         vk::BufferMemoryBarrier2 pre_buffer_barrier;
         pre_buffer_barrier.setSrcStageMask(m_stage_flags)
             .setSrcAccessMask(m_access_flags)
@@ -153,18 +137,80 @@ void VulkanBufferObject::writeSegmentsByStaging(const VulkanBufferObject::WriteS
         .setDstAccessMask(m_access_flags);
     vk::DependencyInfo post_dependency;
     post_dependency.setMemoryBarriers(post_barrier);
-    vk::BufferCopy copy_region(0u, 0u, staging_buffer->getSize());
-    cmd->copyBuffer(staging_buffer->getHandle(), this->getHandle(), copy_region);
+    vk::BufferCopy copy_region(src_offset_in_bytes, dst_offset_in_bytes, data_size_in_bytes);
+    cmd->copyBuffer(src, this->getHandle(), copy_region);
     cmd->pipelineBarrier2(post_dependency);
-    cmd->acquireResource(staging_buffer->getBufferResource());
     m_is_prev_write_by_staging = true;
 }
 
-void VulkanBufferObject::writeSegmentsByStagingImediate(const WriteSegmentList &segments)
+void lcf::render::VulkanBufferObject::executeWriteSequence()
 {
-    vkutils::immediate_submit(m_context_p, [this, &segments] {
-        this->writeSegmentsByStaging(segments);
+    if (m_timeline_semaphore_sp->isTargetReached()) {
+        this->executeCpuWriteSequence();
+    } else {
+        this->executeGpuWriteSequence();
+    }
+}
+
+void lcf::render::VulkanBufferObject::executeCpuWriteSequence()
+{
+    uint32_t write_required_size = m_write_segment_map.rbegin()->first.upper();
+    if (write_required_size > m_size) {
+        this->addWriteSegmentIfAbsent(std::span(m_buffer_sp->getMappedMemoryPtr(), m_size));
+        m_size = write_required_size;
+        this->create(m_context_p);
+    }
+    for (const auto &[interval, write_segment] : m_write_segment_map) {
+        memcpy(this->getMappedMemoryPtr() + interval.lower(), write_segment.getData(), interval.upper() - interval.lower());
+    }
+    auto cmd = m_context_p->getCurrentCommandBuffer();
+    m_timeline_semaphore_sp->increaseTargetValue();
+    cmd->addSignalSubmitInfo(m_timeline_semaphore_sp->generateSubmitInfo());
+}
+
+void lcf::render::VulkanBufferObject::executeGpuWriteSequence()
+{
+    uint32_t write_required_size = m_write_segment_map.rbegin()->first.upper();
+    if (write_required_size > m_size) {
+        auto old_buffer_sp = m_buffer_sp;
+        uint32_t old_size = m_size;
+        m_size = write_required_size;
+        this->create(m_context_p);
+        this->copyFromBufferWithBarriers(old_buffer_sp->getHandle(), old_size);
+    }
+    uint32_t dst_offset = m_write_segment_map.begin()->first.lower();
+    VulkanBufferObject::SharedPointer staging_buffer = VulkanBufferObject::makeShared();
+    staging_buffer->setUsage(GPUBufferUsage::eStaging)
+        .setSize(write_required_size - dst_offset)
+        .create(m_context_p);
+    for (const auto &[interval, write_segment] : m_write_segment_map) {
+        memcpy(staging_buffer->getMappedMemoryPtr() + interval.lower() - dst_offset, write_segment.getData(), interval.upper() - interval.lower());
+    }
+    this->copyFromBufferWithBarriers(staging_buffer->getHandle(), staging_buffer->getSize(), 0, dst_offset);
+    auto cmd = m_context_p->getCurrentCommandBuffer();
+    cmd->acquireResource(staging_buffer->getBufferResource());
+}
+
+void lcf::render::VulkanBufferObject::executeGpuWriteSequenceImediate()
+{
+    vkutils::immediate_submit(m_context_p, [this] {
+        this->executeGpuWriteSequence();
     });
+}
+
+//- BufferWriteSegment
+
+bool BufferWriteSegment::operator==(const BufferWriteSegment &other) const noexcept
+{
+    return m_offset_in_bytes == other.m_offset_in_bytes
+        and m_data.data() == other.m_data.data()
+        and m_data.size() == other.m_data.size();
+}
+
+//! used when adding old buffer data to segment map, old buffer won't overwrite new data, thus do nothing.
+BufferWriteSegment & BufferWriteSegment::operator+=(const BufferWriteSegment & other) noexcept
+{
+    return *this;
 }
 
 //- VulkanBufferResource
