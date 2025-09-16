@@ -47,9 +47,9 @@ target_link_libraries(${PROJECT_NAME}
         Application 
         core
         Boost::headers   
-    PRIVATE
+    PRIVATE 
         ${Vulkan_LIBRARY}/vulkan-1.lib
         unofficial::shaderc::shaderc
         spirv-cross-core spirv-cross-glsl spirv-cross-cpp
         GPUOpen::VulkanMemoryAllocator
-)
+)  

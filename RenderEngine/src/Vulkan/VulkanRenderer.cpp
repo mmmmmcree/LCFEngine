@@ -155,16 +155,15 @@ void lcf::VulkanRenderer::create()
 
     m_vertex_buffer = VulkanBufferObject::makeUnique();
     m_vertex_buffer->setUsage(GPUBufferUsage::eVertex)
-        .setSize(vertex_data.getSizeInBytes())
         .create(m_context_p);
     m_vertex_buffer->addWriteSegment({vertex_data.getDataSpan()});
     m_vertex_buffer->commitWriteSegments();
     
-
-    m_index_buffer = VulkanBuffer::makeUnique(m_context_p);
-    m_index_buffer->setUsagePattern(GPUBuffer::UsagePattern::eStatic);
-    m_index_buffer->setUsageFlags(vk::BufferUsageFlagBits::eIndexBuffer);
-    m_index_buffer->setData(index_data, sizeof(index_data));
+    m_index_buffer = VulkanBufferObject::makeUnique();
+    m_index_buffer->setUsage(GPUBufferUsage::eIndex)
+        .create(m_context_p);
+    m_index_buffer->addWriteSegment({std::span(index_data)});
+    m_index_buffer->commitWriteSegments();
 
     m_texture_image = VulkanImage::makeUnique(m_context_p);
     m_texture_image->setData(Image("assets/images/bk.jpg", 4));

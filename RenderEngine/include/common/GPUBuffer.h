@@ -1,22 +1,33 @@
-#pragma once
 #include <stdint.h>
 
 namespace lcf::render {
-    class GPUBuffer
+    // enum class GPUBufferPattern;
+
+    // class GPUBuffer2
+    // {
+    // public:
+    //     GPUBuffer2() = default;
+    //     virtual ~GPUBuffer2() = default;
+    //     uint32_t getSize() const { return m_size; }
+    //     GPUBuffer2 & setUsagePattern(GPUBufferPattern pattern) { m_pattern = pattern; return *this; }
+    //     GPUBufferPattern getUsagePattern() const { return m_pattern; }
+    // protected:
+    //     uint32_t m_size = 0;
+    //     GPUBufferPattern m_pattern = GPUBufferPattern::eDynamic;
+    // };
+
+    enum class GPUBufferPattern
     {
-    public:
-        enum class UsagePattern
-        {
-            eDynamic,
-            eStatic,
-        };
-        GPUBuffer() = default;
-        virtual ~GPUBuffer() = default;
-        uint32_t getSize() const { return m_size; }
-        void setUsagePattern(UsagePattern usage_pattern) { m_usage_pattern = usage_pattern; }
-        UsagePattern getUsagePattern() const { return m_usage_pattern; }
-    protected:
-        uint32_t m_size = 0;
-        UsagePattern m_usage_pattern = UsagePattern::eDynamic;
+        eDynamic, // frequently update
+        eStatic,  // rarely update
+    };
+
+    enum class GPUBufferUsage : uint8_t {
+        eUndefined = 0,
+        eVertex,
+        eIndex,
+        eUniform,
+        eShaderStorage,
+        eStaging,
     };
 }

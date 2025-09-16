@@ -1,6 +1,6 @@
 #include "VulkanImage.h"
 #include "VulkanContext.h"
-#include "VulkanBuffer.h"
+#include "VulkanBufferObject.h"
 #include "vulkan_utililtie.h"
 
 lcf::render::VulkanImage::VulkanImage(VulkanContext * context) :
@@ -46,9 +46,12 @@ void lcf::render::VulkanImage::setData(const Image &image)
     m_usage |= vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
     this->create();
     
-    VulkanBuffer staging_buffer(m_context_p);
-    staging_buffer.setUsageFlags(vk::BufferUsageFlagBits::eTransferSrc);
-    staging_buffer.setData(image.getData(), image.getSizeInBytes());
+    VulkanBufferObject staging_buffer;
+    staging_buffer.setUsage(GPUBufferUsage::eStaging)
+        .setSize(image.getSizeInBytes())
+        .create(m_context_p);
+    staging_buffer.addWriteSegment({std::span(static_cast<const std::byte *>(image.getData()), image.getSizeInBytes())});
+    staging_buffer.commitWriteSegments();
     vkutils::immediate_submit(m_context_p, [&] {
         auto cmd = m_context_p->getCurrentCommandBuffer();
         vk::BufferImageCopy region;

@@ -1,8 +1,10 @@
 #include "VulkanMemoryAllocator.h"
 #include "VulkanContext.h"
 #define VMA_IMPLEMENTATION
-#include <vk_mem_alloc.h>
+#include <vma/vk_mem_alloc.h>
 #include "error.h"
+
+using namespace lcf::render;
 
 lcf::render::VulkanMemoryAllocator::~VulkanMemoryAllocator()
 {
@@ -72,6 +74,29 @@ lcf::render::VMAUniqueBuffer lcf::render::VulkanMemoryAllocator::createBuffer(co
     return VMAUniqueBuffer(buffer, VMABufferDeleter(m_allocator, allocation));
 }
 
+VMABuffer::UniquePointer VulkanMemoryAllocator::createBuffer(const vk::BufferCreateInfo &buffer_info, const MemoryAllocationCreateInfo &mem_alloc_info)
+{
+    VmaAllocationCreateInfo alloc_create_info = {
+        .flags = VMA_ALLOCATION_CREATE_MAPPED_BIT,
+        .requiredFlags = static_cast<VkMemoryPropertyFlags>(mem_alloc_info.memory_flags)
+    };
+    VkBuffer buffer = nullptr;
+    VmaAllocation allocation = nullptr;
+    VmaAllocationInfo allocation_info = {};
+    VkResult result = vmaCreateBuffer(
+        m_allocator,
+        reinterpret_cast<const VkBufferCreateInfo *>(&buffer_info),
+        &alloc_create_info,
+        &buffer,
+        &allocation,
+        &allocation_info
+    );
+    if (result != VK_SUCCESS) {
+        LCF_THROW_RUNTIME_ERROR("lcf::render::VulkanMemoryAllocator::createBuffer: Failed to create buffer with VMA.");
+    }
+    return VMABuffer::makeUnique(m_allocator, allocation, buffer, allocation_info.size, allocation_info.pMappedData);
+}
+
 //- Deleters
 
 lcf::render::VMABufferDeleter::VMABufferDeleter(VmaAllocator_T *allocator, VmaAllocation_T *allocation) :
@@ -94,4 +119,23 @@ lcf::render::VMAImageDeleter::VMAImageDeleter(VmaAllocator_T *allocator, VmaAllo
 void lcf::render::VMAImageDeleter::operator()(VkImage image) const noexcept
 {
     vmaDestroyImage(m_allocator, image, m_allocation);
+}
+
+lcf::render::VMABuffer::VMABuffer(VmaAllocator_T *allocator, VmaAllocation_T *allocation, vk::Buffer buffer, vk::DeviceSize size, void *mapped_data_p) :
+    m_allocator(allocator),
+    m_allocation(allocation),
+    m_buffer(buffer),
+    m_size(size),
+    m_mapped_data_p(static_cast<std::byte *>(mapped_data_p))
+{
+}
+
+lcf::render::VMABuffer::~VMABuffer()
+{
+    vmaDestroyBuffer(m_allocator, m_buffer, m_allocation);
+}
+
+vk::Result lcf::render::VMABuffer::flush(VkDeviceSize offset, VkDeviceSize size)
+{
+    return static_cast<vk::Result>(vmaFlushAllocation(m_allocator, m_allocation, offset, size));
 }

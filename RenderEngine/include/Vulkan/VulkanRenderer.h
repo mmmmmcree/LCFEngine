@@ -4,7 +4,6 @@
 #include "VulkanSwapchain.h"
 #include "VulkanDescriptorManager.h"
 #include "VulkanPipeline.h"
-#include "VulkanBuffer.h"
 #include "VulkanImage.h"
 #include "VulkanFramebuffer.h"
 #include "Entity.h"
@@ -44,9 +43,7 @@ namespace lcf {
         VulkanPipeline::UniquePointer m_compute_pipeline;
         VulkanPipeline::UniquePointer m_graphics_pipeline;
         VulkanBufferObject::UniquePointer m_vertex_buffer;
-        VulkanBuffer::UniquePointer m_index_buffer;
-
-        VulkanBuffer::UniquePointer m_descriptor_buffer;
+        VulkanBufferObject::UniquePointer m_index_buffer;
 
         VulkanImage::UniquePointer m_texture_image;
         vk::UniqueSampler m_texture_sampler;
