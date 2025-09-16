@@ -5,7 +5,8 @@
 #include "VulkanBufferResource.h"
 #include "PointerDefs.h"
 #include <span>
-#include <boost/icl/interval_map.hpp>
+// #include <boost/icl/interval_map.hpp> //- use interval tree to manage write segments
+#include <deque>
 #include <vulkan/vulkan.hpp>
 
 namespace lcf::render {
@@ -25,6 +26,7 @@ namespace lcf::render {
         BufferWriteSegment& operator=(const BufferWriteSegment& other) = default;
         std::span<const std::byte> getDataSpan() const noexcept { return m_data; }
         const std::byte * getData() const noexcept { return m_data.data(); }
+        size_t getSizeInBytes() const noexcept { return m_data.size_bytes(); }
         uint32_t getBeginOffsetInBytes() const noexcept { return m_offset_in_bytes; }
         uint32_t getEndOffsetInBytes() const noexcept { return m_offset_in_bytes + m_data.size_bytes(); }
         bool operator==(const BufferWriteSegment& other) const noexcept; // equality rule for boost::icl::interval_map
@@ -39,7 +41,8 @@ namespace lcf::render {
         using Self = VulkanBufferObject;
     public:
         IMPORT_POINTER_DEFS(VulkanBufferObject);
-        using WriteSegmentIntervalMap = boost::icl::interval_map<uint32_t, BufferWriteSegment>;
+        // using WriteSegments = boost::icl::interval_map<uint32_t, BufferWriteSegment>; //- use interval tree to manage write segments
+        using WriteSegments = std::deque<BufferWriteSegment>;
         using ExecuteWriteSequenceMethod = void (Self::*)();
         VulkanBufferObject() = default;
         bool create(VulkanContext * context_p);
@@ -60,7 +63,7 @@ namespace lcf::render {
             uint32_t data_size_in_bytes,
             uint32_t src_offset_in_bytes = 0u,
             uint32_t dst_offset_in_bytes = 0u);
-        void writeSegmentsDirectly(const WriteSegmentIntervalMap &segment_map, uint32_t dst_offset_in_bytes = 0u);
+        void writeSegmentsDirectly(const WriteSegments &segments, uint32_t dst_offset_in_bytes = 0u);
         void executeWriteSequence();
         void executeCpuWriteSequence();
         void executeGpuWriteSequence();
@@ -71,10 +74,11 @@ namespace lcf::render {
         VulkanBufferResource::UniquePointer m_buffer_up;
         ExecuteWriteSequenceMethod m_execute_write_sequence_method = nullptr; // up to GPUBufferPattern
         uint32_t m_size = 0;
-        bool m_is_prev_excute_by_gpu = false;
         GPUBufferUsage m_usage = GPUBufferUsage::eUndefined;
         vk::PipelineStageFlags2 m_stage_flags = vk::PipelineStageFlagBits2KHR::eAllGraphics;
         vk::AccessFlags2 m_access_flags = vk::AccessFlagBits2KHR::eMemoryRead;
-        WriteSegmentIntervalMap m_write_segment_map;
+        WriteSegments m_write_segments;
+        uint32_t m_write_segment_lower_bound = -1u;
+        uint32_t m_write_segment_upper_bound = 0u;
     };
 }

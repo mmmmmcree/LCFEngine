@@ -72,14 +72,12 @@ void lcf::render::VulkanBufferObject::recreate(uint32_t size_in_bytes)
         } break;
         case GPUBufferUsage::eUniform : {
             usage_flags = vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eTransferDst;
-            //todo use flush
             memory_flags = vk::MemoryPropertyFlagBits::eHostVisible;
         } break;
         case GPUBufferUsage::eShaderStorage : {
         } break;
         case GPUBufferUsage::eStaging : {
             usage_flags = vk::BufferUsageFlagBits::eTransferSrc;
-            //todo use flush
             memory_flags = vk::MemoryPropertyFlagBits::eHostVisible;
         } break;
     }
@@ -119,26 +117,40 @@ VulkanBufferObject &VulkanBufferObject::resize(uint32_t size_in_bytes)
 
 void VulkanBufferObject::addWriteSegment(const BufferWriteSegment &segment) noexcept
 {
+    /*
+    - use interval tree to manage write segments
     auto segment_interval = boost::icl::interval<uint32_t>::right_open(segment.getBeginOffsetInBytes(), segment.getEndOffsetInBytes());
-    m_write_segment_map.set(std::make_pair(segment_interval, segment));
+    m_write_segments.set(std::make_pair(segment_interval, segment));
+    */
+    m_write_segments.emplace_back(segment);
+    m_write_segment_lower_bound = std::min(m_write_segment_lower_bound, segment.getBeginOffsetInBytes());
+    m_write_segment_upper_bound = std::max(m_write_segment_upper_bound, segment.getEndOffsetInBytes());
 }
 
 void lcf::render::VulkanBufferObject::addWriteSegmentIfAbsent(const BufferWriteSegment &segment) noexcept
 {
+    /*
+    - use interval tree to manage write segments
     auto segment_interval = boost::icl::interval<uint32_t>::right_open(segment.getBeginOffsetInBytes(), segment.getEndOffsetInBytes());
-    m_write_segment_map.add(std::make_pair(segment_interval, segment));
+    m_write_segments.add(std::make_pair(segment_interval, segment));
+    */
+    m_write_segments.emplace_front(segment);
+    m_write_segment_lower_bound = std::min(m_write_segment_lower_bound, segment.getBeginOffsetInBytes());
+    m_write_segment_upper_bound = std::max(m_write_segment_upper_bound, segment.getEndOffsetInBytes());
 }
 
 void VulkanBufferObject::commitWriteSegments()
 {
-    if (m_write_segment_map.empty()) { return; }
+    if (m_write_segments.empty()) { return; }
     (this->*m_execute_write_sequence_method)();
+    m_write_segment_lower_bound = -1u;
+    m_write_segment_upper_bound = 0u;
 }
 
 void lcf::render::VulkanBufferObject::copyFromBufferWithBarriers(vk::Buffer src, uint32_t data_size_in_bytes, uint32_t src_offset_in_bytes, uint32_t dst_offset_in_bytes)
 {
     auto cmd = m_context_p->getCurrentCommandBuffer();
-    if (m_is_prev_excute_by_gpu) [[unlikely]] {
+    if (not m_timeline_semaphore_up->isTargetReached()) {
         vk::BufferMemoryBarrier2 pre_buffer_barrier;
         pre_buffer_barrier.setSrcStageMask(m_stage_flags)
             .setSrcAccessMask(m_access_flags)
@@ -161,37 +173,40 @@ void lcf::render::VulkanBufferObject::copyFromBufferWithBarriers(vk::Buffer src,
     vk::BufferCopy copy_region(src_offset_in_bytes, dst_offset_in_bytes, data_size_in_bytes);
     cmd->copyBuffer(src, this->getHandle(), copy_region);
     cmd->pipelineBarrier2(post_dependency);
-    m_is_prev_excute_by_gpu = true;
 }
 
-void lcf::render::VulkanBufferObject::writeSegmentsDirectly(const WriteSegmentIntervalMap &segment_map, uint32_t dst_offset_in_bytes)
+void VulkanBufferObject::writeSegmentsDirectly(const WriteSegments &segments, uint32_t dst_offset_in_bytes)
 {
-    for (const auto &[interval, write_segment] : segment_map) {
+    /*
+    - use interval tree to manage write segments
+    for (const auto &[interval, write_segment] : segments) {
         memcpy(m_buffer_up->getMappedMemoryPtr() + interval.lower() + dst_offset_in_bytes,
             write_segment.getData(), interval.upper() - interval.lower());
     }
-    uint32_t lower = segment_map.begin()->first.lower();
-    uint32_t upper = segment_map.rbegin()->first.upper();
-    m_buffer_up->flush(lower + dst_offset_in_bytes, upper - lower);
-    m_is_prev_excute_by_gpu = false;
+    */
+    for (const auto & write_segment : segments) {
+        memcpy(m_buffer_up->getMappedMemoryPtr() + write_segment.getBeginOffsetInBytes() + dst_offset_in_bytes,
+            write_segment.getData(), write_segment.getSizeInBytes());
+    }
+    m_buffer_up->flush(m_write_segment_lower_bound + dst_offset_in_bytes, m_write_segment_upper_bound - m_write_segment_lower_bound);
 }
 
 void lcf::render::VulkanBufferObject::executeWriteSequence()
 {
     if (m_timeline_semaphore_up->isTargetReached()) {
         this->executeCpuWriteSequence();
-        auto cmd = m_context_p->getCurrentCommandBuffer();
-        m_timeline_semaphore_up->increaseTargetValue();
-        cmd->addSignalSubmitInfo(m_timeline_semaphore_up->generateSubmitInfo());
     } else {
         this->executeGpuWriteSequence();
     }
+    auto cmd = m_context_p->getCurrentCommandBuffer();
+    m_timeline_semaphore_up->increaseTargetValue();
+    cmd->addSignalSubmitInfo(m_timeline_semaphore_up->generateSubmitInfo());
 }
 
 void lcf::render::VulkanBufferObject::executeCpuWriteSequence()
 {
     auto cmd = m_context_p->getCurrentCommandBuffer();
-    uint32_t write_required_size = m_write_segment_map.rbegin()->first.upper();
+    uint32_t write_required_size = m_write_segment_upper_bound;
     if (write_required_size > m_size) {
         if (m_buffer_up) {
             this->addWriteSegmentIfAbsent(std::span(m_buffer_up->getMappedMemoryPtr(), m_size));
@@ -199,12 +214,12 @@ void lcf::render::VulkanBufferObject::executeCpuWriteSequence()
         }
         this->recreate(write_required_size); //todo use custom enlarge strategy
     }
-    this->writeSegmentsDirectly(m_write_segment_map);
+    this->writeSegmentsDirectly(m_write_segments);
 }
 
 void lcf::render::VulkanBufferObject::executeGpuWriteSequence()
 {
-    uint32_t write_required_size = m_write_segment_map.rbegin()->first.upper();
+    uint32_t write_required_size = m_write_segment_upper_bound;
     auto cmd = m_context_p->getCurrentCommandBuffer();
     if (write_required_size > m_size) {
         auto old_buffer_up = std::move(m_buffer_up);
@@ -215,12 +230,12 @@ void lcf::render::VulkanBufferObject::executeGpuWriteSequence()
             cmd->acquireResource(std::move(old_buffer_up));
         }
     }
-    uint32_t dst_offset = -m_write_segment_map.begin()->first.lower();
+    uint32_t dst_offset = -m_write_segment_lower_bound;
     auto staging_buffer = VulkanBufferObject::makeUnique();
     staging_buffer->setUsage(GPUBufferUsage::eStaging)
         .setSize(write_required_size + dst_offset)
         .create(m_context_p);
-    staging_buffer->writeSegmentsDirectly(m_write_segment_map, dst_offset);
+    staging_buffer->writeSegmentsDirectly(m_write_segments, dst_offset);
     this->copyFromBufferWithBarriers(staging_buffer->getHandle(), staging_buffer->getSize(), 0, dst_offset);
     cmd->acquireResource(std::move(staging_buffer->m_buffer_up));
 }
