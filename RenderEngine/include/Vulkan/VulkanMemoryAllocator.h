@@ -11,7 +11,7 @@ class VmaAllocation_T;
 namespace lcf::render {
     class VulkanContext;
 
-    class VMAImage : public PointerDefs<VMAImage>
+    class VMAImage : public STDPointerDefs<VMAImage>
     {
     public:
         VMAImage(VmaAllocator_T * allocator,
@@ -28,7 +28,7 @@ namespace lcf::render {
         vk::DeviceSize m_size = 0;
     };
 
-    class VMABuffer : public PointerDefs<VMABuffer>
+    class VMABuffer : public STDPointerDefs<VMABuffer>
     {
         using Self = VMABuffer;
     public:

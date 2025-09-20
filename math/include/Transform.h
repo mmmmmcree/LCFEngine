@@ -6,7 +6,7 @@
 #include "PointerDefs.h"
 
 namespace lcf {
-    class Transform : public PointerDefs<Transform>
+    class Transform : public STDPointerDefs<Transform>
     {
     public:
         Transform() = default;

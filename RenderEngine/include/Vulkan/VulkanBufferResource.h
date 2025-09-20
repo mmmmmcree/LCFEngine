@@ -6,10 +6,10 @@ namespace lcf::render {
     class VulkanContext;
     class VulkanMemoryAllocator;
 
-    class VulkanBufferResource : public GPUResource, public PointerDefs<VulkanBufferResource>
+    class VulkanBufferResource : public GPUResource, public STDPointerDefs<VulkanBufferResource>
     {
     public:
-        IMPORT_POINTER_DEFS(VulkanBufferResource);
+        IMPORT_POINTER_DEFS(STDPointerDefs<VulkanBufferResource>);
         VulkanBufferResource() = default;
         bool create(VulkanMemoryAllocator * allocator_p,
             const vk::BufferCreateInfo &buffer_info,

@@ -5,7 +5,7 @@
 #include "VulkanDescriptorManager.h"
 #include "VulkanPipeline.h"
 #include "VulkanImage.h"
-#include "VulkanFramebuffer.h"
+#include "VulkanFramebufferObject.h"
 #include "Entity.h"
 #include "VulkanTimelineSemaphore.h"
 #include "VulkanCommandBufferObject.h"
@@ -33,7 +33,7 @@ namespace lcf {
             VulkanCommandBufferObject command_buffer;
             VulkanDescriptorManager descriptor_manager;
             // temporary
-            VulkanFramebuffer::UniquePointer framebuffer;
+            VulkanFramebufferObject fbo;
         };
         VulkanBufferObject::UniquePointer m_global_uniform_buffer;
         std::vector<FrameResources> m_frame_resources;

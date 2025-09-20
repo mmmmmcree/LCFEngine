@@ -11,65 +11,48 @@
 namespace lcf::render {
     class VulkanContext;
 
-    class VulkanImage;
+    class VulkanAttachment;
 
-    class VulkanAttachment : public PointerDefs<VulkanAttachment>
-    {
-        using Self = VulkanAttachment;
-    public:
-        using Offset3DPair = std::pair<vk::Offset3D, vk::Offset3D>;
-        VulkanAttachment(VulkanImage * image, uint32_t mip_level = 0, uint32_t layer = 0, uint32_t layer_count = 1);
-        VulkanAttachment(const VulkanAttachment & other);
-        VulkanAttachment(VulkanAttachment && other) noexcept;
-        void blitTo(VulkanCommandBufferObject * cmd_p,
-            VulkanAttachment & dst,
-            vk::Filter filter,
-            const Offset3DPair & src_offsets,
-            const Offset3DPair & dst_offsets);
-        void copyTo(VulkanCommandBufferObject * cmd_p,
-            VulkanAttachment & dst,
-            const vk::Offset3D & src_offset,
-            const vk::Offset3D & dst_offset,
-            const vk::Extent3D & extent);
-        VulkanImage * getImagePtr() const noexcept { return m_image_p; }
-        vk::ImageSubresourceRange getSubresourceRange() const noexcept;
-        vk::ImageView getImageView() const noexcept;
-        uint32_t getMipLevel() const noexcept { return m_mip_level; }
-        uint32_t getLayer() const noexcept { return m_layer; }
-        uint32_t getLayerCount() const noexcept { return m_layer_count; }
-        void transitLayout(VulkanCommandBufferObject * cmd_p, vk::ImageLayout new_layout);
-        vk::ImageLayout getLayout() const noexcept;
-    private:
-        VulkanImage * m_image_p;
-        uint32_t m_mip_level;
-        uint32_t m_layer;
-        uint32_t m_layer_count;
-    };
-
-    class VulkanImage : public PointerDefs<VulkanImage>
+    class VulkanImage : public STDPointerDefs<VulkanImage>
     {
         using Self = VulkanImage;
-        struct ImageSubresourceRangeHash
+        struct ImageViewKey
         {
-            std::size_t operator()(const vk::ImageSubresourceRange & range) const
+            ImageViewKey(const vk::ImageSubresourceRange & range, const vk::ComponentMapping & components = {}) :
+                m_range(range), m_components(components) {}
+            bool operator==(const ImageViewKey & other) const noexcept
+            {
+                return m_range == other.m_range and m_components == other.m_components;
+            }
+            vk::ImageSubresourceRange m_range;
+            vk::ComponentMapping m_components;
+        };
+        struct ImageViewKeyHash
+        {
+            std::size_t operator()(const ImageViewKey & key) const noexcept
             {
                 uint64_t packed = 0;
-                packed |= static_cast<uint64_t>(static_cast<uint32_t>(range.aspectMask)) << 56;
-                packed |= (static_cast<uint64_t>(range.baseMipLevel) & 0xFF) << 48;
-                packed |= (static_cast<uint64_t>(range.levelCount) & 0xFF) << 40;
-                packed |= (static_cast<uint64_t>(range.baseArrayLayer) & 0xFFFF) << 24;
-                packed |= (static_cast<uint64_t>(range.layerCount) & 0xFFFF) << 8;
+                packed |= static_cast<uint64_t>(static_cast<uint32_t>(key.m_range.aspectMask)) << 56;
+                packed |= (static_cast<uint64_t>(key.m_range.baseMipLevel) & 0xFF) << 48;
+                packed |= (static_cast<uint64_t>(key.m_range.levelCount) & 0xFF) << 40;
+                packed |= (static_cast<uint64_t>(key.m_range.baseArrayLayer) & 0xFFFF) << 32;
+                packed |= (static_cast<uint64_t>(key.m_range.layerCount) & 0xFFFF) << 24;
+                packed |= (static_cast<uint64_t>(static_cast<uint32_t>(key.m_components.r)) & 0xFF) << 20;
+                packed |= (static_cast<uint64_t>(static_cast<uint32_t>(key.m_components.g)) & 0xFF) << 16;
+                packed |= (static_cast<uint64_t>(static_cast<uint32_t>(key.m_components.b)) & 0xFF) << 12;
+                packed |= (static_cast<uint64_t>(static_cast<uint32_t>(key.m_components.a)) & 0xFF) << 8;
                 return std::hash<uint64_t>{}(packed);
             }
         };
         using ImageVariant = std::variant<vk::Image, VMAImage::UniquePointer>;
-        using ImageViewMap = std::unordered_map<vk::ImageSubresourceRange, vk::UniqueImageView, ImageSubresourceRangeHash>;
+        using ImageViewMap = std::unordered_map<ImageViewKey, vk::UniqueImageView, ImageViewKeyHash>;
         friend class VulkanAttachment;
     public:
         VulkanImage() = default;
-        void create(VulkanContext * context_p);
-        void create(VulkanContext * context_p, vk::Image external_image);
-        void create(VulkanContext * context_p, const Image & image); 
+        bool create(VulkanContext * context_p);
+        bool create(VulkanContext * context_p, vk::Image external_image);
+        bool create(VulkanContext * context_p, const Image & image); 
+        bool isCreated() const noexcept { return this->getHandle(); }
         void transitLayout(VulkanCommandBufferObject * cmd_p, vk::ImageLayout new_layout);
         void transitLayout(VulkanCommandBufferObject * cmd_p, const vk::ImageSubresourceRange & subresource_range, vk::ImageLayout new_layout);
         vk::Image getHandle() const;
@@ -93,11 +76,10 @@ namespace lcf::render {
         vk::ImageUsageFlags getUsage() const { return m_usage; }
         Self & setInitialLayout(vk::ImageLayout layout) { m_layout = layout; return *this; }
         vk::ImageLayout getLayout() const { return m_layout; }
-        VulkanAttachment generateAttachment(uint32_t mip_level = 0, uint32_t layer = 0, uint32_t layer_count = 1) noexcept { return VulkanAttachment(this, mip_level, layer, layer_count); }
     private:
-        vk::UniqueImageView generateView(const vk::ImageSubresourceRange & subresource_range) const;
+        vk::UniqueImageView generateView(const ImageViewKey & image_view_key) const;
         vk::ImageAspectFlags getAspectFlags() const noexcept;
-        vk::ImageViewType deduceImageViewType() const noexcept;
+        vk::ImageViewType deduceImageViewType(const vk::ImageSubresourceRange & subresource_range) const noexcept;
         vk::ImageSubresourceRange getFullResourceRange() const noexcept;
     private:
         VulkanContext * m_context_p;
@@ -113,5 +95,41 @@ namespace lcf::render {
         vk::ImageLayout m_layout = vk::ImageLayout::eUndefined;
         ImageVariant m_image;
         mutable ImageViewMap m_view_map;
+    };
+
+    class VulkanAttachment
+    {
+        using Self = VulkanAttachment;
+    public:
+        using Offset3DPair = std::pair<vk::Offset3D, vk::Offset3D>;
+        VulkanAttachment(const VulkanImage::SharedPointer & image_p,
+            uint32_t mip_level = 0,
+            uint32_t layer = 0,
+            uint32_t layer_count = 1);
+        VulkanAttachment(const VulkanAttachment & other) = default;
+        void blitTo(VulkanCommandBufferObject * cmd_p,
+            VulkanAttachment & dst,
+            vk::Filter filter,
+            const Offset3DPair & src_offsets,
+            const Offset3DPair & dst_offsets);
+        void copyTo(VulkanCommandBufferObject * cmd_p,
+            VulkanAttachment & dst,
+            const vk::Offset3D & src_offset,
+            const vk::Offset3D & dst_offset,
+            const vk::Extent3D & extent);
+        const VulkanImage::SharedPointer & getImageSharedPointer() const noexcept { return m_image_sp; }
+        vk::ImageSubresourceRange getSubresourceRange() const noexcept;
+        vk::ImageView getImageView() const noexcept;
+        uint32_t getMipLevel() const noexcept { return m_mip_level; }
+        uint32_t getLayer() const noexcept { return m_layer; }
+        uint32_t getLayerCount() const noexcept { return m_layer_count; }
+        Self & setInitialLayout(vk::ImageLayout layout) { m_image_sp->setInitialLayout(layout); return *this; }
+        void transitLayout(VulkanCommandBufferObject * cmd_p, vk::ImageLayout new_layout);
+        vk::ImageLayout getLayout() const noexcept;
+    private:
+        VulkanImage::SharedPointer m_image_sp;
+        uint32_t m_mip_level;
+        uint32_t m_layer;
+        uint32_t m_layer_count;
     };
 }

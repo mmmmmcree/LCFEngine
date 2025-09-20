@@ -5,7 +5,7 @@
 #include "PointerDefs.h"
 
 namespace lcf {
-    class Shader : public PointerDefs<Shader>
+    class Shader : public STDPointerDefs<Shader>
     {
     public:
         Shader(ShaderTypeFlagBits type) : m_stage(type), m_entry_point("main") { }

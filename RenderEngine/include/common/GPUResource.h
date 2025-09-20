@@ -3,7 +3,7 @@
 #include "PointerDefs.h"
 
 namespace lcf::render {
-    struct GPUResource : PointerDefs<GPUResource>
+    struct GPUResource : STDPointerDefs<GPUResource>
     {
         virtual ~GPUResource() {};
     };

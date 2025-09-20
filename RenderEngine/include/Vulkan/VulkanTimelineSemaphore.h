@@ -5,7 +5,7 @@
 
 namespace lcf::render {
     class VulkanContext;
-    class VulkanTimelineSemaphore : public PointerDefs<VulkanTimelineSemaphore>
+    class VulkanTimelineSemaphore : public STDPointerDefs<VulkanTimelineSemaphore>
     {
     public:
         VulkanTimelineSemaphore() = default;

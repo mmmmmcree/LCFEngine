@@ -4,7 +4,7 @@
 #include "PointerDefs.h"
 
 namespace lcf::render {
-    class RenderTarget : public PointerDefs<RenderTarget>
+    class RenderTarget : public STDPointerDefs<RenderTarget>
     {
         using Self = RenderTarget;
     public:

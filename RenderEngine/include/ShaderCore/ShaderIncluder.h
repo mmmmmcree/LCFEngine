@@ -6,7 +6,7 @@
 #include <vector>
 
 namespace lcf {
-    class ShaderIncluder : public shaderc::CompileOptions::IncluderInterface, public PointerDefs<ShaderIncluder>
+    class ShaderIncluder : public shaderc::CompileOptions::IncluderInterface, public STDPointerDefs<ShaderIncluder>
     {
     public:
         void addIncludeDirectory(const char *path);

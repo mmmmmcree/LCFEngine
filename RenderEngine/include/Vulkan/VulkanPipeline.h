@@ -6,7 +6,7 @@
 
 namespace lcf::render {
     class VulkanContext;
-    class VulkanPipeline : public PointerDefs<VulkanPipeline>
+    class VulkanPipeline : public STDPointerDefs<VulkanPipeline>
     {
         using Self = VulkanPipeline;
     public:

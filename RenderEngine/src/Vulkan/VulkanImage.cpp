@@ -2,10 +2,11 @@
 #include "VulkanContext.h"
 #include "VulkanBufferObject.h"
 #include "vulkan_utililtie.h"
+#include "error.h"
 
 using namespace lcf::render;
 
-void lcf::render::VulkanImage::create(VulkanContext * context_p)
+bool lcf::render::VulkanImage::create(VulkanContext * context_p)
 {
     m_context_p = context_p;
     vk::ImageCreateInfo image_info;
@@ -21,15 +22,17 @@ void lcf::render::VulkanImage::create(VulkanContext * context_p)
         .setInitialLayout(m_layout)
         .setSharingMode(vk::SharingMode::eExclusive);
     m_image = m_context_p->getMemoryAllocator()->createImage(image_info);
+    return this->isCreated();
 }
 
-void lcf::render::VulkanImage::create(VulkanContext *context_p, vk::Image external_image)
+bool lcf::render::VulkanImage::create(VulkanContext *context_p, vk::Image external_image)
 {
     m_context_p = context_p;
     m_image = external_image;
+    return this->isCreated();
 }
 
-void lcf::render::VulkanImage::create(VulkanContext * context_p, const Image &image)
+bool lcf::render::VulkanImage::create(VulkanContext * context_p, const Image &image)
 {
     this->setExtent({ static_cast<uint32_t>(image.getWidth()), static_cast<uint32_t>(image.getHeight()), 1u })
         .setFormat(vk::Format::eR8G8B8A8Unorm);
@@ -52,6 +55,7 @@ void lcf::render::VulkanImage::create(VulkanContext * context_p, const Image &im
         cmd->copyBufferToImage(staging_buffer.getHandle(), this->getHandle(), vk::ImageLayout::eTransferDstOptimal, region);
         this->transitLayout(cmd, vk::ImageLayout::eShaderReadOnlyOptimal);
     });
+    return this->isCreated();
 }
 
 void lcf::render::VulkanImage::transitLayout(VulkanCommandBufferObject * cmd_p, vk::ImageLayout new_layout)
@@ -85,16 +89,6 @@ vk::Image lcf::render::VulkanImage::getHandle() const
     }, m_image);
 }
 
-vk::UniqueImageView lcf::render::VulkanImage::generateView(const vk::ImageSubresourceRange & subresource_range) const
-{
-    vk::ImageViewCreateInfo view_info;
-    view_info.setImage(this->getHandle())
-        .setViewType(this->deduceImageViewType())
-        .setFormat(m_format)
-        .setSubresourceRange(subresource_range);
-    return m_context_p->getDevice().createImageViewUnique(view_info);
-}
-
 vk::ImageView lcf::render::VulkanImage::getDefaultView() const
 {
     return this->getView(vk::ImageSubresourceRange(this->getAspectFlags(), 0, this->getMipLevelCount(), 0, this->getArrayLayerCount()));
@@ -115,6 +109,17 @@ uint32_t lcf::render::VulkanImage::getMipLevelCount() const
     return std::floor(std::log2(std::max(m_extent.width, m_extent.height))) + 1u;
 }
 
+vk::UniqueImageView lcf::render::VulkanImage::generateView(const ImageViewKey &image_view_key) const
+{
+    vk::ImageViewCreateInfo view_info;
+    view_info.setImage(this->getHandle())
+        .setViewType(this->deduceImageViewType(image_view_key.m_range))
+        .setComponents(image_view_key.m_components)
+        .setFormat(m_format)
+        .setSubresourceRange(image_view_key.m_range);
+    return m_context_p->getDevice().createImageViewUnique(view_info);   
+}
+
 vk::ImageAspectFlags lcf::render::VulkanImage::getAspectFlags() const noexcept
 {
     vk::ImageAspectFlags aspect_mask = vk::ImageAspectFlagBits::eColor;
@@ -126,18 +131,18 @@ vk::ImageAspectFlags lcf::render::VulkanImage::getAspectFlags() const noexcept
     return aspect_mask;
 }
 
-vk::ImageViewType lcf::render::VulkanImage::deduceImageViewType() const noexcept
+vk::ImageViewType lcf::render::VulkanImage::deduceImageViewType(const vk::ImageSubresourceRange &subresource_range) const noexcept
 {
     vk::ImageViewType view_type = {};
     switch (m_image_type) {
         case vk::ImageType::e1D : {
-            view_type = m_array_layers > 1 ? vk::ImageViewType::e1DArray : vk::ImageViewType::e1D;
+            view_type = subresource_range.layerCount > 1 ? vk::ImageViewType::e1DArray : vk::ImageViewType::e1D;
         } break;
         case vk::ImageType::e2D : {
             if (m_flags & vk::ImageCreateFlagBits::eCubeCompatible) {
-                view_type = m_array_layers > 6 ? vk::ImageViewType::eCubeArray : vk::ImageViewType::eCube;
+                view_type = subresource_range.layerCount > 6 ? vk::ImageViewType::eCubeArray : vk::ImageViewType::eCube;
             } else {
-                view_type = m_array_layers > 1 ? vk::ImageViewType::e2DArray : vk::ImageViewType::e2D;
+                view_type = subresource_range.layerCount > 1 ? vk::ImageViewType::e2DArray : vk::ImageViewType::e2D;
             }
         } break;
         case vk::ImageType::e3D : {
@@ -154,44 +159,36 @@ vk::ImageSubresourceRange lcf::render::VulkanImage::getFullResourceRange() const
 
 // - VulkanAttachment
 
-VulkanAttachment::VulkanAttachment(VulkanImage * image, uint32_t mip_level, uint32_t layer, uint32_t layer_count) :
-    m_image_p(image),
+lcf::render::VulkanAttachment::VulkanAttachment(const VulkanImage::SharedPointer & image_sp, uint32_t mip_level, uint32_t layer, uint32_t layer_count) :
+    m_image_sp(image_sp),
     m_mip_level(mip_level),
     m_layer(layer),
     m_layer_count(layer_count)
 {
-}
-
-lcf::render::VulkanAttachment::VulkanAttachment(const VulkanAttachment &other) :
-    m_image_p(other.m_image_p),
-    m_mip_level(other.m_mip_level),
-    m_layer(other.m_layer),
-    m_layer_count(other.m_layer_count)
-{
-}
-
-lcf::render::VulkanAttachment::VulkanAttachment(VulkanAttachment &&other) noexcept :
-    m_image_p(other.m_image_p),
-    m_mip_level(other.m_mip_level),
-    m_layer(other.m_layer),
-    m_layer_count(other.m_layer_count)
-{
+    if (not m_image_sp or not m_image_sp->isCreated()) {
+        LCF_THROW_RUNTIME_ERROR("lcf::render::VulkanAttachment::VulkanAttachment: Invalid image for attachment");
+    }
+    bool is_layer_valid = m_layer + m_layer_count <= m_image_sp->getArrayLayerCount();
+    bool is_mip_level_valid = m_mip_level < m_image_sp->getMipLevelCount();
+    if (not is_layer_valid or not is_mip_level_valid) {
+        LCF_THROW_RUNTIME_ERROR("lcf::render::VulkanAttachment::VulkanAttachment: Invalid attachment parameters");
+    }
 }
 
 void VulkanAttachment::blitTo(VulkanCommandBufferObject *cmd_p, VulkanAttachment &dst, vk::Filter filter, const Offset3DPair &src_offsets, const Offset3DPair &dst_offsets)
 {
-    auto dst_image_p = dst.getImagePtr();
-    m_image_p->transitLayout(cmd_p, vk::ImageLayout::eTransferSrcOptimal);
-    dst_image_p->transitLayout(cmd_p, vk::ImageLayout::eTransferDstOptimal);
+    auto & dst_image_sp = dst.getImageSharedPointer();
+    m_image_sp->transitLayout(cmd_p, vk::ImageLayout::eTransferSrcOptimal);
+    dst_image_sp->transitLayout(cmd_p, vk::ImageLayout::eTransferDstOptimal);
     vk::ImageBlit2 blit_region2 = {};
-    blit_region2.setSrcSubresource(vk::ImageSubresourceLayers(m_image_p->getAspectFlags(), m_mip_level, m_layer, m_layer_count))
-        .setDstSubresource(vk::ImageSubresourceLayers(dst_image_p->getAspectFlags(), dst.getMipLevel(), dst.getLayer(), dst.getLayerCount()));
+    blit_region2.setSrcSubresource(vk::ImageSubresourceLayers(m_image_sp->getAspectFlags(), m_mip_level, m_layer, m_layer_count))
+        .setDstSubresource(vk::ImageSubresourceLayers(dst_image_sp->getAspectFlags(), dst.getMipLevel(), dst.getLayer(), dst.getLayerCount()));
     memcpy(blit_region2.srcOffsets, &src_offsets, sizeof(Offset3DPair));
     memcpy(blit_region2.dstOffsets, &dst_offsets, sizeof(Offset3DPair));
     vk::BlitImageInfo2 blit_info = {};
-    blit_info.setSrcImage(m_image_p->getHandle())
+    blit_info.setSrcImage(m_image_sp->getHandle())
         .setSrcImageLayout(vk::ImageLayout::eTransferSrcOptimal)
-        .setDstImage(dst_image_p->getHandle())
+        .setDstImage(dst_image_sp->getHandle())
         .setDstImageLayout(vk::ImageLayout::eTransferDstOptimal)
         .setRegions(blit_region2)
         .setFilter(filter);
@@ -200,19 +197,19 @@ void VulkanAttachment::blitTo(VulkanCommandBufferObject *cmd_p, VulkanAttachment
 
 void lcf::render::VulkanAttachment::copyTo(VulkanCommandBufferObject *cmd_p, VulkanAttachment &dst, const vk::Offset3D &src_offset, const vk::Offset3D &dst_offset, const vk::Extent3D &extent)
 {
-    auto dst_image_p = dst.getImagePtr();
-    m_image_p->transitLayout(cmd_p, vk::ImageLayout::eTransferSrcOptimal);
-    dst_image_p->transitLayout(cmd_p, vk::ImageLayout::eTransferDstOptimal);
+    auto & dst_image_sp = dst.getImageSharedPointer();
+    m_image_sp->transitLayout(cmd_p, vk::ImageLayout::eTransferSrcOptimal);
+    dst_image_sp->transitLayout(cmd_p, vk::ImageLayout::eTransferDstOptimal);
     vk::ImageCopy2 copy_region2 = {};
-    copy_region2.setSrcSubresource(vk::ImageSubresourceLayers(m_image_p->getAspectFlags(), m_mip_level, m_layer, m_layer_count))
-        .setDstSubresource(vk::ImageSubresourceLayers(dst_image_p->getAspectFlags(), dst.getMipLevel(), dst.getLayer(), dst.getLayerCount()))
+    copy_region2.setSrcSubresource(vk::ImageSubresourceLayers(m_image_sp->getAspectFlags(), m_mip_level, m_layer, m_layer_count))
+        .setDstSubresource(vk::ImageSubresourceLayers(dst_image_sp->getAspectFlags(), dst.getMipLevel(), dst.getLayer(), dst.getLayerCount()))
         .setSrcOffset(src_offset)
         .setDstOffset(dst_offset)
         .setExtent(extent);
     vk::CopyImageInfo2 copy_info = {};
-    copy_info.setSrcImage(m_image_p->getHandle())
+    copy_info.setSrcImage(m_image_sp->getHandle())
         .setSrcImageLayout(vk::ImageLayout::eTransferSrcOptimal)
-        .setDstImage(dst_image_p->getHandle())
+        .setDstImage(dst_image_sp->getHandle())
         .setDstImageLayout(vk::ImageLayout::eTransferDstOptimal)
         .setRegions(copy_region2);
     cmd_p->copyImage2(copy_info);
@@ -220,20 +217,20 @@ void lcf::render::VulkanAttachment::copyTo(VulkanCommandBufferObject *cmd_p, Vul
 
 vk::ImageSubresourceRange lcf::render::VulkanAttachment::getSubresourceRange() const noexcept
 {
-    return vk::ImageSubresourceRange(m_image_p->getAspectFlags(), m_mip_level, 1, m_layer, m_layer_count);
+    return vk::ImageSubresourceRange(m_image_sp->getAspectFlags(), m_mip_level, 1, m_layer, m_layer_count);
 }
 
 vk::ImageView lcf::render::VulkanAttachment::getImageView() const noexcept
 {
-    return m_image_p->getView(this->getSubresourceRange());
+    return m_image_sp->getView(this->getSubresourceRange());
 }
 
 void lcf::render::VulkanAttachment::transitLayout(VulkanCommandBufferObject *cmd_p, vk::ImageLayout new_layout)
 {
-    m_image_p->transitLayout(cmd_p, this->getSubresourceRange(), new_layout);
+    m_image_sp->transitLayout(cmd_p, this->getSubresourceRange(), new_layout);
 }
 
 vk::ImageLayout lcf::render::VulkanAttachment::getLayout() const noexcept
 {
-    return m_image_p->getLayout();
+    return m_image_sp->getLayout();
 }

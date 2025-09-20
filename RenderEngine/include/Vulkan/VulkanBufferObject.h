@@ -36,11 +36,11 @@ namespace lcf::render {
         uint32_t m_offset_in_bytes = 0;
     };
 
-    class VulkanBufferObject : public PointerDefs<VulkanBufferObject>
+    class VulkanBufferObject : public STDPointerDefs<VulkanBufferObject>
     {
         using Self = VulkanBufferObject;
     public:
-        IMPORT_POINTER_DEFS(VulkanBufferObject);
+        IMPORT_POINTER_DEFS(STDPointerDefs<VulkanBufferObject>);
         // using WriteSegments = boost::icl::interval_map<uint32_t, BufferWriteSegment>; //- use interval tree to manage write segments
         using WriteSegments = std::deque<BufferWriteSegment>;
         using ExecuteWriteSequenceMethod = void (Self::*)();

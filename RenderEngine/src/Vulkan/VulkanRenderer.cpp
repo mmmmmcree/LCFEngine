@@ -62,15 +62,16 @@ void lcf::VulkanRenderer::create()
         resources.command_buffer.create(m_context_p);
         resources.descriptor_manager.create(m_context_p);
 
-        resources.framebuffer = VulkanFramebuffer::makeUnique(m_context_p);
         /*
         todo 直接使用    vk::PipelineRenderingCreateInfo rendering_info;填充framebuffer的创建信息
         */
-        resources.framebuffer->setExtent({static_cast<uint32_t>(width), static_cast<uint32_t>(height)})
-            .setColorAttachmentFormat(vk::Format::eR16G16B16A16Sfloat)
+        VulkanFramebufferObjectCreateInfo fbo_info;
+        fbo_info.setMaxExtent({static_cast<uint32_t>(width), static_cast<uint32_t>(height)})
+            .addColorFormat(vk::Format::eR16G16B16A16Sfloat)
             .setSampleCount(vk::SampleCountFlagBits::e4)
-            .setDepthStencilAttachmentFormat(vk::Format::eD32Sfloat)
-            .create();
+            .setDepthStencilFormat(vk::Format::eD32Sfloat)
+            .setResolveMode(vk::ResolveModeFlagBits::eAverage);
+        resources.fbo.create(m_context_p, fbo_info);
     }
     // ! temporary
 
@@ -207,7 +208,7 @@ void lcf::VulkanRenderer::render()
 
     auto descriptor_sets = *descriptor_manager.allocate(m_compute_pipeline->getDescriptorSetLayoutList());
 
-    auto &current_framebuffer = current_frame_resources.framebuffer;
+    auto &current_framebuffer = current_frame_resources.fbo;
     Matrix4x4 projection, projection_view;
     projection.perspective(90.0f, static_cast<float>(width) / height, 0.1f, 100.0f);
 
@@ -249,7 +250,7 @@ void lcf::VulkanRenderer::render()
     cmd_buffer.setScissor(0, scissor);
     cmd_buffer.bindPipeline(m_graphics_pipeline->getType(), m_graphics_pipeline->getHandle());
 
-    current_framebuffer->beginRendering();
+    current_framebuffer.beginRendering(&cmd_buffer);
  
     Matrix4x4 model; 
     model.scale(0.5f);
@@ -275,18 +276,18 @@ void lcf::VulkanRenderer::render()
     shader_program->bindPushConstants(cmd_buffer);
     cmd_buffer.drawIndexed(36, 1, 0, 0, 0);
 
-    current_framebuffer->endRendering();
+    current_framebuffer.endRendering(&cmd_buffer);
+    auto & target_image_sp = render_target->getTargetImageSharedPointer();
     // blit to target
-    auto resolved_draw_image = current_framebuffer->getMSAAResolveAttachment().first;
-    auto target_image_p = render_target->getTargetImage();
+    auto msaa_attachment = current_framebuffer.getMSAAResolveAttachment();
+    if (msaa_attachment) {
+        VulkanAttachment target_attachment(target_image_sp);
+        msaa_attachment->blitTo(&cmd_buffer, target_attachment, vk::Filter::eLinear,
+            {{0, 0, 0}, {static_cast<int32_t>(width), static_cast<int32_t>(height), 1}},
+            {{0, 0, 0}, {static_cast<int32_t>(width), static_cast<int32_t>(height), 1}});
+    }
 
-    auto resolved_attachment = resolved_draw_image->generateAttachment();
-    auto target_attachment = target_image_p->generateAttachment();
-    resolved_attachment.blitTo(&cmd_buffer, target_attachment, vk::Filter::eLinear,
-        {{0, 0, 0}, {static_cast<int32_t>(width), static_cast<int32_t>(height), 1}},
-        {{0, 0, 0}, {static_cast<int32_t>(width), static_cast<int32_t>(height), 1}});
-
-    target_image_p->transitLayout(&cmd_buffer, vk::ImageLayout::ePresentSrcKHR);
+    target_image_sp->transitLayout(&cmd_buffer, vk::ImageLayout::ePresentSrcKHR);
     cmd_buffer.end();
 
     vk::Semaphore render_finished = current_frame_resources.render_finished.get();

@@ -9,10 +9,10 @@
 
 namespace lcf::render {
     class VulkanContext;
-    class VulkanShaderProgram : public ShaderProgram, public PointerDefs<VulkanShaderProgram>
+    class VulkanShaderProgram : public ShaderProgram, public STDPointerDefs<VulkanShaderProgram>
     {
     public:
-        IMPORT_POINTER_DEFS(VulkanShaderProgram);
+        IMPORT_POINTER_DEFS(STDPointerDefs<VulkanShaderProgram>);
         using ShaderStageInfoList = std::vector<vk::PipelineShaderStageCreateInfo>;
         using DescriptorSetLayoutBindingTable = std::vector<std::vector<vk::DescriptorSetLayoutBinding>>; // [set][binding]
         using DescriptorSetLayoutList = std::vector<vk::DescriptorSetLayout>;

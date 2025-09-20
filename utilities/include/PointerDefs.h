@@ -2,20 +2,16 @@
 #include <memory>
 
 namespace lcf {
-    template <typename T, typename SharedPtr = std::shared_ptr<T>, typename UniquePtr = std::unique_ptr<T>>
-    struct PointerDefsBase
-    {
-        using SharedPointer = SharedPtr;
-        using UniquePointer = UniquePtr;
-        using WeakPointer = std::weak_ptr<T>;
-    };
-
     template <typename T>
-    struct PointerDefs : public PointerDefsBase<T>
+    struct STDPointerDefs
     {
-        using SharedPointer = PointerDefsBase<T>::SharedPointer;
-        using UniquePointer = PointerDefsBase<T>::UniquePointer;
-        using WeakPointer = PointerDefsBase<T>::WeakPointer;
+        using ValueType = T;
+        using SharedPointer = std::shared_ptr<T>;
+        using SharedConstPointer = std::shared_ptr<const T>;
+        using UniquePointer = std::unique_ptr<T>;
+        using UniqueConstPointer = std::unique_ptr<const T>;
+        using WeakPointer = std::weak_ptr<T>;
+        using WeakConstPointer = std::weak_ptr<const T>;
         template <typename ...Args>
         static SharedPointer makeShared(Args &&...args) { return std::make_shared<T>(std::forward<Args>(args)...); }
         template <typename ...Args>
@@ -30,10 +26,10 @@ namespace lcf {
      *      IMPORT_POINTER_DEFS(Derived);
      * };
      */
-    #define IMPORT_POINTER_DEFS(T) \
-        using typename PointerDefs<T>::SharedPointer; \
-        using typename PointerDefs<T>::UniquePointer; \
-        using typename PointerDefs<T>::WeakPointer; \
-        using PointerDefs<T>::makeShared; \
-        using PointerDefs<T>::makeUnique
+    #define IMPORT_POINTER_DEFS(PointerDefs) \
+        using typename PointerDefs::SharedPointer; \
+        using typename PointerDefs::UniquePointer; \
+        using typename PointerDefs::WeakPointer; \
+        using PointerDefs::makeShared; \
+        using PointerDefs::makeUnique
 }

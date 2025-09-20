@@ -73,7 +73,8 @@ void lcf::render::VulkanSwapchain::recreate()
         .setComponents({ vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA });
     for (int i = 0; i < m_swapchain_resources_list.size(); ++i) {
         auto &resources = m_swapchain_resources_list[i];
-        resources.image.setExtent(vk::Extent3D{ this->getWidth(), this->getHeight(), 1 })
+        resources.image_sp = VulkanImage::makeShared();
+        resources.image_sp->setExtent(vk::Extent3D{ this->getWidth(), this->getHeight(), 1 })
             .setArrayLayers(swapchain_info.imageArrayLayers)
             .setUsage(swapchain_info.imageUsage)
             .setFormat(swapchain_info.imageFormat)
@@ -140,5 +141,5 @@ void lcf::render::VulkanSwapchain::acquireAvailableTarget()
             enum_name(acquire_result)));
     }
     m_image_index = index;
-    this->getTargetImage()->setInitialLayout(vk::ImageLayout::eUndefined);
+    this->getTargetImageSharedPointer()->setInitialLayout(vk::ImageLayout::eUndefined);
 }

@@ -6,10 +6,10 @@
 
 namespace lcf::render {
     class VulkanContext;
-    class VulkanSwapchain : public RenderTarget, public PointerDefs<VulkanSwapchain>
+    class VulkanSwapchain : public RenderTarget, public STDPointerDefs<VulkanSwapchain>
     {
     public:
-        IMPORT_POINTER_DEFS(VulkanSwapchain);
+        IMPORT_POINTER_DEFS(STDPointerDefs<VulkanSwapchain>);
         VulkanSwapchain(VulkanContext * context, vk::SurfaceKHR surface);
         virtual ~VulkanSwapchain() override;
         void create() override;
@@ -18,9 +18,8 @@ namespace lcf::render {
         void destroy() override;
         bool isValid() const override { return m_surface and m_swapchain.get(); }
         bool prepareForRender();
-        VulkanImage * getTargetImage() noexcept { return &m_swapchain_resources_list[m_image_index].image; }
+        const VulkanImage::SharedPointer & getTargetImageSharedPointer() const noexcept { return m_swapchain_resources_list[m_image_index].image_sp; }
         vk::Semaphore getTargetAvailableSemaphore() const { return m_swapchain_resources_list[m_target_available_index].target_available.get(); }
-        vk::ImageLayout getTargetImageLayout() const { return vk::ImageLayout::ePresentSrcKHR; }
         void finishRender(vk::Semaphore present_ready);
         void present();
         vk::SwapchainKHR getHandle() const { return m_swapchain.get(); }
@@ -39,7 +38,7 @@ namespace lcf::render {
         struct SwapchainResources
         {
             SwapchainResources() = default;
-            VulkanImage image;
+            VulkanImage::SharedPointer image_sp;
             vk::UniqueSemaphore target_available;
         };
         std::array<SwapchainResources, SWAPCHAIN_BUFFER_COUNT> m_swapchain_resources_list;

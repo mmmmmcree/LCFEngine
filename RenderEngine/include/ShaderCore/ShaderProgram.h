@@ -6,7 +6,7 @@
 #include "ShaderProgramResource.h"
 
 namespace lcf {
-    class ShaderProgram : public PointerDefs<ShaderProgram>
+    class ShaderProgram : public STDPointerDefs<ShaderProgram>
     {
     public:
         using StageToShaderMap = std::unordered_map<ShaderTypeFlagBits, Shader::SharedPointer>;

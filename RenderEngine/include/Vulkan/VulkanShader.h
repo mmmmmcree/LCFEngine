@@ -7,10 +7,10 @@
 namespace vk { class DispatchLoaderDynamic; }
 namespace lcf::render {
 	class VulkanContext;
-	class VulkanShader : public Shader, public PointerDefs<VulkanShader>
+	class VulkanShader : public Shader, public STDPointerDefs<VulkanShader>
 	{
 	public:
-		IMPORT_POINTER_DEFS(VulkanShader);
+		IMPORT_POINTER_DEFS(STDPointerDefs<VulkanShader>);
 		VulkanShader(VulkanContext * context, ShaderTypeFlagBits type);
 		~VulkanShader() override;
 		operator bool() const;
