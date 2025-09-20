@@ -54,7 +54,9 @@ void lcf::render::VulkanContext::setupVulkanInstance()
         return true;
     };
     QByteArrayList extensions = {};
-    QByteArrayList layers = { "VK_LAYER_KHRONOS_validation" };
+    QByteArrayList layers = {
+        "VK_LAYER_KHRONOS_validation",
+    };
     m_vk_instance.setApiVersion({1, 3, 2});
     m_vk_instance.installDebugOutputFilter(debug_utils_filter);
     m_vk_instance.setExtensions(extensions);

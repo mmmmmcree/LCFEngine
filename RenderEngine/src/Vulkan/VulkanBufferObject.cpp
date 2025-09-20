@@ -163,13 +163,16 @@ void lcf::render::VulkanBufferObject::copyFromBufferWithBarriers(vk::Buffer src,
         pre_dependency.setBufferMemoryBarriers(pre_buffer_barrier);
         cmd->pipelineBarrier2(pre_dependency);
     }
-    vk::MemoryBarrier2 post_barrier;
+    vk::BufferMemoryBarrier2 post_barrier;
     post_barrier.setSrcStageMask(vk::PipelineStageFlagBits2KHR::eAllTransfer)
         .setSrcAccessMask(vk::AccessFlagBits2KHR::eTransferWrite)
         .setDstStageMask(m_stage_flags)
-        .setDstAccessMask(m_access_flags);
+        .setDstAccessMask(m_access_flags)
+        .setBuffer(this->getHandle())
+        .setOffset(dst_offset_in_bytes)
+        .setSize(data_size_in_bytes);
     vk::DependencyInfo post_dependency;
-    post_dependency.setMemoryBarriers(post_barrier);
+    post_dependency.setBufferMemoryBarriers(post_barrier);
     vk::BufferCopy copy_region(src_offset_in_bytes, dst_offset_in_bytes, data_size_in_bytes);
     cmd->copyBuffer(src, this->getHandle(), copy_region);
     cmd->pipelineBarrier2(post_dependency);

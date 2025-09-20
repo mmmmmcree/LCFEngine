@@ -45,9 +45,9 @@ bool lcf::render::VulkanPipeline::createGraphicsPipeline()
     auto device = m_context_p->getDevice();
 
     vk::PipelineViewportStateCreateInfo viewport_info;
-    viewport_info.setScissorCount(1) .setViewportCount(1);
+    viewport_info.setScissorCount(1).setViewportCount(1);
 
-    std::vector<vk::DynamicState > dynamic_states = { vk::DynamicState::eViewport, vk::DynamicState::eScissor };
+    std::vector<vk::DynamicState > dynamic_states = { vk::DynamicState::eViewport, vk::DynamicState::eScissor, };
     vk::PipelineDynamicStateCreateInfo dynamic_info;
     dynamic_info.setDynamicStates(dynamic_states);
 
@@ -126,9 +126,7 @@ bool lcf::render::VulkanPipeline::createGraphicsPipeline()
         .setPColorBlendState(&color_blend_info)
         .setPDynamicState(&dynamic_info)
         .setLayout(m_shader_program->getPipelineLayout())
-        // .setFlags(vk::PipelineCreateFlagBits::eDescriptorBufferEXT)
         .setPNext(&rendering_info);
-
 
     auto [create_result, pipeline] = device.createGraphicsPipelineUnique(nullptr, graphics_pipeline_info);
     m_pipeline = std::move(pipeline);

@@ -1,5 +1,7 @@
 #include "vulkan_utililtie.h"
 
+using namespace lcf::render::vkutils;
+
 lcf::render::vkutils::ImageLayoutTransitionAssistant::ImageLayoutTransitionAssistant()
 {
     this->setSrcStageMask(vk::PipelineStageFlagBits2KHR::eAllCommands)
@@ -34,6 +36,8 @@ void lcf::render::vkutils::CopyAssistant::copy(vk::Image src, vk::Image dst, vk:
     vk::ImageBlit2 blit_region;
     blit_region.setSrcSubresource({vk::ImageAspectFlagBits::eColor, 0, 0, 1})
         .setDstSubresource({vk::ImageAspectFlagBits::eColor, 0, 0, 1});
+    blit_region.srcOffsets[0] = vk::Offset3D{0, 0, 0};
+    blit_region.dstOffsets[0] = vk::Offset3D{0, 0, 0};
     blit_region.srcOffsets[1] = vk::Offset3D{static_cast<int32_t>(src_size.width), static_cast<int32_t>(src_size.height), 1};
     blit_region.dstOffsets[1] = vk::Offset3D{static_cast<int32_t>(dst_size.width), static_cast<int32_t>(dst_size.height), 1};
     vk::BlitImageInfo2 blit_info;

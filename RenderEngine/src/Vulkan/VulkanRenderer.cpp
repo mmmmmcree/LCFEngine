@@ -165,8 +165,8 @@ void lcf::VulkanRenderer::create()
     m_index_buffer->addWriteSegment({std::span(index_data)});
     m_index_buffer->commitWriteSegments();
 
-    m_texture_image = VulkanImage::makeUnique(m_context_p);
-    m_texture_image->setData(Image("assets/images/bk.jpg", 4));
+    m_texture_image = VulkanImage::makeUnique();
+    m_texture_image->create(m_context_p, Image("assets/images/bk.jpg", 4));
     vk::SamplerCreateInfo sampler_info;
     sampler_info.setMagFilter(vk::Filter::eNearest)
         .setMinFilter(vk::Filter::eNearest);
@@ -182,7 +182,6 @@ void lcf::VulkanRenderer::render()
     const auto &render_target = m_render_target.lock();
     if (not render_target->prepareForRender()) { return; }
 
-    vk::Image target_image = render_target->getTargetImage();
     
     VulkanCommandBufferObject & cmd_buffer = current_frame_resources.command_buffer; 
     cmd_buffer.prepareForRecording();
@@ -205,7 +204,6 @@ void lcf::VulkanRenderer::render()
     VulkanDescriptorManager &descriptor_manager = current_frame_resources.descriptor_manager;
     descriptor_manager.resetAllocatedSets();
 
-    // cmd_buffer.setDescriptorBufferOffsetsEXT()
 
     auto descriptor_sets = *descriptor_manager.allocate(m_compute_pipeline->getDescriptorSetLayoutList());
 
@@ -215,7 +213,6 @@ void lcf::VulkanRenderer::render()
 
     auto &camera_transform = m_camera_entity.getComponent<Transform>();
     projection_view = projection * camera_transform.getInvertedLocalMatrix();
-    // m_global_uniform_buffer->acquireNextBuffer();
     if (m_current_frame_index % 3 == 1) {
         projection_view.setToIdentity();
     }
@@ -279,19 +276,18 @@ void lcf::VulkanRenderer::render()
     cmd_buffer.drawIndexed(36, 1, 0, 0, 0);
 
     current_framebuffer->endRendering();
-
+    // blit to target
     auto resolved_draw_image = current_framebuffer->getMSAAResolveAttachment().first;
-    resolved_draw_image->transitLayout(vk::ImageLayout::eTransferSrcOptimal);
+    auto target_image_p = render_target->getTargetImage();
 
-    // resolve to target
-    vkutils::ImageLayoutTransitionAssistant layout_transition_assistant;
-    layout_transition_assistant.setImage(target_image);
-    layout_transition_assistant.transitTo(cmd_buffer, vk::ImageLayout::eTransferDstOptimal);
-    vkutils::CopyAssistant copy_assistant(cmd_buffer);
-    copy_assistant.copy(resolved_draw_image->getHandle(), target_image, {width, height}, {width, height});
-    layout_transition_assistant.transitTo(cmd_buffer, render_target->getTargetImageLayout());
+    auto resolved_attachment = resolved_draw_image->generateAttachment();
+    auto target_attachment = target_image_p->generateAttachment();
+    resolved_attachment.blitTo(&cmd_buffer, target_attachment, vk::Filter::eLinear,
+        {{0, 0, 0}, {static_cast<int32_t>(width), static_cast<int32_t>(height), 1}},
+        {{0, 0, 0}, {static_cast<int32_t>(width), static_cast<int32_t>(height), 1}});
+
+    target_image_p->transitLayout(&cmd_buffer, vk::ImageLayout::ePresentSrcKHR);
     cmd_buffer.end();
-
 
     vk::Semaphore render_finished = current_frame_resources.render_finished.get();
     vk::SemaphoreSubmitInfo wait_info;
@@ -299,7 +295,6 @@ void lcf::VulkanRenderer::render()
         .setStageMask(vk::PipelineStageFlagBits2::eColorAttachmentOutput);
     cmd_buffer.addWaitSubmitInfo(wait_info)
         .addSignalSubmitInfo(render_finished);
-        // .addSignalSubmitInfo(m_global_uniform_buffer->generateSubmitInfo());
     cmd_buffer.submit(vk::QueueFlagBits::eGraphics);
 
     render_target->finishRender(render_finished);

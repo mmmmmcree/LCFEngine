@@ -2,6 +2,7 @@
 
 #include "common/RenderTarget.h"
 #include <vulkan/vulkan.hpp>
+#include "VulkanImage.h"
 
 namespace lcf::render {
     class VulkanContext;
@@ -17,7 +18,7 @@ namespace lcf::render {
         void destroy() override;
         bool isValid() const override { return m_surface and m_swapchain.get(); }
         bool prepareForRender();
-        vk::Image getTargetImage() const { return m_swapchain_resources_list[m_image_index].image; }
+        VulkanImage * getTargetImage() noexcept { return &m_swapchain_resources_list[m_image_index].image; }
         vk::Semaphore getTargetAvailableSemaphore() const { return m_swapchain_resources_list[m_target_available_index].target_available.get(); }
         vk::ImageLayout getTargetImageLayout() const { return vk::ImageLayout::ePresentSrcKHR; }
         void finishRender(vk::Semaphore present_ready);
@@ -38,8 +39,7 @@ namespace lcf::render {
         struct SwapchainResources
         {
             SwapchainResources() = default;
-            vk::Image image;
-            vk::UniqueImageView image_view;
+            VulkanImage image;
             vk::UniqueSemaphore target_available;
         };
         std::array<SwapchainResources, SWAPCHAIN_BUFFER_COUNT> m_swapchain_resources_list;

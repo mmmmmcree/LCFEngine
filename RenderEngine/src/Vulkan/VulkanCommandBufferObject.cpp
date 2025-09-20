@@ -20,15 +20,21 @@ void lcf::render::VulkanCommandBufferObject::prepareForRecording()
 {
     m_timeline_semaphore_sp->wait();
     m_resources.clear();
+    m_wait_infos.clear();
+    m_signal_infos.clear();
     this->reset();
 }
 
 void lcf::render::VulkanCommandBufferObject::begin(const vk::CommandBufferBeginInfo &begin_info)
 {
-    m_wait_infos.clear();
-    m_signal_infos.clear();
     vk::CommandBuffer::begin(begin_info);
     m_context_p->bindCommandBuffer(this);
+}
+
+void lcf::render::VulkanCommandBufferObject::end()
+{
+    vk::CommandBuffer::end();
+    m_context_p->releaseCommandBuffer();
 }
 
 void lcf::render::VulkanCommandBufferObject::submit(vk::QueueFlags queue_flags)
@@ -42,7 +48,6 @@ void lcf::render::VulkanCommandBufferObject::submit(vk::QueueFlags queue_flags)
         .setSignalSemaphoreInfos(m_signal_infos)
         .setCommandBufferInfos(command_submit_info);
     m_context_p->getQueue(queue_flags).submit2(submit_info);
-    m_context_p->releaseCommandBuffer();
 }
 
 void lcf::render::VulkanCommandBufferObject::acquireResource(const GPUResource::SharedPointer &resource_sp)

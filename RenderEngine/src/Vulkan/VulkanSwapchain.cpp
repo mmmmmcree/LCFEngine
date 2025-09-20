@@ -73,12 +73,11 @@ void lcf::render::VulkanSwapchain::recreate()
         .setComponents({ vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA });
     for (int i = 0; i < m_swapchain_resources_list.size(); ++i) {
         auto &resources = m_swapchain_resources_list[i];
-        resources.image = swapchain_images[i];
-        try {
-            resources.image_view = device.createImageViewUnique(image_view_info.setImage(resources.image));
-        } catch (const vk::SystemError &e) {
-            qFatal() << "Failed to create image view: " << e.what();
-        }
+        resources.image.setExtent(vk::Extent3D{ this->getWidth(), this->getHeight(), 1 })
+            .setArrayLayers(swapchain_info.imageArrayLayers)
+            .setUsage(swapchain_info.imageUsage)
+            .setFormat(swapchain_info.imageFormat)
+            .create(m_context_p, swapchain_images[i]);
     }
     
     m_need_to_update = false;
@@ -141,4 +140,5 @@ void lcf::render::VulkanSwapchain::acquireAvailableTarget()
             enum_name(acquire_result)));
     }
     m_image_index = index;
+    this->getTargetImage()->setInitialLayout(vk::ImageLayout::eUndefined);
 }
