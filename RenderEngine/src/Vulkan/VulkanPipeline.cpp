@@ -1,34 +1,20 @@
 #include "VulkanPipeline.h"
 #include "VulkanContext.h"
 #include "VulkanShaderProgram.h"
+#include "error.h"
 
+using namespace lcf::render;
 
-lcf::render::VulkanPipeline::VulkanPipeline(VulkanContext * context, const VulkanShaderProgram::SharedPointer & shader_program) :
-    m_context_p(context),
-    m_shader_program(shader_program)
+bool VulkanPipeline::create(VulkanContext *context, const ComputePipelineCreateInfo &create_info)
 {
-    if (not m_shader_program or not m_shader_program->isLinked()) {
-        const char * error_message = "lcf::render::VulkanPipeline::VulkanPipeline(): shader program is invalid";
-        qDebug() << error_message;
-        throw std::runtime_error(error_message);
+    m_context_p = context;
+    m_type = vk::PipelineBindPoint::eCompute;
+    m_shader_program = create_info.getShaderProgram();
+    if (not m_shader_program or
+        not m_shader_program->isLinked() or
+        not m_shader_program->containsStage(ShaderTypeFlagBits::Compute)) {
+        LCF_THROW_RUNTIME_ERROR("lcf::render::VulkanPipeline::create(): shader program is invalid");
     }
-    if (m_shader_program->containsStage(ShaderTypeFlagBits::Compute)) {
-        m_type = vk::PipelineBindPoint::eCompute;
-    } else {
-        m_type = vk::PipelineBindPoint::eGraphics;
-    }
-}
-
-bool lcf::render::VulkanPipeline::create()
-{
-    if (m_type == vk::PipelineBindPoint::eCompute) {
-        return this->createComputePipeline();
-    }
-    return this->createGraphicsPipeline();
-}
-
-bool lcf::render::VulkanPipeline::createComputePipeline()
-{
     auto device = m_context_p->getDevice();
     vk::PipelineLayoutCreateInfo pipeline_layout_info;
     pipeline_layout_info.setSetLayouts(m_shader_program->getDescriptorSetLayoutList());
@@ -40,8 +26,17 @@ bool lcf::render::VulkanPipeline::createComputePipeline()
     return create_result == vk::Result::eSuccess;
 }
 
-bool lcf::render::VulkanPipeline::createGraphicsPipeline()
+bool VulkanPipeline::create(VulkanContext *context, const GraphicPipelineCreateInfo &create_info)
 {
+    m_context_p = context;
+    m_type = vk::PipelineBindPoint::eGraphics;
+    m_shader_program = create_info.getShaderProgram();
+    if (not m_shader_program or
+        not m_shader_program->isLinked() or
+        m_shader_program->containsStage(ShaderTypeFlagBits::Compute)) {
+        LCF_THROW_RUNTIME_ERROR("lcf::render::VulkanPipeline::create(): shader program is invalid");
+    }
+
     auto device = m_context_p->getDevice();
 
     vk::PipelineViewportStateCreateInfo viewport_info;
@@ -93,7 +88,7 @@ bool lcf::render::VulkanPipeline::createGraphicsPipeline()
         .setStencilTestEnable(false);
 
     vk::PipelineMultisampleStateCreateInfo multisample_info;
-    multisample_info.setRasterizationSamples(vk::SampleCountFlagBits::e4);
+    multisample_info.setRasterizationSamples(create_info.getRasterizationSamples());
 
     vk::PipelineColorBlendAttachmentState color_blend_attachment_info;
     color_blend_attachment_info.setColorWriteMask(vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA)
@@ -110,10 +105,9 @@ bool lcf::render::VulkanPipeline::createGraphicsPipeline()
         .setLogicOp(vk::LogicOp::eCopy)
         .setAttachments(color_blend_attachment_info);
 
-    std::vector<vk::Format> color_attachment_formats = { vk::Format::eR16G16B16A16Sfloat };
     vk::PipelineRenderingCreateInfo rendering_info;
-    rendering_info.setColorAttachmentFormats(color_attachment_formats)
-        .setDepthAttachmentFormat(vk::Format::eD32Sfloat);
+    rendering_info.setColorAttachmentFormats(create_info.getColorAttachmentFormats())
+        .setDepthAttachmentFormat(create_info.getDepthAttachmentFormat());
     
     vk::GraphicsPipelineCreateInfo graphics_pipeline_info;
     graphics_pipeline_info.setStages(m_shader_program->getShaderStageInfoList())

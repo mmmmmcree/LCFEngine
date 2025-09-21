@@ -115,7 +115,7 @@ VulkanBufferObject &VulkanBufferObject::resize(uint32_t size_in_bytes)
     return *this;
 }
 
-void VulkanBufferObject::addWriteSegment(const BufferWriteSegment &segment) noexcept
+VulkanBufferObject & VulkanBufferObject::addWriteSegment(const BufferWriteSegment &segment) noexcept
 {
     /*
     - use interval tree to manage write segments
@@ -125,9 +125,10 @@ void VulkanBufferObject::addWriteSegment(const BufferWriteSegment &segment) noex
     m_write_segments.emplace_back(segment);
     m_write_segment_lower_bound = std::min(m_write_segment_lower_bound, segment.getBeginOffsetInBytes());
     m_write_segment_upper_bound = std::max(m_write_segment_upper_bound, segment.getEndOffsetInBytes());
+    return *this;
 }
 
-void lcf::render::VulkanBufferObject::addWriteSegmentIfAbsent(const BufferWriteSegment &segment) noexcept
+VulkanBufferObject & lcf::render::VulkanBufferObject::addWriteSegmentIfAbsent(const BufferWriteSegment &segment) noexcept
 {
     /*
     - use interval tree to manage write segments
@@ -137,6 +138,7 @@ void lcf::render::VulkanBufferObject::addWriteSegmentIfAbsent(const BufferWriteS
     m_write_segments.emplace_front(segment);
     m_write_segment_lower_bound = std::min(m_write_segment_lower_bound, segment.getBeginOffsetInBytes());
     m_write_segment_upper_bound = std::max(m_write_segment_upper_bound, segment.getEndOffsetInBytes());
+    return *this;
 }
 
 void VulkanBufferObject::commitWriteSegments()

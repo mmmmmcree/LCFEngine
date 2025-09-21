@@ -69,6 +69,7 @@ namespace lcf::render {
             m_resolve_mode(resolve_mode) {}
         Self & setMaxExtent(vk::Extent2D max_extent) noexcept { m_max_extent = max_extent; return *this; }
         Self & addColorFormat(vk::Format format) { m_color_formats.emplace_back(format); return *this; }
+        Self & addColorFormats(std::span<const vk::Format> formats) { m_color_formats.insert(m_color_formats.end(), formats.begin(), formats.end()); return *this; }
         Self & setSampleCount(vk::SampleCountFlagBits sample_count) noexcept { m_sample_count = sample_count; return *this; }
         Self & setDepthStencilFormat(vk::Format depth_stencil_format) noexcept { m_depth_stencil_format = depth_stencil_format; return *this; }
         Self & setResolveMode(vk::ResolveModeFlagBits resolve_mode) noexcept { m_resolve_mode = resolve_mode; return *this; }

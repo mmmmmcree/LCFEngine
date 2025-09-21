@@ -40,10 +40,11 @@ namespace lcf {
         uint32_t m_current_frame_index = 0;
 
         //! temporary
-        VulkanPipeline::UniquePointer m_compute_pipeline;
-        VulkanPipeline::UniquePointer m_graphics_pipeline;
-        VulkanBufferObject::UniquePointer m_vertex_buffer;
-        VulkanBufferObject::UniquePointer m_index_buffer;
+        VulkanPipeline m_compute_pipeline;
+        VulkanPipeline m_graphics_pipeline;
+
+        VulkanBufferObject m_vertex_buffer;
+        VulkanBufferObject m_index_buffer;
 
         VulkanImage::UniquePointer m_texture_image;
         vk::UniqueSampler m_texture_sampler;

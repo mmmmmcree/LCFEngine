@@ -49,8 +49,8 @@ namespace lcf::render {
         bool isCreated() const noexcept { return m_buffer_up and m_buffer_up->getHandle(); }
         Self & setSize(uint32_t size_in_bytes) noexcept;
         Self & setUsage(GPUBufferUsage usage) noexcept;
-        void addWriteSegment(const BufferWriteSegment &segment) noexcept; // overwrite if overlaps
-        void addWriteSegmentIfAbsent(const BufferWriteSegment &segment) noexcept; // don't overwrite if overlaps
+        Self & addWriteSegment(const BufferWriteSegment &segment) noexcept; // overwrite if overlaps
+        Self & addWriteSegmentIfAbsent(const BufferWriteSegment &segment) noexcept; // don't overwrite if overlaps
         void commitWriteSegments();
         uint32_t getSize() const noexcept { return m_size; }
         vk::Buffer getHandle() const noexcept { return m_buffer_up->getHandle(); }

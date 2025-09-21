@@ -6,6 +6,7 @@
 #include "Vector.h"
 #include "InterleavedBuffer.h"
 #include "Matrix.h"
+#include "constants.h"
 #include "Quaternion.h"
 #include "Image/Image.h"
 #include "VulkanDescriptorWriter.h"
@@ -57,19 +58,34 @@ void lcf::VulkanRenderer::create()
     auto render_target = m_render_target.lock();
     auto [width, height] = render_target->getMaximalExtent();
 
+    VulkanShaderProgram::SharedPointer compute_shader_program = std::make_shared<VulkanShaderProgram>(m_context_p);
+    compute_shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::Compute, "assets/shaders/gradient.comp");
+    compute_shader_program->link();
+
+    ComputePipelineCreateInfo compute_pipeline_info(compute_shader_program);
+    m_compute_pipeline.create(m_context_p, compute_pipeline_info);
+
+    VulkanShaderProgram::SharedPointer shader_program = std::make_shared<VulkanShaderProgram>(m_context_p);
+    shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::Vertex, "assets/shaders/vertex_buffer_test.vert");
+    shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::Fragment, "assets/shaders/vertex_buffer_test.frag");
+    shader_program->link();
+    GraphicPipelineCreateInfo graphic_pipeline_info;
+    graphic_pipeline_info.setShaderProgram(shader_program)
+        .setDepthAttachmentFormat(vk::Format::eD32Sfloat)
+        .setRasterizationSamples(vk::SampleCountFlagBits::e4)
+        .addColorAttachmentFormat(vk::Format::eR16G16B16A16Sfloat);
+    m_graphics_pipeline.create(m_context_p, graphic_pipeline_info);
+
     for (auto &resources : m_frame_resources) {
         resources.render_finished = device.createSemaphoreUnique(semaphore_info);
         resources.command_buffer.create(m_context_p);
         resources.descriptor_manager.create(m_context_p);
 
-        /*
-        todo 直接使用    vk::PipelineRenderingCreateInfo rendering_info;填充framebuffer的创建信息
-        */
         VulkanFramebufferObjectCreateInfo fbo_info;
         fbo_info.setMaxExtent({static_cast<uint32_t>(width), static_cast<uint32_t>(height)})
-            .addColorFormat(vk::Format::eR16G16B16A16Sfloat)
-            .setSampleCount(vk::SampleCountFlagBits::e4)
-            .setDepthStencilFormat(vk::Format::eD32Sfloat)
+            .addColorFormats(graphic_pipeline_info.getColorAttachmentFormats())
+            .setSampleCount(graphic_pipeline_info.getRasterizationSamples())
+            .setDepthStencilFormat(graphic_pipeline_info.getDepthAttachmentFormat())
             .setResolveMode(vk::ResolveModeFlagBits::eAverage);
         resources.fbo.create(m_context_p, fbo_info);
     }
@@ -80,91 +96,20 @@ void lcf::VulkanRenderer::create()
         // .setSize(sizeof(Matrix4x4))
         .create(m_context_p);
 
-    VulkanShaderProgram::SharedPointer compute_shader_program = std::make_shared<VulkanShaderProgram>(m_context_p);
-    compute_shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::Compute, "assets/shaders/gradient.comp");
-    compute_shader_program->link();
-    m_compute_pipeline = VulkanPipeline::makeUnique(m_context_p, compute_shader_program);
-    m_compute_pipeline->create();
-
-    VulkanShaderProgram::SharedPointer shader_program = std::make_shared<VulkanShaderProgram>(m_context_p);
-    shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::Vertex, "assets/shaders/vertex_buffer_test.vert");
-    shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::Fragment, "assets/shaders/vertex_buffer_test.frag");
-    shader_program->link();
-    m_graphics_pipeline = VulkanPipeline::makeUnique(m_context_p, shader_program);
-    m_graphics_pipeline->create();
-
-    // Vector3D positions[] = {
-    //     {-0.5f, -0.5f, 0.0f},
-    //     {0.5f, -0.5f, 0.0f},
-    //     {0.5f,  0.5f, 0.0f},
-    //     {-0.5f,  0.5f, 0.0f}
-    // };
-    // Vector3D colors[] = {
-    //     {1.0f, 0.0f, 0.0f},
-    //     {0.0f, 1.0f, 0.0f},
-    //     {0.0f, 0.0f, 1.0f},
-    //     {1.0f, 1.0f, 1.0f}
-    // };
-    // Vector2D uvs[] = {
-    //     {0.0f, 1.0f},
-    //     {1.0f, 1.0f},
-    //     {1.0f, 0.0f},
-    //     {0.0f, 0.0f}
-    // };
-    // uint16_t index_data[] = { 0, 1, 2, 2, 3, 0 };
-    Vector3D cube_positions[] = {
-        {-1.0f, -1.0f, -1.0f}, {-1.0f, +1.0f, -1.0f}, {+1.0f, +1.0f, -1.0f}, {+1.0f, -1.0f, -1.0f},
-        {-1.0f, -1.0f, -1.0f}, {-1.0f, -1.0f, +1.0f}, {+1.0f, -1.0f, +1.0f}, {+1.0f, -1.0f, -1.0f},
-        {+1.0f, -1.0f, -1.0f}, {+1.0f, -1.0f, +1.0f}, {+1.0f, +1.0f, +1.0f}, {+1.0f, +1.0f, -1.0f},
-        {+1.0f, +1.0f, -1.0f}, {+1.0f, +1.0f, +1.0f}, {-1.0f, +1.0f, +1.0f}, {-1.0f, +1.0f, -1.0f},
-        {-1.0f, +1.0f, -1.0f}, {-1.0f, +1.0f, +1.0f}, {-1.0f, -1.0f, +1.0f}, {-1.0f, -1.0f, -1.0f},
-        {-1.0f, -1.0f, +1.0f}, {+1.0f, -1.0f, +1.0f}, {+1.0f, +1.0f, +1.0f}, {-1.0f, +1.0f, +1.0f},
-    };
-    Vector3D cube_colors[] = {
-        {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 1.0f},
-        {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 1.0f},
-        {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 1.0f},
-        {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 1.0f},
-        {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 1.0f},
-        {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 1.0f},
-    };
-    Vector2D cube_uvs[] = {
-        {0.0f, 1.0f}, {1.0f, 1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f},
-        {0.0f, 1.0f}, {1.0f, 1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f},
-        {0.0f, 1.0f}, {1.0f, 1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f},
-        {0.0f, 1.0f}, {1.0f, 1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f},
-        {0.0f, 1.0f}, {1.0f, 1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f},
-        {0.0f, 1.0f}, {1.0f, 1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f},
-    };
-    uint16_t index_data[] = {
-        2, 0, 1, 2, 3, 0,
-        4, 6, 5, 4, 7, 6,
-        8, 10 ,9, 8, 11, 10,
-        12, 14, 13, 12, 15, 14,
-        16, 18,17, 16, 19, 18,
-        20, 21, 22, 20, 22, 23
-    };
     InterleavedBuffer vertex_data;
     vertex_data.addField<std_alignment_traits<Vector3D>>()
         .addField<std_alignment_traits<Vector3D>>()
         .addField<std_alignment_traits<Vector2D>>()
-        .create(std::size(index_data));
-    vertex_data.setData(0, std::span(cube_positions));
-    vertex_data.setData(1, std::span(cube_colors));
-    vertex_data.setData(2, std::span(cube_uvs));
+        .create(std::size(constants::cube_indices));
+    vertex_data.setData(0, std::span(constants::cube_positions));
+    vertex_data.setData(1, std::span(constants::cube_colors));
+    vertex_data.setData(2, std::span(constants::cube_uvs));
 
-
-    m_vertex_buffer = VulkanBufferObject::makeUnique();
-    m_vertex_buffer->setUsage(GPUBufferUsage::eVertex)
-        .create(m_context_p);
-    m_vertex_buffer->addWriteSegment({vertex_data.getDataSpan()});
-    m_vertex_buffer->commitWriteSegments();
+    m_vertex_buffer.setUsage(GPUBufferUsage::eVertex).create(m_context_p);
+    m_vertex_buffer.addWriteSegment({vertex_data.getDataSpan()}).commitWriteSegments();
     
-    m_index_buffer = VulkanBufferObject::makeUnique();
-    m_index_buffer->setUsage(GPUBufferUsage::eIndex)
-        .create(m_context_p);
-    m_index_buffer->addWriteSegment({std::span(index_data)});
-    m_index_buffer->commitWriteSegments();
+    m_index_buffer.setUsage(GPUBufferUsage::eIndex).create(m_context_p);
+    m_index_buffer.addWriteSegment({std::span(constants::cube_indices)}).commitWriteSegments();
 
     m_texture_image = VulkanImage::makeUnique();
     m_texture_image->create(m_context_p, Image("assets/images/bk.jpg", 4));
@@ -206,7 +151,7 @@ void lcf::VulkanRenderer::render()
     descriptor_manager.resetAllocatedSets();
 
 
-    auto descriptor_sets = *descriptor_manager.allocate(m_compute_pipeline->getDescriptorSetLayoutList());
+    auto descriptor_sets = *descriptor_manager.allocate(m_compute_pipeline.getDescriptorSetLayoutList());
 
     auto &current_framebuffer = current_frame_resources.fbo;
     Matrix4x4 projection, projection_view;
@@ -220,7 +165,7 @@ void lcf::VulkanRenderer::render()
     m_global_uniform_buffer->addWriteSegment({std::span(&projection_view, 1), 0u});
     m_global_uniform_buffer->commitWriteSegments();
 
-    descriptor_sets = *descriptor_manager.allocate(m_graphics_pipeline->getDescriptorSetLayoutList());
+    descriptor_sets = *descriptor_manager.allocate(m_graphics_pipeline.getDescriptorSetLayoutList());
     {
         vk::DescriptorImageInfo image_info;
         image_info.setImageLayout(m_texture_image->getLayout())
@@ -228,7 +173,7 @@ void lcf::VulkanRenderer::render()
             .setSampler(m_texture_sampler.get());
         vk::DescriptorBufferInfo buffer_info;
         
-        VulkanDescriptorWriter writer(m_context_p, m_graphics_pipeline->getShaderProgram()->getDescriptorSetLayoutBindingTable(), descriptor_sets) ;
+        VulkanDescriptorWriter writer(m_context_p, m_graphics_pipeline.getShaderProgram()->getDescriptorSetLayoutBindingTable(), descriptor_sets) ;
         writer.add(1, 0, image_info)
             .write();
 
@@ -248,23 +193,23 @@ void lcf::VulkanRenderer::render()
     
     cmd_buffer.setViewport(0, viewport);
     cmd_buffer.setScissor(0, scissor);
-    cmd_buffer.bindPipeline(m_graphics_pipeline->getType(), m_graphics_pipeline->getHandle());
+    cmd_buffer.bindPipeline(m_graphics_pipeline.getType(), m_graphics_pipeline.getHandle());
 
     current_framebuffer.beginRendering(&cmd_buffer);
  
     Matrix4x4 model; 
     model.scale(0.5f);
 
-    auto shader_program = m_graphics_pipeline->getShaderProgram();
+    auto shader_program = m_graphics_pipeline.getShaderProgram();
     vk::DeviceSize offset = 0;
-    cmd_buffer.bindVertexBuffers(0, m_vertex_buffer->getHandle(), offset);
-    cmd_buffer.bindIndexBuffer(m_index_buffer->getHandle(), 0, vk::IndexType::eUint16);
+    cmd_buffer.bindVertexBuffers(0, m_vertex_buffer.getHandle(), offset);
+    cmd_buffer.bindIndexBuffer(m_index_buffer.getHandle(), 0, vk::IndexType::eUint16);
 
 
     uint32_t dynamic_offset = 0;
-    cmd_buffer.bindDescriptorSets(m_graphics_pipeline->getType(), m_graphics_pipeline->getPipelineLayout(), 0, descriptor_sets[0], dynamic_offset);
+    cmd_buffer.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), 0, descriptor_sets[0], dynamic_offset);
 
-    cmd_buffer.bindDescriptorSets(m_graphics_pipeline->getType(), m_graphics_pipeline->getPipelineLayout(), 1, descriptor_sets[1], nullptr);
+    cmd_buffer.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), 1, descriptor_sets[1], nullptr);
 
     shader_program->setPushConstantData(vk::ShaderStageFlagBits::eVertex, {model.getConstData()});
     shader_program->bindPushConstants(cmd_buffer);
