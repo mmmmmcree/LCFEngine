@@ -3,10 +3,7 @@
 #include <memory>
 #include <vulkan/vulkan.hpp>
 #include "PointerDefs.h"
-
-
-class VmaAllocator_T;
-class VmaAllocation_T;
+#include <vma/vk_mem_alloc.h>
 
 namespace lcf::render {
     class VulkanContext;
@@ -14,16 +11,16 @@ namespace lcf::render {
     class VMAImage : public STDPointerDefs<VMAImage>
     {
     public:
-        VMAImage(VmaAllocator_T * allocator,
-            VmaAllocation_T * allocation,
+        VMAImage(VmaAllocator allocator,
+            VmaAllocation allocation,
             vk::Image image,
             vk::DeviceSize size);
         ~VMAImage();
         vk::Image getHandle() const noexcept { return m_image; }
         vk::DeviceSize getSize() const noexcept { return m_size; }
     private:
-        VmaAllocator_T * m_allocator = nullptr;
-        VmaAllocation_T * m_allocation = nullptr;
+        VmaAllocator m_allocator = nullptr;
+        VmaAllocation m_allocation = nullptr;
         vk::Image m_image = nullptr;
         vk::DeviceSize m_size = 0;
     };
@@ -32,8 +29,8 @@ namespace lcf::render {
     {
         using Self = VMABuffer;
     public:
-        VMABuffer(VmaAllocator_T * allocator,
-            VmaAllocation_T * allocation,
+        VMABuffer(VmaAllocator allocator,
+            VmaAllocation allocation,
             vk::Buffer buffer,
             vk::DeviceSize size,
             void * mapped_data_p = nullptr);
@@ -43,8 +40,8 @@ namespace lcf::render {
         vk::DeviceSize getSize() const noexcept { return m_size; }
         vk::Result flush(VkDeviceSize offset = 0, VkDeviceSize size = VK_WHOLE_SIZE);
     private:
-        VmaAllocator_T * m_allocator = nullptr;
-        VmaAllocation_T * m_allocation = nullptr;
+        VmaAllocator m_allocator = nullptr;
+        VmaAllocation m_allocation = nullptr;
         vk::Buffer m_buffer = nullptr;
         std::byte * m_mapped_data_p = nullptr;
         vk::DeviceSize m_size = 0;
@@ -66,6 +63,6 @@ namespace lcf::render {
         VMAImage::UniquePointer createImage(const vk::ImageCreateInfo & image_info);
         VMABuffer::UniquePointer createBuffer(const vk::BufferCreateInfo & buffer_info, const MemoryAllocationCreateInfo & mem_alloc_info);
     private:
-        VmaAllocator_T * m_allocator = nullptr;
+        VmaAllocator m_allocator = nullptr;
     };
 }

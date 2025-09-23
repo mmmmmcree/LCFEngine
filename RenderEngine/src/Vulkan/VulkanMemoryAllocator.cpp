@@ -75,31 +75,7 @@ VMABuffer::UniquePointer VulkanMemoryAllocator::createBuffer(const vk::BufferCre
     return VMABuffer::makeUnique(m_allocator, allocation, buffer, allocation_info.size, allocation_info.pMappedData);
 }
 
-// //- Deleters
-
-// lcf::render::VMABufferDeleter::VMABufferDeleter(VmaAllocator_T *allocator, VmaAllocation_T *allocation) :
-//     m_allocator(allocator),
-//     m_allocation(allocation)
-// {
-// }
-
-// void lcf::render::VMABufferDeleter::operator()(VkBuffer buffer) const noexcept
-// {
-//     vmaDestroyBuffer(m_allocator, buffer, m_allocation);
-// }
-
-// lcf::render::VMAImageDeleter::VMAImageDeleter(VmaAllocator_T *allocator, VmaAllocation_T *allocation) :
-//     m_allocator(allocator),
-//     m_allocation(allocation)
-// {
-// }
-
-// void lcf::render::VMAImageDeleter::operator()(VkImage image) const noexcept
-// {
-//     vmaDestroyImage(m_allocator, image, m_allocation);
-// }
-
-lcf::render::VMABuffer::VMABuffer(VmaAllocator_T *allocator, VmaAllocation_T *allocation, vk::Buffer buffer, vk::DeviceSize size, void *mapped_data_p) :
+lcf::render::VMABuffer::VMABuffer(VmaAllocator allocator, VmaAllocation allocation, vk::Buffer buffer, vk::DeviceSize size, void *mapped_data_p) :
     m_allocator(allocator),
     m_allocation(allocation),
     m_buffer(buffer),
@@ -118,7 +94,7 @@ vk::Result lcf::render::VMABuffer::flush(VkDeviceSize offset, VkDeviceSize size)
     return static_cast<vk::Result>(vmaFlushAllocation(m_allocator, m_allocation, offset, size));
 }
 
-lcf::render::VMAImage::VMAImage(VmaAllocator_T *allocator, VmaAllocation_T *allocation, vk::Image image, vk::DeviceSize size) :
+lcf::render::VMAImage::VMAImage(VmaAllocator allocator, VmaAllocation allocation, vk::Image image, vk::DeviceSize size) :
     m_allocator(allocator),
     m_allocation(allocation),
     m_image(image),

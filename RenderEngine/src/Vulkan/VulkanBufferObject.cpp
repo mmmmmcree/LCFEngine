@@ -84,8 +84,8 @@ void lcf::render::VulkanBufferObject::recreate(uint32_t size_in_bytes)
     m_size = boost::alignment::align_up(size_in_bytes, 4u);
     vk::BufferCreateInfo buffer_info = {{}, m_size, usage_flags, vk::SharingMode::eExclusive};
     if (m_size == 0u) { return; }
-    m_buffer_up = VulkanBufferResource::makeUnique();
     auto memory_allocator = m_context_p->getMemoryAllocator();
+    m_buffer_up = VulkanBufferResource::makeUnique();
     m_buffer_up->create(memory_allocator, buffer_info, {memory_flags});
 }
 

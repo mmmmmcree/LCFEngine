@@ -11,22 +11,23 @@
 namespace lcf {
     class InterleavedBuffer
     {
+        using Self = InterleavedBuffer;
     public:
         InterleavedBuffer() = default;
-        bool isCreated() const { return not m_data.empty(); }
-        size_t getStrideInBytes() const { return this->isCreated() ? m_offsets.back() : 0; }
-        size_t getSizeInBytes() const { return m_data.size(); }
-        size_t getSize() const { return this->isCreated() ? m_data.size() / this->getStrideInBytes() : 0; }
-        std::byte * getData() { return m_data.data(); }
-        const std::byte * getData() const { return m_data.data(); }
-        std::span<std::byte> getDataSpan() { return m_data; }
-        const std::span<const std::byte> getSpan() const { return m_data; }
-        InterleavedBuffer & setStructuralAlignment(size_t alignment)
+        bool isCreated() const noexcept { return not m_data.empty(); }
+        size_t getStrideInBytes() const noexcept { return this->isCreated() ? m_offsets.back() : 1; }
+        size_t getSizeInBytes() const noexcept { return m_data.size(); }
+        size_t getSize() const noexcept { return m_data.size() / this->getStrideInBytes(); }
+        std::byte * getData() noexcept { return m_data.data(); }
+        const std::byte * getData() const noexcept { return m_data.data(); }
+        std::span<std::byte> getDataSpan() noexcept { return m_data; }
+        std::span<const std::byte> getDataSpan() const noexcept { return m_data; }
+        Self & setStructuralAlignment(size_t alignment) noexcept
         {
             m_structural_alignment = std::max(m_structural_alignment, std::bit_ceil(alignment));
             return *this; 
         }
-        InterleavedBuffer & addField(size_t size_in_bytes, size_t alignment)
+        Self & addField(size_t size_in_bytes, size_t alignment)
         {
             if (this->isCreated()) { return *this; }
             alignment = std::bit_ceil(alignment);
@@ -36,10 +37,7 @@ namespace lcf {
             return *this;
         }
         template <alignment_c TypeAlignmentInfo>
-        InterleavedBuffer & addField()
-        {
-            return this->addField(TypeAlignmentInfo::type_size, TypeAlignmentInfo::alignment);
-        }
+        Self & addField() { return this->addField(TypeAlignmentInfo::type_size, TypeAlignmentInfo::alignment); }
         void create(size_t size)
         {
             if (this->isCreated()) { return; }
@@ -74,37 +72,32 @@ namespace lcf {
             return *reinterpret_cast<const T *>(m_data.data() + offset);
         }
         template <typename T>
-        auto view(size_t field_index)
-        {
-            using Iterator = lcf::StrideIterator<T>;
-            if (field_index >= m_offsets.size() - 1 or not this->isCreated())
-            { return std::ranges::subrange(Iterator{}, Iterator{}); }
-            Iterator begin(m_data.data() + m_offsets[field_index], this->getStrideInBytes());
-            Iterator end(m_data.data() + m_offsets[field_index] + m_data.size(), this->getStrideInBytes());
-            return std::ranges::subrange(begin, end);
-        }
+        auto view(size_t field_index) noexcept { return this->_view<T, false>(field_index); }
         template <typename T>
-        auto view(size_t field_index) const
-        {
-            using Iterator = lcf::ConstStrideIterator<T>;
-            if (field_index >= m_offsets.size() - 1 or not this->isCreated())
-            { return std::ranges::subrange(Iterator{}, Iterator{}); }
-            Iterator begin(m_data.data() + m_offsets[field_index], this->getStrideInBytes());
-            Iterator end(m_data.data() + m_offsets[field_index] + m_data.size(), this->getStrideInBytes());
-            return std::ranges::subrange(begin, end);
-        }
+        auto view(size_t field_index) const noexcept { return this->_view<T, true>(field_index); }
         template <typename T>
-        void setData(size_t field_index, size_t data_index, const T & data)
+        Self & setData(size_t field_index, size_t data_index, const T & data) noexcept
         {
-            if (data_index >= this->getSize()) { return; }
+            if (data_index >= this->getSize()) { return *this; }
             this->viewAt<T>(field_index, data_index) = data;
+            return *this;
         }
         template <std::ranges::range Range>
-        void setData(size_t field_index, Range data, size_t start_data_index = 0)
+        Self & setData(size_t field_index, Range data, size_t start_data_index = 0) noexcept
         {
-            if (start_data_index + data.size() > this->getSize()) { return; }
             auto dst_it = this->view<std::ranges::range_value_t<Range>>(field_index).begin() + start_data_index;
-            std::ranges::copy(data, dst_it);
+            std::ranges::copy(data | std::views::take(this->getSize() - start_data_index), dst_it);
+            return *this;
+        }
+    private:
+        template <typename T, bool is_const>
+        auto _view(size_t field_index) const noexcept
+        {
+            using Iterator = std::conditional_t<is_const, lcf::ConstStrideIterator<T>, lcf::StrideIterator<T>>;
+            if (field_index >= m_offsets.size() - 1 or not this->isCreated())
+            { return std::ranges::subrange<Iterator>{}; }
+            Iterator begin(const_cast<std::byte *>(m_data.data()) + m_offsets[field_index], this->getStrideInBytes());
+            return std::ranges::subrange(begin, begin + this->getSize());
         }
     private:
         size_t m_structural_alignment = 1u;

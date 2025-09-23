@@ -3,27 +3,27 @@
 #include "Vector.h"
 
 namespace lcf::render::constants {
-    Vector3D quad_positions[] = {
+    constexpr Vector3D quad_positions[] = {
         {-0.5f, -0.5f, 0.0f},
         {0.5f, -0.5f, 0.0f},
         {0.5f,  0.5f, 0.0f},
         {-0.5f,  0.5f, 0.0f}
     };
-    Vector3D quad_colors[] = {
+    constexpr Vector3D quad_colors[] = {
         {1.0f, 0.0f, 0.0f},
         {0.0f, 1.0f, 0.0f},
         {0.0f, 0.0f, 1.0f},
         {1.0f, 1.0f, 1.0f}
     };
-    Vector2D quad_uvs[] = {
+    constexpr Vector2D quad_uvs[] = {
         {0.0f, 1.0f},
         {1.0f, 1.0f},
         {1.0f, 0.0f},
         {0.0f, 0.0f}
     };
-    uint16_t quad_indices[] = { 0, 1, 2, 2, 3, 0 };
+    constexpr uint16_t quad_indices[] = { 0, 1, 2, 2, 3, 0 };
 
-    Vector3D cube_positions[] = {
+    constexpr Vector3D cube_positions[] = {
         {-1.0f, -1.0f, -1.0f}, {-1.0f, +1.0f, -1.0f}, {+1.0f, +1.0f, -1.0f}, {+1.0f, -1.0f, -1.0f},
         {-1.0f, -1.0f, -1.0f}, {-1.0f, -1.0f, +1.0f}, {+1.0f, -1.0f, +1.0f}, {+1.0f, -1.0f, -1.0f},
         {+1.0f, -1.0f, -1.0f}, {+1.0f, -1.0f, +1.0f}, {+1.0f, +1.0f, +1.0f}, {+1.0f, +1.0f, -1.0f},
@@ -31,7 +31,7 @@ namespace lcf::render::constants {
         {-1.0f, +1.0f, -1.0f}, {-1.0f, +1.0f, +1.0f}, {-1.0f, -1.0f, +1.0f}, {-1.0f, -1.0f, -1.0f},
         {-1.0f, -1.0f, +1.0f}, {+1.0f, -1.0f, +1.0f}, {+1.0f, +1.0f, +1.0f}, {-1.0f, +1.0f, +1.0f},
     };
-    Vector3D cube_colors[] = {
+    constexpr Vector3D cube_colors[] = {
         {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 1.0f},
         {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 1.0f},
         {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 1.0f},
@@ -39,7 +39,7 @@ namespace lcf::render::constants {
         {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 1.0f},
         {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 1.0f},
     };
-    Vector2D cube_uvs[] = {
+    constexpr Vector2D cube_uvs[] = {
         {0.0f, 1.0f}, {1.0f, 1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f},
         {0.0f, 1.0f}, {1.0f, 1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f},
         {0.0f, 1.0f}, {1.0f, 1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f},
@@ -47,7 +47,7 @@ namespace lcf::render::constants {
         {0.0f, 1.0f}, {1.0f, 1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f},
         {0.0f, 1.0f}, {1.0f, 1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f},
     };
-    uint16_t cube_indices[] = {
+    constexpr uint16_t cube_indices[] = {
         2, 0, 1, 2, 3, 0,
         4, 6, 5, 4, 7, 6,
         8, 10 ,9, 8, 11, 10,

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "concepts/enum_concept.h"
-#include "concepts/enum_mapping_traits_concept.h"
 #include <tuple>
 
 namespace lcf {

@@ -9,35 +9,18 @@
 namespace lcf {
     using SpvCode = std::vector<uint32_t>;
 
-    enum class VertexInputLocation
+    enum class ShaderTypeFlagBits : uint8_t 
     {
-        Position = 0,
-        Normal = 1,
-        UV = 2,
+        eVertex = 1,
+        eTessControl = 1 << 1,
+        eTessEvaluation = 1 << 2,
+        eGeometry = 1 << 3,
+        eFragment = 1 << 4,
+        eCompute = 1 << 5,
+        eAllGraphics = eVertex | eTessControl | eTessEvaluation | eGeometry | eFragment,
+        eAll = eAllGraphics | eCompute,
     };
-
-    constexpr const char * to_string(VertexInputLocation location)
-    {
-        const char *str = nullptr;
-        switch (location) {
-            case VertexInputLocation::Position: { str = "position"; } break;
-            case VertexInputLocation::Normal: { str = "normal"; } break;
-            case VertexInputLocation::UV: { str = "uv"; } break;
-        }
-        return str;
-    }
-
-    enum class ShaderTypeFlagBits
-    {
-        Vertex = 1,
-        TessControl = 1 << 1,
-        TessEvaluation = 1 << 2,
-        Geometry = 1 << 3,
-        Fragment = 1 << 4,
-        Compute = 1 << 5,
-        AllGraphics = Vertex | TessControl | TessEvaluation | Geometry | Fragment,
-        All = AllGraphics | Compute,
-    };
+    MAKE_ENUM_FLAGS(ShaderTypeFlagBits);
 
     struct EnumShaderTypeTag {};
 
@@ -49,12 +32,12 @@ namespace lcf {
     {
         using mapping_type = std::tuple<ShaderTypeFlagBits, vk::ShaderStageFlagBits, shaderc_shader_kind>;
         constexpr static mapping_type mappings[] = {
-            { ShaderTypeFlagBits::Vertex, vk::ShaderStageFlagBits::eVertex, shaderc_vertex_shader },
-            { ShaderTypeFlagBits::TessControl, vk::ShaderStageFlagBits::eTessellationControl, shaderc_tess_control_shader },
-            { ShaderTypeFlagBits::TessEvaluation, vk::ShaderStageFlagBits::eTessellationEvaluation, shaderc_tess_evaluation_shader },
-            { ShaderTypeFlagBits::Geometry, vk::ShaderStageFlagBits::eGeometry, shaderc_geometry_shader },
-            { ShaderTypeFlagBits::Fragment, vk::ShaderStageFlagBits::eFragment, shaderc_fragment_shader },
-            { ShaderTypeFlagBits::Compute, vk::ShaderStageFlagBits::eCompute, shaderc_compute_shader },
+            { ShaderTypeFlagBits::eVertex, vk::ShaderStageFlagBits::eVertex, shaderc_vertex_shader },
+            { ShaderTypeFlagBits::eTessControl, vk::ShaderStageFlagBits::eTessellationControl, shaderc_tess_control_shader },
+            { ShaderTypeFlagBits::eTessEvaluation, vk::ShaderStageFlagBits::eTessellationEvaluation, shaderc_tess_evaluation_shader },
+            { ShaderTypeFlagBits::eGeometry, vk::ShaderStageFlagBits::eGeometry, shaderc_geometry_shader },
+            { ShaderTypeFlagBits::eFragment, vk::ShaderStageFlagBits::eFragment, shaderc_fragment_shader },
+            { ShaderTypeFlagBits::eCompute, vk::ShaderStageFlagBits::eCompute, shaderc_compute_shader },
         };
     };
 
@@ -121,74 +104,6 @@ namespace lcf {
 		Interpolant,
 		Char
     };
-
-    constexpr size_t size_of(ShaderDataType type)
-    {
-        size_t size = 0;
-        switch (type) {
-            case ShaderDataType::Unknown: { size = 0; } break;
-            case ShaderDataType::Void: { size = 0; } break;
-            case ShaderDataType::Boolean: { size = 1; } break;
-            case ShaderDataType::BooleanVec2: { size = 2; } break;
-            case ShaderDataType::BooleanVec3: { size = 3; } break;
-            case ShaderDataType::BooleanVec4: { size = 4; } break;
-            case ShaderDataType::SByte: { size = 1; } break;
-            case ShaderDataType::SByteVec2: { size = 2; } break;
-            case ShaderDataType::SByteVec3: { size = 3; } break;
-            case ShaderDataType::SByteVec4: { size = 4; } break;
-            case ShaderDataType::UByte: { size = 1; } break;
-            case ShaderDataType::UByteVec2: { size = 2; } break;
-            case ShaderDataType::UByteVec3: { size = 3; } break;
-            case ShaderDataType::UByteVec4: { size = 4; } break;
-            case ShaderDataType::Short: { size = 2; } break;
-            case ShaderDataType::ShortVec2: { size = 4; } break;
-            case ShaderDataType::ShortVec3: { size = 6; } break;
-            case ShaderDataType::ShortVec4: { size = 8; } break;
-            case ShaderDataType::UShort: { size = 2; } break;
-            case ShaderDataType::UShortVec2: { size = 4; } break;
-            case ShaderDataType::UShortVec3: { size = 6; } break;
-            case ShaderDataType::UShortVec4: { size = 8; } break;
-            case ShaderDataType::Int: { size = 4; } break;
-            case ShaderDataType::IntVec2: { size = 8; } break;
-            case ShaderDataType::IntVec3: { size = 12; } break;
-            case ShaderDataType::IntVec4: { size = 16; } break;
-            case ShaderDataType::UInt: { size = 4; } break;
-            case ShaderDataType::UIntVec2: { size = 8; } break;
-            case ShaderDataType::UIntVec3: { size = 12; } break;
-            case ShaderDataType::UIntVec4: { size = 16; } break;
-            case ShaderDataType::Int64: { size = 8; } break;
-            case ShaderDataType::Int64Vec2: { size = 16; } break;
-            case ShaderDataType::Int64Vec3: { size = 24; } break;
-            case ShaderDataType::Int64Vec4: { size = 32; } break;
-            case ShaderDataType::UInt64: { size = 8; } break;
-            case ShaderDataType::UInt64Vec2: { size = 16; } break;
-            case ShaderDataType::UInt64Vec3: { size = 24; } break;
-            case ShaderDataType::UInt64Vec4: { size = 32; } break;
-            case ShaderDataType::AtomicCounter: { size = 4; } break;
-            case ShaderDataType::Half: { size = 2; } break;
-            case ShaderDataType::HalfVec2: { size = 4; } break;
-            case ShaderDataType::HalfVec3: { size = 6; } break;
-            case ShaderDataType::HalfVec4: { size = 8; } break;
-            case ShaderDataType::Float: { size = 4; } break;
-            case ShaderDataType::FloatVec2: { size = 8; } break;
-            case ShaderDataType::FloatVec3: { size = 12; } break;
-            case ShaderDataType::FloatVec4: { size = 16; } break;
-            case ShaderDataType::Double: { size = 8; } break;
-            case ShaderDataType::DoubleVec2: { size = 16; } break;
-            case ShaderDataType::DoubleVec3: { size = 24; } break;
-            case ShaderDataType::DoubleVec4: { size = 32; } break;
-            case ShaderDataType::Struct: { size = 0; } break;
-            case ShaderDataType::Image: { size = 0; } break;
-            case ShaderDataType::SampledImage: { size = 0; } break;
-            case ShaderDataType::Sampler: { size = 0; } break;
-            case ShaderDataType::AccelerationStructure: { size = 0; } break;
-            case ShaderDataType::RayQuery: { size = 0; } break;
-            case ShaderDataType::ControlPointArray: { size = 0; } break;
-            case ShaderDataType::Interpolant: { size = 0; } break;
-            case ShaderDataType::Char: { size = 1; } break;
-        }
-        return size;
-    }
 
     struct EnumShaderBaseDataTypeTag {};
 
@@ -300,24 +215,5 @@ namespace lcf {
         UniformBuffer,
         StorageBuffer,
         PushConstant,
-    };
-
-    struct EnumShaderResourceTypeTag {};
-
-    template <> struct enum_category<ShaderResourceType, vk::DescriptorType> { using type = EnumShaderResourceTypeTag; };
-
-    template <>
-    struct enum_mapping_traits<EnumShaderResourceTypeTag>
-    {
-        using mapping_type = std::tuple<ShaderResourceType, vk::DescriptorType>;
-        constexpr static mapping_type mappings[] = {
-            { ShaderResourceType::Sampler, vk::DescriptorType::eSampler },
-            { ShaderResourceType::CombinedImageSampler, vk::DescriptorType::eCombinedImageSampler },
-            { ShaderResourceType::SampledImage, vk::DescriptorType::eSampledImage },
-            { ShaderResourceType::StorageImage, vk::DescriptorType::eStorageImage },
-            { ShaderResourceType::UniformTexelBuffer, vk::DescriptorType::eUniformTexelBuffer },
-            { ShaderResourceType::StorageTexelBuffer, vk::DescriptorType::eStorageTexelBuffer },
-            { ShaderResourceType::UniformBuffer, vk::DescriptorType::eUniformBuffer }
-        };
     };
 }

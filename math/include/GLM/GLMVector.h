@@ -15,8 +15,8 @@ namespace lcf {
     public:
         using Base = glm::vec<2, T, qualifier>;
         using value_type = T;
-        GLMVector2D() : Base(static_cast<T>(0), static_cast<T>(0)) {}
-        GLMVector2D(T x, T y) : Base(x, y) {}
+        constexpr GLMVector2D() noexcept : Base(static_cast<T>(0), static_cast<T>(0)) {}
+        constexpr GLMVector2D(T x, T y) noexcept : Base(x, y) {}
         GLMVector2D(const Vec3::Base &vec) : Base(vec.x, vec.y) {}
         GLMVector2D(const Vec4::Base &vec) : Base(vec.x, vec.y) {}
         GLMVector2D(const Base &vec) { memcpy(this, &vec, sizeof(Base)); }
@@ -64,8 +64,8 @@ namespace lcf {
         }
     public:
         using value_type = T;
-        GLMVector3D() : Base(static_cast<T>(0), static_cast<T>(0), static_cast<T>(0)) {}
-        GLMVector3D(T x, T y, T z) : Base(x, y, z) {}
+        constexpr GLMVector3D() noexcept : Base(static_cast<T>(0), static_cast<T>(0), static_cast<T>(0)) {}
+        constexpr GLMVector3D(T x, T y, T z) noexcept : Base(x, y, z) {}
         GLMVector3D(const Vec2::Base &vec, T z = static_cast<T>(0)) : Base(vec.x, vec.y, z) {}
         GLMVector3D(const Vec4::Base &vec) : Base(vec.x, vec.y, vec.z) {}
         GLMVector3D(const Base &vec) { memcpy(this, &vec, sizeof(Base)); }
@@ -109,8 +109,8 @@ namespace lcf {
     public:
         using Base = glm::vec<4, T, qualifier>;
         using value_type = T;
-        GLMVector4D() : Base(static_cast<T>(0), static_cast<T>(0), static_cast<T>(0), static_cast<T>(0)) {}
-        GLMVector4D(T x, T y, T z, T w) : Base(x, y, z, w) {}
+        constexpr GLMVector4D() noexcept : Base(static_cast<T>(0), static_cast<T>(0), static_cast<T>(0), static_cast<T>(0)) {}
+        constexpr GLMVector4D(T x, T y, T z, T w) noexcept : Base(x, y, z, w) {}
         GLMVector4D(const Vec2::Base &vec, T z = static_cast<T>(0), T w = static_cast<T>(1)) : Base(vec.x, vec.y, z, w) {}
         GLMVector4D(const Vec3::Base &vec, T w = static_cast<T>(1)) : Base(vec.x, vec.y, vec.z, w) {}
         GLMVector4D(const Base &vec) { memcpy(this, &vec, sizeof(Base)); }

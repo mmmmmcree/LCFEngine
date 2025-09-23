@@ -12,7 +12,7 @@ bool VulkanPipeline::create(VulkanContext *context, const ComputePipelineCreateI
     m_shader_program = create_info.getShaderProgram();
     if (not m_shader_program or
         not m_shader_program->isLinked() or
-        not m_shader_program->containsStage(ShaderTypeFlagBits::Compute)) {
+        not m_shader_program->containsStage(ShaderTypeFlagBits::eCompute)) {
         LCF_THROW_RUNTIME_ERROR("lcf::render::VulkanPipeline::create(): shader program is invalid");
     }
     auto device = m_context_p->getDevice();
@@ -33,7 +33,7 @@ bool VulkanPipeline::create(VulkanContext *context, const GraphicPipelineCreateI
     m_shader_program = create_info.getShaderProgram();
     if (not m_shader_program or
         not m_shader_program->isLinked() or
-        m_shader_program->containsStage(ShaderTypeFlagBits::Compute)) {
+        m_shader_program->containsStage(ShaderTypeFlagBits::eCompute)) {
         LCF_THROW_RUNTIME_ERROR("lcf::render::VulkanPipeline::create(): shader program is invalid");
     }
 
@@ -51,7 +51,7 @@ bool VulkanPipeline::create(VulkanContext *context, const GraphicPipelineCreateI
     vk::VertexInputBindingDescription vertex_input_binding;
     vertex_input_binding.setInputRate(vk::VertexInputRate::eVertex);
     std::vector<vk::VertexInputAttributeDescription> vertex_input_attributes;
-    auto shader = m_shader_program->getShader(ShaderTypeFlagBits::Vertex);
+    auto shader = m_shader_program->getShader(ShaderTypeFlagBits::eVertex);
     if (shader) {
         const auto & stage_inputs = shader->getResources().stage_inputs;
         vertex_input_attributes.resize(stage_inputs.size());

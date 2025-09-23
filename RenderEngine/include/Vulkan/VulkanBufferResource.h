@@ -15,7 +15,7 @@ namespace lcf::render {
             const vk::BufferCreateInfo &buffer_info,
             const MemoryAllocationCreateInfo &memory_allocation_info);
         bool isCreated() const noexcept { return m_buffer_up.get(); }
-        vk::Buffer getHandle() const noexcept { return m_buffer_up->getHandle(); }
+        vk::Buffer getHandle() const noexcept { return m_buffer_up ? m_buffer_up->getHandle() : nullptr; }
         std::byte * getMappedMemoryPtr() const noexcept { return m_buffer_up->getMappedMemoryPtr(); }
         vk::Result flush(uint32_t offset_in_bytes, uint32_t size_in_bytes) { return m_buffer_up->flush(offset_in_bytes, size_in_bytes); }
     private:

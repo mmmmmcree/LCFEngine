@@ -9,6 +9,7 @@ void lcf::render::VulkanDescriptorManager::create(VulkanContext * context)
 
 lcf::render::VulkanDescriptorManager::~VulkanDescriptorManager()
 {
+    this->resetAllocatedSets();
     auto device = m_context_p->getDevice();
     for (auto &pool : m_full_pools) {
         device.destroyDescriptorPool(pool); 

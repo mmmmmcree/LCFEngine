@@ -35,16 +35,21 @@ namespace lcf {
             // temporary
             VulkanFramebufferObject fbo;
         };
-        VulkanBufferObject::UniquePointer m_global_uniform_buffer;
         std::vector<FrameResources> m_frame_resources;
         uint32_t m_current_frame_index = 0;
 
         //! temporary
+        VulkanDescriptorManager m_global_descriptor_manager;
+        vk::DescriptorSet m_per_view_descriptor_set;
+        vk::DescriptorSet m_per_renderable_descriptor_set;
+
         VulkanPipeline m_compute_pipeline;
         VulkanPipeline m_graphics_pipeline;
 
         VulkanBufferObject m_vertex_buffer;
         VulkanBufferObject m_index_buffer;
+        VulkanBufferObject m_per_view_uniform_buffer;
+        VulkanBufferObject m_per_renderable_uniform_buffer;
 
         VulkanImage::UniquePointer m_texture_image;
         vk::UniqueSampler m_texture_sampler;

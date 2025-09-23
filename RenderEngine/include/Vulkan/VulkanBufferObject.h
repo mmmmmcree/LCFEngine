@@ -1,4 +1,4 @@
-#include "common/GPUBuffer.h"
+#include "common/enum_types.h"
 #include "common/GPUResource.h"
 #include "VulkanMemoryAllocator.h"
 #include "VulkanTimelineSemaphore.h"
@@ -53,7 +53,7 @@ namespace lcf::render {
         Self & addWriteSegmentIfAbsent(const BufferWriteSegment &segment) noexcept; // don't overwrite if overlaps
         void commitWriteSegments();
         uint32_t getSize() const noexcept { return m_size; }
-        vk::Buffer getHandle() const noexcept { return m_buffer_up->getHandle(); }
+        vk::Buffer getHandle() const noexcept { return m_buffer_up ? m_buffer_up->getHandle() : nullptr; }
         vk::DeviceAddress getDeviceAddress() const;
         std::byte * getMappedMemoryPtr() const noexcept { return m_buffer_up->getMappedMemoryPtr(); }
     private:
