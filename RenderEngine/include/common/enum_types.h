@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 namespace lcf::render {
-    enum class GPUBufferPattern
+    enum class GPUBufferPattern : uint8_t
     {
         eDynamic, // frequently update
         eStatic,  // rarely update
@@ -15,6 +15,7 @@ namespace lcf::render {
         eIndex,
         eUniform,
         eShaderStorage,
+        eIndirect,
         eStaging,
     };
 
@@ -29,7 +30,9 @@ namespace lcf::render {
     };
 
     enum class PerRenderableBindingPoints : uint8_t {
-        eTransform = 0,
+        eVertexBuffer = 0,
+        eIndexBuffer = 1,
+        eTransform = 2,
     };
 
     enum class PerMaterialBindingPoints : uint8_t {

@@ -7,12 +7,12 @@ std::string lcf::ShaderResourceMember::toString() const
 {
     std::string str = std::format(
         "  base_type: {}\n"
-        "  width: {}\n"
+        "  width: {} bits\n"
         "  vecsize: {}\n"
         "  columns: {}\n"
         "  array_size: {}\n"
         "  offset: {}\n"
-        "  size: {}",
+        "  size: {} bytes",
         static_cast<int>(m_base_type), m_width, m_vecsize, m_columns, m_array_size, m_offset, m_size);
     for (int i = 0; i < m_members.size(); ++i) {
         const auto &member = m_members[i];

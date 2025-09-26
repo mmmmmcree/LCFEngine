@@ -1,27 +1,29 @@
 #pragma once
 
 #include "VulkanContext.h"
-#include "VulkanShaderProgram.h"
-#include "VulkanDescriptorManager.h"
+#include <span>
 
 namespace lcf::render {
     class VulkanContext;
+
     class VulkanDescriptorWriter
     {
+        using Self = VulkanDescriptorWriter;
     public:
-        using DescriptorSetLayoutBindingTable = typename VulkanShaderProgram::DescriptorSetLayoutBindingTable;
-        using DescriptorSetList = typename VulkanDescriptorManager::DescriptorSetList;
+        using DescriptorSetLayoutBindings = std::span<const vk::DescriptorSetLayoutBinding>;
         using WriteDescriptorSetList = std::vector<vk::WriteDescriptorSet>;
-        VulkanDescriptorWriter(VulkanContext * context, const DescriptorSetLayoutBindingTable & binding_table, const DescriptorSetList & descriptor_sets);
-        VulkanDescriptorWriter & add(uint32_t set, uint32_t binding, const vk::DescriptorImageInfo & image_info);
-        VulkanDescriptorWriter & add(uint32_t set, uint32_t binding, uint32_t index, const vk::DescriptorImageInfo & image_info);
-        VulkanDescriptorWriter & add(uint32_t set, uint32_t binding, const vk::DescriptorBufferInfo & buffer_info);
-        VulkanDescriptorWriter & add(uint32_t set, uint32_t binding, uint32_t index, const vk::DescriptorBufferInfo & buffer_info);
+        VulkanDescriptorWriter(VulkanContext * context_p,
+            vk::DescriptorSet descriptor_set,
+            DescriptorSetLayoutBindings binding_list);
+        Self & add(uint32_t binding, const vk::DescriptorImageInfo & image_info);
+        Self & add(uint32_t binding, uint32_t index, const vk::DescriptorImageInfo & image_info);
+        Self & add(uint32_t binding, const vk::DescriptorBufferInfo & buffer_info);
+        Self & add(uint32_t binding, uint32_t index, const vk::DescriptorBufferInfo & buffer_info);
         void write();
     private:
         VulkanContext * m_context_p;
-        const DescriptorSetLayoutBindingTable & m_binding_table;
-        const DescriptorSetList & m_descriptor_sets;
+        vk::DescriptorSet m_write_descriptor_set;
+        DescriptorSetLayoutBindings m_layout_binding_list;
         WriteDescriptorSetList m_write_descriptor_sets;
     };
 }

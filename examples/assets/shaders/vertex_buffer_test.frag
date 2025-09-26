@@ -1,4 +1,4 @@
-#version 450
+#version 460
 layout(location = 0) out vec4 frag_color;
 
 layout(location = 0) in VS_OUT {

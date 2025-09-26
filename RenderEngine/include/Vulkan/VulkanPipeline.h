@@ -15,6 +15,7 @@ namespace lcf::render {
         using Self = VulkanPipeline;
     public:
         using DescriptorSetLayoutList = VulkanShaderProgram::DescriptorSetLayoutList;
+        using DescriptorSetLayoutBindings = std::span<const vk::DescriptorSetLayoutBinding>;
         VulkanPipeline() = default;
         bool create(VulkanContext * context, const ComputePipelineCreateInfo & create_info);
         bool create(VulkanContext * context, const GraphicPipelineCreateInfo & create_info);
@@ -25,6 +26,8 @@ namespace lcf::render {
         vk::PipelineLayout getPipelineLayout() const { return m_shader_program->getPipelineLayout(); }
         vk::Pipeline getHandle() const { return m_pipeline.get(); }
         const DescriptorSetLayoutList & getDescriptorSetLayoutList() const { return m_shader_program->getDescriptorSetLayoutList(); }
+        vk::DescriptorSetLayout getDescriptorSetLayout(uint32_t set) const noexcept { return m_shader_program->getDescriptorSetLayoutList()[set]; }
+        DescriptorSetLayoutBindings getDescriptorSetLayoutBindings(uint32_t set) const noexcept { return m_shader_program->getDescriptorSetLayoutBindingTable()[set]; }
         vk::PipelineBindPoint getType() const { return m_type; }
     private:
         VulkanContext * m_context_p = nullptr;

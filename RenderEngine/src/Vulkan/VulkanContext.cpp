@@ -149,6 +149,7 @@ void lcf::render::VulkanContext::createLogicalDevice()
 
     vk::StructureChain<vk::DeviceCreateInfo,
         vk::PhysicalDeviceFeatures2,
+        vk::PhysicalDeviceVulkan11Features,
         vk::PhysicalDeviceVulkan12Features,
         vk::PhysicalDeviceVulkan13Features> device_info;
     device_info.get<vk::PhysicalDeviceVulkan13Features>().setSynchronization2(true)
@@ -156,6 +157,7 @@ void lcf::render::VulkanContext::createLogicalDevice()
     device_info.get<vk::PhysicalDeviceVulkan12Features>().setBufferDeviceAddress(true)
         .setDescriptorIndexing(true)
         .setTimelineSemaphore(true);
+    device_info.get<vk::PhysicalDeviceVulkan11Features>().setShaderDrawParameters(true);
     device_info.get<vk::PhysicalDeviceFeatures2>().setFeatures(m_physical_device.getFeatures());
 
     device_info.get<vk::DeviceCreateInfo>().setQueueCreateInfos(queue_infos)

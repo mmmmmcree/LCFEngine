@@ -1,7 +1,6 @@
 #pragma once
 
 #include <type_traits>
-#include <bit>
 
 namespace lcf {
     template <typename T>
@@ -10,15 +9,4 @@ namespace lcf {
         { T::type_size } -> std::convertible_to<size_t>;
         { T::alignment } -> std::convertible_to<size_t>;
     };
-
-    template <typename T, size_t alignment_v>
-    struct alignment_traits
-    {
-        using type = std::remove_cvref_t<T>;
-        static constexpr size_t type_size = sizeof(type);
-        static constexpr size_t alignment = std::bit_ceil(alignment_v);
-    };
-
-    template <typename T>
-    using std_alignment_traits = alignment_traits<T, std::alignment_of_v<T>>;
 }

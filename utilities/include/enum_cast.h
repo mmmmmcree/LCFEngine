@@ -46,4 +46,10 @@ namespace lcf {
         }
         return static_cast<Dst>(dst_underlying);
     }
+
+    template <enum_c Enum>
+    constexpr std::underlying_type_t<Enum> enum_cast(Enum e)
+    {
+        return static_cast<std::underlying_type_t<Enum>>(e);
+    };
 }

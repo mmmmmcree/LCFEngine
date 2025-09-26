@@ -46,10 +46,17 @@ namespace lcf {
         VulkanPipeline m_compute_pipeline;
         VulkanPipeline m_graphics_pipeline;
 
-        VulkanBufferObject m_vertex_buffer;
-        VulkanBufferObject m_index_buffer;
         VulkanBufferObject m_per_view_uniform_buffer;
-        VulkanBufferObject m_per_renderable_uniform_buffer;
+
+        VulkanBufferObject m_indirect_call_buffer;
+        //- One Geometry ↓
+        VulkanBufferObject m_vertex_buffer; 
+        VulkanBufferObject m_index_buffer;
+        //- One Geometry ↑
+        
+        VulkanBufferObject m_per_renderable_vertex_buffer;
+        VulkanBufferObject m_per_renderable_index_buffer;
+        VulkanBufferObject m_per_renderable_transform_buffer;
 
         VulkanImage::UniquePointer m_texture_image;
         vk::UniqueSampler m_texture_sampler;

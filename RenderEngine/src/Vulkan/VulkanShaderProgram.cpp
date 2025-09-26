@@ -86,6 +86,10 @@ void lcf::render::VulkanShaderProgram::createDescriptorSetLayoutBindingTable()
         for (const auto &resource : resources.storage_images) {
             resource_info_list.emplace_back(enum_cast<vk::ShaderStageFlagBits>(stage), vk::DescriptorType::eStorageImage, resource);
         }
+        for (const auto &resource : resources.storage_buffers) {
+            resource_info_list.emplace_back(enum_cast<vk::ShaderStageFlagBits>(stage), vk::DescriptorType::eStorageBuffer, resource);
+            qDebug().noquote() << resource.toString();
+        }
         // todo add other resource types
     }
     if (resource_info_list.empty()) { return ; }

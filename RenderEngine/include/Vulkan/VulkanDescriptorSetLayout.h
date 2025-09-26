@@ -15,8 +15,20 @@ namespace lcf::render::vkconstants {
 
     static constexpr vk::DescriptorSetLayoutBinding per_renderable_bindings[] = {
         {
+            static_cast<uint32_t>(PerRenderableBindingPoints::eVertexBuffer),
+            vk::DescriptorType::eStorageBuffer,
+            1u,
+            vk::ShaderStageFlagBits::eVertex
+        },
+        {
+            static_cast<uint32_t>(PerRenderableBindingPoints::eIndexBuffer),
+            vk::DescriptorType::eStorageBuffer,
+            1u,
+            vk::ShaderStageFlagBits::eVertex
+        },
+        {
             static_cast<uint32_t>(PerRenderableBindingPoints::eTransform),
-            vk::DescriptorType::eUniformBufferDynamic,
+            vk::DescriptorType::eStorageBuffer,
             1u,
             vk::ShaderStageFlagBits::eVertex
         },

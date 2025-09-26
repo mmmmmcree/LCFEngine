@@ -1,3 +1,7 @@
-layout(std140, binding = 0) uniform camera_data {
-    mat4 projection_view;
+struct Vertex
+{
+    vec3 position;
+    float u;
+    vec3 normal;
+    float v;
 };

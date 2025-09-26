@@ -47,29 +47,29 @@ bool VulkanPipeline::create(VulkanContext *context, const GraphicPipelineCreateI
     dynamic_info.setDynamicStates(dynamic_states);
 
 
-    uint32_t vertex_buffer_binding = 0; // 用于cmd.bindVertexBuffers()的bingding参数
-    vk::VertexInputBindingDescription vertex_input_binding;
-    vertex_input_binding.setInputRate(vk::VertexInputRate::eVertex);
-    std::vector<vk::VertexInputAttributeDescription> vertex_input_attributes;
-    auto shader = m_shader_program->getShader(ShaderTypeFlagBits::eVertex);
-    if (shader) {
-        const auto & stage_inputs = shader->getResources().stage_inputs;
-        vertex_input_attributes.resize(stage_inputs.size());
-        uint32_t offset = 0u;
-        for (int i = 0; i < stage_inputs.size(); ++i) {
-            const auto & input = stage_inputs[i];
-            uint32_t format = static_cast<uint32_t>(input.getBaseDataType()) + input.getVecSize() - 1;
-            vertex_input_attributes[i].setBinding(vertex_buffer_binding)
-                .setOffset(offset)
-                .setFormat(enum_cast<vk::Format>(static_cast<ShaderDataType>(format)))
-                .setLocation(input.getLocation());
-            offset += input.getSizeInBytes();
-        }
-        vertex_input_binding.setStride(offset);
-    }
+    // uint32_t vertex_buffer_binding = 0; // 用于cmd.bindVertexBuffers()的bingding参数
+    // vk::VertexInputBindingDescription vertex_input_binding;
+    // vertex_input_binding.setInputRate(vk::VertexInputRate::eVertex);
+    // std::vector<vk::VertexInputAttributeDescription> vertex_input_attributes;
+    // auto shader = m_shader_program->getShader(ShaderTypeFlagBits::eVertex);
+    // if (shader) {
+    //     const auto & stage_inputs = shader->getResources().stage_inputs;
+    //     vertex_input_attributes.resize(stage_inputs.size());
+    //     uint32_t offset = 0u;
+    //     for (int i = 0; i < stage_inputs.size(); ++i) {
+    //         const auto & input = stage_inputs[i];
+    //         uint32_t format = static_cast<uint32_t>(input.getBaseDataType()) + input.getVecSize() - 1;
+    //         vertex_input_attributes[i].setBinding(vertex_buffer_binding)
+    //             .setOffset(offset)
+    //             .setFormat(enum_cast<vk::Format>(static_cast<ShaderDataType>(format)))
+    //             .setLocation(input.getLocation());
+    //         offset += input.getSizeInBytes();
+    //     }
+    //     vertex_input_binding.setStride(offset);
+    // }
     vk::PipelineVertexInputStateCreateInfo vertex_input_info;
-    vertex_input_info.setVertexBindingDescriptions(vertex_input_binding)
-        .setVertexAttributeDescriptions(vertex_input_attributes);
+    // vertex_input_info.setVertexBindingDescriptions(vertex_input_binding)
+    //     .setVertexAttributeDescriptions(vertex_input_attributes);
 
     vk::PipelineInputAssemblyStateCreateInfo input_assembly_info;
     input_assembly_info.setTopology(vk::PrimitiveTopology::eTriangleList);

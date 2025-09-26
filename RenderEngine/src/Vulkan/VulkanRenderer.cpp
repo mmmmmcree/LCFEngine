@@ -6,7 +6,7 @@
 #include "Vector.h"
 #include "InterleavedBuffer.h"
 #include "Matrix.h"
-#include "constants.h"
+#include "geometry_data.h"
 #include "Quaternion.h"
 #include "Image/Image.h"
 #include "VulkanDescriptorWriter.h"
@@ -14,6 +14,7 @@
 #include "Transform.h"
 #include "VulkanDescriptorSetLayout.h"
 #include <boost/container/small_vector.hpp>
+#include "common/glsl_alignment_traits.h"
 
 lcf::VulkanRenderer::VulkanRenderer(VulkanContext *context) :
     m_context_p(context)
@@ -45,18 +46,10 @@ void lcf::VulkanRenderer::create()
 {
     m_frame_resources.resize(3); //todo remove constant
     auto device = m_context_p->getDevice();
-    vk::FenceCreateInfo fence_info;
-    fence_info.setFlags(vk::FenceCreateFlagBits::eSignaled);
-    vk::SemaphoreCreateInfo semaphore_info;
-    vk::CommandBufferAllocateInfo command_buffer_info;
-    command_buffer_info.setCommandPool(m_context_p->getCommandPool())
-        .setLevel(vk::CommandBufferLevel::ePrimary)
-        .setCommandBufferCount(1);
     auto memory_allocator = m_context_p->getMemoryAllocator();
-    vk::ImageCreateInfo image_info;
 
     auto render_target = m_render_target.lock();
-    auto [width, height] = render_target->getMaximalExtent();
+    auto [max_width, max_height] = render_target->getMaximalExtent();
 
     VulkanShaderProgram::SharedPointer compute_shader_program = std::make_shared<VulkanShaderProgram>(m_context_p);
     compute_shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::eCompute, "assets/shaders/gradient.comp");
@@ -77,12 +70,12 @@ void lcf::VulkanRenderer::create()
     m_graphics_pipeline.create(m_context_p, graphic_pipeline_info);
 
     for (auto &resources : m_frame_resources) {
-        resources.render_finished = device.createSemaphoreUnique(semaphore_info);
+        resources.render_finished = device.createSemaphoreUnique({});
         resources.command_buffer.create(m_context_p);
         resources.descriptor_manager.create(m_context_p);
 
         VulkanFramebufferObjectCreateInfo fbo_info;
-        fbo_info.setMaxExtent({static_cast<uint32_t>(width), static_cast<uint32_t>(height)})
+        fbo_info.setMaxExtent({static_cast<uint32_t>(max_width), static_cast<uint32_t>(max_height)})
             .addColorFormats(graphic_pipeline_info.getColorAttachmentFormats())
             .setSampleCount(graphic_pipeline_info.getRasterizationSamples())
             .setDepthStencilFormat(graphic_pipeline_info.getDepthAttachmentFormat())
@@ -95,24 +88,47 @@ void lcf::VulkanRenderer::create()
         .setSize(sizeof(Matrix4x4))
         .create(m_context_p);
     
-    m_per_renderable_uniform_buffer.setUsage(GPUBufferUsage::eUniform)
-        .setSize(2 * sizeof(Matrix4x4))
+    m_per_renderable_transform_buffer.setUsage(GPUBufferUsage::eShaderStorage)
+        .setSize(2 * size_of_v<Matrix4x4>)
         .create(m_context_p);
 
-    InterleavedBuffer vertex_data;
-    vertex_data.addField<std_alignment_traits<Vector3D>>()
-        .addField<std_alignment_traits<Vector3D>>()
-        .addField<std_alignment_traits<Vector2D>>()
-        .create(std::size(constants::cube_positions));
-    vertex_data.setData(0, std::span(constants::cube_positions))
-        .setData(1, std::span(constants::cube_colors))
-        .setData(2, std::span(constants::cube_uvs));
+    m_per_renderable_vertex_buffer.setUsage(GPUBufferUsage::eShaderStorage)
+        .setSize(size_of_v<vk::DeviceAddress>)
+        .create(m_context_p);
 
-    m_vertex_buffer.setUsage(GPUBufferUsage::eVertex).create(m_context_p);
-    m_vertex_buffer.addWriteSegment({vertex_data.getDataSpan()}).commitWriteSegments();
+    m_per_renderable_index_buffer.setUsage(GPUBufferUsage::eShaderStorage)
+        .setSize(size_of_v<vk::DeviceAddress>)
+        .create(m_context_p);
+
+    m_indirect_call_buffer.setUsage(GPUBufferUsage::eIndirect)
+        .setSize(sizeof(vk::DrawIndirectCommand))
+        .create(m_context_p);
+
+    InterleavedBuffer vertex_data_ssbo;
+    vertex_data_ssbo.addField<alignment_traits<glsl::std140::Vector3D>>()
+        .addField<alignment_traits<float>>()
+        .addField<alignment_traits<glsl::std140::Vector3D>>()
+        .addField<alignment_traits<float>>()
+        .create(std::size(data::cube_positions));
+
+    ConstStrideIterator<float> begin_u(data::cube_uvs, size_of_v<Vector2D>);
+    ConstStrideIterator<float> begin_v(&data::cube_uvs[0].y, size_of_v<Vector2D>);
+    vertex_data_ssbo.setData(0, std::span(data::cube_positions))
+        .setData(1, std::ranges::subrange(begin_u, begin_u + std::size(data::cube_uvs)))
+        .setData(2, std::span(data::cube_colors))
+        .setData(3, std::ranges::subrange(begin_v, begin_v + std::size(data::cube_uvs)));
+
+    m_vertex_buffer.setUsage(GPUBufferUsage::eShaderStorage)
+        .setPattern(GPUBufferPattern::eStatic)
+        .setSize(vertex_data_ssbo.getSizeInBytes())
+        .create(m_context_p);
+    m_vertex_buffer.addWriteSegment({vertex_data_ssbo.getDataSpan()}).commitWriteSegments();
     
-    m_index_buffer.setUsage(GPUBufferUsage::eIndex).create(m_context_p);
-    m_index_buffer.addWriteSegment({std::span(constants::cube_indices)}).commitWriteSegments();
+    m_index_buffer.setUsage(GPUBufferUsage::eShaderStorage)
+        .setPattern(GPUBufferPattern::eStatic)
+        .setSize(sizeof(data::cube_indices))
+        .create(m_context_p);
+    m_index_buffer.addWriteSegment({std::span(data::cube_indices)}).commitWriteSegments();
 
     m_texture_image = VulkanImage::makeUnique();
     m_texture_image->create(m_context_p, Image("assets/images/bk.jpg", 4));
@@ -130,28 +146,23 @@ void lcf::VulkanRenderer::create()
     auto per_renderable_descriptor_set_layout = device.createDescriptorSetLayoutUnique(per_renderable_descriptor_set_layout_info);
     m_per_view_descriptor_set = *m_global_descriptor_manager.allocate(per_view_descriptor_set_layout.get());
     m_per_renderable_descriptor_set = *m_global_descriptor_manager.allocate(per_renderable_descriptor_set_layout.get());
+
     vk::DescriptorBufferInfo per_view_buffer_info;
     per_view_buffer_info.setBuffer(m_per_view_uniform_buffer.getHandle())
         .setOffset(0)
-        .setRange(m_per_view_uniform_buffer.getSize());
-    vk::DescriptorBufferInfo per_renderable_buffer_info;
-    per_renderable_buffer_info.setBuffer(m_per_renderable_uniform_buffer.getHandle())
-        .setOffset(0)
         .setRange(sizeof(Matrix4x4));
-    vk::WriteDescriptorSet per_view_write_descriptor_set;
-    per_view_write_descriptor_set.setDstSet(m_per_view_descriptor_set)
-        .setDstBinding(0)
-        .setDstArrayElement(0)
-        .setDescriptorType(vk::DescriptorType::eUniformBufferDynamic)
-        .setBufferInfo(per_view_buffer_info);
-    vk::WriteDescriptorSet per_renderable_write_descriptor_set;
-    per_renderable_write_descriptor_set.setDstSet(m_per_renderable_descriptor_set)
-        .setDstBinding(0)
-        .setDstArrayElement(0)
-        .setDescriptorType(vk::DescriptorType::eUniformBufferDynamic)
-        .setBufferInfo(per_renderable_buffer_info);
-    device.updateDescriptorSets(per_view_write_descriptor_set, nullptr);
-    device.updateDescriptorSets(per_renderable_write_descriptor_set, nullptr);
+    VulkanDescriptorWriter per_view_writer(m_context_p, m_per_view_descriptor_set, vkconstants::per_view_bindings);
+    per_view_writer.add(enum_cast(PerViewBindingPoints::eCamera), per_view_buffer_info)
+        .write();
+
+    vk::DescriptorBufferInfo per_renderable_vertex_buffer_info(m_per_renderable_vertex_buffer.getHandle(), 0, vk::WholeSize);
+    vk::DescriptorBufferInfo per_renderable_index_buffer_info(m_per_renderable_index_buffer.getHandle(), 0, vk::WholeSize);
+    vk::DescriptorBufferInfo per_renderable_transform_buffer_info(m_per_renderable_transform_buffer.getHandle(), 0, vk::WholeSize);
+    VulkanDescriptorWriter per_renderable_writer(m_context_p, m_per_renderable_descriptor_set, vkconstants::per_renderable_bindings);
+    per_renderable_writer.add(enum_cast(PerRenderableBindingPoints::eVertexBuffer), per_renderable_vertex_buffer_info)
+        .add(enum_cast(PerRenderableBindingPoints::eIndexBuffer), per_renderable_index_buffer_info)
+        .add(enum_cast(PerRenderableBindingPoints::eTransform), per_renderable_transform_buffer_info)
+        .write();
 }
 
 void lcf::VulkanRenderer::render()
@@ -168,7 +179,6 @@ void lcf::VulkanRenderer::render()
     cmd_buffer.prepareForRecording();
 
     auto [width, height] = render_target->getExtent();
-    auto clear_value = vk::ClearValue{ { 0.0f, 1.0f, 0.0f, 1.0f } };
     vk::Viewport viewport;
     viewport.setX(0.0f).setY(height)
         .setWidth(static_cast<float>(width))
@@ -176,15 +186,12 @@ void lcf::VulkanRenderer::render()
         .setMinDepth(0.0f).setMaxDepth(1.0f);
     vk::Rect2D scissor;
     scissor.setOffset({ 0, 0 }).setExtent({ width, height });
-    vk::CommandBufferBeginInfo cmd_begin_info;
-    cmd_buffer.begin(cmd_begin_info);
+
+    cmd_buffer.begin(vk::CommandBufferBeginInfo{});
     /*
     ! DescriptorSet和Buffer都是command buffer的Resource，需要允许cmd.acquire(resource)
     ! 由cmd控制资源生命周期
     */
-    VulkanDescriptorManager &descriptor_manager = current_frame_resources.descriptor_manager;
-    descriptor_manager.resetAllocatedSets();
-
 
     auto &current_framebuffer = current_frame_resources.fbo;
     Matrix4x4 projection, projection_view;
@@ -197,15 +204,19 @@ void lcf::VulkanRenderer::render()
     }
     m_per_view_uniform_buffer.addWriteSegment({std::span(&projection_view, 1), 0u});
     
-    auto descriptor_sets = *descriptor_manager.allocate(m_graphics_pipeline.getDescriptorSetLayoutList());
+    VulkanDescriptorManager &descriptor_manager = current_frame_resources.descriptor_manager;
+    descriptor_manager.resetAllocatedSets();
+    auto per_material_descriptor_set = *descriptor_manager.allocate(m_graphics_pipeline.getDescriptorSetLayout(enum_cast(DescriptorSetBindingPoints::ePerMaterial)));
     {
         vk::DescriptorImageInfo image_info;
         image_info.setImageLayout(m_texture_image->getLayout())
             .setImageView(m_texture_image->getDefaultView())
             .setSampler(m_texture_sampler.get());
-        VulkanDescriptorWriter writer(m_context_p, m_graphics_pipeline.getShaderProgram()->getDescriptorSetLayoutBindingTable(), descriptor_sets) ;
-        writer.add(2, 1, image_info)
-            .write();       
+
+        auto per_material_bindings = m_graphics_pipeline.getDescriptorSetLayoutBindings(enum_cast(DescriptorSetBindingPoints::ePerMaterial));
+        VulkanDescriptorWriter writer(m_context_p, per_material_descriptor_set, per_material_bindings);
+        writer.add(1, image_info)
+            .write();
     }
     
     cmd_buffer.setViewport(0, viewport);
@@ -219,36 +230,55 @@ void lcf::VulkanRenderer::render()
     model_matrices[1].scale(0.5f);
     model_matrices[1].translateLocal({ 1.0f, 0.2f, 0.2f });
     model_matrices[1].rotateAroundSelf(Quaternion::fromAxisAndAngle(Vector3D(1.0f, 1.0f, 0.0f), angle));
-    m_per_renderable_uniform_buffer.addWriteSegment({std::span(model_matrices), 0u});
+
+    m_per_renderable_vertex_buffer.addWriteSegment({std::span(&m_vertex_buffer.getDeviceAddress(), 1), 0u});
+    m_per_renderable_index_buffer.addWriteSegment({std::span(&m_index_buffer.getDeviceAddress(), 1), 0u});
+    m_per_renderable_transform_buffer.addWriteSegment({std::span(model_matrices), 0u});
+
+    uint32_t instance_count = 0;
+    std::vector<vk::DrawIndirectCommand> indirect_calls(1);
+    for (int i = 0; i < indirect_calls.size(); ++i) {
+        /**
+         * @brief 
+         * firstVertex: draw index, use as geometry index to locate vertex buffer and index buffer
+         * firstInstance: instance index, use as offset to locate model matrix, one for each instance
+         */
+        auto & indirect_call = indirect_calls[i];
+        indirect_call.setVertexCount(std::size(data::cube_indices))
+            .setInstanceCount(2)
+            .setFirstVertex(i)
+            .setFirstInstance(instance_count);
+        instance_count += indirect_call.instanceCount;
+    }
+    m_indirect_call_buffer.addWriteSegment({std::span(indirect_calls), 0u}).commitWriteSegments();
 
     // delay commit
     m_per_view_uniform_buffer.commitWriteSegments();
-    m_per_renderable_uniform_buffer.commitWriteSegments();
 
+    m_per_renderable_vertex_buffer.commitWriteSegments();
+    m_per_renderable_index_buffer.commitWriteSegments();
+    m_per_renderable_transform_buffer.commitWriteSegments();
     current_framebuffer.beginRendering(&cmd_buffer);
-
-    auto shader_program = m_graphics_pipeline.getShaderProgram();
-    vk::DeviceSize offset = 0;
-    cmd_buffer.bindVertexBuffers(0, m_vertex_buffer.getHandle(), offset);
-    cmd_buffer.bindIndexBuffer(m_index_buffer.getHandle(), 0, vk::IndexType::eUint16);
-
 
     uint32_t dynamic_offset = 0;
     cmd_buffer.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), 0, m_per_view_descriptor_set, dynamic_offset);
 
+    cmd_buffer.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), 2, per_material_descriptor_set, nullptr);
 
-    cmd_buffer.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), 2, descriptor_sets[2], nullptr);
+    cmd_buffer.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), 1, m_per_renderable_descriptor_set, nullptr);
 
-    for (int i = 0; i < 2; ++i) {
-        uint32_t per_renderable_offset = i * sizeof(Matrix4x4);
-        cmd_buffer.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), 1, m_per_renderable_descriptor_set, per_renderable_offset);
-        cmd_buffer.drawIndexed(36, 1, 0, 0, 0);
-    }
-    // shader_program->setPushConstantData(vk::ShaderStageFlagBits::eVertex, {model1.getConstData()});
-    // shader_program->bindPushConstants(cmd_buffer);
-    
-    // shader_program->bindPushConstants(cmd_buffer);
-    // cmd_buffer.drawIndexed(36, 1, 0, 0, 0);
+    // uint32_t instance_count = 0;
+    // for (int i = 0; i < 1; ++i) {
+    //     /**
+    //      * @brief 
+    //      * firstVertex: draw index, use as geometry index to locate vertex buffer and index buffer
+    //      * firstInstance: instance index, use as offset to locate model matrix, one for each instance
+    //      */
+    //     cmd_buffer.draw(std::size(data::cube_indices), 2, i, instance_count);
+    //     instance_count += 2;
+    // }
+    //todo add a structural size for VulkanBufferObject, like InterleavedBuffer
+    cmd_buffer.drawIndirect(m_indirect_call_buffer.getHandle(), 0, indirect_calls.size(), size_of_v<vk::DrawIndirectCommand>);
 
     current_framebuffer.endRendering(&cmd_buffer);
     auto & target_image_sp = render_target->getTargetImageSharedPointer();

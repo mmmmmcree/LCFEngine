@@ -49,12 +49,13 @@ namespace lcf::render {
         bool isCreated() const noexcept { return m_buffer_up and m_buffer_up->getHandle(); }
         Self & setSize(uint32_t size_in_bytes) noexcept;
         Self & setUsage(GPUBufferUsage usage) noexcept;
+        Self & setPattern(GPUBufferPattern pattern) noexcept;
         Self & addWriteSegment(const BufferWriteSegment &segment) noexcept; // overwrite if overlaps
         Self & addWriteSegmentIfAbsent(const BufferWriteSegment &segment) noexcept; // don't overwrite if overlaps
         void commitWriteSegments();
         uint32_t getSize() const noexcept { return m_size; }
         vk::Buffer getHandle() const noexcept { return m_buffer_up ? m_buffer_up->getHandle() : nullptr; }
-        vk::DeviceAddress getDeviceAddress() const;
+        const vk::DeviceAddress & getDeviceAddress() const noexcept { return m_device_address; }
         std::byte * getMappedMemoryPtr() const noexcept { return m_buffer_up->getMappedMemoryPtr(); }
     private:
         void recreate(uint32_t size_in_bytes);
@@ -68,17 +69,21 @@ namespace lcf::render {
         void executeCpuWriteSequence();
         void executeGpuWriteSequence();
         void executeGpuWriteSequenceWithoutCmd();
+        void updateWriteBounds(uint32_t lower_bound, uint32_t upper_bound);
+        void resetWriteBounds();
     private:
         VulkanContext * m_context_p = nullptr;
         VulkanTimelineSemaphore::UniquePointer m_timeline_semaphore_up; // up to GPUBufferUsage
         VulkanBufferResource::UniquePointer m_buffer_up;
         ExecuteWriteSequenceMethod m_execute_write_sequence_method = nullptr; // up to GPUBufferPattern
+        vk::DeviceAddress m_device_address = 0u;
         uint32_t m_size = 0;
+        uint32_t m_write_segment_lower_bound = -1u;
+        uint32_t m_write_segment_upper_bound = 0u;
         GPUBufferUsage m_usage = GPUBufferUsage::eUndefined;
+        GPUBufferPattern m_pattern = GPUBufferPattern::eDynamic;
         vk::PipelineStageFlags2 m_stage_flags = vk::PipelineStageFlagBits2KHR::eAllGraphics;
         vk::AccessFlags2 m_access_flags = vk::AccessFlagBits2KHR::eMemoryRead;
         WriteSegments m_write_segments;
-        uint32_t m_write_segment_lower_bound = -1u;
-        uint32_t m_write_segment_upper_bound = 0u;
     };
 }

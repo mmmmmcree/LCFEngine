@@ -1,37 +1,63 @@
-#version 450
+#version 460
+#extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_buffer_reference : require
 
-layout(location = 0) in vec3 position;
-layout(location = 1) in vec3 normal;
-layout(location = 2) in vec2 uv;
+struct Vertex
+{
+    vec3 position;
+    float u;
+    vec3 normal;
+    float v;
+};
+
+struct ObjectData
+{
+    mat4 model;
+};
+
+layout(buffer_reference, std430) readonly buffer VertexBuffer
+{ 
+	Vertex vertices[];
+};
+
+layout(buffer_reference, std430) readonly buffer IndexBuffer
+{ 
+	uint16_t indices[];
+};
 
 layout(set = 0, binding = 0) uniform camera_uniforms {
     mat4 projection_view;
 };
 
-layout(set = 1, binding = 0) uniform object_uniforms {
-    mat4 model;
+layout(std430, set = 1, binding = 0) readonly buffer vertex_buffers_ssbo {
+    VertexBuffer vertex_buffers[];
 };
 
-#if defined (VULKAN_SHADER)
+layout(std430, set = 1, binding = 1) readonly buffer index_buffer_ssbo {
+    IndexBuffer index_buffers[];
+};
 
-// layout(push_constant) uniform vs_push_constant {
-//     mat4 model;
-// };
-
-#elif defined (OPENGL_SHADER)
-uniform mat4 model;
-#endif
+layout(std430, set = 1, binding = 2) readonly buffer object_uniforms {
+    ObjectData object_data_list[];
+};
 
 layout(location = 0) out VS_OUT {
     vec3 color;
     vec2 uv;
 } vs_out;
 
-
 void main()
 {
-    vs_out.color = normal;
-    vs_out.uv = uv;
-    gl_Position = projection_view * model * vec4(position, 1.0) ;
+    // uint geometry_id = gl_BaseInstance >> 16;
+    // uint base_instance_id = gl_BaseInstance & 0xFFFF;
+    uint geometry_id = gl_DrawID;
+    uint base_instance_id = gl_BaseInstance;
+    VertexBuffer vertex_buffer = vertex_buffers[geometry_id];
+    IndexBuffer index_buffer = index_buffers[geometry_id];
+    uint vertex_id = uint(index_buffer.indices[gl_VertexIndex]);
+    Vertex vertex = vertex_buffer.vertices[vertex_id];
+    ObjectData object_data = object_data_list[base_instance_id + gl_InstanceIndex];
+    gl_Position = projection_view * object_data.model * vec4(vertex.position, 1.0) ;
+    vs_out.color = vertex.normal;
+    vs_out.uv = vec2(vertex.u, vertex.v);
 }
