@@ -7,9 +7,9 @@ namespace lcf {
     using ByteView = std::span<const std::byte>;
 
     template <span_convertible_c SpanConvertible>
-    auto as_bytes(SpanConvertible && data)
+    auto as_bytes(SpanConvertible & data)
     {
-        return std::as_bytes(std::span(std::forward<SpanConvertible>(data)));
+        return std::as_bytes(std::span(data));
     }
 
     template <typename T>
