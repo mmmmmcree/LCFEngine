@@ -156,6 +156,7 @@ void lcf::render::VulkanContext::createLogicalDevice()
         .setDynamicRendering(true);
     device_info.get<vk::PhysicalDeviceVulkan12Features>().setBufferDeviceAddress(true)
         .setDescriptorIndexing(true)
+        .setDrawIndirectCount(true)
         .setTimelineSemaphore(true);
     device_info.get<vk::PhysicalDeviceVulkan11Features>().setShaderDrawParameters(true);
     device_info.get<vk::PhysicalDeviceFeatures2>().setFeatures(m_physical_device.getFeatures());

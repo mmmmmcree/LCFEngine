@@ -17,9 +17,9 @@ namespace lcf::render {
     public:
         BufferWriteSegment() = default;
         template <std::ranges::range Range>
-        BufferWriteSegment(const Range& data, uint32_t offset_in_bytes = 0u) :
+        BufferWriteSegment(const Range& data, size_t offset_in_bytes = 0u) :
             m_data(std::as_bytes(std::span(data))), m_offset_in_bytes(offset_in_bytes) {}
-        BufferWriteSegment(std::span<const std::byte> data, uint32_t offset_in_bytes = 0u) :
+        BufferWriteSegment(std::span<const std::byte> data, size_t offset_in_bytes = 0u) :
             m_data(data), m_offset_in_bytes(offset_in_bytes) {}
         BufferWriteSegment(const BufferWriteSegment& other) = default;
         BufferWriteSegment(BufferWriteSegment&& other) noexcept = default;
@@ -27,13 +27,13 @@ namespace lcf::render {
         std::span<const std::byte> getDataSpan() const noexcept { return m_data; }
         const std::byte * getData() const noexcept { return m_data.data(); }
         size_t getSizeInBytes() const noexcept { return m_data.size_bytes(); }
-        uint32_t getBeginOffsetInBytes() const noexcept { return m_offset_in_bytes; }
-        uint32_t getEndOffsetInBytes() const noexcept { return m_offset_in_bytes + m_data.size_bytes(); }
+        size_t getBeginOffsetInBytes() const noexcept { return m_offset_in_bytes; }
+        size_t getEndOffsetInBytes() const noexcept { return m_offset_in_bytes + m_data.size_bytes(); }
         bool operator==(const BufferWriteSegment& other) const noexcept; // equality rule for boost::icl::interval_map
         BufferWriteSegment & operator+=(const BufferWriteSegment& other) noexcept; //merge rule for boost::icl::interval_map
     private:
         std::span<const std::byte> m_data;
-        uint32_t m_offset_in_bytes = 0;
+        size_t m_offset_in_bytes = 0;
     };
 
     class VulkanBufferObject : public STDPointerDefs<VulkanBufferObject>

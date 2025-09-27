@@ -101,7 +101,7 @@ void lcf::VulkanRenderer::create()
         .create(m_context_p);
 
     m_indirect_call_buffer.setUsage(GPUBufferUsage::eIndirect)
-        .setSize(sizeof(vk::DrawIndirectCommand))
+        .setSize(sizeof(vk::DrawIndirectCommand) + 1 * sizeof(vk::DrawIndexedIndirectCommand)) // uint32_t(for IndirectDrawCount) + padding | vk::DrawIndirectCommand ... 
         .create(m_context_p);
 
     InterleavedBuffer vertex_data_ssbo;
@@ -235,6 +235,8 @@ void lcf::VulkanRenderer::render()
     m_per_renderable_index_buffer.addWriteSegment({std::span(&m_index_buffer.getDeviceAddress(), 1), 0u});
     m_per_renderable_transform_buffer.addWriteSegment({std::span(model_matrices), 0u});
 
+    // cmd_buffer.drawIndirectCount();
+
     uint32_t instance_count = 0;
     std::vector<vk::DrawIndirectCommand> indirect_calls(1);
     for (int i = 0; i < indirect_calls.size(); ++i) {
@@ -250,7 +252,10 @@ void lcf::VulkanRenderer::render()
             .setFirstInstance(instance_count);
         instance_count += indirect_call.instanceCount;
     }
-    m_indirect_call_buffer.addWriteSegment({std::span(indirect_calls), 0u}).commitWriteSegments();
+    uint32_t indirect_call_count = 1;
+    m_indirect_call_buffer.addWriteSegment({std::span(&indirect_call_count, 1), 0})
+        .addWriteSegment({std::span(indirect_calls), size_of_v<vk::DrawIndirectCommand>})
+        .commitWriteSegments();
 
     // delay commit
     m_per_view_uniform_buffer.commitWriteSegments();
@@ -278,7 +283,10 @@ void lcf::VulkanRenderer::render()
     //     instance_count += 2;
     // }
     //todo add a structural size for VulkanBufferObject, like InterleavedBuffer
-    cmd_buffer.drawIndirect(m_indirect_call_buffer.getHandle(), 0, indirect_calls.size(), size_of_v<vk::DrawIndirectCommand>);
+    // cmd_buffer.drawIndirect(m_indirect_call_buffer.getHandle(), 0, indirect_calls.size(), size_of_v<vk::DrawIndirectCommand>);
+    cmd_buffer.drawIndirectCount(m_indirect_call_buffer.getHandle(), sizeof(vk::DrawIndirectCommand),
+        m_indirect_call_buffer.getHandle(), 0,
+        1, sizeof(vk::DrawIndirectCommand));
 
     current_framebuffer.endRendering(&cmd_buffer);
     auto & target_image_sp = render_target->getTargetImageSharedPointer();
