@@ -15,6 +15,7 @@
 #include "VulkanDescriptorSetLayout.h"
 #include <boost/container/small_vector.hpp>
 #include "common/glsl_alignment_traits.h"
+#include "as_bytes.h"
 
 lcf::VulkanRenderer::VulkanRenderer(VulkanContext *context) :
     m_context_p(context)
@@ -128,7 +129,7 @@ void lcf::VulkanRenderer::create()
         .setPattern(GPUBufferPattern::eStatic)
         .setSize(sizeof(data::cube_indices))
         .create(m_context_p);
-    m_index_buffer.addWriteSegment({std::span(data::cube_indices)}).commitWriteSegments();
+    m_index_buffer.addWriteSegment({as_bytes(data::cube_indices)}).commitWriteSegments();
 
     m_texture_image = VulkanImage::makeUnique();
     m_texture_image->create(m_context_p, Image("assets/images/bk.jpg", 4));
@@ -202,7 +203,7 @@ void lcf::VulkanRenderer::render()
     if (m_current_frame_index % 3 == 1) {
         projection_view.setToIdentity();
     }
-    m_per_view_uniform_buffer.addWriteSegment({std::span(&projection_view, 1), 0u});
+    m_per_view_uniform_buffer.addWriteSegment({as_bytes_from_value(projection_view), 0u});
     
     VulkanDescriptorManager &descriptor_manager = current_frame_resources.descriptor_manager;
     descriptor_manager.resetAllocatedSets();
@@ -231,9 +232,9 @@ void lcf::VulkanRenderer::render()
     model_matrices[1].translateLocal({ 1.0f, 0.2f, 0.2f });
     model_matrices[1].rotateAroundSelf(Quaternion::fromAxisAndAngle(Vector3D(1.0f, 1.0f, 0.0f), angle));
 
-    m_per_renderable_vertex_buffer.addWriteSegment({std::span(&m_vertex_buffer.getDeviceAddress(), 1), 0u});
-    m_per_renderable_index_buffer.addWriteSegment({std::span(&m_index_buffer.getDeviceAddress(), 1), 0u});
-    m_per_renderable_transform_buffer.addWriteSegment({std::span(model_matrices), 0u});
+    m_per_renderable_vertex_buffer.addWriteSegment({as_bytes_from_value(m_vertex_buffer.getDeviceAddress()), 0u});
+    m_per_renderable_index_buffer.addWriteSegment({as_bytes_from_value(m_index_buffer.getDeviceAddress()), 0u});
+    m_per_renderable_transform_buffer.addWriteSegment({as_bytes(model_matrices), 0u});
 
     // cmd_buffer.drawIndirectCount();
 
@@ -253,8 +254,8 @@ void lcf::VulkanRenderer::render()
         instance_count += indirect_call.instanceCount;
     }
     uint32_t indirect_call_count = 1;
-    m_indirect_call_buffer.addWriteSegment({std::span(&indirect_call_count, 1), 0})
-        .addWriteSegment({std::span(indirect_calls), size_of_v<vk::DrawIndirectCommand>})
+    m_indirect_call_buffer.addWriteSegment({as_bytes_from_value(indirect_call_count), 0})
+        .addWriteSegment({as_bytes(indirect_calls), size_of_v<vk::DrawIndirectCommand>})
         .commitWriteSegments();
 
     // delay commit

@@ -4,6 +4,7 @@
 #include "VulkanTimelineSemaphore.h"
 #include "VulkanBufferResource.h"
 #include "PointerDefs.h"
+#include "as_bytes.h"
 #include <span>
 // #include <boost/icl/interval_map.hpp> //- use interval tree to manage write segments
 #include <deque>
@@ -16,15 +17,12 @@ namespace lcf::render {
     {
     public:
         BufferWriteSegment() = default;
-        template <std::ranges::range Range>
-        BufferWriteSegment(const Range& data, size_t offset_in_bytes = 0u) :
-            m_data(std::as_bytes(std::span(data))), m_offset_in_bytes(offset_in_bytes) {}
-        BufferWriteSegment(std::span<const std::byte> data, size_t offset_in_bytes = 0u) :
-            m_data(data), m_offset_in_bytes(offset_in_bytes) {}
+        BufferWriteSegment(ByteView bytes, size_t offset_in_bytes = 0u) noexcept :
+            m_data(bytes), m_offset_in_bytes(offset_in_bytes) {}
         BufferWriteSegment(const BufferWriteSegment& other) = default;
         BufferWriteSegment(BufferWriteSegment&& other) noexcept = default;
         BufferWriteSegment& operator=(const BufferWriteSegment& other) = default;
-        std::span<const std::byte> getDataSpan() const noexcept { return m_data; }
+        ByteView getDataView() const noexcept { return m_data; }
         const std::byte * getData() const noexcept { return m_data.data(); }
         size_t getSizeInBytes() const noexcept { return m_data.size_bytes(); }
         size_t getBeginOffsetInBytes() const noexcept { return m_offset_in_bytes; }
@@ -32,7 +30,7 @@ namespace lcf::render {
         bool operator==(const BufferWriteSegment& other) const noexcept; // equality rule for boost::icl::interval_map
         BufferWriteSegment & operator+=(const BufferWriteSegment& other) noexcept; //merge rule for boost::icl::interval_map
     private:
-        std::span<const std::byte> m_data;
+        ByteView m_data;
         size_t m_offset_in_bytes = 0;
     };
 

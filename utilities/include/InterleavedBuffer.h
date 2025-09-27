@@ -6,6 +6,8 @@
 #include <span>
 #include <ranges>
 #include <boost/align.hpp>
+#include <utility>
+#include <bit>
 
 
 namespace lcf {
@@ -20,7 +22,6 @@ namespace lcf {
         size_t getSize() const noexcept { return m_data.size() / this->getStrideInBytes(); }
         std::byte * getData() noexcept { return m_data.data(); }
         const std::byte * getData() const noexcept { return m_data.data(); }
-        std::span<std::byte> getDataSpan() noexcept { return m_data; }
         std::span<const std::byte> getDataSpan() const noexcept { return m_data; }
         Self & setStructuralAlignment(size_t alignment) noexcept
         {
@@ -76,16 +77,16 @@ namespace lcf {
         template <typename T>
         auto view(size_t field_index) const noexcept { return this->_view<T, true>(field_index); }
         template <typename T>
-        Self & setData(size_t field_index, size_t data_index, const T & data) noexcept
+        Self & setData(size_t field_index, size_t data_index, T && data) noexcept
         {
             if (data_index >= this->getSize()) { return *this; }
             this->viewAt<T>(field_index, data_index) = data;
             return *this;
         }
-        template <std::ranges::range Range>
-        Self & setData(size_t field_index, Range data, size_t start_data_index = 0) noexcept
+        template <std::ranges::range Span>
+        Self & setData(size_t field_index, Span && data, size_t start_data_index = 0) noexcept
         {
-            auto dst_it = this->view<std::ranges::range_value_t<Range>>(field_index).begin() + start_data_index;
+            auto dst_it = this->view<std::ranges::range_value_t<Span>>(field_index).begin() + start_data_index;
             std::ranges::copy(data | std::views::take(this->getSize() - start_data_index), dst_it);
             return *this;
         }

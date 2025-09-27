@@ -130,7 +130,7 @@ VulkanBufferObject &VulkanBufferObject::resize(uint32_t size_in_bytes)
     uint32_t old_size = m_size;
     this->recreate(size_in_bytes);
     if (old_buffer_up) {
-        this->addWriteSegmentIfAbsent(std::span(m_buffer_up->getMappedMemoryPtr(), std::min(old_size, size_in_bytes)));
+        this->addWriteSegmentIfAbsent(as_bytes_from_ptr(m_buffer_up->getMappedMemoryPtr(), std::min(old_size, size_in_bytes)));
         auto cmd = m_context_p->getCurrentCommandBuffer();
         cmd->acquireResource(std::move(old_buffer_up));
         this->commitWriteSegments();
@@ -234,7 +234,7 @@ void lcf::render::VulkanBufferObject::executeCpuWriteSequence()
     uint32_t write_required_size = m_write_segment_upper_bound;
     if (write_required_size > m_size) [[unlikely]] {
         if (m_buffer_up) {
-            this->addWriteSegmentIfAbsent(std::span(m_buffer_up->getMappedMemoryPtr(), m_size));
+            this->addWriteSegmentIfAbsent(as_bytes_from_ptr(m_buffer_up->getMappedMemoryPtr(), m_size));
             cmd->acquireResource(std::move(m_buffer_up));
         }
         this->recreate(write_required_size); //todo use custom enlarge strategy
