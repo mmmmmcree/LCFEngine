@@ -4,36 +4,11 @@
 
 namespace lcf::impl {
     template <structure_layout_c StructureLayout>
-    class InterleavedBufferIMPL
+    class InterleavedSpanIMPL
     {
-        using Self = InterleavedBufferIMPL;
+        using Self = InterleavedSpanIMPL;
     public:
-        InterleavedBufferIMPL() = default;
-        bool isCreated() const noexcept { return not m_data.empty(); }
-        size_t getStrideInBytes() const noexcept { return m_layout.getStructualSize(); }
-        size_t getSizeInBytes() const noexcept { return m_data.size(); }
-        size_t getSize() const noexcept { return m_data.size() / this->getStrideInBytes(); }
-        std::span<const std::byte> getDataSpan() const noexcept { return m_data; }
-        const StructureLayout & getLayout() const noexcept { return m_layout; }
-        Self & addField(size_t size_in_bytes, size_t alignment)
-        {
-            if (this->isCreated()) { return *this; }
-            m_layout.addField(size_in_bytes, alignment);
-            return *this;
-        }
-        template <alignment_c TypeAlignmentInfo>
-        Self & addField() { return this->addField(TypeAlignmentInfo::type_size, TypeAlignmentInfo::alignment); }
-        void create(size_t size)
-        {
-            if (this->isCreated()) { return; }
-            m_layout.create();
-            m_data.resize(size * this->getStrideInBytes());
-        }
-        void resize(size_t size)
-        {
-            if (this->isCreated()) { m_data.resize(size * this->getStrideInBytes()); }
-            else { this->create(size); }
-        }
+        InterleavedSpanIMPL(const StructureLayout & layout, std::span<std::byte> data) : m_layout(layout), m_data(data) {}
         template <typename T>
         T & viewAt(size_t field_index, size_t index) { return *extract_field_at<StructureLayout, T, false>(m_layout, field_index, index, m_data); }
         template <typename T>
@@ -58,10 +33,30 @@ namespace lcf::impl {
         }
     private:
         StructureLayout m_layout;
-        std::vector<std::byte> m_data;
+        std::span<std::byte> m_data;
+    };
+
+    template <structure_layout_c StructureLayout>
+    class ConstInterleavedSpanIMPL
+    {
+        using Self = ConstInterleavedSpanIMPL;
+    public:
+        ConstInterleavedSpanIMPL(const StructureLayout & layout, std::span<const std::byte> data) : m_layout(layout), m_data(data) {}
+        template <typename T>
+        const T & viewAt(size_t field_index, size_t index) { return *extract_field_at<StructureLayout, T, true>(m_layout, field_index, index, m_data); }
+        template <typename T>
+        const T & viewAt(size_t field_index, size_t index) const { return *extract_field_at<StructureLayout, T, true>(m_layout, field_index, index, m_data); }
+        template <typename T>
+        auto view(size_t field_index) noexcept { return extract_field_range<StructureLayout ,T, true>(m_layout, field_index, m_data); }
+        template <typename T>
+        auto view(size_t field_index) const noexcept { return extract_field_range<StructureLayout, T, true>(m_layout, field_index, m_data); }
+    private:
+        StructureLayout m_layout;
+        std::span<const std::byte> m_data;
     };
 }
 
 namespace lcf {
-    using InterleavedBuffer = impl::InterleavedBufferIMPL<StructureLayout>;
+    using InterleavedSpan = impl::InterleavedSpanIMPL<StructureLayout>;
+    using ConstInterleavedSpan = impl::ConstInterleavedSpanIMPL<StructureLayout>;
 }
