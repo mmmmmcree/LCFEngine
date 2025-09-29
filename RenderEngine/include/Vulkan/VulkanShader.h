@@ -12,6 +12,8 @@ namespace lcf::render {
 	public:
 		IMPORT_POINTER_DEFS(STDPointerDefs<VulkanShader>);
 		VulkanShader(VulkanContext * context, ShaderTypeFlagBits type);
+		VulkanShader(const VulkanShader& other) = delete;
+		VulkanShader& operator=(const VulkanShader& other) = delete;
 		~VulkanShader() override;
 		operator bool() const;
 		virtual bool compileGlslFile(std::string_view file_path) override;

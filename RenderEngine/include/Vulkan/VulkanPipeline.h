@@ -17,6 +17,8 @@ namespace lcf::render {
         using DescriptorSetLayoutList = VulkanShaderProgram::DescriptorSetLayoutList;
         using DescriptorSetLayoutBindings = std::span<const vk::DescriptorSetLayoutBinding>;
         VulkanPipeline() = default;
+        VulkanPipeline(const Self &) = delete;
+        Self & operator=(const Self &) = delete;
         bool create(VulkanContext * context, const ComputePipelineCreateInfo & create_info);
         bool create(VulkanContext * context, const GraphicPipelineCreateInfo & create_info);
         operator bool() const { return this->isValid(); }

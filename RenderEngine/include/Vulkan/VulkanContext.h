@@ -21,6 +21,8 @@ namespace lcf::render {
         using QueueMap = std::unordered_map<uint32_t, vk::Queue>; // <vk::QueueFlagBits, vk::Queue>
         using CommandBufferStack = std::stack<VulkanCommandBufferObject *>;
         VulkanContext();
+        VulkanContext(const VulkanContext &other) = delete;
+        VulkanContext & operator=(const VulkanContext &other) = delete;
         ~VulkanContext();
         void registerWindow(RenderWindow * window);
         void create();

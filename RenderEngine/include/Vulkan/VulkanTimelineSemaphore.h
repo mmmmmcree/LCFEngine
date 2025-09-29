@@ -9,6 +9,8 @@ namespace lcf::render {
     {
     public:
         VulkanTimelineSemaphore() = default;
+        VulkanTimelineSemaphore(const VulkanTimelineSemaphore &) = delete;
+        VulkanTimelineSemaphore & operator=(const VulkanTimelineSemaphore &) = delete;
         bool create(VulkanContext * context_p);
         bool isCreated() const { return m_context_p and m_semaphore; }
         void wait() const { this->waitFor(m_target_value); }

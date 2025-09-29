@@ -19,12 +19,21 @@ add_custom_command(TARGET main_example POST_BUILD
     VERBATIM
 ) 
 
-# 可选：设置 VS 调试器工作目录（如果使用 Visual Studio）
-if(WIN32 AND CMAKE_GENERATOR MATCHES "Visual Studio")
-    set_target_properties(main_example PROPERTIES
-        VS_DEBUGGER_WORKING_DIRECTORY $<TARGET_FILE_DIR:main_example>
-    )
-endif()
+# if(MSVC)
+#     target_compile_options(${PROJECT_NAME} PRIVATE
+#         /permissive-
+#         /Zc:__cplusplus
+#         /Wall
+#         /Zc:forScope
+#         /Zc:inline
+#         /Zc:strictStrings
+#         /Zc:throwingNew
+#         /Zc:referenceBinding
+#         /Zc:noexceptTypes
+#         /Zc:ternary
+#         /analyze
+#     )
+# endif()
 
 set_target_properties(main_example PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin

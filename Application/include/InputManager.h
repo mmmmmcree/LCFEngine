@@ -16,6 +16,10 @@ namespace lcf {
         using MouseButton = Qt::MouseButton;
         using MouseButtons = Qt::MouseButtons;
         explicit InputManager(QObject *parent = nullptr);
+        InputManager(const InputManager &) = delete;
+        InputManager(InputManager &&) = delete;
+        InputManager & operator=(const InputManager &) = delete;
+        InputManager & operator=(InputManager &&) = delete;
         bool isKeyPressed(Key key) const { return m_pressed_keys.value(key, false); }
         bool isMouseButtonPressed(MouseButton button) const { return m_pressed_mouse_buttons & button; }
         bool isMouseButtonsPressed(MouseButtons buttons) const { return m_pressed_mouse_buttons & buttons; }
@@ -32,8 +36,8 @@ namespace lcf {
         void handleWheelEvent(QWheelEvent *event);
     private:
         QHash<Key, bool> m_pressed_keys;
-        MouseButtons m_pressed_mouse_buttons = MouseButton::NoButton;
         Vector2D_D m_current_mouse_pos;
         Vector2D_I m_wheel_delta;
+        MouseButtons m_pressed_mouse_buttons = MouseButton::NoButton;
     };
 }

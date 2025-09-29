@@ -43,6 +43,10 @@ namespace lcf::render {
         using WriteSegments = std::deque<BufferWriteSegment>;
         using ExecuteWriteSequenceMethod = void (Self::*)();
         VulkanBufferObject() = default;
+        VulkanBufferObject(const Self &) = delete;
+        VulkanBufferObject(Self &&) = delete;
+        Self & operator=(const Self &) = delete;
+        Self & operator=(Self &&) = delete;
         bool create(VulkanContext * context_p);
         bool isCreated() const noexcept { return m_buffer_up and m_buffer_up->getHandle(); }
         Self & setSize(uint32_t size_in_bytes) noexcept;

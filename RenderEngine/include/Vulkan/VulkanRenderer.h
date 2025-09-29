@@ -18,6 +18,8 @@ namespace lcf {
     {
     public:
         VulkanRenderer(VulkanContext * context);
+        VulkanRenderer(const VulkanRenderer&) = delete;
+        VulkanRenderer& operator=(const VulkanRenderer&) = delete;
         ~VulkanRenderer();
         void setRenderTarget(const RenderTarget::SharedPointer & render_target);
         void setCamera(const Entity & camera_entity);

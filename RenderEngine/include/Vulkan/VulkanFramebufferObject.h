@@ -40,7 +40,7 @@ namespace lcf::render {
         VulkanFramebufferObject() = default;
         bool create(VulkanContext * context_p, const VulkanFramebufferObjectCreateInfo & create_info);
         Self & addColorAttachment(const Attachment & attachment);
-        Self & setExtent(vk::Extent2D extent) noexcept { m_extent = std::min(m_max_extent, extent); return *this; }
+        Self & setExtent(vk::Extent2D extent) noexcept { m_extent = extent; return *this; }
         Attachment & getMainColorAttachment() noexcept { return m_color_attachments.front(); }
         OptionalAttachment getColorAttachment(uint32_t index) noexcept { return m_color_attachments.size() > index? std::make_optional(m_color_attachments[index]) : std::nullopt; }
         OptionalAttachment getDepthStencilAttachment() noexcept { return m_depth_stencil_attachment; }
@@ -48,8 +48,8 @@ namespace lcf::render {
         void beginRendering(VulkanCommandBufferObject * cmd_p);
         void endRendering(VulkanCommandBufferObject * cmd_p);
     private:
-        vk::Extent2D m_max_extent = {-1u, -1u};
-        vk::Extent2D m_extent = {-1u, -1u};
+        vk::Extent2D m_max_extent = {std::numeric_limits<uint32_t>::max(), std::numeric_limits<uint32_t>::max()};
+        vk::Extent2D m_extent = {std::numeric_limits<uint32_t>::max(), std::numeric_limits<uint32_t>::max()};
         vk::Format m_depth_stencil_format = vk::Format::eUndefined;
         AttachmentList m_color_attachments;
         OptionalAttachment m_depth_stencil_attachment;
@@ -61,19 +61,24 @@ namespace lcf::render {
         using Self = VulkanFramebufferObjectCreateInfo;
         using FormatList = std::vector<vk::Format>;
         VulkanFramebufferObjectCreateInfo(vk::Extent2D max_extent = {800u, 600u},
+            vk::Extent2D extent = {std::numeric_limits<uint32_t>::max(), std::numeric_limits<uint32_t>::max()},
             vk::SampleCountFlagBits sample_count = vk::SampleCountFlagBits::e1,
             vk::Format depth_stencil_format = vk::Format::eUndefined,
             vk::ResolveModeFlagBits resolve_mode = vk::ResolveModeFlagBits::eNone) :
             m_max_extent(max_extent),
+            m_extent(extent),
+            m_sample_count(sample_count),
             m_depth_stencil_format(depth_stencil_format),
             m_resolve_mode(resolve_mode) {}
         Self & setMaxExtent(vk::Extent2D max_extent) noexcept { m_max_extent = max_extent; return *this; }
+        Self & setExtent(vk::Extent2D extent) noexcept { m_extent = extent; return *this; }
         Self & addColorFormat(vk::Format format) { m_color_formats.emplace_back(format); return *this; }
         Self & addColorFormats(std::span<const vk::Format> formats) { m_color_formats.insert(m_color_formats.end(), formats.begin(), formats.end()); return *this; }
         Self & setSampleCount(vk::SampleCountFlagBits sample_count) noexcept { m_sample_count = sample_count; return *this; }
         Self & setDepthStencilFormat(vk::Format depth_stencil_format) noexcept { m_depth_stencil_format = depth_stencil_format; return *this; }
         Self & setResolveMode(vk::ResolveModeFlagBits resolve_mode) noexcept { m_resolve_mode = resolve_mode; return *this; }
         const vk::Extent2D & getMaxExtent() const noexcept { return m_max_extent; }
+        const vk::Extent2D & getExtent() const noexcept { return m_extent; }
         const FormatList & getColorFormats() const noexcept { return m_color_formats; }
         vk::SampleCountFlagBits getSampleCount() const noexcept { return m_sample_count; }
         bool hasDepthStencilFormat() const noexcept { return m_depth_stencil_format != vk::Format::eUndefined; }
@@ -82,6 +87,7 @@ namespace lcf::render {
         const vk::ResolveModeFlagBits & getResolveMode() const noexcept { return m_resolve_mode; }
     //- properties
         vk::Extent2D m_max_extent;
+        vk::Extent2D m_extent;
         FormatList m_color_formats;
         vk::SampleCountFlagBits m_sample_count;
         vk::Format m_depth_stencil_format;

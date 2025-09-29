@@ -11,7 +11,8 @@ bool VulkanFramebufferObject::create(VulkanContext *context_p, const VulkanFrame
         return false;
     }
     m_max_extent = create_info.getMaxExtent();
-    m_extent = std::min(m_max_extent, m_extent);
+    m_extent = std::min({m_max_extent, create_info.getExtent(), m_extent});
+    auto a = create_info.getExtent();
     vk::ImageUsageFlags color_attachment_usage = vk::ImageUsageFlagBits::eColorAttachment;
     if (create_info.isEnableMSAA()) {
         color_attachment_usage |= vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eSampled;

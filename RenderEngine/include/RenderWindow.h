@@ -9,6 +9,8 @@ namespace lcf {
     {
     public:
         RenderWindow(Window * parent = nullptr);
+        RenderWindow(const RenderWindow &) = delete;
+        RenderWindow & operator=(const RenderWindow &) = delete;
         ~RenderWindow() override;
         void show();
         void setRenderTarget(const render::RenderTarget::SharedPointer &render_target);

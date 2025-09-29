@@ -18,6 +18,8 @@ namespace lcf::render {
         using DescriptorSetLayoutList = std::vector<vk::DescriptorSetLayout>;
         using PushConstantMap = std::unordered_map<uint32_t, VulkanPushConstant>; // [stage]
         VulkanShaderProgram(VulkanContext * context);
+        VulkanShaderProgram(const VulkanShaderProgram &) = delete;
+        VulkanShaderProgram & operator=(const VulkanShaderProgram &) = delete;
         ~VulkanShaderProgram();
         void addShaderFromGlslFile(ShaderTypeFlagBits stage, std::string_view file_path);
         virtual bool link() override;

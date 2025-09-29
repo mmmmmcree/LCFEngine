@@ -49,6 +49,8 @@ namespace lcf::render {
         friend class VulkanAttachment;
     public:
         VulkanImage() = default;
+        VulkanImage(const VulkanImage & other) = delete;
+        VulkanImage & operator=(const VulkanImage & other) = delete;
         bool create(VulkanContext * context_p);
         bool create(VulkanContext * context_p, vk::Image external_image);
         bool create(VulkanContext * context_p, const Image & image); 

@@ -11,7 +11,7 @@ namespace lcf {
     public:
         using StageToShaderMap = std::unordered_map<ShaderTypeFlagBits, Shader::SharedPointer>;
         ShaderProgram() = default;
-        ~ShaderProgram() = default;
+        virtual ~ShaderProgram() = default;
         virtual bool link();
         bool isLinked() const { return m_is_linked; }
         bool containsStage(ShaderTypeFlagBits stage) const { return m_stage_to_shader_map.contains(stage); }

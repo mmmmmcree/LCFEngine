@@ -11,6 +11,8 @@ namespace lcf::render {
     public:
         IMPORT_POINTER_DEFS(STDPointerDefs<VulkanSwapchain>);
         VulkanSwapchain(VulkanContext * context, vk::SurfaceKHR surface);
+        VulkanSwapchain(const VulkanSwapchain &) = delete;
+        VulkanSwapchain & operator=(const VulkanSwapchain &) = delete;
         virtual ~VulkanSwapchain() override;
         void create() override;
         bool isCreated() override { return m_swapchain.get(); }

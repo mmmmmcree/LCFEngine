@@ -22,8 +22,8 @@ namespace lcf {
         template <typename Component>
         bool hasComponent() const;
     private:
-        EntityHandle m_entity;
         Registry * m_registry = nullptr;
+        EntityHandle m_entity;
         bool m_owns_entity = false;
         bool m_owns_registry = false;
     };

@@ -273,18 +273,7 @@ void lcf::VulkanRenderer::render()
 
     cmd_buffer.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), 1, m_per_renderable_descriptor_set, nullptr);
 
-    // uint32_t instance_count = 0;
-    // for (int i = 0; i < 1; ++i) {
-    //     /**
-    //      * @brief 
-    //      * firstVertex: draw index, use as geometry index to locate vertex buffer and index buffer
-    //      * firstInstance: instance index, use as offset to locate model matrix, one for each instance
-    //      */
-    //     cmd_buffer.draw(std::size(data::cube_indices), 2, i, instance_count);
-    //     instance_count += 2;
-    // }
     //todo add a structural size for VulkanBufferObject, like InterleavedBuffer
-    // cmd_buffer.drawIndirect(m_indirect_call_buffer.getHandle(), 0, indirect_calls.size(), size_of_v<vk::DrawIndirectCommand>);
     cmd_buffer.drawIndirectCount(m_indirect_call_buffer.getHandle(), sizeof(vk::DrawIndirectCommand),
         m_indirect_call_buffer.getHandle(), 0,
         1, sizeof(vk::DrawIndirectCommand));
