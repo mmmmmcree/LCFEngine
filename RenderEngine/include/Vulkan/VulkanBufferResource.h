@@ -11,6 +11,7 @@ namespace lcf::render {
     public:
         IMPORT_POINTER_DEFS(STDPointerDefs<VulkanBufferResource>);
         VulkanBufferResource() = default;
+        virtual ~VulkanBufferResource() = default;
         VulkanBufferResource(const VulkanBufferResource &) = delete;
         VulkanBufferResource(VulkanBufferResource && other) : m_buffer_up(std::move(other.m_buffer_up)) {}
         VulkanBufferResource & operator=(const VulkanBufferResource &) = delete;

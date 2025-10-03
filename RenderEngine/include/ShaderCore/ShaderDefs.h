@@ -4,6 +4,7 @@
 #include <spirv_cross/spirv_cross.hpp>
 #include <vulkan/vulkan.hpp>
 #include "enum_cast.h"
+#include "enum_flags.h"
 #include <vector>
 
 namespace lcf {

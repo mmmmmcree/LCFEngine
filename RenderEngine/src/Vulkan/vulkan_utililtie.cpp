@@ -50,7 +50,7 @@ void lcf::render::vkutils::CopyAssistant::copy(vk::Image src, vk::Image dst, vk:
     m_cmd.blitImage2(blit_info);
 }
 
-void lcf::render::vkutils::immediate_submit(VulkanContext *context, std::function<void()> &&submit_func)
+void lcf::render::vkutils::immediate_submit(VulkanContext *context, std::function<void(VulkanCommandBufferObject &)> &&submit_func)
 {
     auto device = context->getDevice();
     VulkanCommandBufferObject cmd;
@@ -58,7 +58,7 @@ void lcf::render::vkutils::immediate_submit(VulkanContext *context, std::functio
     vk::CommandBufferBeginInfo cmd_begin_info;
     cmd_begin_info.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
     cmd.begin(cmd_begin_info);
-    submit_func();
+    submit_func(cmd);
     cmd.end();
     cmd.submit(vk::QueueFlagBits::eGraphics);
     cmd.getTimelineSemaphore()->wait();

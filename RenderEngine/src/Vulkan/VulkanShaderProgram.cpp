@@ -1,5 +1,6 @@
 #include "VulkanShaderProgram.h"
 #include "VulkanContext.h"
+#include "error.h"
 #include <format>
 
 lcf::render::VulkanShaderProgram::VulkanShaderProgram(VulkanContext *context) :
@@ -88,7 +89,6 @@ void lcf::render::VulkanShaderProgram::createDescriptorSetLayoutBindingTable()
         }
         for (const auto &resource : resources.storage_buffers) {
             resource_info_list.emplace_back(enum_cast<vk::ShaderStageFlagBits>(stage), vk::DescriptorType::eStorageBuffer, resource);
-            qDebug().noquote() << resource.toString();
         }
         // todo add other resource types
     }
@@ -180,8 +180,6 @@ void lcf::render::VulkanShaderProgram::createPipelineLayout()
     try {
         m_pipeline_layout = device.createPipelineLayoutUnique(pipeline_layout_info);
     } catch (const vk::SystemError &e) {
-        const std::string error_message = std::format("lcf::render::VulkanShaderProgram::createPipelineLayout(): failed to create pipeline layout: {}", e.what());
-        qDebug() << error_message;
-        throw std::runtime_error(error_message);
+        LCF_THROW_RUNTIME_ERROR(std::format("lcf::render::VulkanShaderProgram::createPipelineLayout(): failed to create pipeline layout: {}", e.what()));
     }
 }

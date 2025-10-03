@@ -10,6 +10,7 @@
 #include "VulkanTimelineSemaphore.h"
 #include "VulkanCommandBufferObject.h"
 #include "VulkanBufferObject.h"
+#include "VulkanMesh.h"
 
 namespace lcf {
     using namespace lcf::render;
@@ -51,10 +52,8 @@ namespace lcf {
         VulkanBufferObject m_per_view_uniform_buffer;
 
         VulkanBufferObject m_indirect_call_buffer;
-        //- One Geometry ↓
-        VulkanBufferObject m_vertex_buffer; 
-        VulkanBufferObject m_index_buffer;
-        //- One Geometry ↑
+        
+        VulkanMesh m_mesh;
         
         VulkanBufferObject m_per_renderable_vertex_buffer;
         VulkanBufferObject m_per_renderable_index_buffer;

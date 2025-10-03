@@ -1,13 +1,14 @@
 #version 460
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_buffer_reference : require
+#extension GL_EXT_debug_printf : require
+#extension GL_EXT_spirv_intrinsics : require
 
 struct Vertex
 {
     vec3 position;
-    float u;
     vec3 normal;
-    float v;
+    vec2 uv;
 };
 
 struct ObjectData
@@ -48,8 +49,6 @@ layout(location = 0) out VS_OUT {
 
 void main()
 {
-    // uint geometry_id = gl_BaseInstance >> 16;
-    // uint base_instance_id = gl_BaseInstance & 0xFFFF;
     uint geometry_id = gl_DrawID;
     uint base_instance_id = gl_BaseInstance;
     VertexBuffer vertex_buffer = vertex_buffers[geometry_id];
@@ -59,5 +58,8 @@ void main()
     ObjectData object_data = object_data_list[base_instance_id + gl_InstanceIndex];
     gl_Position = projection_view * object_data.model * vec4(vertex.position, 1.0) ;
     vs_out.color = vertex.normal;
-    vs_out.uv = vec2(vertex.u, vertex.v);
+    vs_out.uv = vertex.uv;
+    // if (vertex_id == 0) {
+    //     debugPrintfEXT("Position = %v4f\n", gl_Position);
+    // }
 }

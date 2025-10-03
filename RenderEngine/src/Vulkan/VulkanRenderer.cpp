@@ -16,6 +16,7 @@
 #include <boost/container/small_vector.hpp>
 #include "common/glsl_alignment_traits.h"
 #include "as_bytes.h"
+#include "Mesh.h"
 
 lcf::VulkanRenderer::VulkanRenderer(VulkanContext *context) :
     m_context_p(context)
@@ -102,34 +103,20 @@ void lcf::VulkanRenderer::create()
         .create(m_context_p);
 
     m_indirect_call_buffer.setUsage(GPUBufferUsage::eIndirect)
-        .setSize(sizeof(vk::DrawIndirectCommand) + 1 * sizeof(vk::DrawIndexedIndirectCommand)) // uint32_t(for IndirectDrawCount) + padding | vk::DrawIndirectCommand ... 
+        .setSize(size_of_v<vk::DrawIndirectCommand> + 1 * size_of_v<vk::DrawIndexedIndirectCommand>) // uint32_t(for IndirectDrawCount) + padding | vk::DrawIndirectCommand ... 
         .create(m_context_p);
 
-    InterleavedBuffer vertex_data_ssbo;
-    vertex_data_ssbo.addField<alignment_traits<glsl::std140::Vector3D>>()
-        .addField<alignment_traits<float>>()
-        .addField<alignment_traits<glsl::std140::Vector3D>>()
-        .addField<alignment_traits<float>>()
-        .create(std::size(data::cube_positions));
+    Mesh mesh;
+    mesh.addSemantic(VertexSemanticFlags::ePosition | VertexSemanticFlags::eNormal | VertexSemanticFlags::eTexCoord0)
+        .create<glsl::std140::ShaderTypeMapping>(std::size(data::cube_positions));
+    mesh.setVertexData(VertexSemanticFlags::ePosition, std::span(data::cube_positions))
+        .setVertexData(VertexSemanticFlags::eNormal, std::span(data::cube_normals))
+        .setVertexData(VertexSemanticFlags::eTexCoord0, std::span(data::cube_uvs))
+        .setIndexData(as_bytes(data::cube_indices));
 
-    ConstStrideIterator<float> begin_u(data::cube_uvs, size_of_v<Vector2D>);
-    ConstStrideIterator<float> begin_v(&data::cube_uvs[0].y, size_of_v<Vector2D>);
-    vertex_data_ssbo.setData(0, std::span(data::cube_positions))
-        .setData(1, std::ranges::subrange(begin_u, begin_u + std::size(data::cube_uvs)))
-        .setData(2, std::span(data::cube_colors))
-        .setData(3, std::ranges::subrange(begin_v, begin_v + std::size(data::cube_uvs)));
-
-    m_vertex_buffer.setUsage(GPUBufferUsage::eShaderStorage)
-        .setPattern(GPUBufferPattern::eStatic)
-        .setSize(vertex_data_ssbo.getSizeInBytes())
-        .create(m_context_p);
-    m_vertex_buffer.addWriteSegment({vertex_data_ssbo.getDataSpan()}).commitWriteSegments();
-    
-    m_index_buffer.setUsage(GPUBufferUsage::eShaderStorage)
-        .setPattern(GPUBufferPattern::eStatic)
-        .setSize(sizeof(data::cube_indices))
-        .create(m_context_p);
-    m_index_buffer.addWriteSegment({as_bytes(data::cube_indices)}).commitWriteSegments();
+    vkutils::immediate_submit(m_context_p, [this, &mesh](VulkanCommandBufferObject & cmd) {
+        m_mesh.create(m_context_p, cmd, mesh);
+    });
 
     m_texture_image = VulkanImage::makeUnique();
     m_texture_image->create(m_context_p, Image("assets/images/bk.jpg", 4));
@@ -176,8 +163,8 @@ void lcf::VulkanRenderer::render()
     if (not render_target->prepareForRender()) { return; }
 
     
-    VulkanCommandBufferObject & cmd_buffer = current_frame_resources.command_buffer; 
-    cmd_buffer.prepareForRecording();
+    VulkanCommandBufferObject & cmd = current_frame_resources.command_buffer; 
+    cmd.prepareForRecording();
 
     auto [width, height] = render_target->getExtent();
     vk::Viewport viewport;
@@ -188,7 +175,7 @@ void lcf::VulkanRenderer::render()
     vk::Rect2D scissor;
     scissor.setOffset({ 0, 0 }).setExtent({ width, height });
 
-    cmd_buffer.begin(vk::CommandBufferBeginInfo{});
+    cmd.begin(vk::CommandBufferBeginInfo{});
     /*
     ! DescriptorSet和Buffer都是command buffer的Resource，需要允许cmd.acquire(resource)
     ! 由cmd控制资源生命周期
@@ -200,9 +187,9 @@ void lcf::VulkanRenderer::render()
 
     auto &camera_transform = m_camera_entity.getComponent<Transform>();
     projection_view = projection * camera_transform.getInvertedLocalMatrix();
-    if (m_current_frame_index % 3 == 1) {
-        projection_view.setToIdentity();
-    }
+    // if (m_current_frame_index % 3 == 1) {
+    //     projection_view.setToIdentity();
+    // }
     m_per_view_uniform_buffer.addWriteSegment({as_bytes_from_value(projection_view), 0u});
     
     VulkanDescriptorManager &descriptor_manager = current_frame_resources.descriptor_manager;
@@ -220,9 +207,9 @@ void lcf::VulkanRenderer::render()
             .write();
     }
     
-    cmd_buffer.setViewport(0, viewport);
-    cmd_buffer.setScissor(0, scissor);
-    cmd_buffer.bindPipeline(m_graphics_pipeline.getType(), m_graphics_pipeline.getHandle());
+    cmd.setViewport(0, viewport);
+    cmd.setScissor(0, scissor);
+    cmd.bindPipeline(m_graphics_pipeline.getType(), m_graphics_pipeline.getHandle());
 
     std::vector<Matrix4x4> model_matrices(2);
     model_matrices[0].scale(0.5f);
@@ -230,13 +217,11 @@ void lcf::VulkanRenderer::render()
     angle += 0.1f;
     model_matrices[1].scale(0.5f);
     model_matrices[1].translateLocal({ 1.0f, 0.2f, 0.2f });
-    model_matrices[1].rotateAroundSelf(Quaternion::fromAxisAndAngle(Vector3D(1.0f, 1.0f, 0.0f), angle));
+    model_matrices[1].rotateAroundSelf(Quaternion::fromAxisAndAngle({1.0f, 1.0f, 0.0f}, angle));
 
-    m_per_renderable_vertex_buffer.addWriteSegment({as_bytes_from_value(m_vertex_buffer.getDeviceAddress()), 0u});
-    m_per_renderable_index_buffer.addWriteSegment({as_bytes_from_value(m_index_buffer.getDeviceAddress()), 0u});
+    m_per_renderable_vertex_buffer.addWriteSegment({as_bytes_from_value(m_mesh.getVertexBufferAddress()), 0u});
+    m_per_renderable_index_buffer.addWriteSegment({as_bytes_from_value(m_mesh.getIndexBufferAddress()), 0u});
     m_per_renderable_transform_buffer.addWriteSegment({as_bytes(model_matrices), 0u});
-
-    // cmd_buffer.drawIndirectCount();
 
     uint32_t instance_count = 0;
     std::vector<vk::DrawIndirectCommand> indirect_calls(1);
@@ -256,49 +241,46 @@ void lcf::VulkanRenderer::render()
     uint32_t indirect_call_count = 1;
     m_indirect_call_buffer.addWriteSegment({as_bytes_from_value(indirect_call_count), 0})
         .addWriteSegment({as_bytes(indirect_calls), size_of_v<vk::DrawIndirectCommand>})
-        .commitWriteSegments();
+        .commitWriteSegments(cmd);
 
     // delay commit
-    m_per_view_uniform_buffer.commitWriteSegments();
+    m_per_view_uniform_buffer.commitWriteSegments(cmd);
+    m_per_renderable_vertex_buffer.commitWriteSegments(cmd);
+    m_per_renderable_index_buffer.commitWriteSegments(cmd);
+    m_per_renderable_transform_buffer.commitWriteSegments(cmd);
 
-    m_per_renderable_vertex_buffer.commitWriteSegments();
-    m_per_renderable_index_buffer.commitWriteSegments();
-    m_per_renderable_transform_buffer.commitWriteSegments();
-    current_framebuffer.beginRendering(&cmd_buffer);
+    current_framebuffer.beginRendering(cmd);
 
     uint32_t dynamic_offset = 0;
-    cmd_buffer.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), 0, m_per_view_descriptor_set, dynamic_offset);
+    cmd.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), 0, m_per_view_descriptor_set, dynamic_offset);
+    cmd.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), 2, per_material_descriptor_set, nullptr);
+    cmd.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), 1, m_per_renderable_descriptor_set, nullptr);
 
-    cmd_buffer.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), 2, per_material_descriptor_set, nullptr);
-
-    cmd_buffer.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), 1, m_per_renderable_descriptor_set, nullptr);
-
-    //todo add a structural size for VulkanBufferObject, like InterleavedBuffer
-    cmd_buffer.drawIndirectCount(m_indirect_call_buffer.getHandle(), sizeof(vk::DrawIndirectCommand),
+    cmd.drawIndirectCount(m_indirect_call_buffer.getHandle(), sizeof(vk::DrawIndirectCommand),
         m_indirect_call_buffer.getHandle(), 0,
         1, sizeof(vk::DrawIndirectCommand));
-
-    current_framebuffer.endRendering(&cmd_buffer);
+    
+    current_framebuffer.endRendering(cmd);
     auto & target_image_sp = render_target->getTargetImageSharedPointer();
     // blit to target
     auto msaa_attachment = current_framebuffer.getMSAAResolveAttachment();
     if (msaa_attachment) {
         VulkanAttachment target_attachment(target_image_sp);
-        msaa_attachment->blitTo(&cmd_buffer, target_attachment, vk::Filter::eLinear,
+        msaa_attachment->blitTo(cmd, target_attachment, vk::Filter::eLinear,
             {{0, 0, 0}, {static_cast<int32_t>(width), static_cast<int32_t>(height), 1}},
             {{0, 0, 0}, {static_cast<int32_t>(width), static_cast<int32_t>(height), 1}});
     }
 
-    target_image_sp->transitLayout(&cmd_buffer, vk::ImageLayout::ePresentSrcKHR);
-    cmd_buffer.end();
+    target_image_sp->transitLayout(cmd, vk::ImageLayout::ePresentSrcKHR);
+    cmd.end();
 
     vk::Semaphore render_finished = current_frame_resources.render_finished.get();
     vk::SemaphoreSubmitInfo wait_info;
     wait_info.setSemaphore(render_target->getTargetAvailableSemaphore())
         .setStageMask(vk::PipelineStageFlagBits2::eColorAttachmentOutput);
-    cmd_buffer.addWaitSubmitInfo(wait_info)
+    cmd.addWaitSubmitInfo(wait_info)
         .addSignalSubmitInfo(render_finished);
-    cmd_buffer.submit(vk::QueueFlagBits::eGraphics);
+    cmd.submit(vk::QueueFlagBits::eGraphics);
 
     render_target->finishRender(render_finished);
     ++m_current_frame_index %= m_frame_resources.size();

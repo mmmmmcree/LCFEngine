@@ -61,6 +61,7 @@ void lcf::render::VulkanDescriptorManager::resetAllocatedSets()
     for (auto &pool : m_available_pools) {
         device.resetDescriptorPool(pool);
     }
+    m_full_pools.clear();
 }
 
 void lcf::render::VulkanDescriptorManager::createNewPool()

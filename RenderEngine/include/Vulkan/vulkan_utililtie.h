@@ -3,6 +3,7 @@
 #include <vulkan/vulkan.hpp>
 #include <functional>
 #include "VulkanContext.h"
+#include "VulkanCommandBufferObject.h"
 
 namespace lcf::render::vkutils {
     class ImageLayoutTransitionAssistant : public vk::ImageMemoryBarrier2
@@ -89,5 +90,5 @@ namespace lcf::render::vkutils {
         return std::make_tuple(src_stage, src_access, dst_stage, dst_access);
     }
 
-    void immediate_submit(VulkanContext * context, std::function<void()> && submit_func);
+    void immediate_submit(VulkanContext * context, std::function<void(VulkanCommandBufferObject &)> && submit_func);
 }

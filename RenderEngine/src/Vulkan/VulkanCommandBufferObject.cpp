@@ -28,13 +28,11 @@ void lcf::render::VulkanCommandBufferObject::prepareForRecording()
 void lcf::render::VulkanCommandBufferObject::begin(const vk::CommandBufferBeginInfo &begin_info)
 {
     vk::CommandBuffer::begin(begin_info);
-    m_context_p->bindCommandBuffer(this);
 }
 
 void lcf::render::VulkanCommandBufferObject::end()
 {
     vk::CommandBuffer::end();
-    m_context_p->releaseCommandBuffer();
 }
 
 void lcf::render::VulkanCommandBufferObject::submit(vk::QueueFlags queue_flags)

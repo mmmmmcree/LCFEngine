@@ -6,11 +6,29 @@
 #include "Entity.h"
 #include <QTimer>
 
+class CustomRenderWindow : public lcf::RenderWindow
+{
+public:
+    CustomRenderWindow(lcf::RenderWindow * parent = nullptr) : lcf::RenderWindow(parent) {}
+protected:
+    void keyPressEvent(QKeyEvent *event) override
+    {
+        switch (event->key()) {
+            case Qt::Key_F1: {
+                this->setWindowState(Qt::WindowFullScreen);
+            } break;
+            case Qt::Key_Escape: {
+                this->setWindowState(Qt::WindowNoState);
+            } break;
+        }
+    }
+};
+
 int main(int argc, char* argv[]) {
     lcf::GuiApplication app(argc, argv);
 
     lcf::render::VulkanContext context;
-    lcf::RenderWindow render_window;
+    CustomRenderWindow render_window;
     context.registerWindow(&render_window);
     context.create();
     lcf::VulkanRenderer renderer(&context);

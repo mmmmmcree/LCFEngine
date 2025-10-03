@@ -38,10 +38,10 @@ target_include_directories(${PROJECT_NAME}
         ${Vulkan_INCLUDE_DIR}
         ${VulkanMemoryAllocator_INCLUDE_DIRS}
         ${CMAKE_CURRENT_SOURCE_DIR}/src
-)         
+)          
 link_directories(${Vulkan_LIBRARY})
 target_link_libraries(${PROJECT_NAME}
-    PUBLIC  
+    PUBLIC   
         math
         utilities 
         Application 
