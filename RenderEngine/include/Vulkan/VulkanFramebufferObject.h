@@ -45,8 +45,8 @@ namespace lcf::render {
         OptionalAttachment getColorAttachment(uint32_t index) noexcept { return m_color_attachments.size() > index? std::make_optional(m_color_attachments[index]) : std::nullopt; }
         OptionalAttachment getDepthStencilAttachment() noexcept { return m_depth_stencil_attachment; }
         OptionalAttachment getMSAAResolveAttachment() noexcept { return m_msaa_resolve_attachment; }
-        void beginRendering(VulkanCommandBufferObject * cmd_p);
-        void endRendering(VulkanCommandBufferObject * cmd_p);
+        void beginRendering(VulkanCommandBufferObject & cmd);
+        void endRendering(VulkanCommandBufferObject & cmd);
     private:
         vk::Extent2D m_max_extent = {std::numeric_limits<uint32_t>::max(), std::numeric_limits<uint32_t>::max()};
         vk::Extent2D m_extent = {std::numeric_limits<uint32_t>::max(), std::numeric_limits<uint32_t>::max()};

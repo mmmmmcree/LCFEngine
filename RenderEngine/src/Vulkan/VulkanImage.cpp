@@ -44,26 +44,26 @@ bool lcf::render::VulkanImage::create(VulkanContext * context_p, const Image &im
         .setSize(image.getSizeInBytes())
         .create(m_context_p);
     staging_buffer.addWriteSegment({std::span(static_cast<const std::byte *>(image.getData()), image.getSizeInBytes())});
-    staging_buffer.commitWriteSegments();
-    vkutils::immediate_submit(m_context_p, [&] {
-        auto cmd = m_context_p->getCurrentCommandBuffer();
+    // staging_buffer.commitWriteSegments();
+    vkutils::immediate_submit(m_context_p, [&](VulkanCommandBufferObject & cmd) {
+        staging_buffer.commitWriteSegments(cmd);
         vk::BufferImageCopy region;
         region.setImageSubresource({ this->getAspectFlags(), 0, 0, 1 })
         .setImageOffset({ 0, 0, 0 })
         .setImageExtent(m_extent);
         this->transitLayout(cmd, vk::ImageLayout::eTransferDstOptimal);
-        cmd->copyBufferToImage(staging_buffer.getHandle(), this->getHandle(), vk::ImageLayout::eTransferDstOptimal, region);
+        cmd.copyBufferToImage(staging_buffer.getHandle(), this->getHandle(), vk::ImageLayout::eTransferDstOptimal, region);
         this->transitLayout(cmd, vk::ImageLayout::eShaderReadOnlyOptimal);
     });
     return this->isCreated();
 }
 
-void lcf::render::VulkanImage::transitLayout(VulkanCommandBufferObject * cmd_p, vk::ImageLayout new_layout)
+void lcf::render::VulkanImage::transitLayout(VulkanCommandBufferObject & cmd, vk::ImageLayout new_layout)
 {
-    this->transitLayout(cmd_p, this->getFullResourceRange(), new_layout);
+    this->transitLayout(cmd, this->getFullResourceRange(), new_layout);
 }
 
-void lcf::render::VulkanImage::transitLayout(VulkanCommandBufferObject *cmd_p, const vk::ImageSubresourceRange &subresource_range, vk::ImageLayout new_layout)
+void lcf::render::VulkanImage::transitLayout(VulkanCommandBufferObject & cmd, const vk::ImageSubresourceRange &subresource_range, vk::ImageLayout new_layout)
 {
     vk::ImageMemoryBarrier2 barrier;
     auto [src_stage, src_access, dst_stage, dst_access] = vkutils::get_transition_dependency(m_layout, new_layout);
@@ -77,7 +77,7 @@ void lcf::render::VulkanImage::transitLayout(VulkanCommandBufferObject *cmd_p, c
         .setDstAccessMask(dst_access);
     vk::DependencyInfo dependency_info;
     dependency_info.setImageMemoryBarriers(barrier);
-    cmd_p->pipelineBarrier2(dependency_info);
+    cmd.pipelineBarrier2(dependency_info);
     m_layout = new_layout;
 }
 
@@ -175,11 +175,11 @@ lcf::render::VulkanAttachment::VulkanAttachment(const VulkanImage::SharedPointer
     }
 }
 
-void VulkanAttachment::blitTo(VulkanCommandBufferObject *cmd_p, VulkanAttachment &dst, vk::Filter filter, const Offset3DPair &src_offsets, const Offset3DPair &dst_offsets)
+void VulkanAttachment::blitTo(VulkanCommandBufferObject & cmd, VulkanAttachment &dst, vk::Filter filter, const Offset3DPair &src_offsets, const Offset3DPair &dst_offsets)
 {
     auto & dst_image_sp = dst.getImageSharedPointer();
-    m_image_sp->transitLayout(cmd_p, vk::ImageLayout::eTransferSrcOptimal);
-    dst_image_sp->transitLayout(cmd_p, vk::ImageLayout::eTransferDstOptimal);
+    m_image_sp->transitLayout(cmd, vk::ImageLayout::eTransferSrcOptimal);
+    dst_image_sp->transitLayout(cmd, vk::ImageLayout::eTransferDstOptimal);
     vk::ImageBlit2 blit_region2 = {};
     blit_region2.setSrcSubresource(vk::ImageSubresourceLayers(m_image_sp->getAspectFlags(), m_mip_level, m_layer, m_layer_count))
         .setDstSubresource(vk::ImageSubresourceLayers(dst_image_sp->getAspectFlags(), dst.getMipLevel(), dst.getLayer(), dst.getLayerCount()));
@@ -192,14 +192,14 @@ void VulkanAttachment::blitTo(VulkanCommandBufferObject *cmd_p, VulkanAttachment
         .setDstImageLayout(vk::ImageLayout::eTransferDstOptimal)
         .setRegions(blit_region2)
         .setFilter(filter);
-    cmd_p->blitImage2(blit_info);
+    cmd.blitImage2(blit_info);
 }
 
-void lcf::render::VulkanAttachment::copyTo(VulkanCommandBufferObject *cmd_p, VulkanAttachment &dst, const vk::Offset3D &src_offset, const vk::Offset3D &dst_offset, const vk::Extent3D &extent)
+void lcf::render::VulkanAttachment::copyTo(VulkanCommandBufferObject & cmd, VulkanAttachment &dst, const vk::Offset3D &src_offset, const vk::Offset3D &dst_offset, const vk::Extent3D &extent)
 {
     auto & dst_image_sp = dst.getImageSharedPointer();
-    m_image_sp->transitLayout(cmd_p, vk::ImageLayout::eTransferSrcOptimal);
-    dst_image_sp->transitLayout(cmd_p, vk::ImageLayout::eTransferDstOptimal);
+    m_image_sp->transitLayout(cmd, vk::ImageLayout::eTransferSrcOptimal);
+    dst_image_sp->transitLayout(cmd, vk::ImageLayout::eTransferDstOptimal);
     vk::ImageCopy2 copy_region2 = {};
     copy_region2.setSrcSubresource(vk::ImageSubresourceLayers(m_image_sp->getAspectFlags(), m_mip_level, m_layer, m_layer_count))
         .setDstSubresource(vk::ImageSubresourceLayers(dst_image_sp->getAspectFlags(), dst.getMipLevel(), dst.getLayer(), dst.getLayerCount()))
@@ -212,7 +212,7 @@ void lcf::render::VulkanAttachment::copyTo(VulkanCommandBufferObject *cmd_p, Vul
         .setDstImage(dst_image_sp->getHandle())
         .setDstImageLayout(vk::ImageLayout::eTransferDstOptimal)
         .setRegions(copy_region2);
-    cmd_p->copyImage2(copy_info);
+    cmd.copyImage2(copy_info);
 }
 
 vk::ImageSubresourceRange lcf::render::VulkanAttachment::getSubresourceRange() const noexcept
@@ -225,9 +225,9 @@ vk::ImageView lcf::render::VulkanAttachment::getImageView() const noexcept
     return m_image_sp->getView(this->getSubresourceRange());
 }
 
-void lcf::render::VulkanAttachment::transitLayout(VulkanCommandBufferObject *cmd_p, vk::ImageLayout new_layout)
+void lcf::render::VulkanAttachment::transitLayout(VulkanCommandBufferObject & cmd, vk::ImageLayout new_layout)
 {
-    m_image_sp->transitLayout(cmd_p, this->getSubresourceRange(), new_layout);
+    m_image_sp->transitLayout(cmd, this->getSubresourceRange(), new_layout);
 }
 
 vk::ImageLayout lcf::render::VulkanAttachment::getLayout() const noexcept

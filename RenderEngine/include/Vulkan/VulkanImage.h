@@ -55,8 +55,8 @@ namespace lcf::render {
         bool create(VulkanContext * context_p, vk::Image external_image);
         bool create(VulkanContext * context_p, const Image & image); 
         bool isCreated() const noexcept { return this->getHandle(); }
-        void transitLayout(VulkanCommandBufferObject * cmd_p, vk::ImageLayout new_layout);
-        void transitLayout(VulkanCommandBufferObject * cmd_p, const vk::ImageSubresourceRange & subresource_range, vk::ImageLayout new_layout);
+        void transitLayout(VulkanCommandBufferObject & cmd, vk::ImageLayout new_layout);
+        void transitLayout(VulkanCommandBufferObject & cmd, const vk::ImageSubresourceRange & subresource_range, vk::ImageLayout new_layout);
         vk::Image getHandle() const;
         vk::ImageView getDefaultView() const;
         vk::ImageView getView(const vk::ImageSubresourceRange & subresource_range) const;
@@ -109,12 +109,12 @@ namespace lcf::render {
             uint32_t layer = 0,
             uint32_t layer_count = 1);
         VulkanAttachment(const VulkanAttachment & other) = default;
-        void blitTo(VulkanCommandBufferObject * cmd_p,
+        void blitTo(VulkanCommandBufferObject & cmd,
             VulkanAttachment & dst,
             vk::Filter filter,
             const Offset3DPair & src_offsets,
             const Offset3DPair & dst_offsets);
-        void copyTo(VulkanCommandBufferObject * cmd_p,
+        void copyTo(VulkanCommandBufferObject & cmd,
             VulkanAttachment & dst,
             const vk::Offset3D & src_offset,
             const vk::Offset3D & dst_offset,
@@ -126,7 +126,7 @@ namespace lcf::render {
         uint32_t getLayer() const noexcept { return m_layer; }
         uint32_t getLayerCount() const noexcept { return m_layer_count; }
         Self & setInitialLayout(vk::ImageLayout layout) { m_image_sp->setInitialLayout(layout); return *this; }
-        void transitLayout(VulkanCommandBufferObject * cmd_p, vk::ImageLayout new_layout);
+        void transitLayout(VulkanCommandBufferObject & cmd, vk::ImageLayout new_layout);
         vk::ImageLayout getLayout() const noexcept;
     private:
         VulkanImage::SharedPointer m_image_sp;

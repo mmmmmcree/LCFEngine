@@ -24,10 +24,10 @@ namespace lcf::impl {
             this->viewAt<T>(field_index, data_index) = data;
             return *this;
         }
-        template <std::ranges::range Span>
-        Self & setData(size_t field_index, Span && data, size_t start_data_index = 0) noexcept
+        template <std::ranges::range Range>
+        Self & setData(size_t field_index, Range && data, size_t start_data_index = 0) noexcept
         {
-            auto dst_it = this->view<std::ranges::range_value_t<Span>>(field_index).begin() + start_data_index;
+            auto dst_it = this->view<std::ranges::range_value_t<Range>>(field_index).begin() + start_data_index;
             std::ranges::copy(data | std::views::take(this->getSize() - start_data_index), dst_it);
             return *this;
         }

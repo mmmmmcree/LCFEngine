@@ -13,6 +13,7 @@ namespace lcf {
         { layout.getStructualSize() } -> std::convertible_to<size_t>;
         { layout.getFieldCount() } -> std::convertible_to<size_t>;
         { layout.getFieldOffset(index) } -> std::convertible_to<size_t>;
+        { layout.getFieldAlignedSize(index) } -> std::convertible_to<size_t>;
     };
 
     class StructureLayout

@@ -1,8 +1,11 @@
+#pragma once
+
 #include "common/enum_types.h"
 #include "common/GPUResource.h"
 #include "VulkanMemoryAllocator.h"
 #include "VulkanTimelineSemaphore.h"
 #include "VulkanBufferResource.h"
+#include "VulkanCommandBufferObject.h"
 #include "PointerDefs.h"
 #include "as_bytes.h"
 #include <span>
@@ -41,7 +44,7 @@ namespace lcf::render {
         IMPORT_POINTER_DEFS(STDPointerDefs<VulkanBufferObject>);
         // using WriteSegments = boost::icl::interval_map<uint32_t, BufferWriteSegment>; //- use interval tree to manage write segments
         using WriteSegments = std::deque<BufferWriteSegment>;
-        using ExecuteWriteSequenceMethod = void (Self::*)();
+        using ExecuteWriteSequenceMethod = void (Self::*)(VulkanCommandBufferObject &);
         VulkanBufferObject() = default;
         VulkanBufferObject(const Self &) = delete;
         VulkanBufferObject(Self &&) = delete;
@@ -54,23 +57,23 @@ namespace lcf::render {
         Self & setPattern(GPUBufferPattern pattern) noexcept;
         Self & addWriteSegment(const BufferWriteSegment &segment) noexcept; // overwrite if overlaps
         Self & addWriteSegmentIfAbsent(const BufferWriteSegment &segment) noexcept; // don't overwrite if overlaps
-        void commitWriteSegments();
+        void commitWriteSegments(VulkanCommandBufferObject & cmd);
         uint32_t getSize() const noexcept { return m_size; }
         vk::Buffer getHandle() const noexcept { return m_buffer_up ? m_buffer_up->getHandle() : nullptr; }
         const vk::DeviceAddress & getDeviceAddress() const noexcept { return m_device_address; }
         std::byte * getMappedMemoryPtr() const noexcept { return m_buffer_up->getMappedMemoryPtr(); }
     private:
         void recreate(uint32_t size_in_bytes);
-        Self & resize(uint32_t size_in_bytes);
-        void copyFromBufferWithBarriers(vk::Buffer src,
+        Self & resize(uint32_t size_in_bytes, VulkanCommandBufferObject & cmd);
+        void copyFromBufferWithBarriers(VulkanCommandBufferObject & cmd,
+            vk::Buffer src,
             uint32_t data_size_in_bytes,
             uint32_t src_offset_in_bytes = 0u,
             uint32_t dst_offset_in_bytes = 0u);
         void writeSegmentsDirectly(const WriteSegments &segments, uint32_t dst_offset_in_bytes = 0u);
-        void executeWriteSequence();
-        void executeCpuWriteSequence();
-        void executeGpuWriteSequence();
-        void executeGpuWriteSequenceWithoutCmd();
+        void executeWriteSequence(VulkanCommandBufferObject & cmd);
+        void executeCpuWriteSequence(VulkanCommandBufferObject & cmd);
+        void executeGpuWriteSequence(VulkanCommandBufferObject & cmd);
         void updateWriteBounds(uint32_t lower_bound, uint32_t upper_bound);
         void resetWriteBounds();
     private:

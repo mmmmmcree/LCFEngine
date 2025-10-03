@@ -1,6 +1,8 @@
 #pragma once
 
 #include "StructureLayout.h"
+#include "lcf_type_traits.h"
+#include <iostream>
 
 namespace lcf::impl {
     template <structure_layout_c StructureLayout>
@@ -49,10 +51,15 @@ namespace lcf::impl {
             this->viewAt<T>(field_index, data_index) = data;
             return *this;
         }
-        template <std::ranges::range Span>
-        Self & setData(size_t field_index, Span && data, size_t start_data_index = 0) noexcept
+        template <std::ranges::range Range>
+        Self & setData(size_t field_index, Range && data, size_t start_data_index = 0) noexcept
         {
-            auto dst_it = this->view<std::ranges::range_value_t<Span>>(field_index).begin() + start_data_index;
+            using ValueType = std::ranges::range_value_t<Range>;
+            if (size_of_v<ValueType> > m_layout.getFieldAlignedSize(field_index)) {
+                std::cerr << "lcf::impl::InterleavedBufferIMPL::setData: Warning: Data size is greater than field size. Data will be truncated." << std::endl;
+                return *this;
+            }
+            auto dst_it = this->view<ValueType>(field_index).begin() + start_data_index;
             std::ranges::copy(data | std::views::take(this->getSize() - start_data_index), dst_it);
             return *this;
         }

@@ -68,13 +68,13 @@ VulkanFramebufferObject & VulkanFramebufferObject::addColorAttachment(const Atta
     return *this;
 }
 
-void VulkanFramebufferObject::beginRendering(VulkanCommandBufferObject *cmd_p)
+void VulkanFramebufferObject::beginRendering(VulkanCommandBufferObject & cmd)
 {
     std::vector<vk::RenderingAttachmentInfo> color_attachment_infos(m_color_attachments.size());
     for (int i = 0; i < m_color_attachments.size(); ++i) {
         auto & color_attachment = m_color_attachments[i];
         color_attachment.setInitialLayout(vk::ImageLayout::eUndefined)
-            .transitLayout(cmd_p, vk::ImageLayout::eColorAttachmentOptimal);
+            .transitLayout(cmd, vk::ImageLayout::eColorAttachmentOptimal);
         color_attachment_infos[i].setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
             .setImageView(color_attachment.getImageView())
             .setLoadOp(color_attachment.getLoadOp())
@@ -85,7 +85,7 @@ void VulkanFramebufferObject::beginRendering(VulkanCommandBufferObject *cmd_p)
     if (m_depth_stencil_attachment) {
         auto & depth_stencil_attachment = *m_depth_stencil_attachment;
         depth_stencil_attachment.setInitialLayout(vk::ImageLayout::eUndefined)
-            .transitLayout(cmd_p, vk::ImageLayout::eDepthStencilAttachmentOptimal);
+            .transitLayout(cmd, vk::ImageLayout::eDepthStencilAttachmentOptimal);
         depth_stencil_attachment_info.setImageLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal)
             .setImageView(depth_stencil_attachment.getImageView())
             .setLoadOp(depth_stencil_attachment.getLoadOp())
@@ -95,7 +95,7 @@ void VulkanFramebufferObject::beginRendering(VulkanCommandBufferObject *cmd_p)
     if (m_msaa_resolve_attachment) {
         auto & msaa_resolve_attachment = *m_msaa_resolve_attachment;
         msaa_resolve_attachment.setInitialLayout(vk::ImageLayout::eUndefined)
-            .transitLayout(cmd_p, vk::ImageLayout::eColorAttachmentOptimal);
+            .transitLayout(cmd, vk::ImageLayout::eColorAttachmentOptimal);
         color_attachment_infos[0].setResolveImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
             .setResolveImageView(msaa_resolve_attachment.getImageView())
             .setResolveMode(msaa_resolve_attachment.getResolveMode());
@@ -105,10 +105,10 @@ void VulkanFramebufferObject::beginRendering(VulkanCommandBufferObject *cmd_p)
         .setLayerCount(1)
         .setColorAttachments(color_attachment_infos)
         .setPDepthAttachment(&depth_stencil_attachment_info);
-    cmd_p->beginRendering(rendering_info);
+    cmd.beginRendering(rendering_info);
 }
 
-void VulkanFramebufferObject::endRendering(VulkanCommandBufferObject *cmd_p)
+void VulkanFramebufferObject::endRendering(VulkanCommandBufferObject & cmd)
 {
-    cmd_p->endRendering();
+    cmd.endRendering();
 }
