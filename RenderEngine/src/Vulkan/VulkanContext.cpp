@@ -38,37 +38,48 @@ void lcf::render::VulkanContext::create()
     SurfaceRenderTargetList{}.swap(m_surface_render_targets);
 }
 
-lcf::render::VulkanCommandBufferObject * lcf::render::VulkanContext::getCurrentCommandBuffer() const noexcept 
-{
-    if (m_bound_cmd_buffer_stack.empty()) { return nullptr; }
-    return m_bound_cmd_buffer_stack.top();
-}
+// lcf::render::VulkanCommandBufferObject * lcf::render::VulkanContext::getCurrentCommandBuffer() const noexcept 
+// {
+//     if (m_bound_cmd_buffer_stack.empty()) { return nullptr; }
+//     return m_bound_cmd_buffer_stack.top();
+// }
 
 void lcf::render::VulkanContext::setupVulkanInstance()
 {
+    QByteArrayList extensions = {
+    #ifndef NDEBUG
+        "VK_EXT_debug_utils",
+    #endif
+    };
+    QByteArrayList layers = {
+    #ifndef NDEBUG
+        "VK_LAYER_KHRONOS_validation",
+    #endif
+    };
+    m_vk_instance.setApiVersion({1, 3, 2});
+    m_vk_instance.setExtensions(extensions);
+    m_vk_instance.setLayers(layers);
+#ifndef NDEBUG
+    qputenv("VK_LAYER_ENABLES", "VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT");
+    qputenv("DEBUG_PRINTF_TO_STDOUT", "1"); 
     QVulkanInstance::DebugUtilsFilter debug_utils_filter = [](
         QVulkanInstance::DebugMessageSeverityFlags severity,
         QVulkanInstance::DebugMessageTypeFlags type, const void *message)
     {
-        qDebug() << static_cast<const VkDebugUtilsMessengerCallbackDataEXT *>(message)->pMessage;
+        auto* msg_data = static_cast<const VkDebugUtilsMessengerCallbackDataEXT *>(message);
+        qDebug() << msg_data->pMessage;
         return true;
     };
-    QByteArrayList extensions = {};
-    QByteArrayList layers = {
-        "VK_LAYER_KHRONOS_validation",
-    };
-    m_vk_instance.setApiVersion({1, 3, 2});
     m_vk_instance.installDebugOutputFilter(debug_utils_filter);
-    m_vk_instance.setExtensions(extensions);
-    m_vk_instance.setLayers(layers);
     QLoggingCategory::setFilterRules(QStringLiteral("qt.vulkan=true"));
+#endif
     if (not m_vk_instance.create()) {
         qFatal("Failed to create Vulkan instance: %d", m_vk_instance.errorCode());
     }
-    #if ( VULKAN_HPP_DISPATCH_LOADER_DYNAMIC == 1 )
-      VULKAN_HPP_DEFAULT_DISPATCHER.init();
-      VULKAN_HPP_DEFAULT_DISPATCHER.init(vk::Instance(m_vk_instance.vkInstance()));
-    #endif
+#if ( VULKAN_HPP_DISPATCH_LOADER_DYNAMIC == 1 )
+    VULKAN_HPP_DEFAULT_DISPATCHER.init();
+    VULKAN_HPP_DEFAULT_DISPATCHER.init(vk::Instance(m_vk_instance.vkInstance()));
+#endif
 }
 
 void lcf::render::VulkanContext::pickPhysicalDevice()
@@ -131,6 +142,7 @@ void lcf::render::VulkanContext::createLogicalDevice()
         VK_KHR_MAINTENANCE1_EXTENSION_NAME,
         VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME,
         VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME,
+        VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME,
     };
     if (not m_surface_render_targets.empty()) {
         std::vector<const char *> extensions = {
@@ -158,7 +170,8 @@ void lcf::render::VulkanContext::createLogicalDevice()
         .setDescriptorIndexing(true)
         .setDrawIndirectCount(true)
         .setTimelineSemaphore(true);
-    device_info.get<vk::PhysicalDeviceVulkan11Features>().setShaderDrawParameters(true);
+    device_info.get<vk::PhysicalDeviceVulkan11Features>().setShaderDrawParameters(true)
+        .setStorageBuffer16BitAccess(true);
     device_info.get<vk::PhysicalDeviceFeatures2>().setFeatures(m_physical_device.getFeatures());
 
     device_info.get<vk::DeviceCreateInfo>().setQueueCreateInfos(queue_infos)
