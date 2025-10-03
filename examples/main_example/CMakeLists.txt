@@ -6,6 +6,7 @@ target_link_libraries(main_example
     PRIVATE
         RenderEngine
         Modules
+        Systems
 )
 
 add_custom_command(TARGET main_example POST_BUILD

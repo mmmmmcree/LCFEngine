@@ -23,9 +23,8 @@ namespace lcf {
         VulkanRenderer& operator=(const VulkanRenderer&) = delete;
         ~VulkanRenderer();
         void setRenderTarget(const RenderTarget::SharedPointer & render_target);
-        void setCamera(const Entity & camera_entity);
         void create();
-        void render();
+        void render(const Entity & camera);
     private:
         VulkanContext * m_context_p;
         VulkanSwapchain::WeakPointer m_render_target;
@@ -52,7 +51,7 @@ namespace lcf {
         VulkanBufferObject m_per_view_uniform_buffer;
 
         VulkanBufferObject m_indirect_call_buffer;
-        
+
         VulkanMesh m_mesh;
         
         VulkanBufferObject m_per_renderable_vertex_buffer;
@@ -61,6 +60,5 @@ namespace lcf {
 
         VulkanImage::UniquePointer m_texture_image;
         vk::UniqueSampler m_texture_sampler;
-        Entity m_camera_entity;
     };
 }

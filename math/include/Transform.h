@@ -12,9 +12,12 @@ namespace lcf {
         Transform() = default;
         Transform(const Transform &other);
         Transform &operator=(const Transform &other);
-        void setLocalMatrix(const Matrix4x4 &matrix);
-        const Matrix4x4 & getLocalMatrix() const;
-        const Matrix4x4 & getInvertedLocalMatrix() const;
+        void setLocalMatrix(const Matrix4x4 & matrix);
+        void setWorldMatrix(const Matrix4x4 * world_matrix); // controlled by TransformSystem
+        const Matrix4x4 & getWorldMatrix() const { return *m_world_matrix; }
+        const Matrix4x4 & getLocalMatrix() const { return m_local_matrix; }
+        const Matrix4x4 & getInvertedWorldMatrix() const;
+        bool isHierarchy() const { return m_world_matrix != &m_local_matrix; }
         void translateWorld(float x, float y, float z);
         void translateWorld(const Vector3D &translation);
         void translateLocal(float x, float y, float z);
@@ -48,11 +51,11 @@ namespace lcf {
         Quaternion getRotation() const;
         Vector3D getScale() const;
     private:
-        void requireUpdate();
+        void markDirty() const { m_is_inverted_dirty = true; }
     private:
-        Vector3D m_scale = {1.0f, 1.0f, 1.0f};
-        Matrix4x4 m_matrix;
-        mutable bool m_is_inverted_dirty = true;
-        mutable Matrix4x4 m_inverted_matrix;
+        Matrix4x4 m_local_matrix;
+        const Matrix4x4 * m_world_matrix = &m_local_matrix;
+        mutable Matrix4x4 m_inverted_world_matrix;
+        mutable bool m_is_inverted_dirty = false;
     };
 }

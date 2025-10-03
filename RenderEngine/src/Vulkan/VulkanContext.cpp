@@ -61,7 +61,7 @@ void lcf::render::VulkanContext::setupVulkanInstance()
     m_vk_instance.setLayers(layers);
 #ifndef NDEBUG
     qputenv("VK_LAYER_ENABLES", "VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT");
-    qputenv("DEBUG_PRINTF_TO_STDOUT", "1"); 
+    qputenv("VK_LAYER_PRINTF_TO_STDOUT", "1"); 
     QVulkanInstance::DebugUtilsFilter debug_utils_filter = [](
         QVulkanInstance::DebugMessageSeverityFlags severity,
         QVulkanInstance::DebugMessageTypeFlags type, const void *message)

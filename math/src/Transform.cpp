@@ -2,38 +2,44 @@
 
 
 lcf::Transform::Transform(const Transform &other) :
-    m_is_inverted_dirty(true), 
-    m_scale(other.m_scale),
-    m_matrix(other.m_matrix)
+    m_is_inverted_dirty(other.m_is_inverted_dirty), 
+    m_local_matrix(other.m_local_matrix),
+    m_world_matrix(other.m_world_matrix),
+    m_inverted_world_matrix(other.m_inverted_world_matrix)
 {
 }
 
 lcf::Transform &lcf::Transform::operator=(const Transform &other)
 {
-    this->requireUpdate();
-    m_matrix = other.m_matrix;
-    m_scale = other.m_scale;
+
+    m_local_matrix = other.m_local_matrix;
+    m_world_matrix = other.m_world_matrix;
+    m_inverted_world_matrix = other.m_inverted_world_matrix;
+    m_is_inverted_dirty = other.m_is_inverted_dirty;
     return *this;
 }
 
 void lcf::Transform::setLocalMatrix(const Matrix4x4 &matrix)
 {
-    m_matrix = matrix;
-    this->requireUpdate();
+    m_local_matrix = matrix;
 }
 
-const lcf::Matrix4x4 &lcf::Transform::getLocalMatrix() const
+void lcf::Transform::setWorldMatrix(const Matrix4x4 *world_matrix)
 {
-    return m_matrix;
+    if (not world_matrix) { return; }
+    m_world_matrix = world_matrix;
+    if (this->isHierarchy()) {
+        this->markDirty();
+    }
 }
 
-const lcf::Matrix4x4 &lcf::Transform::getInvertedLocalMatrix() const
+const lcf::Matrix4x4 &lcf::Transform::getInvertedWorldMatrix() const
 {
     if (m_is_inverted_dirty) {
-        m_inverted_matrix = m_matrix.inverted();
+        m_inverted_world_matrix = m_world_matrix->inverted();
         m_is_inverted_dirty = false;
     }
-    return m_inverted_matrix;
+    return m_inverted_world_matrix;
 }
 
 void lcf::Transform::translateWorld(float x, float y, float z)
@@ -44,8 +50,8 @@ void lcf::Transform::translateWorld(float x, float y, float z)
 void lcf::Transform::translateWorld(const Vector3D &translation)
 {
     if (translation.isNull()) { return; }
-    m_matrix.setColumn(3, Vector4D(this->getTranslation() + translation));
-    this->requireUpdate();
+    m_local_matrix.setColumn(3, Vector4D(this->getTranslation() + translation, 1.0f));
+    this->markDirty();
 }
 
 void lcf::Transform::translateLocal(float x, float y, float z)
@@ -56,8 +62,8 @@ void lcf::Transform::translateLocal(float x, float y, float z)
 void lcf::Transform::translateLocal(const Vector3D &translation)
 {
     if (translation.isNull()) { return; }
-    m_matrix.translateLocal(translation);
-    this->requireUpdate();
+    m_local_matrix.translateLocal(translation);
+    this->markDirty();
 }
 
 void lcf::Transform::translateLocalXAxis(float x)
@@ -78,8 +84,7 @@ void lcf::Transform::translateLocalZAxis(float z)
 void lcf::Transform::rotateLocal(const Quaternion &rotation)
 {
     if (rotation.isNull() or rotation.isIdentity()) { return; }
-    m_matrix.rotateLocal(rotation.normalized());
-    this->requireUpdate();
+    m_local_matrix.rotateLocal(rotation.normalized());
 }
 
 void lcf::Transform::rotateLocalXAxis(float angle_degrees)
@@ -100,22 +105,22 @@ void lcf::Transform::rotateLocalZAxis(float angle_degrees)
 void lcf::Transform::rotateAround(const Quaternion &rotation, const Vector3D &position)
 {
     if (rotation.isNull() or rotation.isIdentity()) { return; }
-    m_matrix.rotateAround(rotation, position);
-    this->requireUpdate();
+    m_local_matrix.rotateAround(rotation, position);
+    this->markDirty();
 }
 
 void lcf::Transform::rotateAroundOrigin(const Quaternion &rotation)
 {
     if (rotation.isNull() or rotation.isIdentity()) { return; }
-    m_matrix.rotateAroundOrigin(rotation);
-    this->requireUpdate();
+    m_local_matrix.rotateAroundOrigin(rotation);
+    this->markDirty();
 }
 
 void lcf::Transform::rotateAroundSelf(const Quaternion &rotation)
 {
     if (rotation.isNull() or rotation.isIdentity()) { return; }
-    m_matrix.rotateAroundSelf(rotation);
-    this->requireUpdate();
+    m_local_matrix.rotateAroundSelf(rotation);
+    this->markDirty();
 }
 
 void lcf::Transform::scale(float factor)
@@ -130,10 +135,8 @@ void lcf::Transform::scale(float x, float y, float z)
 
 void lcf::Transform::scale(const Vector3D &scale)
 {
-    Vector3D s = max(scale, std::numeric_limits<float>::epsilon());
-    m_matrix.scale(s);
-    m_scale *= s;
-    this->requireUpdate();
+    m_local_matrix.scale(max(scale, std::numeric_limits<float>::epsilon()));
+    this->markDirty();
 }
 
 void lcf::Transform::setTranslation(float x, float y, float z)
@@ -143,14 +146,14 @@ void lcf::Transform::setTranslation(float x, float y, float z)
 
 void lcf::Transform::setTranslation(const Vector3D &position)
 {
-    m_matrix.setColumn(3, Vector4D(position, 1.0f));
-    this->requireUpdate();
+    m_local_matrix.setColumn(3, Vector4D(position, 1.0f));
+    this->markDirty();
 }
 
 void lcf::Transform::setRotation(const Quaternion &rotation)
 {
-    m_matrix.setRotation(rotation);
-    this->requireUpdate();
+    m_local_matrix.setRotation(rotation);
+    this->markDirty();
 }
 
 void lcf::Transform::setRotation(float angle_degrees, float x, float y, float z)
@@ -165,14 +168,13 @@ void lcf::Transform::setRotation(float angle_degrees, const Vector3D &axis)
 
 void lcf::Transform::setScale(float x, float y, float z)
 {
-    this->setScale(Vector3D(x, y, z));
+    this->setScale(max(Vector3D(x, y, z), std::numeric_limits<float>::epsilon()));
 }
 
 void lcf::Transform::setScale(const Vector3D &scale)
 {
-    m_scale = max(scale, std::numeric_limits<float>::epsilon());
-    m_matrix.setScale(m_scale);
-    this->requireUpdate();
+    m_local_matrix.setScale(scale);
+    this->markDirty();
 }
 
 void lcf::Transform::setScale(float factor)
@@ -182,7 +184,6 @@ void lcf::Transform::setScale(float factor)
 
 void lcf::Transform::setTRS(const Vector3D &translation, const Quaternion &rotation, const Vector3D &scale)
 {
-    m_scale = max(scale, std::numeric_limits<float>::epsilon());
     this->setTranslation(translation);
     this->setRotation(rotation);
     this->setScale(scale);
@@ -205,20 +206,15 @@ lcf::Vector3D lcf::Transform::getZAxis() const
 
 lcf::Vector3D lcf::Transform::getTranslation() const
 {
-    return m_matrix.getColumn(3).toVector3D();
+    return m_local_matrix.getColumn(3).toVector3D();
 }
 
 lcf::Quaternion lcf::Transform::getRotation() const
 {
-    return m_matrix.getRotation();
+    return m_local_matrix.getRotation();
 }
 
 lcf::Vector3D lcf::Transform::getScale() const
 {
-    return m_scale;
-}
-
-void lcf::Transform::requireUpdate()
-{
-    m_is_inverted_dirty = true;
+    return m_local_matrix.getScale();
 }

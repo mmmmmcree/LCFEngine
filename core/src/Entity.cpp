@@ -1,63 +1,28 @@
 #include "Entity.h"
 
-lcf::Entity::Entity(Registry *registry)
+lcf::Entity::Entity(Registry * registry_p, Entity * signal_manager_p) :
+    m_registry_p(registry_p),
+    m_signal_manager_p(signal_manager_p)
 {
-    m_registry = registry;
-    if (not m_registry) {
-        m_registry = new Registry;
-        m_owns_registry = true;
-    }
-    m_entity = m_registry->create();
-    m_owns_entity = true;
+    m_entity = m_registry_p->create();
+}
+
+lcf::Entity::Entity(Entity && other) noexcept :
+    m_registry_p(other.m_registry_p),
+    m_signal_manager_p(other.m_signal_manager_p), 
+    m_entity(std::move(other.m_entity))
+{
+}
+
+lcf::Entity & lcf::Entity::operator=(Entity && other) noexcept
+{
+    m_registry_p = other.m_registry_p;
+    m_signal_manager_p = other.m_signal_manager_p;
+    m_entity = std::move(other.m_entity);
+    return *this;
 }
 
 lcf::Entity::~Entity()
 {
-    if (m_owns_entity) {
-        m_registry->destroy(m_entity);
-    }
-    if (m_owns_registry) {
-        delete m_registry;
-    }
-}
-
-
-lcf::Entity::Entity(const Entity &other) :
-    m_registry(other.m_registry),
-    m_entity(other.m_entity),
-    m_owns_registry(false),
-    m_owns_entity(false)
-{
-}
-
-lcf::Entity::Entity(Entity &&other) :
-    m_registry(other.m_registry),
-    m_entity(other.m_entity),
-    m_owns_registry(other.m_owns_registry),
-    m_owns_entity(other.m_owns_entity)
-{
-    other.m_owns_entity = false;
-    other.m_owns_registry = false;
-}
-
-lcf::Entity &lcf::Entity::operator=(const Entity &other)
-{
-    if (this == &other) { return *this; }
-    m_registry = other.m_registry;
-    m_entity = other.m_entity;
-    m_owns_registry = false;
-    m_owns_entity = false;
-    return *this;
-}
-
-lcf::Entity &lcf::Entity::operator=(Entity &&other)
-{
-    if (this == &other) { return *this; }
-    m_registry = other.m_registry;
-    m_entity = other.m_entity;
-    m_owns_registry = other.m_owns_registry;
-    m_owns_entity = other.m_owns_entity;
-    other.m_owns_entity = false;
-    other.m_owns_registry = false;
-    return *this;
+    m_registry_p->destroy(m_entity);
 }

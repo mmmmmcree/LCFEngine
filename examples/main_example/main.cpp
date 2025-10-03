@@ -4,6 +4,7 @@
 #include "Vulkan/VulkanRenderer.h"
 #include "CameraControllers/TrackballController.h"
 #include "Entity.h"
+#include "TransformSystem.h"
 #include <QTimer>
 
 class CustomRenderWindow : public lcf::RenderWindow
@@ -37,16 +38,20 @@ int main(int argc, char* argv[]) {
     render_window.resize(1280, 720);
     render_window.show();
 
-    lcf::Entity camera_entity;
-    auto & camera_transform = camera_entity.requireComponent<lcf::Transform>();
-    auto & projection_matrix = camera_entity.requireComponent<lcf::Matrix4x4>();
-    projection_matrix.perspective(glm::radians(90.0f), 1.0f, 0.1f, 100.0f);
+    lcf::Registry registry;
+    lcf::TransformSystem transform_system(&registry);
+    
+    lcf::Entity signal_manager(&registry);
+    auto & transform_acquired_signal = signal_manager.requireComponent<lcf::TransformUpdateSignal>();
+    transform_acquired_signal.connect<&lcf::TransformSystem::onTransformUpdate>(transform_system);
+    auto & transform_hierarchy_attach_signal = signal_manager.requireComponent<lcf::TransformHierarchyAttachSignal>();
+    transform_hierarchy_attach_signal.connect<&lcf::TransformSystem::onTransformHierarchyAttach>(transform_system);
+
+    lcf::Entity camera_entity(&registry, &signal_manager);
+    camera_entity.requireComponent<lcf::Transform>();
+    
     lcf::modules::TrackballController trackball_controller;
     trackball_controller.setInputManager(render_window.getInputManager());
-    trackball_controller.controls(camera_transform);
-
-    renderer.setCamera(camera_entity);
-
 
     QTimer render_timer;
     int update_interval = 5;
@@ -56,8 +61,9 @@ int main(int argc, char* argv[]) {
     }
     render_timer.setInterval(update_interval);
     QObject::connect(&render_timer, &QTimer::timeout, [&] {
-        trackball_controller.update();
-        renderer.render();
+        trackball_controller.update(camera_entity);
+        transform_system.update();
+        renderer.render(camera_entity);
     });
     render_timer.start();
 

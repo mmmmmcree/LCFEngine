@@ -1,4 +1,4 @@
-project(Modules)
+project(Systems)
 
 file(GLOB_RECURSE HEADERS "include/*.h")
 file(GLOB_RECURSE SOURCES "src/*.cpp")
@@ -19,7 +19,7 @@ endforeach()
 include_directories( 
   ${CMAKE_CURRENT_SOURCE_DIR}/include 
   ${DIRS_ONLY} 
-)     
+)      
  
 
 target_include_directories(${PROJECT_NAME}
@@ -35,6 +35,5 @@ target_link_libraries(${PROJECT_NAME}
         math
         utilities 
         core
-        Application 
     PRIVATE
 )

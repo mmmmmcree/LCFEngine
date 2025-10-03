@@ -2,6 +2,8 @@
 
 #include "Transform.h"
 #include "InputManager.h"
+#include "Entity.h"
+#include <optional>
 
 namespace lcf::modules
 {
@@ -10,12 +12,9 @@ namespace lcf::modules
     public:
         TrackballController() = default;
         void setInputManager(const InputManager * input_manager) { m_input_manager = input_manager; }
-        void controls(Transform & transform) { m_controlled_transform = &transform; }
-        void controns(Transform * transform) { m_controlled_transform = transform; }
-        void update();
+        void update(Entity & camera);
     private:
         const InputManager * m_input_manager = nullptr;
-        Transform * m_controlled_transform = nullptr;
         float m_sensitivity = 0.2f;
         float m_move_speed = 0.005f;
         float m_zoom_speed = 0.01f;

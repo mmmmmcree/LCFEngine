@@ -21,7 +21,6 @@
 lcf::VulkanRenderer::VulkanRenderer(VulkanContext *context) :
     m_context_p(context)
 {
-    m_camera_entity.requireComponent<Transform>();
 }
 
 lcf::VulkanRenderer::~VulkanRenderer()
@@ -35,13 +34,6 @@ void lcf::VulkanRenderer::setRenderTarget(const RenderTarget::SharedPointer & re
     if (not render_target) { return; }
     render_target->create(); //make sure the target is created
     m_render_target = std::static_pointer_cast<VulkanSwapchain>(render_target);
-}
-
-void lcf::VulkanRenderer::setCamera(const Entity &camera_entity)
-{
-    if (camera_entity.hasComponent<Transform>()) {
-        m_camera_entity = camera_entity;
-    }
 }
 
 void lcf::VulkanRenderer::create()
@@ -153,7 +145,7 @@ void lcf::VulkanRenderer::create()
         .write();
 }
 
-void lcf::VulkanRenderer::render()
+void lcf::VulkanRenderer::render(const lcf::Entity & camera)
 {
     auto device = m_context_p->getDevice();
     auto &current_frame_resources = m_frame_resources[m_current_frame_index];
@@ -185,8 +177,9 @@ void lcf::VulkanRenderer::render()
     Matrix4x4 projection, projection_view;
     projection.perspective(90.0f, static_cast<float>(width) / height, 0.1f, 100.0f);
 
-    auto &camera_transform = m_camera_entity.getComponent<Transform>();
-    projection_view = projection * camera_transform.getInvertedLocalMatrix();
+    auto &camera_transform = camera.getComponent<Transform>();
+
+    projection_view = projection * camera_transform.getInvertedWorldMatrix();
     // if (m_current_frame_index % 3 == 1) {
     //     projection_view.setToIdentity();
     // }
@@ -253,8 +246,8 @@ void lcf::VulkanRenderer::render()
 
     uint32_t dynamic_offset = 0;
     cmd.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), 0, m_per_view_descriptor_set, dynamic_offset);
-    cmd.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), 2, per_material_descriptor_set, nullptr);
     cmd.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), 1, m_per_renderable_descriptor_set, nullptr);
+    cmd.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), 2, per_material_descriptor_set, nullptr);
 
     cmd.drawIndirectCount(m_indirect_call_buffer.getHandle(), sizeof(vk::DrawIndirectCommand),
         m_indirect_call_buffer.getHandle(), 0,
