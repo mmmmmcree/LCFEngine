@@ -1,6 +1,7 @@
 #pragma once
 
 #include <type_traits>
+#include <bit>
 
 namespace lcf {
     template <typename T>
@@ -31,44 +32,4 @@ namespace lcf {
 
     template <typename T>
     concept enum_flags_c = enum_c<T> and enum_flags_traits_v<T>;
-
-    template <enum_flags_c EnumFlags>
-    constexpr EnumFlags operator&(const EnumFlags & lhs, const EnumFlags & rhs) noexcept
-    {
-        using UnderlyingType = std::underlying_type_t<EnumFlags>;
-        return static_cast<EnumFlags>(static_cast<UnderlyingType>(lhs) & static_cast<UnderlyingType>(rhs));
-    }
-
-    template <enum_flags_c EnumFlags>
-    constexpr EnumFlags operator|(const EnumFlags & lhs, const EnumFlags & rhs) noexcept
-    {
-        using UnderlyingType = std::underlying_type_t<EnumFlags>;
-        return static_cast<EnumFlags>(static_cast<UnderlyingType>(lhs) | static_cast<UnderlyingType>(rhs));
-    }
-
-    template <enum_flags_c EnumFlags>
-    constexpr EnumFlags operator^(const EnumFlags & lhs, const EnumFlags & rhs) noexcept
-    {
-        using UnderlyingType = std::underlying_type_t<EnumFlags>;
-        return static_cast<EnumFlags>(static_cast<UnderlyingType>(lhs) ^ static_cast<UnderlyingType>(rhs));
-    }
-
-    template <enum_flags_c EnumFlags>
-    constexpr EnumFlags operator~(const EnumFlags & flags) noexcept
-    {
-        using UnderlyingType = std::underlying_type_t<EnumFlags>;
-        return static_cast<EnumFlags>(~static_cast<UnderlyingType>(flags));
-    }
-
-    template <enum_flags_c EnumFlags>
-    constexpr EnumFlags & operator&=(EnumFlags & lhs, const EnumFlags & rhs) noexcept { return lhs = lhs & rhs; }
-
-    template <enum_flags_c EnumFlags>
-    constexpr EnumFlags & operator|=(EnumFlags & lhs, const EnumFlags & rhs) noexcept { return lhs = lhs | rhs; }
-
-    template <enum_flags_c EnumFlags>
-    constexpr EnumFlags & operator^=(EnumFlags & lhs, const EnumFlags & rhs) noexcept { return lhs = lhs ^ rhs; }
-
-    #define MAKE_ENUM_FLAGS(EnumFlags) \
-        template <> struct enum_flags_traits<EnumFlags> : lcf::enum_flags_true_type<EnumFlags> {}
 }
