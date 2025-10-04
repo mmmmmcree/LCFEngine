@@ -7,7 +7,7 @@
 #include "VulkanBufferResource.h"
 #include "VulkanCommandBufferObject.h"
 #include "PointerDefs.h"
-#include "as_bytes.h"
+#include "BufferWriteSegment.h"
 #include <span>
 // #include <boost/icl/interval_map.hpp> //- use interval tree to manage write segments
 #include <deque>
@@ -16,34 +16,13 @@
 namespace lcf::render {
     class VulkanContext;
 
-    class BufferWriteSegment
-    {
-    public:
-        BufferWriteSegment() = default;
-        BufferWriteSegment(ByteView bytes, size_t offset_in_bytes = 0u) noexcept :
-            m_data(bytes), m_offset_in_bytes(offset_in_bytes) {}
-        BufferWriteSegment(const BufferWriteSegment& other) = default;
-        BufferWriteSegment(BufferWriteSegment&& other) noexcept = default;
-        BufferWriteSegment& operator=(const BufferWriteSegment& other) = default;
-        ByteView getDataView() const noexcept { return m_data; }
-        const std::byte * getData() const noexcept { return m_data.data(); }
-        size_t getSizeInBytes() const noexcept { return m_data.size_bytes(); }
-        size_t getBeginOffsetInBytes() const noexcept { return m_offset_in_bytes; }
-        size_t getEndOffsetInBytes() const noexcept { return m_offset_in_bytes + m_data.size_bytes(); }
-        bool operator==(const BufferWriteSegment& other) const noexcept; // equality rule for boost::icl::interval_map
-        BufferWriteSegment & operator+=(const BufferWriteSegment& other) noexcept; //merge rule for boost::icl::interval_map
-    private:
-        ByteView m_data;
-        size_t m_offset_in_bytes = 0;
-    };
-
     class VulkanBufferObject : public STDPointerDefs<VulkanBufferObject>
     {
         using Self = VulkanBufferObject;
     public:
         IMPORT_POINTER_DEFS(STDPointerDefs<VulkanBufferObject>);
         // using WriteSegments = boost::icl::interval_map<uint32_t, BufferWriteSegment>; //- use interval tree to manage write segments
-        using WriteSegments = std::deque<BufferWriteSegment>;
+        using WriteSegments = BufferWriteSegments;
         using ExecuteWriteSequenceMethod = void (Self::*)(VulkanCommandBufferObject &);
         VulkanBufferObject() = default;
         VulkanBufferObject(const Self &) = delete;
@@ -74,8 +53,6 @@ namespace lcf::render {
         void executeWriteSequence(VulkanCommandBufferObject & cmd);
         void executeCpuWriteSequence(VulkanCommandBufferObject & cmd);
         void executeGpuWriteSequence(VulkanCommandBufferObject & cmd);
-        void updateWriteBounds(uint32_t lower_bound, uint32_t upper_bound);
-        void resetWriteBounds();
     private:
         VulkanContext * m_context_p = nullptr;
         VulkanTimelineSemaphore::UniquePointer m_timeline_semaphore_up; // up to GPUBufferUsage
@@ -83,8 +60,6 @@ namespace lcf::render {
         ExecuteWriteSequenceMethod m_execute_write_sequence_method = nullptr; // up to GPUBufferPattern
         vk::DeviceAddress m_device_address = 0u;
         uint32_t m_size = 0;
-        uint32_t m_write_segment_lower_bound = -1u;
-        uint32_t m_write_segment_upper_bound = 0u;
         GPUBufferUsage m_usage = GPUBufferUsage::eUndefined;
         GPUBufferPattern m_pattern = GPUBufferPattern::eDynamic;
         vk::PipelineStageFlags2 m_stage_flags = vk::PipelineStageFlagBits2KHR::eAllGraphics;

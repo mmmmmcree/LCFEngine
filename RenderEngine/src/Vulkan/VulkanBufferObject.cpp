@@ -130,7 +130,7 @@ VulkanBufferObject &VulkanBufferObject::resize(uint32_t size_in_bytes, VulkanCom
     uint32_t old_size = m_size;
     this->recreate(size_in_bytes);
     if (old_buffer_up) {
-        this->addWriteSegmentIfAbsent(as_bytes_from_ptr(m_buffer_up->getMappedMemoryPtr(), std::min(old_size, size_in_bytes)));
+        this->addWriteSegmentIfAbsent({as_bytes_from_ptr(m_buffer_up->getMappedMemoryPtr(), std::min(old_size, size_in_bytes))});
         cmd.acquireResource(std::move(old_buffer_up));
         this->commitWriteSegments(cmd);
     }
@@ -144,8 +144,7 @@ VulkanBufferObject & VulkanBufferObject::addWriteSegment(const BufferWriteSegmen
     auto segment_interval = boost::icl::interval<uint32_t>::right_open(segment.getBeginOffsetInBytes(), segment.getEndOffsetInBytes());
     m_write_segments.set(std::make_pair(segment_interval, segment));
     */
-    m_write_segments.emplace_back(segment);
-    this->updateWriteBounds(segment.getBeginOffsetInBytes(), segment.getEndOffsetInBytes());
+    m_write_segments.add(segment);
     return *this;
 }
 
@@ -156,8 +155,7 @@ VulkanBufferObject & VulkanBufferObject::addWriteSegmentIfAbsent(const BufferWri
     auto segment_interval = boost::icl::interval<uint32_t>::right_open(segment.getBeginOffsetInBytes(), segment.getEndOffsetInBytes());
     m_write_segments.add(std::make_pair(segment_interval, segment));
     */
-    m_write_segments.emplace_front(segment);
-    this->updateWriteBounds(segment.getBeginOffsetInBytes(), segment.getEndOffsetInBytes());
+    m_write_segments.addIfAbsent(segment);
     return *this;
 }
 
@@ -165,7 +163,6 @@ void VulkanBufferObject::commitWriteSegments(VulkanCommandBufferObject & cmd)
 {
     if (m_write_segments.empty()) { return; }
     (this->*m_execute_write_sequence_method)(cmd);
-    this->resetWriteBounds();
     m_write_segments.clear();
 }
 
@@ -212,7 +209,7 @@ void VulkanBufferObject::writeSegmentsDirectly(const WriteSegments &segments, ui
         memcpy(m_buffer_up->getMappedMemoryPtr() + write_segment.getBeginOffsetInBytes() + dst_offset_in_bytes,
             write_segment.getData(), write_segment.getSizeInBytes());
     }
-    m_buffer_up->flush(m_write_segment_lower_bound + dst_offset_in_bytes, m_write_segment_upper_bound - m_write_segment_lower_bound);
+    m_buffer_up->flush(m_write_segments.getLowerBoundInBytes() + dst_offset_in_bytes, m_write_segments.getValidSizeInBytes());
 }
 
 void lcf::render::VulkanBufferObject::executeWriteSequence(VulkanCommandBufferObject & cmd)
@@ -228,10 +225,10 @@ void lcf::render::VulkanBufferObject::executeWriteSequence(VulkanCommandBufferOb
 
 void lcf::render::VulkanBufferObject::executeCpuWriteSequence(VulkanCommandBufferObject & cmd)
 {
-    uint32_t write_required_size = m_write_segment_upper_bound;
+    uint32_t write_required_size = m_write_segments.getUpperBoundInBytes();
     if (write_required_size > m_size) [[unlikely]] {
         if (m_buffer_up) {
-            this->addWriteSegmentIfAbsent(as_bytes_from_ptr(m_buffer_up->getMappedMemoryPtr(), m_size));
+            this->addWriteSegmentIfAbsent({as_bytes_from_ptr(m_buffer_up->getMappedMemoryPtr(), m_size)});
             cmd.acquireResource(std::move(m_buffer_up));
         }
         this->recreate(write_required_size); //todo use custom enlarge strategy
@@ -241,7 +238,7 @@ void lcf::render::VulkanBufferObject::executeCpuWriteSequence(VulkanCommandBuffe
 
 void lcf::render::VulkanBufferObject::executeGpuWriteSequence(VulkanCommandBufferObject & cmd)
 {
-    uint32_t write_required_size = m_write_segment_upper_bound;
+    uint32_t write_required_size = m_write_segments.getUpperBoundInBytes();
     if (write_required_size > m_size) [[unlikely]] {
         auto old_buffer_up = std::move(m_buffer_up);
         uint32_t old_size = m_size;
@@ -251,7 +248,7 @@ void lcf::render::VulkanBufferObject::executeGpuWriteSequence(VulkanCommandBuffe
             cmd.acquireResource(std::move(old_buffer_up));
         }
     }
-    uint32_t dst_offset = -m_write_segment_lower_bound;
+    uint32_t dst_offset = -m_write_segments.getLowerBoundInBytes();
     auto staging_buffer = VulkanBufferObject::makeUnique();
     staging_buffer->setUsage(GPUBufferUsage::eStaging)
         .setSize(write_required_size + dst_offset)
@@ -259,31 +256,4 @@ void lcf::render::VulkanBufferObject::executeGpuWriteSequence(VulkanCommandBuffe
     staging_buffer->writeSegmentsDirectly(m_write_segments, dst_offset);
     this->copyFromBufferWithBarriers(cmd, staging_buffer->getHandle(), staging_buffer->getSize(), 0, dst_offset);
     cmd.acquireResource(std::move(staging_buffer->m_buffer_up));
-}
-
-void lcf::render::VulkanBufferObject::updateWriteBounds(uint32_t lower_bound, uint32_t upper_bound)
-{
-    m_write_segment_lower_bound = std::min(m_write_segment_lower_bound, lower_bound);
-    m_write_segment_upper_bound = std::max(m_write_segment_upper_bound, upper_bound);
-}
-
-void lcf::render::VulkanBufferObject::resetWriteBounds()
-{
-    m_write_segment_lower_bound = -1u;
-    m_write_segment_upper_bound = 0u;
-}
-
-//- BufferWriteSegment
-
-bool BufferWriteSegment::operator==(const BufferWriteSegment &other) const noexcept
-{
-    return m_offset_in_bytes == other.m_offset_in_bytes
-        and m_data.data() == other.m_data.data()
-        and m_data.size() == other.m_data.size();
-}
-
-//! used when adding old buffer data to segment map, old buffer won't overwrite new data, thus do nothing.
-BufferWriteSegment & BufferWriteSegment::operator+=(const BufferWriteSegment & other) noexcept
-{
-    return *this;
 }
