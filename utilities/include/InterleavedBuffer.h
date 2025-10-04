@@ -2,7 +2,7 @@
 
 #include "StructureLayout.h"
 #include "lcf_type_traits.h"
-#include <iostream>
+#include "error.h"
 
 namespace lcf::impl {
     template <structure_layout_c StructureLayout>
@@ -55,9 +55,8 @@ namespace lcf::impl {
         Self & setData(size_t field_index, Range && data, size_t start_data_index = 0) noexcept
         {
             using ValueType = std::ranges::range_value_t<Range>;
-            if (size_of_v<ValueType> > m_layout.getFieldAlignedSize(field_index)) {
-                std::cerr << "lcf::impl::InterleavedBufferIMPL::setData: Warning: Data size is greater than field size. Data will be truncated." << std::endl;
-                return *this;
+            if (m_layout.getFieldAlignedSize(field_index) < size_of_v<ValueType>) {
+                LCF_THROW_RUNTIME_ERROR("InterleavedBuffer::setData: data size is too large for the field");
             }
             auto dst_it = this->view<ValueType>(field_index).begin() + start_data_index;
             std::ranges::copy(data | std::views::take(this->getSize() - start_data_index), dst_it);
