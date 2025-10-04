@@ -5,11 +5,16 @@
 #include "enum_cast.h"
 #include "PointerDefs.h"
 #include "as_bytes.h"
+#include "StructureLayout.h"
+#include "BufferWriteSegment.h"
+#include <magic_enum/magic_enum.hpp>
+#include <array>
 
 namespace lcf {
     enum class VertexSemanticFlags : uint16_t
     {
-        ePosition = 1,
+        eNone = 0,
+        ePosition = 1 << 0,
         eNormal = 1 << 1,
         eTexCoord0 = 1 << 2,
         eTexCoord1 = 1 << 3,
@@ -19,60 +24,86 @@ namespace lcf {
     };
     MAKE_ENUM_FLAGS(VertexSemanticFlags);
 
-    class Mesh : public STDPointerDefs<Mesh>
+    class Mesh
     {
         using Self = Mesh;
     public:
-        using IndexBuffer = std::vector<std::byte>;
-        using FaceBuffer = std::vector<uint16_t>;
-        bool isCreated() const noexcept { return m_vertex_buffer.isCreated(); }
-        Self & addSemantic(VertexSemanticFlags semantic_flags) noexcept;
-        bool hasSemantic(VertexSemanticFlags semantic_flags) const noexcept { return contains_flags(m_vertex_semantic_flags, semantic_flags); }
+        using ByteList = std::vector<std::byte>;
+        Mesh() = default;
+        bool isCreated() const noexcept { return m_vertex_count > 0; }
+        void create(size_t vertex_count);
+        size_t getVertexCount() const noexcept { return m_vertex_count; }
         VertexSemanticFlags getVertexSemanticFlags() const noexcept { return m_vertex_semantic_flags; }
-        template <typename ShaderTypeMapping> void create(size_t vertex_count);
-        template <std::ranges::range Range>
-        Self & setVertexData(VertexSemanticFlags semantic_bit, Range && data, size_t start_index = 0);
-        Self & setIndexData(ByteView indices) { m_index_buffer = IndexBuffer(indices.begin(), indices.end()); return *this; }
-        template <std::integral Integral>
-        Self & setFaceData(std::span<const Integral> faces) { m_faces = FaceBuffer(faces.begin(), faces.end()); return *this; }
-        size_t getVertexCount() const noexcept { return m_vertex_buffer.getSize(); }
-        ByteView getVertexDataSpan() const noexcept { return m_vertex_buffer.getDataSpan(); }
-        ByteView getIndexDataSpan() const noexcept { return as_bytes(m_index_buffer); }
-        ByteView getFaceDataSpan() const noexcept { return as_bytes(m_faces); }
+        bool hasSemantic(VertexSemanticFlags semantic_flags) const noexcept { return contains_flags(m_vertex_semantic_flags, semantic_flags); }
+        Self & setVertexData(VertexSemanticFlags semantic_bit, ByteView attribute_data);
+        ByteView getVertexDataSpan(VertexSemanticFlags semantic_bit) const noexcept;
+        Self & clearVertexData(VertexSemanticFlags semantic_flags);
+        template <integral_span_convertible_c SpanConvertible>
+        Self & setIndexData(SpanConvertible && indices);
+        ByteView getIndexDataSpan() const noexcept { return m_index_buffer; }
+        template <integral_span_convertible_c SpanConvertible>
+        Self & setFaces(SpanConvertible && faces);
+        template <typename ShaderTypeMapping>
+        BufferWriteSegments generateInterleavedVertexBufferSegments() const noexcept;
     private:
-        InterleavedBuffer m_vertex_buffer;
-        IndexBuffer m_index_buffer;
-        FaceBuffer m_faces;
-        VertexSemanticFlags m_vertex_semantic_flags;
+        size_t getAttributeIndex(VertexSemanticFlags semantic_bit) const noexcept { return std::countr_zero(enum_cast(semantic_bit)); }
+    private:
+        size_t m_vertex_count = 0;
+        size_t m_index_count = 0;
+        std::array<ByteList, magic_enum::enum_count<VertexSemanticFlags>() - 1> m_vertex_data;
+        ByteList m_index_buffer;
+        std::vector<uint16_t> m_faces;
+        VertexSemanticFlags m_vertex_semantic_flags = VertexSemanticFlags::eNone;
     };
 }
 
 namespace lcf {
-    template <typename ShaderTypeMapping>
-    inline void Mesh::create(size_t vertex_count)
+    template <integral_span_convertible_c SpanConvertible>
+    inline Mesh & Mesh::setIndexData(SpanConvertible &&indices)
     {
-        if (this->isCreated()) { return; }
-        if (this->hasSemantic(VertexSemanticFlags::ePosition)) {
-            m_vertex_buffer.addField<alignment_traits<typename ShaderTypeMapping::vec3_t>>();
-        }
-        if (this->hasSemantic(VertexSemanticFlags::eNormal)) {
-            m_vertex_buffer.addField<alignment_traits<typename ShaderTypeMapping::vec3_t>>();
-        }
-        if (this->hasSemantic(VertexSemanticFlags::eTexCoord0)) {
-            m_vertex_buffer.addField<alignment_traits<typename ShaderTypeMapping::vec2_t>>();
-        }
-        if (this->hasSemantic(VertexSemanticFlags::eTexCoord1)) {
-            m_vertex_buffer.addField<alignment_traits<typename ShaderTypeMapping::vec2_t>>();
-        }
-        m_vertex_buffer.create(vertex_count);
+        auto indices_bytes = as_bytes(indices);
+        m_index_buffer = ByteList(indices_bytes.begin(), indices_bytes.end());
+        m_index_count = std::ranges::size(indices);
+        return *this;   
     }
 
-    template<std::ranges::range Range>
-    inline Mesh & Mesh::setVertexData(VertexSemanticFlags semantic_bit, Range && data, size_t start_index)
+    template <integral_span_convertible_c SpanConvertible>
+    inline Mesh & Mesh::setFaces(SpanConvertible &&faces)
     {
-        if (not this->isCreated() or not is_flag_bit(semantic_bit) or not this->hasSemantic(semantic_bit)) { return *this; }
-        size_t field_index = std::popcount<size_t>(enum_cast(m_vertex_semantic_flags) & (enum_cast(semantic_bit) - 1));
-        m_vertex_buffer.setData(field_index, std::forward<Range>(data), start_index);
+        m_faces = { std::ranges::begin(faces), std::ranges::end(faces) };
         return *this;
+    }
+
+    template <typename ShaderTypeMapping>
+    inline BufferWriteSegments Mesh::generateInterleavedVertexBufferSegments() const noexcept
+    {
+        static const std::array<std::function<void(StructureLayout &)>, magic_enum::enum_count<VertexSemanticFlags>() - 1> s_add_field_methods = {
+            [](StructureLayout & layout) { layout.addField<alignment_traits<typename ShaderTypeMapping::vec3_t>>(); }, // ePosition
+            [](StructureLayout & layout) { layout.addField<alignment_traits<typename ShaderTypeMapping::vec3_t>>(); }, // eNormal
+            [](StructureLayout & layout) { layout.addField<alignment_traits<typename ShaderTypeMapping::vec2_t>>(); }, // eTexCoord0
+            [](StructureLayout & layout) { layout.addField<alignment_traits<typename ShaderTypeMapping::vec2_t>>(); }, // eTexCoord1
+            [](StructureLayout & layout) { layout.addField<alignment_traits<typename ShaderTypeMapping::vec3_t>>(); }, // eTangent
+            [](StructureLayout & layout) { layout.addField<alignment_traits<typename ShaderTypeMapping::vec3_t>>(); }, // eBinormal
+            [](StructureLayout & layout) { layout.addField<alignment_traits<typename ShaderTypeMapping::vec4_t>>(); }, // eColor0
+        };
+        if (not this->isCreated()) { return {}; }
+        StructureLayout layout;
+        for (size_t i = 0, field_index = 0; i < m_vertex_data.size(); ++i) {
+            if (m_vertex_data[i].empty()) { continue; }
+            s_add_field_methods[i](layout);
+        }
+        layout.create();
+        BufferWriteSegments segments;
+        for (size_t i = 0, field_index = 0; i < m_vertex_data.size(); ++i) {
+            if (m_vertex_data[i].empty()) { continue; }
+            ByteView data_bytes = m_vertex_data[i];
+            size_t data_stride = data_bytes.size_bytes() / m_vertex_count;
+            size_t offset = layout.getFieldOffset(field_index++);
+            size_t structural_size = layout.getStructualSize();
+            for (size_t j = 0; j < m_vertex_count; ++j) {
+                segments.add({data_bytes.subspan(j * data_stride, data_stride), offset + j * structural_size});
+            }
+        }
+        return segments;
     }
 }

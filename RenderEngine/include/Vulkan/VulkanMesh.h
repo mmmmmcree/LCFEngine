@@ -18,7 +18,6 @@ namespace lcf::render {
     private:
         VulkanBufferObject m_vertex_buffer;
         VulkanBufferObject m_index_buffer;
-        Mesh::FaceBuffer m_face_buffer;
         uint32_t m_vertex_count;
         uint32_t m_index_count;
         VertexSemanticFlags m_vertex_semantic_flags;
