@@ -98,16 +98,15 @@ void lcf::VulkanRenderer::create()
         .setSize(size_of_v<vk::DrawIndirectCommand> + 1 * size_of_v<vk::DrawIndexedIndirectCommand>) // uint32_t(for IndirectDrawCount) + padding | vk::DrawIndirectCommand ... 
         .create(m_context_p);
 
-    Mesh mesh;
-    mesh.addSemantic(VertexSemanticFlags::ePosition | VertexSemanticFlags::eNormal | VertexSemanticFlags::eTexCoord0)
-        .create<glsl::std140::ShaderTypeMapping>(std::size(data::cube_positions));
-    mesh.setVertexData(VertexSemanticFlags::ePosition, std::span(data::cube_positions))
-        .setVertexData(VertexSemanticFlags::eNormal, std::span(data::cube_normals))
-        .setVertexData(VertexSemanticFlags::eTexCoord0, std::span(data::cube_uvs))
-        .setIndexData(as_bytes(data::cube_indices));
+    Mesh mesh2;
+    mesh2.create(std::size(data::cube_positions));
+    mesh2.setVertexData(VertexSemanticFlags::ePosition, as_bytes(data::cube_positions))
+        .setVertexData(VertexSemanticFlags::eNormal, as_bytes(data::cube_normals))
+        .setVertexData(VertexSemanticFlags::eTexCoord0, as_bytes(data::cube_uvs))
+        .setIndexData(data::cube_indices);
 
-    vkutils::immediate_submit(m_context_p, [this, &mesh](VulkanCommandBufferObject & cmd) {
-        m_mesh.create(m_context_p, cmd, mesh);
+    vkutils::immediate_submit(m_context_p, [this, &mesh2](VulkanCommandBufferObject & cmd) {
+        m_mesh.create(m_context_p, cmd, mesh2);
     });
 
     m_texture_image = VulkanImage::makeUnique();
