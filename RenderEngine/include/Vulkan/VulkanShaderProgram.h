@@ -11,6 +11,7 @@ namespace lcf::render {
     class VulkanContext;
     class VulkanShaderProgram : public ShaderProgram, public STDPointerDefs<VulkanShaderProgram>
     {
+        using Self = VulkanShaderProgram;
     public:
         IMPORT_POINTER_DEFS(STDPointerDefs<VulkanShaderProgram>);
         using ShaderStageInfoList = std::vector<vk::PipelineShaderStageCreateInfo>;
@@ -21,7 +22,7 @@ namespace lcf::render {
         VulkanShaderProgram(const VulkanShaderProgram &) = delete;
         VulkanShaderProgram & operator=(const VulkanShaderProgram &) = delete;
         ~VulkanShaderProgram();
-        void addShaderFromGlslFile(ShaderTypeFlagBits stage, std::string_view file_path);
+        Self & addShaderFromGlslFile(ShaderTypeFlagBits stage, std::string_view file_path);
         virtual bool link() override;
         const ShaderStageInfoList & getShaderStageInfoList() const { return m_shader_stage_info_list; }
         const DescriptorSetLayoutList & getDescriptorSetLayoutList() const { return m_descriptor_set_layout_list; }
