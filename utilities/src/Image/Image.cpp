@@ -34,16 +34,6 @@ lcf::Image::operator bool() const
     return m_data;
 }
 
-void *lcf::Image::data()
-{
-    return m_data;
-}
-
-const void *lcf::Image::getData() const
-{
-    return m_data;
-}
-
 int lcf::Image::getWidth() const
 {
     return m_width;

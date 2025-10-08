@@ -1,5 +1,6 @@
 #pragma once
 #include <string_view>
+#include <span>
 
 namespace lcf {
     class Image
@@ -8,10 +9,7 @@ namespace lcf {
         Image(std::string_view file_path, int requested_channels = 0, bool flip_y = false);
         ~Image();
         operator bool() const;
-        const void *getData() const;
-        void *data();
-        template <typename T>
-        const T *data() const { return static_cast<const T *>(m_data); }
+        std::span<const std::byte> getDataSpan() const { return {static_cast<const std::byte*>(m_data), getSizeInBytes()}; }
         bool create();
         int getWidth() const;
         int getHeight() const;
@@ -22,6 +20,6 @@ namespace lcf {
         int m_width = 0;
         int m_height = 0;
         int m_channels = 0;
-        void *m_data = nullptr;
+        void * m_data = nullptr;
     };
 }
