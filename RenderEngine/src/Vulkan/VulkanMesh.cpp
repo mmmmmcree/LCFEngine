@@ -19,7 +19,6 @@ bool lcf::render::VulkanMesh::create(VulkanContext *context_p, VulkanCommandBuff
         .create(context_p);
     m_vertex_buffer.commitWriteSegments(cmd);
     m_index_buffer.addWriteSegment({mesh.getIndexDataSpan()}).commitWriteSegments(cmd);
-    int a = mesh.getIndexDataSpan().size_bytes();
     m_vertex_count = mesh.getVertexCount();
     m_vertex_semantic_flags = mesh.getVertexSemanticFlags();
     return this->isCreated();

@@ -3,6 +3,8 @@
 #include "error.h"
 #include <format>
 
+using namespace lcf::render;
+
 lcf::render::VulkanShaderProgram::VulkanShaderProgram(VulkanContext *context) :
     ShaderProgram(),
     m_context_p(context)
@@ -17,12 +19,13 @@ lcf::render::VulkanShaderProgram::~VulkanShaderProgram()
     }
 }
 
-void lcf::render::VulkanShaderProgram::addShaderFromGlslFile(ShaderTypeFlagBits stage, std::string_view file_path)
+VulkanShaderProgram & lcf::render::VulkanShaderProgram::addShaderFromGlslFile(ShaderTypeFlagBits stage, std::string_view file_path)
 {
     VulkanShader::SharedPointer shader = VulkanShader::makeShared(m_context_p, stage);
     if (shader->compileGlslFile(file_path)) {
         this->addShader(shader);
     }
+    return *this;
 }
 
 bool lcf::render::VulkanShaderProgram::link()
