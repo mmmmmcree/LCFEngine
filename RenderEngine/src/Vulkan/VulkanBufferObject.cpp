@@ -99,10 +99,10 @@ void lcf::render::VulkanBufferObject::recreate(uint32_t size_in_bytes)
     m_size = boost::alignment::align_up(size_in_bytes, 4u);
     vk::BufferCreateInfo buffer_info = {{}, m_size, usage_flags, vk::SharingMode::eExclusive};
     auto memory_allocator = m_context_p->getMemoryAllocator();
-    m_buffer_up = VulkanBufferResource::makeUnique();
-    m_buffer_up->create(memory_allocator, buffer_info, {memory_flags});
+    m_buffer_sp = VulkanBufferResource::makeShared();
+    m_buffer_sp->create(memory_allocator, buffer_info, {memory_flags});
     if (usage_flags & vk::BufferUsageFlagBits::eShaderDeviceAddress) {
-        m_device_address = m_context_p->getDevice().getBufferAddress(m_buffer_up->getHandle());
+        m_device_address = m_context_p->getDevice().getBufferAddress(m_buffer_sp->getHandle());
     }
 }
 
@@ -126,11 +126,11 @@ VulkanBufferObject & VulkanBufferObject::setPattern(GPUBufferPattern pattern) no
 
 VulkanBufferObject &VulkanBufferObject::resize(uint32_t size_in_bytes, VulkanCommandBufferObject & cmd)
 {
-    auto old_buffer_up = std::move(m_buffer_up);
+    auto old_buffer_up = std::move(m_buffer_sp);
     uint32_t old_size = m_size;
     this->recreate(size_in_bytes);
     if (old_buffer_up) {
-        this->addWriteSegmentIfAbsent({as_bytes_from_ptr(m_buffer_up->getMappedMemoryPtr(), std::min(old_size, size_in_bytes))});
+        this->addWriteSegmentIfAbsent({as_bytes_from_ptr(m_buffer_sp->getMappedMemoryPtr(), std::min(old_size, size_in_bytes))});
         cmd.acquireResource(std::move(old_buffer_up));
         this->commitWriteSegments(cmd);
     }
@@ -163,6 +163,7 @@ void VulkanBufferObject::commitWriteSegments(VulkanCommandBufferObject & cmd)
 {
     if (m_write_segments.empty()) { return; }
     (this->*m_execute_write_sequence_method)(cmd);
+    cmd.acquireResource(m_buffer_sp);
     m_write_segments.clear();
 }
 
@@ -206,10 +207,10 @@ void VulkanBufferObject::writeSegmentsDirectly(const WriteSegments &segments, ui
     }
     */
     for (const auto & write_segment : segments) {
-        memcpy(m_buffer_up->getMappedMemoryPtr() + write_segment.getBeginOffsetInBytes() + dst_offset_in_bytes,
+        memcpy(m_buffer_sp->getMappedMemoryPtr() + write_segment.getBeginOffsetInBytes() + dst_offset_in_bytes,
             write_segment.getData(), write_segment.getSizeInBytes());
     }
-    m_buffer_up->flush(m_write_segments.getLowerBoundInBytes() + dst_offset_in_bytes, m_write_segments.getValidSizeInBytes());
+    m_buffer_sp->flush(m_write_segments.getLowerBoundInBytes() + dst_offset_in_bytes, m_write_segments.getValidSizeInBytes());
 }
 
 void lcf::render::VulkanBufferObject::executeWriteSequence(VulkanCommandBufferObject & cmd)
@@ -227,9 +228,9 @@ void lcf::render::VulkanBufferObject::executeCpuWriteSequence(VulkanCommandBuffe
 {
     uint32_t write_required_size = m_write_segments.getUpperBoundInBytes();
     if (write_required_size > m_size) [[unlikely]] {
-        if (m_buffer_up) {
-            this->addWriteSegmentIfAbsent({as_bytes_from_ptr(m_buffer_up->getMappedMemoryPtr(), m_size)});
-            cmd.acquireResource(std::move(m_buffer_up));
+        if (m_buffer_sp) {
+            this->addWriteSegmentIfAbsent({as_bytes_from_ptr(m_buffer_sp->getMappedMemoryPtr(), m_size)});
+            cmd.acquireResource(std::move(m_buffer_sp));
         }
         this->recreate(write_required_size); //todo use custom enlarge strategy
     }
@@ -240,12 +241,12 @@ void lcf::render::VulkanBufferObject::executeGpuWriteSequence(VulkanCommandBuffe
 {
     uint32_t write_required_size = m_write_segments.getUpperBoundInBytes();
     if (write_required_size > m_size) [[unlikely]] {
-        auto old_buffer_up = std::move(m_buffer_up);
+        auto old_buffer_sp = std::move(m_buffer_sp);
         uint32_t old_size = m_size;
         this->recreate(write_required_size); //todo use custom enlarge strategy
-        if (old_buffer_up) {
-            this->copyFromBufferWithBarriers(cmd, old_buffer_up->getHandle(), old_size);
-            cmd.acquireResource(std::move(old_buffer_up));
+        if (old_buffer_sp) {
+            this->copyFromBufferWithBarriers(cmd, old_buffer_sp->getHandle(), old_size);
+            cmd.acquireResource(old_buffer_sp);
         }
     }
     uint32_t dst_offset = -m_write_segments.getLowerBoundInBytes();
@@ -254,6 +255,6 @@ void lcf::render::VulkanBufferObject::executeGpuWriteSequence(VulkanCommandBuffe
         .setSize(write_required_size + dst_offset)
         .create(m_context_p);
     staging_buffer->writeSegmentsDirectly(m_write_segments, dst_offset);
+    cmd.acquireResource(staging_buffer->m_buffer_sp);
     this->copyFromBufferWithBarriers(cmd, staging_buffer->getHandle(), staging_buffer->getSize(), 0, dst_offset);
-    cmd.acquireResource(std::move(staging_buffer->m_buffer_up));
 }
