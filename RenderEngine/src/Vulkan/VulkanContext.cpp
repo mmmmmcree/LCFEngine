@@ -20,7 +20,7 @@ void lcf::render::VulkanContext::registerWindow(RenderWindow * window)
     window->setSurfaceType(QSurface::VulkanSurface);
     window->setVulkanInstance(&m_vk_instance);
     window->create();
-    vk::SurfaceKHR surface = QVulkanInstance::surfaceForWindow(window); //! surface is available after window is created
+    vk::SurfaceKHR surface = m_vk_instance.surfaceForWindow(window); //! surface is available after window is created
     window->setVulkanInstance(nullptr);
     auto render_target = VulkanSwapchain::makeShared(this, surface);
     window->setRenderTarget(render_target);
@@ -40,40 +40,65 @@ void lcf::render::VulkanContext::create()
 
 void lcf::render::VulkanContext::setupVulkanInstance()
 {
-    QByteArrayList extensions = {
+    vk::ApplicationInfo app_info;
+    app_info.setPApplicationName("LCFEngine")
+        .setPEngineName("LCFEngine")
+        .setApplicationVersion(vk::makeVersion(1, 0, 0))
+        .setEngineVersion(vk::makeVersion(1, 0, 0))
+        .setApiVersion(vk::makeVersion(1, 3, 2));
+    std::set<std::string> required_extensions = {
+        VK_KHR_SURFACE_EXTENSION_NAME,
+        "VK_KHR_win32_surface",
+        "VK_KHR_xcb_surface",
+        "VK_MVK_macos_surface",
+        "VK_KHR_android_surface",
+        "VK_KHR_wayland_surface"
     #ifndef NDEBUG
-        "VK_EXT_debug_utils",
+        VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
     #endif
     };
-    QByteArrayList layers = {
+    auto available_extensions = vk::enumerateInstanceExtensionProperties();
+    std::vector<const char*> extensions;
+    for (const auto &extension : available_extensions) {
+        if (required_extensions.contains(extension.extensionName.data())) {
+            extensions.push_back(extension.extensionName.data());
+        }
+    }
+    std::set<std::string> required_layers = {
     #ifndef NDEBUG
         "VK_LAYER_KHRONOS_validation",
     #endif
     };
-    m_vk_instance.setApiVersion({1, 3, 2});
-    m_vk_instance.setExtensions(extensions);
-    m_vk_instance.setLayers(layers);
+    auto available_layers = vk::enumerateInstanceLayerProperties();
+    std::vector<const char*> layers;
+    for (const auto &layer : available_layers) {
+        if (required_layers.contains(layer.layerName.data())) {
+            layers.push_back(layer.layerName.data());
+        }
+    }
+    vk::InstanceCreateInfo instance_info;
+    instance_info.setPApplicationInfo(&app_info)
+        .setPEnabledExtensionNames(extensions)
+        .setPEnabledLayerNames(layers);
 #ifndef NDEBUG
-    qputenv("VK_LAYER_ENABLES", "VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT");
-    qputenv("VK_LAYER_PRINTF_TO_STDOUT", "1"); 
-    QVulkanInstance::DebugUtilsFilter debug_utils_filter = [](
-        QVulkanInstance::DebugMessageSeverityFlags severity,
-        QVulkanInstance::DebugMessageTypeFlags type, const void *message)
-    {
-        auto* msg_data = static_cast<const VkDebugUtilsMessengerCallbackDataEXT *>(message);
-        qDebug() << msg_data->pMessage;
-        return true;
+    std::vector<vk::ValidationFeatureEnableEXT> enabled_validation_features = {
+        vk::ValidationFeatureEnableEXT::eDebugPrintf
     };
-    m_vk_instance.installDebugOutputFilter(debug_utils_filter);
-    QLoggingCategory::setFilterRules(QStringLiteral("qt.vulkan=true"));
+    vk::ValidationFeaturesEXT validation_features;
+    validation_features.setEnabledValidationFeatures(enabled_validation_features);
+    instance_info.setPNext(&validation_features);
 #endif
+#if ( VULKAN_HPP_DISPATCH_LOADER_DYNAMIC == 1 )
+    VULKAN_HPP_DEFAULT_DISPATCHER.init();
+#endif
+    vk::Instance instance = vk::createInstance(instance_info);
+#if ( VULKAN_HPP_DISPATCH_LOADER_DYNAMIC == 1 )
+    VULKAN_HPP_DEFAULT_DISPATCHER.init(vk::Instance(m_vk_instance.vkInstance()));
+#endif
+    m_vk_instance.setVkInstance(instance);
     if (not m_vk_instance.create()) {
         qFatal("Failed to create Vulkan instance: %d", m_vk_instance.errorCode());
     }
-#if ( VULKAN_HPP_DISPATCH_LOADER_DYNAMIC == 1 )
-    VULKAN_HPP_DEFAULT_DISPATCHER.init();
-    VULKAN_HPP_DEFAULT_DISPATCHER.init(vk::Instance(m_vk_instance.vkInstance()));
-#endif
 }
 
 void lcf::render::VulkanContext::pickPhysicalDevice()
