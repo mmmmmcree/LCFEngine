@@ -10,18 +10,27 @@ bool lcf::render::VulkanImage::create(VulkanContext * context_p)
 {
     m_context_p = context_p;
     vk::ImageCreateInfo image_info;
+    if (m_flags & vk::ImageCreateFlagBits::eCubeCompatible) {
+        m_array_layers = 6;
+    }
+    if (not m_mip_level_count) { //- means has mipmaps
+        m_usage |= vk::ImageUsageFlagBits::eTransferSrc;
+        m_mip_level_count = std::floor(std::log2(std::max(m_extent.width, m_extent.height))) + 1u;
+    }
     image_info.setFlags(m_flags)
-        .setImageType(m_image_type)
+        .setImageType(this->getImageType())
         .setFormat(m_format)
         .setExtent(m_extent)
         .setMipLevels(this->getMipLevelCount())
         .setArrayLayers(m_array_layers)
         .setSamples(m_samples)
-        .setTiling(m_tiling)
+        .setTiling(vk::ImageTiling::eOptimal)
         .setUsage(m_usage)
-        .setInitialLayout(m_layout)
+        .setInitialLayout(vk::ImageLayout::eUndefined)
         .setSharingMode(vk::SharingMode::eExclusive);
     m_image = m_context_p->getMemoryAllocator()->createImage(image_info);
+    auto interval = LayoutMapInterval::right_open(0, this->getMipLevelCount() * m_array_layers);
+    m_layout_map.set(std::make_pair(interval, image_info.initialLayout));
     return this->isCreated();
 }
 
@@ -29,33 +38,38 @@ bool lcf::render::VulkanImage::create(VulkanContext *context_p, vk::Image extern
 {
     m_context_p = context_p;
     m_image = external_image;
+    auto interval = LayoutMapInterval::right_open(0, this->getMipLevelCount() * m_array_layers);
+    m_layout_map.set(std::make_pair(interval, vk::ImageLayout::eUndefined));
     return this->isCreated();
 }
 
-bool lcf::render::VulkanImage::create(VulkanContext * context_p, const Image &image)
+void lcf::render::VulkanImage::setData(VulkanCommandBufferObject &cmd, std::span<const std::byte> data, uint32_t layer)
 {
-    this->setExtent({ static_cast<uint32_t>(image.getWidth()), static_cast<uint32_t>(image.getHeight()), 1u })
-        .setFormat(vk::Format::eR8G8B8A8Unorm);
-    m_usage |= vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
-    this->create(context_p);
-    
     VulkanBufferObject staging_buffer;
     staging_buffer.setUsage(GPUBufferUsage::eStaging)
-        .setSize(image.getSizeInBytes())
+        .setSize(data.size_bytes())
         .create(m_context_p);
-    staging_buffer.addWriteSegment({std::span(static_cast<const std::byte *>(image.getData()), image.getSizeInBytes())});
-    // staging_buffer.commitWriteSegments();
-    vkutils::immediate_submit(m_context_p, [&](VulkanCommandBufferObject & cmd) {
-        staging_buffer.commitWriteSegments(cmd);
-        vk::BufferImageCopy region;
-        region.setImageSubresource({ this->getAspectFlags(), 0, 0, 1 })
-        .setImageOffset({ 0, 0, 0 })
-        .setImageExtent(m_extent);
-        this->transitLayout(cmd, vk::ImageLayout::eTransferDstOptimal);
-        cmd.copyBufferToImage(staging_buffer.getHandle(), this->getHandle(), vk::ImageLayout::eTransferDstOptimal, region);
-        this->transitLayout(cmd, vk::ImageLayout::eShaderReadOnlyOptimal);
-    });
-    return this->isCreated();
+    staging_buffer.addWriteSegment({data})
+        .commitWriteSegments(cmd);
+    vk::BufferImageCopy region;
+    region.setImageSubresource({ this->getAspectFlags(), 0, 0, 1 })
+    .setImageOffset({ 0, 0, 0 })
+    .setImageExtent(m_extent);
+    this->transitLayout(cmd, vk::ImageLayout::eTransferDstOptimal);
+    cmd.copyBufferToImage(staging_buffer.getHandle(), this->getHandle(), vk::ImageLayout::eTransferDstOptimal, region);
+    this->transitLayout(cmd, vk::ImageLayout::eShaderReadOnlyOptimal);
+}
+
+void lcf::render::VulkanImage::generateMipmaps(VulkanCommandBufferObject & cmd)
+{
+    VulkanAttachment src_attachment(this->shared_from_this(), 0, 0, m_array_layers);
+    for (uint32_t level = 1; level < this->getMipLevelCount(); ++level) {
+        VulkanAttachment dst_attachment(this->shared_from_this(), level, 0, m_array_layers);
+        auto [sw, sh, sd] = src_attachment.getExtent();
+        auto [dw, dh, dd] = dst_attachment.getExtent();
+        src_attachment.blitTo(cmd, dst_attachment, vk::Filter::eLinear);
+        src_attachment = dst_attachment;
+    }
 }
 
 void lcf::render::VulkanImage::transitLayout(VulkanCommandBufferObject & cmd, vk::ImageLayout new_layout)
@@ -65,20 +79,44 @@ void lcf::render::VulkanImage::transitLayout(VulkanCommandBufferObject & cmd, vk
 
 void lcf::render::VulkanImage::transitLayout(VulkanCommandBufferObject & cmd, const vk::ImageSubresourceRange &subresource_range, vk::ImageLayout new_layout)
 {
-    vk::ImageMemoryBarrier2 barrier;
-    auto [src_stage, src_access, dst_stage, dst_access] = vkutils::get_transition_dependency(m_layout, new_layout);
-    barrier.setImage(this->getHandle())
-        .setOldLayout(m_layout)
-        .setNewLayout(new_layout)
-        .setSubresourceRange(subresource_range)
-        .setSrcStageMask(src_stage)
-        .setSrcAccessMask(src_access)
-        .setDstStageMask(dst_stage)
-        .setDstAccessMask(dst_access);
+    auto from_interval = [this](const LayoutMapIntervalType &interval) {
+        uint32_t base_layer = interval.lower() / m_mip_level_count;
+        uint32_t layer_count = (interval.upper() - 1) / m_mip_level_count - base_layer + 1;
+        uint32_t base_level = interval.lower() % m_mip_level_count;
+        uint32_t level_count = std::min<uint16_t>(interval.upper() - interval.lower(), m_mip_level_count);
+        return std::make_tuple(base_layer, layer_count, base_level, level_count);
+    };
+    const auto &[aspect, base_level, level_count, base_layer, layer_count] = subresource_range;
+    std::vector<vk::ImageMemoryBarrier2> barriers;
+    auto intervals = this->getLayoutIntervals(base_layer, layer_count, base_level, level_count);
+    for (const auto &target_interval : intervals) {
+        auto [begin, end] = m_layout_map.equal_range(target_interval);
+        for (const auto & [equal_interval, wrapped_layout] : std::ranges::subrange(begin, end)) {
+            auto [layer, layer_count, level, level_count] = from_interval(equal_interval & target_interval);
+            vk::ImageLayout old_layout = wrapped_layout.getValue();
+            auto [src_stage, src_access, dst_stage, dst_access] = vkutils::get_transition_dependency(old_layout, new_layout);
+            vk::ImageMemoryBarrier2 barrier;
+            barrier.setImage(this->getHandle())
+                .setOldLayout(old_layout)
+                .setNewLayout(new_layout)
+                .setSubresourceRange({aspect, level, level_count, layer, layer_count})
+                .setSrcStageMask(src_stage)
+                .setSrcAccessMask(src_access)
+                .setDstStageMask(dst_stage)
+                .setDstAccessMask(dst_access);
+            barriers.emplace_back(barrier);
+        }
+        m_layout_map.set(std::make_pair(target_interval, new_layout));
+    }
     vk::DependencyInfo dependency_info;
-    dependency_info.setImageMemoryBarriers(barrier);
+    dependency_info.setImageMemoryBarriers(barriers);
     cmd.pipelineBarrier2(dependency_info);
-    m_layout = new_layout;
+}
+
+void lcf::render::VulkanImage::copyFrom(VulkanCommandBufferObject &cmd, vk::Buffer buffer, std::span<const vk::BufferImageCopy> regions)
+{
+    this->transitLayout(cmd, vk::ImageLayout::eTransferDstOptimal);
+    cmd.copyBufferToImage(buffer, this->getHandle(), vk::ImageLayout::eTransferDstOptimal, regions);
 }
 
 vk::Image lcf::render::VulkanImage::getHandle() const
@@ -94,19 +132,20 @@ vk::ImageView lcf::render::VulkanImage::getDefaultView() const
     return this->getView(vk::ImageSubresourceRange(this->getAspectFlags(), 0, this->getMipLevelCount(), 0, this->getArrayLayerCount()));
 }
 
-vk::ImageView lcf::render::VulkanImage::getView(const vk::ImageSubresourceRange &subresource_range) const
+vk::ImageView lcf::render::VulkanImage::getView(const ImageViewKey & image_view_key) const
 {
-    auto it = m_view_map.find(subresource_range);
+    auto it = m_view_map.find(image_view_key);
     if (it == m_view_map.end()) {
-        return m_view_map.emplace(std::make_pair(subresource_range, this->generateView(subresource_range))).first->second.get();
+        return m_view_map.emplace(std::make_pair(image_view_key, this->generateView(image_view_key))).first->second.get();
     }
     return it->second.get();
 }
 
-uint32_t lcf::render::VulkanImage::getMipLevelCount() const
+vk::ImageType lcf::render::VulkanImage::getImageType() const noexcept
 {
-    if (not m_mipmapped) { return 1u; }
-    return std::floor(std::log2(std::max(m_extent.width, m_extent.height))) + 1u;
+    if (m_extent.depth > 1u) { return vk::ImageType::e3D; }
+    if (m_extent.height > 1u) { return vk::ImageType::e2D; }
+    return vk::ImageType::e1D;
 }
 
 vk::UniqueImageView lcf::render::VulkanImage::generateView(const ImageViewKey &image_view_key) const
@@ -134,7 +173,7 @@ vk::ImageAspectFlags lcf::render::VulkanImage::getAspectFlags() const noexcept
 vk::ImageViewType lcf::render::VulkanImage::deduceImageViewType(const vk::ImageSubresourceRange &subresource_range) const noexcept
 {
     vk::ImageViewType view_type = {};
-    switch (m_image_type) {
+    switch (this->getImageType()) {
         case vk::ImageType::e1D : {
             view_type = subresource_range.layerCount > 1 ? vk::ImageViewType::e1DArray : vk::ImageViewType::e1D;
         } break;
@@ -155,6 +194,42 @@ vk::ImageViewType lcf::render::VulkanImage::deduceImageViewType(const vk::ImageS
 vk::ImageSubresourceRange lcf::render::VulkanImage::getFullResourceRange() const noexcept
 {
     return vk::ImageSubresourceRange(this->getAspectFlags(), 0, this->getMipLevelCount(), 0, this->getArrayLayerCount());
+}
+
+std::vector<VulkanImage::LayoutMapIntervalType> lcf::render::VulkanImage::getLayoutIntervals(uint32_t base_layer, uint32_t layer_count, uint32_t base_mip_level, uint32_t mip_level_count) const noexcept
+{
+    std::vector<LayoutMapIntervalType> intervals;
+    if (base_layer == 0 and layer_count == m_array_layers and base_mip_level == 0 and mip_level_count == m_mip_level_count) {
+        intervals.emplace_back(LayoutMapInterval::right_open(0, m_mip_level_count * m_array_layers));
+        return intervals;
+    }
+    for (uint32_t layer = base_layer; layer < base_layer + layer_count; ++layer) {
+        auto cur_interval = LayoutMapInterval::right_open(this->getLayoutKey(layer, base_mip_level), this->getLayoutKey(layer, base_mip_level + mip_level_count));
+        if (not intervals.empty()) {
+            auto & prev_interval = intervals.back();
+            if (prev_interval.upper() == cur_interval.lower()) {
+                prev_interval = LayoutMapInterval::right_open(prev_interval.lower(), cur_interval.upper());
+                continue;
+            }
+        }
+        intervals.emplace_back(cur_interval);
+    }
+    return intervals;
+}
+
+std::optional<vk::ImageLayout> lcf::render::VulkanImage::getLayout(uint32_t base_layer, uint32_t layer_count, uint32_t base_mip_level, uint32_t mip_level_count) const noexcept
+{
+    std::optional<vk::ImageLayout> layout;
+    auto intervals = this->getLayoutIntervals(base_layer, layer_count, base_mip_level, mip_level_count);
+    for (auto interval : intervals) {
+        auto [begin, end] = m_layout_map.equal_range(interval);
+        for (const auto & [equal_interval, wrapped_layout] : std::ranges::subrange(begin, end)) {
+            if (not boost::icl::within(interval, equal_interval)) { return std::nullopt; }
+            if (not layout) { layout = wrapped_layout.getValue(); }
+            else if (layout.value() != wrapped_layout.getValue()) { return std::nullopt; }
+        }
+    }
+    return layout;
 }
 
 // - VulkanAttachment
@@ -178,8 +253,8 @@ lcf::render::VulkanAttachment::VulkanAttachment(const VulkanImage::SharedPointer
 void VulkanAttachment::blitTo(VulkanCommandBufferObject & cmd, VulkanAttachment &dst, vk::Filter filter, const Offset3DPair &src_offsets, const Offset3DPair &dst_offsets)
 {
     auto & dst_image_sp = dst.getImageSharedPointer();
-    m_image_sp->transitLayout(cmd, vk::ImageLayout::eTransferSrcOptimal);
-    dst_image_sp->transitLayout(cmd, vk::ImageLayout::eTransferDstOptimal);
+    this->transitLayout(cmd, vk::ImageLayout::eTransferSrcOptimal);
+    dst.transitLayout(cmd, vk::ImageLayout::eTransferDstOptimal);
     vk::ImageBlit2 blit_region2 = {};
     blit_region2.setSrcSubresource(vk::ImageSubresourceLayers(m_image_sp->getAspectFlags(), m_mip_level, m_layer, m_layer_count))
         .setDstSubresource(vk::ImageSubresourceLayers(dst_image_sp->getAspectFlags(), dst.getMipLevel(), dst.getLayer(), dst.getLayerCount()));
@@ -193,6 +268,16 @@ void VulkanAttachment::blitTo(VulkanCommandBufferObject & cmd, VulkanAttachment 
         .setRegions(blit_region2)
         .setFilter(filter);
     cmd.blitImage2(blit_info);
+}
+
+void lcf::render::VulkanAttachment::blitTo(VulkanCommandBufferObject &cmd, VulkanAttachment &dst, vk::Filter filter)
+{
+    const auto & [sx, sy, sz] = this->getExtent();
+    const auto & [dx, dy, dz] = dst.getExtent();
+    this->blitTo(cmd, dst, filter,
+        {{ 0, 0, 0 }, {static_cast<int32_t>(sx), static_cast<int32_t>(sy), static_cast<int32_t>(sz)}},
+        {{ 0, 0, 0 }, {static_cast<int32_t>(dx), static_cast<int32_t>(dy), static_cast<int32_t>(dz)}}
+    );
 }
 
 void lcf::render::VulkanAttachment::copyTo(VulkanCommandBufferObject & cmd, VulkanAttachment &dst, const vk::Offset3D &src_offset, const vk::Offset3D &dst_offset, const vk::Extent3D &extent)
@@ -227,10 +312,12 @@ vk::ImageView lcf::render::VulkanAttachment::getImageView() const noexcept
 
 void lcf::render::VulkanAttachment::transitLayout(VulkanCommandBufferObject & cmd, vk::ImageLayout new_layout)
 {
+
     m_image_sp->transitLayout(cmd, this->getSubresourceRange(), new_layout);
 }
 
-vk::ImageLayout lcf::render::VulkanAttachment::getLayout() const noexcept
+vk::Extent3D lcf::render::VulkanAttachment::getExtent() const noexcept
 {
-    return m_image_sp->getLayout();
+    vk::Extent3D extent = m_image_sp->getExtent();
+    return { extent.width >> m_mip_level, extent.height >> m_mip_level, extent.depth };
 }
