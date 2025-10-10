@@ -12,15 +12,14 @@ bool VulkanFramebufferObject::create(VulkanContext *context_p, const VulkanFrame
     }
     m_max_extent = create_info.getMaxExtent();
     m_extent = std::min({m_max_extent, create_info.getExtent(), m_extent});
-    auto a = create_info.getExtent();
+
     vk::ImageUsageFlags color_attachment_usage = vk::ImageUsageFlagBits::eColorAttachment;
     if (create_info.isEnableMSAA()) {
         color_attachment_usage |= vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eSampled;
     }
     for (auto color_format : create_info.getColorFormats()) {
         auto image_sp = VulkanImage::makeShared();
-        image_sp->setImageType(vk::ImageType::e2D)
-            .setUsage(color_attachment_usage)
+        image_sp->setUsage(color_attachment_usage)
             .setExtent({m_max_extent.width, m_max_extent.height, 1u})
             .setSamples(create_info.getSampleCount())
             .setFormat(color_format)
@@ -29,8 +28,7 @@ bool VulkanFramebufferObject::create(VulkanContext *context_p, const VulkanFrame
     }
     if (m_color_attachments.empty()) {
         auto image_sp = VulkanImage::makeShared();
-        image_sp->setImageType(vk::ImageType::e2D)
-            .setUsage(vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst)
+        image_sp->setUsage(vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst)
             .setExtent({m_max_extent.width, m_max_extent.height, 1u})
             .setSamples(vk::SampleCountFlagBits::e1)
             .setFormat(vk::Format::eR8G8B8A8Srgb)
@@ -39,8 +37,7 @@ bool VulkanFramebufferObject::create(VulkanContext *context_p, const VulkanFrame
     }
     if (create_info.hasDepthStencilFormat()) {
         auto image_sp = VulkanImage::makeShared();
-        image_sp->setImageType(vk::ImageType::e2D)
-            .setUsage(vk::ImageUsageFlagBits::eDepthStencilAttachment)
+        image_sp->setUsage(vk::ImageUsageFlagBits::eDepthStencilAttachment)
             .setExtent({m_extent.width, m_extent.height, 1})
             .setSamples(m_color_attachments.front().getImageSharedPointer()->getSamples())
             .setFormat(create_info.getDepthStencilFormat())
@@ -50,8 +47,7 @@ bool VulkanFramebufferObject::create(VulkanContext *context_p, const VulkanFrame
     }
     if (create_info.isEnableMSAA()) {
         auto image_sp = VulkanImage::makeShared();
-        image_sp->setImageType(vk::ImageType::e2D)
-            .setUsage(vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eColorAttachment)
+        image_sp->setUsage(vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eColorAttachment)
             .setFormat(m_color_attachments.front().getImageSharedPointer()->getFormat())
             .setExtent({m_extent.width, m_extent.height, 1})
             .setSamples(vk::SampleCountFlagBits::e1)
@@ -73,8 +69,7 @@ void VulkanFramebufferObject::beginRendering(VulkanCommandBufferObject & cmd)
     std::vector<vk::RenderingAttachmentInfo> color_attachment_infos(m_color_attachments.size());
     for (int i = 0; i < m_color_attachments.size(); ++i) {
         auto & color_attachment = m_color_attachments[i];
-        color_attachment.setInitialLayout(vk::ImageLayout::eUndefined)
-            .transitLayout(cmd, vk::ImageLayout::eColorAttachmentOptimal);
+        color_attachment.transitLayout(cmd, vk::ImageLayout::eColorAttachmentOptimal);
         color_attachment_infos[i].setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
             .setImageView(color_attachment.getImageView())
             .setLoadOp(color_attachment.getLoadOp())
@@ -84,8 +79,7 @@ void VulkanFramebufferObject::beginRendering(VulkanCommandBufferObject & cmd)
     vk::RenderingAttachmentInfo depth_stencil_attachment_info;
     if (m_depth_stencil_attachment) {
         auto & depth_stencil_attachment = *m_depth_stencil_attachment;
-        depth_stencil_attachment.setInitialLayout(vk::ImageLayout::eUndefined)
-            .transitLayout(cmd, vk::ImageLayout::eDepthStencilAttachmentOptimal);
+        depth_stencil_attachment.transitLayout(cmd, vk::ImageLayout::eDepthStencilAttachmentOptimal);
         depth_stencil_attachment_info.setImageLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal)
             .setImageView(depth_stencil_attachment.getImageView())
             .setLoadOp(depth_stencil_attachment.getLoadOp())
@@ -94,8 +88,7 @@ void VulkanFramebufferObject::beginRendering(VulkanCommandBufferObject & cmd)
     }
     if (m_msaa_resolve_attachment) {
         auto & msaa_resolve_attachment = *m_msaa_resolve_attachment;
-        msaa_resolve_attachment.setInitialLayout(vk::ImageLayout::eUndefined)
-            .transitLayout(cmd, vk::ImageLayout::eColorAttachmentOptimal);
+        msaa_resolve_attachment.transitLayout(cmd, vk::ImageLayout::eColorAttachmentOptimal);
         color_attachment_infos[0].setResolveImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
             .setResolveImageView(msaa_resolve_attachment.getImageView())
             .setResolveMode(msaa_resolve_attachment.getResolveMode());
