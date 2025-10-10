@@ -18,6 +18,11 @@ namespace lcf {
         static UniquePointer makeUnique(Args &&...args) { return std::make_unique<T>(std::forward<Args>(args)...); }
     };
 
+    template <typename T>
+    struct STDSelfSharedPointerDefs : STDPointerDefs<T>, std::enable_shared_from_this<T>
+    {
+    };
+
     /**
      * @brief Macro used when both Base and Derived classes have PointerDefs specializations.
      * struct Base : PointerDefs<Base> {... };
