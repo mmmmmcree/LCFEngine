@@ -11,10 +11,10 @@ namespace lcf {
         operator bool() const;
         std::span<const std::byte> getDataSpan() const { return {static_cast<const std::byte*>(m_data), getSizeInBytes()}; }
         bool create();
-        int getWidth() const;
-        int getHeight() const;
-        int getChannels() const;
-        size_t getSizeInBytes() const;
+        uint32_t getWidth() const noexcept;
+        uint32_t getHeight() const noexcept;
+        uint32_t getChannels() const noexcept;
+        size_t getSizeInBytes() const noexcept;
         void saveAsHDR(const char *filename) const;
     private:
         int m_width = 0;

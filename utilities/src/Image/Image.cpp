@@ -34,22 +34,22 @@ lcf::Image::operator bool() const
     return m_data;
 }
 
-int lcf::Image::getWidth() const
+uint32_t lcf::Image::getWidth() const noexcept
 {
-    return m_width;
+    return static_cast<uint32_t>(m_width);
 }
 
-int lcf::Image::getHeight() const
+uint32_t lcf::Image::getHeight() const noexcept
 {
-    return m_height;
+    return static_cast<uint32_t>(m_height);
 }
 
-int lcf::Image::getChannels() const
+uint32_t lcf::Image::getChannels() const noexcept
 {
-    return m_channels;
+    return static_cast<uint32_t>(m_channels);
 }
 
-size_t lcf::Image::getSizeInBytes() const
+size_t lcf::Image::getSizeInBytes() const noexcept
 {
     return m_width * m_height * m_channels * sizeof(uint8_t);
 }
