@@ -13,7 +13,10 @@ lcf::render::VulkanSwapchain::VulkanSwapchain(VulkanContext *context, vk::Surfac
 
 lcf::render::VulkanSwapchain::~VulkanSwapchain()
 {
-    this->destroy();
+    m_swapchain.reset();
+    auto instance = m_context_p->getInstance();
+    instance.destroySurfaceKHR(m_surface);
+    m_surface = nullptr;
 }
 
 void lcf::render::VulkanSwapchain::create()
@@ -38,7 +41,7 @@ void lcf::render::VulkanSwapchain::create()
     }
 }
 
-void lcf::render::VulkanSwapchain::recreate()
+bool lcf::render::VulkanSwapchain::recreate()
 {
     vk::Device device = m_context_p->getDevice();
     vk::SwapchainCreateInfoKHR swapchain_info;
@@ -58,14 +61,14 @@ void lcf::render::VulkanSwapchain::recreate()
     uint32_t present_queue_family_index = graphics_queue_family_index;
     swapchain_info.setImageSharingMode(vk::SharingMode::eExclusive)
         .setQueueFamilyIndices(nullptr);
+    std::vector<vk::Image> swapchain_images;
     try {
         m_swapchain = device.createSwapchainKHRUnique(swapchain_info);
+        swapchain_images = device.getSwapchainImagesKHR(m_swapchain.get());
     } catch (const vk::SystemError &e) {
-        qFatal() << "Failed to create swapchain: " << e.what();
+        return false;
     }
-
-    auto swapchain_images = device.getSwapchainImagesKHR(m_swapchain.get());
-
+    
     vk::ImageViewCreateInfo image_view_info;
     image_view_info.setViewType(vk::ImageViewType::e2D)
         .setFormat(m_surface_format.format)
@@ -80,28 +83,23 @@ void lcf::render::VulkanSwapchain::recreate()
             .setFormat(swapchain_info.imageFormat)
             .create(m_context_p, swapchain_images[i]);
     }
-    
     m_need_to_update = false;
-}
-
-void lcf::render::VulkanSwapchain::destroy()
-{
-    m_swapchain.reset();
-    auto instance = m_context_p->getInstance();
-    instance.destroySurfaceKHR(m_surface);
-    m_surface = nullptr;
+    return true;
 }
 
 bool lcf::render::VulkanSwapchain::prepareForRender()
 {
     if (not m_surface) { return false; }
     auto physical_device = m_context_p->getPhysicalDevice();
-    m_surface_capabilities = physical_device.getSurfaceCapabilitiesKHR(m_surface);
+    try {
+        m_surface_capabilities = physical_device.getSurfaceCapabilitiesKHR(m_surface);
+    } catch (const vk::SystemError &e) {
+        return false;
+    }
     this->setExtent(m_surface_capabilities.currentExtent.width, m_surface_capabilities.currentExtent.height);
     if (this->getWidth() == 0 or this->getHeight() == 0) { return false; }
     if (m_need_to_update) { this->recreate(); }
-    this->acquireAvailableTarget();
-    return true;
+    return this->acquireAvailableTarget();
 }
 
 void lcf::render::VulkanSwapchain::finishRender(vk::Semaphore present_ready)
@@ -119,27 +117,23 @@ void lcf::render::VulkanSwapchain::present()
     present_info.setWaitSemaphores(m_present_ready)
         .setSwapchains(m_swapchain.get())
         .setPImageIndices(&m_image_index);
-    auto present_result = m_context_p->getQueue(vk::QueueFlagBits::eGraphics).presentKHR(present_info);
-    if (present_result == vk::Result::eErrorOutOfDateKHR or present_result == vk::Result::eSuboptimalKHR) {
-        this->recreate();
-    } else if (present_result != vk::Result::eSuccess) {
-        LCF_THROW_RUNTIME_ERROR(std::format(
-            "lcf::render::VulkanSwapchain::present(): Failed to present swapchain image! Error code: {}",
-            enum_name(present_result)));
-    }
+    vk::Result present_result;
+    try {
+        present_result = m_context_p->getQueue(vk::QueueFlagBits::eGraphics).presentKHR(present_info);
+    } catch (const vk::SystemError &e) { }
 }
 
-void lcf::render::VulkanSwapchain::acquireAvailableTarget()
+bool lcf::render::VulkanSwapchain::acquireAvailableTarget()
 {
     auto device = m_context_p->getDevice();
-    auto [acquire_result, index] = device.acquireNextImageKHR(m_swapchain.get(), UINT64_MAX, this->getTargetAvailableSemaphore(), nullptr);
-    if (acquire_result == vk::Result::eErrorOutOfDateKHR) {
-        this->recreate();
-    } else if (acquire_result != vk::Result::eSuccess and acquire_result != vk::Result::eSuboptimalKHR) {
-        LCF_THROW_RUNTIME_ERROR(std::format(
-            "lcf::render::VulkanSwapchain::acquireAvailableTarget(): Failed to acquire swapchain image! Error code: {}",
-            enum_name(acquire_result)));
+    vk::Result acquire_result;
+    try {
+        std::tie(acquire_result, m_image_index) = device.acquireNextImageKHR(m_swapchain.get(), UINT64_MAX, this->getTargetAvailableSemaphore(), nullptr);
+    } catch (const vk::SystemError &e) {
+        return false;
     }
-    m_image_index = index;
-    this->getTargetImageSharedPointer()->setInitialLayout(vk::ImageLayout::eUndefined);
+    if (acquire_result == vk::Result::eErrorOutOfDateKHR) {
+        return this->recreate();
+    }
+    return acquire_result == vk::Result::eSuccess or acquire_result == vk::Result::eSuboptimalKHR;
 }
