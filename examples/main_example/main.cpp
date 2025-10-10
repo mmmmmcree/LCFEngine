@@ -5,12 +5,14 @@
 #include "CameraControllers/TrackballController.h"
 #include "Entity.h"
 #include "TransformSystem.h"
-#include <QTimer>
+#include "Timer.h"
 
 class CustomRenderWindow : public lcf::RenderWindow
 {
 public:
-    CustomRenderWindow(lcf::RenderWindow * parent = nullptr) : lcf::RenderWindow(parent) {}
+    CustomRenderWindow(lcf::RenderWindow * parent = nullptr) : lcf::RenderWindow(parent)
+    {
+    }
 protected:
     void keyPressEvent(QKeyEvent *event) override
     {
@@ -27,7 +29,6 @@ protected:
 
 int main(int argc, char* argv[]) {
     lcf::GuiApplication app(argc, argv);
-
     lcf::render::VulkanContext context;
     CustomRenderWindow render_window;
     context.registerWindow(&render_window);
@@ -53,20 +54,22 @@ int main(int argc, char* argv[]) {
     lcf::modules::TrackballController trackball_controller;
     trackball_controller.setInputManager(render_window.getInputManager());
 
-    QTimer render_timer;
     int update_interval = 5;
     double refresh_rate = render_window.screen()->refreshRate();
     if (refresh_rate > 60.0) {
         update_interval /= refresh_rate / 60.0;
     }
-    render_timer.setInterval(update_interval);
-    QObject::connect(&render_timer, &QTimer::timeout, [&] {
+
+    lcf::ThreadTimer timer;
+    timer.setInterval(std::chrono::milliseconds(update_interval));
+    timer.setCallback([&] {
         trackball_controller.update(camera_entity);
         transform_system.update();
         renderer.render(camera_entity);
     });
-    render_timer.start();
+    timer.start();
 
     app.exec();
+
     return 0;
 }
