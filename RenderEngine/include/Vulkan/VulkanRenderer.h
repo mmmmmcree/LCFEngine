@@ -58,6 +58,7 @@ namespace lcf {
         VulkanBufferObject m_per_renderable_index_buffer;
         VulkanBufferObject m_per_renderable_transform_buffer;
 
+        VulkanImage::SharedPointer m_cube_map;
         VulkanImage::UniquePointer m_texture_image;
         vk::UniqueSampler m_texture_sampler;
     };

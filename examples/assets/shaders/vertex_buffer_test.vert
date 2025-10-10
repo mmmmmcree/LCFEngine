@@ -27,6 +27,8 @@ layout(buffer_reference, std430) readonly buffer IndexBuffer
 };
 
 layout(set = 0, binding = 0) uniform camera_uniforms {
+    mat4 projection;
+    mat4 view;
     mat4 projection_view;
 };
 
@@ -56,8 +58,10 @@ void main()
     uint vertex_id = uint(index_buffer.indices[gl_VertexIndex]);
     Vertex vertex = vertex_buffer.vertices[vertex_id];
     ObjectData object_data = object_data_list[base_instance_id + gl_InstanceIndex];
-    gl_Position = projection_view * object_data.model * vec4(vertex.position, 1.0) ;
-    vs_out.color = vertex.normal;
+
+    gl_Position = projection_view * object_data.model * vec4(vertex.position, 1.0);
+
+    vs_out.color = normalize(vertex.position);
     vs_out.uv = vertex.uv;
     // if (vertex_id == 0) {
     //     debugPrintfEXT("Position = %v4f\n", gl_Position);

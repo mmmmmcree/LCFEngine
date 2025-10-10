@@ -4,7 +4,7 @@ add_executable(main_example main.cpp)
 
 target_link_libraries(main_example
     PRIVATE
-        RenderEngine
+        RenderEngine 
         Modules
         Systems
 )
@@ -34,7 +34,7 @@ add_custom_command(TARGET main_example POST_BUILD
 #         /Zc:ternary
 #         /analyze
 #     )
-# endif()
+# endif() 
 
 set_target_properties(main_example PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin

@@ -53,8 +53,9 @@ void lcf::VulkanRenderer::create()
     m_compute_pipeline.create(m_context_p, compute_pipeline_info);
 
     VulkanShaderProgram::SharedPointer shader_program = std::make_shared<VulkanShaderProgram>(m_context_p);
-    shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::eVertex, "assets/shaders/vertex_buffer_test.vert");
-    shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::eFragment, "assets/shaders/vertex_buffer_test.frag");
+    shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::eVertex, "assets/shaders/vertex_buffer_test.vert")
+        .addShaderFromGlslFile(ShaderTypeFlagBits::eFragment, "assets/shaders/vertex_buffer_test.frag");
+    // shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::eGeometry, "assets/shaders/cube_map.geom");
     shader_program->link();
     GraphicPipelineCreateInfo graphic_pipeline_info;
     graphic_pipeline_info.setShaderProgram(shader_program)
@@ -79,7 +80,7 @@ void lcf::VulkanRenderer::create()
     // ! temporary
 
     m_per_view_uniform_buffer.setUsage(GPUBufferUsage::eUniform)
-        .setSize(sizeof(Matrix4x4))
+        .setSize(sizeof(Matrix4x4) * 3) // projection, view, projection_view
         .create(m_context_p);
     
     m_per_renderable_transform_buffer.setUsage(GPUBufferUsage::eShaderStorage)
@@ -105,16 +106,11 @@ void lcf::VulkanRenderer::create()
         .setVertexData(VertexSemanticFlags::eTexCoord0, as_bytes(data::cube_uvs))
         .setIndexData(data::cube_indices);
 
+
     vkutils::immediate_submit(m_context_p, [this, &mesh2](VulkanCommandBufferObject & cmd) {
         m_mesh.create(m_context_p, cmd, mesh2);
     });
 
-    m_texture_image = VulkanImage::makeUnique();
-    m_texture_image->create(m_context_p, Image("assets/images/bk.jpg", 4));
-    vk::SamplerCreateInfo sampler_info;
-    sampler_info.setMagFilter(vk::Filter::eNearest)
-        .setMinFilter(vk::Filter::eNearest);
-    m_texture_sampler = device.createSamplerUnique(sampler_info);
 
     m_global_descriptor_manager.create(m_context_p);
     vk::DescriptorSetLayoutCreateInfo per_view_descriptor_set_layout_info;
@@ -129,7 +125,7 @@ void lcf::VulkanRenderer::create()
     vk::DescriptorBufferInfo per_view_buffer_info;
     per_view_buffer_info.setBuffer(m_per_view_uniform_buffer.getHandle())
         .setOffset(0)
-        .setRange(sizeof(Matrix4x4));
+        .setRange(m_per_view_uniform_buffer.getSize());
     VulkanDescriptorWriter per_view_writer(m_context_p, m_per_view_descriptor_set, vkconstants::per_view_bindings);
     per_view_writer.add(enum_cast(PerViewBindingPoints::eCamera), per_view_buffer_info)
         .write();
@@ -142,6 +138,63 @@ void lcf::VulkanRenderer::create()
         .add(enum_cast(PerRenderableBindingPoints::eIndexBuffer), per_renderable_index_buffer_info)
         .add(enum_cast(PerRenderableBindingPoints::eTransform), per_renderable_transform_buffer_info)
         .write();
+        
+    /*
+    todo 1. mipmap
+    todo 2. sphere to cube map
+            - create a pipeline to convert sphere to cube map
+            - create fbo with cube map attachment
+            - fbo.beginRendering();
+            - cmd.draw(36, 1, 0, 0); draw with const data in shader program
+    */
+    Image image("assets/images/bk.jpg", 4, true);
+    m_texture_image = VulkanImage::makeUnique();
+    m_texture_image->setFormat(vk::Format::eR8G8B8A8Unorm)
+        .setUsage(vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst)
+        .setExtent({ image.getWidth(), image.getHeight(), 1u })
+        .create(m_context_p);
+    uint32_t cube_width = 1024;
+    cube_width = std::min(image.getWidth(), image.getHeight());
+    m_cube_map = VulkanImage::makeShared();
+    m_cube_map->addImageFlags(vk::ImageCreateFlagBits::eCubeCompatible)
+        .setUsage(vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst)
+        .setFormat(vk::Format::eR8G8B8A8Unorm)
+        .setExtent({ cube_width, cube_width, 1u })
+        .setMipmapped(true)
+        .create(m_context_p);
+    vkutils::immediate_submit(m_context_p, [this, &image](VulkanCommandBufferObject & cmd) {
+        VulkanBufferObject staging_buffer;
+        staging_buffer.setUsage(GPUBufferUsage::eStaging)
+            .setSize(image.getSizeInBytes())
+            .create(m_context_p);
+        staging_buffer.addWriteSegment({image.getDataSpan()})
+            .commitWriteSegments(cmd);
+        std::array<vk::BufferImageCopy, 6> regions;
+        for (uint32_t face = 0; face < 6; ++face) {
+            regions[face].setImageSubresource({ m_cube_map->getAspectFlags(), 0, face, 1 })
+                .setImageOffset({ 0, 0, 0 })
+                .setImageExtent(m_cube_map->getExtent())
+                .setBufferOffset(0);
+        }
+        m_cube_map->copyFrom(cmd, staging_buffer.getHandle(), regions);
+        m_cube_map->generateMipmaps(cmd);
+        m_cube_map->transitLayout(cmd, vk::ImageLayout::eShaderReadOnlyOptimal);
+        
+        m_texture_image->setData(cmd, image.getDataSpan());
+    });
+
+    auto limits = m_context_p->getPhysicalDevice().getProperties().limits;
+    vk::SamplerCreateInfo sampler_info;
+    sampler_info.setMagFilter(vk::Filter::eLinear)
+        .setMinFilter(vk::Filter::eLinear)
+        .setAddressModeU(vk::SamplerAddressMode::eClampToEdge)
+        .setAddressModeV(vk::SamplerAddressMode::eClampToEdge)
+        .setAddressModeW(vk::SamplerAddressMode::eClampToEdge)
+        .setMinLod(0.0f)
+        .setMaxLod(static_cast<float>(m_cube_map->getMipLevelCount()))
+        .setMipmapMode(vk::SamplerMipmapMode::eLinear)
+        .setMaxAnisotropy(limits.maxSamplerAnisotropy); 
+    m_texture_sampler = device.createSamplerUnique(sampler_info);
 }
 
 void lcf::VulkanRenderer::render(const lcf::Entity & camera)
@@ -173,24 +226,27 @@ void lcf::VulkanRenderer::render(const lcf::Entity & camera)
     */
 
     auto &current_framebuffer = current_frame_resources.fbo;
+
     Matrix4x4 projection, projection_view;
-    projection.perspective(90.0f, static_cast<float>(width) / height, 0.1f, 100.0f);
-
+    projection.perspective(60.0f, static_cast<float>(width) / height, 0.1f, 1000.0f);
     auto &camera_transform = camera.getComponent<Transform>();
-
-    projection_view = projection * camera_transform.getInvertedWorldMatrix();
+    const auto & camera_view = camera_transform.getInvertedWorldMatrix();
+    projection_view = projection * camera_view;
     // if (m_current_frame_index % 3 == 1) {
     //     projection_view.setToIdentity();
     // }
-    m_per_view_uniform_buffer.addWriteSegment({as_bytes_from_value(projection_view), 0u});
+    m_per_view_uniform_buffer.addWriteSegment({as_bytes_from_value(projection), 0u})
+        .addWriteSegment({as_bytes_from_value(camera_view), sizeof(Matrix4x4)})
+        .addWriteSegment({as_bytes_from_value(projection_view), 2 * sizeof(Matrix4x4)});
     
     VulkanDescriptorManager &descriptor_manager = current_frame_resources.descriptor_manager;
     descriptor_manager.resetAllocatedSets();
     auto per_material_descriptor_set = *descriptor_manager.allocate(m_graphics_pipeline.getDescriptorSetLayout(enum_cast(DescriptorSetBindingPoints::ePerMaterial)));
     {
         vk::DescriptorImageInfo image_info;
-        image_info.setImageLayout(m_texture_image->getLayout())
-            .setImageView(m_texture_image->getDefaultView())
+        image_info.setImageLayout(*m_cube_map->getLayout())
+            // .setImageView(m_texture_image->getDefaultView())
+            .setImageView(m_cube_map->getDefaultView())
             .setSampler(m_texture_sampler.get());
 
         auto per_material_bindings = m_graphics_pipeline.getDescriptorSetLayoutBindings(enum_cast(DescriptorSetBindingPoints::ePerMaterial));
@@ -247,7 +303,7 @@ void lcf::VulkanRenderer::render(const lcf::Entity & camera)
     cmd.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), 0, m_per_view_descriptor_set, dynamic_offset);
     cmd.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), 1, m_per_renderable_descriptor_set, nullptr);
     cmd.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), 2, per_material_descriptor_set, nullptr);
-
+    
     cmd.drawIndirectCount(m_indirect_call_buffer.getHandle(), sizeof(vk::DrawIndirectCommand),
         m_indirect_call_buffer.getHandle(), 0,
         1, sizeof(vk::DrawIndirectCommand));
@@ -273,6 +329,7 @@ void lcf::VulkanRenderer::render(const lcf::Entity & camera)
     cmd.addWaitSubmitInfo(wait_info)
         .addSignalSubmitInfo(render_finished);
     cmd.submit(vk::QueueFlagBits::eGraphics);
+
 
     render_target->finishRender(render_finished);
     ++m_current_frame_index %= m_frame_resources.size();
