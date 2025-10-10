@@ -16,7 +16,6 @@ namespace lcf {
         void setRenderTarget(const render::RenderTarget::SharedPointer &render_target);
         const render::RenderTarget::SharedPointer & getRenderTarget() const { return m_render_target; }
     protected:
-        void closeEvent(QCloseEvent *event) override;
         void resizeEvent(QResizeEvent *event) override;
     private:
         render::RenderTarget::SharedPointer  m_render_target;

@@ -16,8 +16,7 @@ namespace lcf::render {
         virtual ~VulkanSwapchain() override;
         void create() override;
         bool isCreated() override { return m_swapchain.get(); }
-        void recreate();
-        void destroy() override;
+        bool recreate();
         bool isValid() const override { return m_surface and m_swapchain.get(); }
         bool prepareForRender();
         const VulkanImage::SharedPointer & getTargetImageSharedPointer() const noexcept { return m_swapchain_resources_list[m_image_index].image_sp; }
@@ -28,7 +27,7 @@ namespace lcf::render {
         vk::SurfaceKHR getSurface() const { return m_surface; }
         vk::Extent2D getExtent() const { return m_surface_capabilities.currentExtent; }
     private:
-        void acquireAvailableTarget();
+        bool acquireAvailableTarget();
     private:
         inline static constexpr uint32_t SWAPCHAIN_BUFFER_COUNT = 4;
         VulkanContext * m_context_p = nullptr;

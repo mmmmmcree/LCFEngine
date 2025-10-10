@@ -28,14 +28,6 @@ void lcf::RenderWindow::show()
     Window::show();
 }
 
-void lcf::RenderWindow::closeEvent(QCloseEvent *event)
-{
-    if (m_render_target) {
-        m_render_target->destroy();
-    }
-    Window::closeEvent(event);
-}
-
 void lcf::RenderWindow::resizeEvent(QResizeEvent * event)
 {
     if (m_render_target) {

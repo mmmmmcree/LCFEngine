@@ -13,7 +13,6 @@ namespace lcf::render {
         virtual ~RenderTarget() = default;
         virtual void create() = 0;
         virtual bool isCreated() = 0;
-        virtual void destroy() = 0;
         virtual bool isValid() const = 0;
         void requireUpdate() { m_need_to_update = true; }
         bool isUpdated() const { return not m_need_to_update; }
