@@ -35,6 +35,7 @@ void lcf::render::VulkanContext::create()
     this->createLogicalDevice();
     this->createCommandPool();
     m_memory_allocator.create(this);
+    m_descriptor_manager.create(this);
     SurfaceRenderTargetList{}.swap(m_surface_render_targets);
 }
 

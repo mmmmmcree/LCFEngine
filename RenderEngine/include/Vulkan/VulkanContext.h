@@ -4,6 +4,7 @@
 #include "VulkanSwapchain.h"
 #include "VulkanMemoryAllocator.h"
 #include "VulkanCommandBufferObject.h"
+#include "VulkanDescriptorManager.h"
 #include "RenderWindow.h"
 #include <vulkan/vulkan.hpp>
 #include <QVulkanInstance>
@@ -33,7 +34,8 @@ namespace lcf::render {
         vk::CommandPool getCommandPool() const { return m_command_pool.get(); }
         uint32_t getQueueFamilyIndex(vk::QueueFlags flags) const { return m_queue_family_indices.at(static_cast<uint32_t>(flags)); }
         vk::Queue getQueue(vk::QueueFlags flags) const { return m_queues.at(static_cast<uint32_t>(flags)); }
-        VulkanMemoryAllocator * getMemoryAllocator() { return &m_memory_allocator; }
+        VulkanMemoryAllocator & getMemoryAllocator() noexcept { return m_memory_allocator; }
+        VulkanDescriptorManager & getDescriptorManager() noexcept { return m_descriptor_manager; }
     private:
         void setupVulkanInstance();
         void pickPhysicalDevice();
@@ -50,5 +52,6 @@ namespace lcf::render {
         QueueMap m_queues;
         vk::UniqueCommandPool m_command_pool;
         VulkanMemoryAllocator m_memory_allocator;
+        VulkanDescriptorManager m_descriptor_manager; //todo single descriptor set freeable
     };
 }
