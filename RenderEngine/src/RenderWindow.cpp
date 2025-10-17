@@ -28,7 +28,26 @@ void lcf::RenderWindow::show()
     Window::show();
 }
 
-void lcf::RenderWindow::resizeEvent(QResizeEvent * event)
+bool lcf::RenderWindow::event(QEvent * event)
+{
+    switch(event->type()) {
+        case QEvent::PlatformSurface: {
+            auto surface_event = static_cast<QPlatformSurfaceEvent *>(event);
+            if (surface_event->surfaceEventType() == QPlatformSurfaceEvent::SurfaceAboutToBeDestroyed) {
+                qDebug() << "SurfaceAboutToBeDestroyed";
+            }
+        }
+    }
+    return Window::event(event);
+}
+
+void lcf::RenderWindow::closeEvent(QCloseEvent *event)
+{
+    // while (m_render_target.use_count() > 1);
+    Window::closeEvent(event);
+}
+
+void lcf::RenderWindow::resizeEvent(QResizeEvent *event)
 {
     if (m_render_target) {
         m_render_target->requireUpdate();
