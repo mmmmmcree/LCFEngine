@@ -1,5 +1,6 @@
 #include "TrackballController.h"
 #include "signals.h"
+#include <iostream>
 
 void lcf::modules::TrackballController::update(Entity & camera)
 {
@@ -31,5 +32,5 @@ void lcf::modules::TrackballController::update(Entity & camera)
     camera_transform.translateWorld(delta_center);
     camera_transform.rotateAround(yaw * pitch, m_center); //-先转pitch再转yaw，否则转完yaw后camera->right()就变了，先前算的pitch失效
     camera_transform.translateLocalZAxis(-delta_front);
-    camera.emitSignal<lcf::TransformUpdateSignal>({});
+    camera.emitSignal<lcf::TransformUpdateSignalInfo>({});
 }
