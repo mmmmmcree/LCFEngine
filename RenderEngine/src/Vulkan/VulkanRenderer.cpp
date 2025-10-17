@@ -40,7 +40,6 @@ void lcf::VulkanRenderer::create()
 {
     m_frame_resources.resize(3); //todo remove constant
     auto device = m_context_p->getDevice();
-    auto memory_allocator = m_context_p->getMemoryAllocator();
 
     auto render_target = m_render_target.lock();
     auto [max_width, max_height] = render_target->getMaximalExtent();
@@ -54,9 +53,8 @@ void lcf::VulkanRenderer::create()
 
     VulkanShaderProgram::SharedPointer shader_program = std::make_shared<VulkanShaderProgram>(m_context_p);
     shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::eVertex, "assets/shaders/vertex_buffer_test.vert")
-        .addShaderFromGlslFile(ShaderTypeFlagBits::eFragment, "assets/shaders/vertex_buffer_test.frag");
-    // shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::eGeometry, "assets/shaders/cube_map.geom");
-    shader_program->link();
+        .addShaderFromGlslFile(ShaderTypeFlagBits::eFragment, "assets/shaders/vertex_buffer_test.frag")
+        .link();
     GraphicPipelineCreateInfo graphic_pipeline_info;
     graphic_pipeline_info.setShaderProgram(shader_program)
         .setDepthAttachmentFormat(vk::Format::eD32Sfloat)
@@ -112,32 +110,32 @@ void lcf::VulkanRenderer::create()
     });
 
 
-    m_global_descriptor_manager.create(m_context_p);
+    auto & global_descriptor_manager = m_context_p->getDescriptorManager();
     vk::DescriptorSetLayoutCreateInfo per_view_descriptor_set_layout_info;
     per_view_descriptor_set_layout_info.setBindings(vkconstants::per_view_bindings);
     auto per_view_descriptor_set_layout = device.createDescriptorSetLayoutUnique(per_view_descriptor_set_layout_info);
     vk::DescriptorSetLayoutCreateInfo per_renderable_descriptor_set_layout_info;
     per_renderable_descriptor_set_layout_info.setBindings(vkconstants::per_renderable_bindings);
     auto per_renderable_descriptor_set_layout = device.createDescriptorSetLayoutUnique(per_renderable_descriptor_set_layout_info);
-    m_per_view_descriptor_set = *m_global_descriptor_manager.allocate(per_view_descriptor_set_layout.get());
-    m_per_renderable_descriptor_set = *m_global_descriptor_manager.allocate(per_renderable_descriptor_set_layout.get());
+    m_per_view_descriptor_set = *global_descriptor_manager.allocate(per_view_descriptor_set_layout.get());
+    m_per_renderable_descriptor_set = *global_descriptor_manager.allocate(per_renderable_descriptor_set_layout.get());
 
     vk::DescriptorBufferInfo per_view_buffer_info;
     per_view_buffer_info.setBuffer(m_per_view_uniform_buffer.getHandle())
         .setOffset(0)
         .setRange(m_per_view_uniform_buffer.getSize());
-    VulkanDescriptorWriter per_view_writer(m_context_p, m_per_view_descriptor_set, vkconstants::per_view_bindings);
+    VulkanDescriptorWriter per_view_writer(m_context_p, vkconstants::per_view_bindings);
     per_view_writer.add(enum_cast(PerViewBindingPoints::eCamera), per_view_buffer_info)
-        .write();
+        .write(m_per_view_descriptor_set);
 
     vk::DescriptorBufferInfo per_renderable_vertex_buffer_info(m_per_renderable_vertex_buffer.getHandle(), 0, vk::WholeSize);
     vk::DescriptorBufferInfo per_renderable_index_buffer_info(m_per_renderable_index_buffer.getHandle(), 0, vk::WholeSize);
     vk::DescriptorBufferInfo per_renderable_transform_buffer_info(m_per_renderable_transform_buffer.getHandle(), 0, vk::WholeSize);
-    VulkanDescriptorWriter per_renderable_writer(m_context_p, m_per_renderable_descriptor_set, vkconstants::per_renderable_bindings);
+    VulkanDescriptorWriter per_renderable_writer(m_context_p, vkconstants::per_renderable_bindings);
     per_renderable_writer.add(enum_cast(PerRenderableBindingPoints::eVertexBuffer), per_renderable_vertex_buffer_info)
         .add(enum_cast(PerRenderableBindingPoints::eIndexBuffer), per_renderable_index_buffer_info)
         .add(enum_cast(PerRenderableBindingPoints::eTransform), per_renderable_transform_buffer_info)
-        .write();
+        .write(m_per_renderable_descriptor_set);
         
     /*
     todo 1. mipmap
@@ -147,43 +145,98 @@ void lcf::VulkanRenderer::create()
             - fbo.beginRendering();
             - cmd.draw(36, 1, 0, 0); draw with const data in shader program
     */
-    Image image("assets/images/bk.jpg", 4, true);
-    m_texture_image = VulkanImage::makeUnique();
+
+
+
+    Image image("assets/images/bk.jpg", 4);
+    m_texture_image = VulkanImage::makeShared();
     m_texture_image->setFormat(vk::Format::eR8G8B8A8Unorm)
         .setUsage(vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst)
+        .setMipmapped(true)
         .setExtent({ image.getWidth(), image.getHeight(), 1u })
         .create(m_context_p);
+
+    Image image2("assets/images/qt256.png", 4);
+    m_texture_image2 = VulkanImage::makeShared();
+    m_texture_image2->setFormat(vk::Format::eR8G8B8A8Unorm)
+        .setUsage(vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst)
+        .setMipmapped(true)
+        .setExtent({ image2.getWidth(), image2.getHeight(), 1u })
+        .create(m_context_p);
+
     uint32_t cube_width = 1024;
-    cube_width = std::min(image.getWidth(), image.getHeight());
     m_cube_map = VulkanImage::makeShared();
     m_cube_map->addImageFlags(vk::ImageCreateFlagBits::eCubeCompatible)
-        .setUsage(vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst)
+        .setUsage(vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst  | vk::ImageUsageFlagBits::eColorAttachment)
         .setFormat(vk::Format::eR8G8B8A8Unorm)
         .setExtent({ cube_width, cube_width, 1u })
-        .setMipmapped(true)
+        // .setMipmapped(true)
         .create(m_context_p);
-    vkutils::immediate_submit(m_context_p, [this, &image](VulkanCommandBufferObject & cmd) {
-        VulkanBufferObject staging_buffer;
-        staging_buffer.setUsage(GPUBufferUsage::eStaging)
-            .setSize(image.getSizeInBytes())
-            .create(m_context_p);
-        staging_buffer.addWriteSegment({image.getDataSpan()})
-            .commitWriteSegments(cmd);
-        std::array<vk::BufferImageCopy, 6> regions;
-        for (uint32_t face = 0; face < 6; ++face) {
-            regions[face].setImageSubresource({ m_cube_map->getAspectFlags(), 0, face, 1 })
-                .setImageOffset({ 0, 0, 0 })
-                .setImageExtent(m_cube_map->getExtent())
-                .setBufferOffset(0);
-        }
-        m_cube_map->copyFrom(cmd, staging_buffer.getHandle(), regions);
-        m_cube_map->generateMipmaps(cmd);
-        m_cube_map->transitLayout(cmd, vk::ImageLayout::eShaderReadOnlyOptimal);
-        
+
+    VulkanShaderProgram::SharedPointer stc_shader_program = std::make_shared<VulkanShaderProgram>(m_context_p);
+    stc_shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::eVertex, "assets/shaders/sphere_to_cube.vert")
+        .addShaderFromGlslFile(ShaderTypeFlagBits::eGeometry, "assets/shaders/sphere_to_cube.geom")
+        .addShaderFromGlslFile(ShaderTypeFlagBits::eFragment, "assets/shaders/sphere_to_cube.frag")
+        .link();
+    GraphicPipelineCreateInfo stc_pipeline_info;
+    stc_pipeline_info.setShaderProgram(stc_shader_program)
+        .addColorAttachmentFormat(vk::Format::eR8G8B8A8Unorm);
+    VulkanPipeline stc_pipeline;
+    stc_pipeline.create(m_context_p, stc_pipeline_info);
+    vk::SamplerCreateInfo sphere_sampler_info;
+    sphere_sampler_info.setMagFilter(vk::Filter::eLinear)
+        .setMinFilter(vk::Filter::eLinear)
+        .setAddressModeU(vk::SamplerAddressMode::eClampToEdge)
+        .setAddressModeV(vk::SamplerAddressMode::eClampToEdge)
+        .setAddressModeW(vk::SamplerAddressMode::eClampToEdge);
+    auto sphere_sampler = device.createSamplerUnique(sphere_sampler_info);
+
+
+    vkutils::immediate_submit(m_context_p, [this, &image, &image2, &sphere_sampler, &stc_pipeline, &device](VulkanCommandBufferObject & cmd) {
         m_texture_image->setData(cmd, image.getDataSpan());
+        m_texture_image->generateMipmaps(cmd);
+        const auto & ds_prototype = stc_pipeline.getDescriptorSetPrototype(0);
+        auto & global_descriptor_manager = m_context_p->getDescriptorManager();
+        auto ds = global_descriptor_manager.allocate(ds_prototype.getLayout());
+        vk::DescriptorImageInfo image_info;
+        image_info.setImageLayout(*m_texture_image->getLayout())
+            .setImageView(m_texture_image->getDefaultView())
+            .setSampler(sphere_sampler.get());
+        VulkanDescriptorWriter writer = ds_prototype.generateWriter();
+        writer.add(0, image_info).write(*ds);
+        auto [w, h, z] = m_cube_map->getExtent();
+        VulkanFramebufferObjectCreateInfo fbo_info;
+        fbo_info.setMaxExtent({w, h});
+        VulkanFramebufferObject fbo;
+        fbo.addColorAttachment(m_cube_map)
+            .create(m_context_p, fbo_info);
+        cmd.bindPipeline(stc_pipeline.getType(), stc_pipeline.getHandle());
+        cmd.bindDescriptorSets(stc_pipeline.getType(), stc_pipeline.getPipelineLayout(), ds_prototype.getSet(), *ds, nullptr);
+        fbo.setViewportAndScissor(cmd);
+        fbo.beginRendering(cmd);
+        cmd.draw(36, 1, 0, 0); // draw with const data in shader program
+        fbo.endRendering(cmd);
+        m_cube_map->transitLayout(cmd, vk::ImageLayout::eShaderReadOnlyOptimal);
+
+        m_texture_image2->setData(cmd, image2.getDataSpan());
+        m_texture_image2->generateMipmaps(cmd);
     });
 
-    auto limits = m_context_p->getPhysicalDevice().getProperties().limits;
+    auto skybox_shader_program = VulkanShaderProgram::makeShared(m_context_p);
+    skybox_shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::eVertex, "assets/shaders/skybox.vert")
+        .addShaderFromGlslFile(ShaderTypeFlagBits::eFragment, "assets/shaders/skybox.frag")
+        .link();
+    GraphicPipelineCreateInfo skybox_pipeline_info;
+    skybox_pipeline_info.setShaderProgram(skybox_shader_program)
+        .addColorAttachmentFormat(vk::Format::eR16G16B16A16Sfloat)
+        .setDepthAttachmentFormat(vk::Format::eD32Sfloat)
+        .setRasterizationSamples(vk::SampleCountFlagBits::e4)
+        .setDepthWriteEnabled(false)
+        .setDepthCompareOp(vk::CompareOp::eLessOrEqual)
+        .setCullMode(vk::CullModeFlagBits::eFront)
+        .setFrontFace(vk::FrontFace::eCounterClockwise);
+    m_skybox_pipeline.create(m_context_p, skybox_pipeline_info);
+
     vk::SamplerCreateInfo sampler_info;
     sampler_info.setMagFilter(vk::Filter::eLinear)
         .setMinFilter(vk::Filter::eLinear)
@@ -193,8 +246,16 @@ void lcf::VulkanRenderer::create()
         .setMinLod(0.0f)
         .setMaxLod(static_cast<float>(m_cube_map->getMipLevelCount()))
         .setMipmapMode(vk::SamplerMipmapMode::eLinear)
-        .setMaxAnisotropy(limits.maxSamplerAnisotropy); 
-    m_texture_sampler = device.createSamplerUnique(sampler_info);
+        .setMaxAnisotropy(4.0f)
+        .setAnisotropyEnable(true);
+    m_texture_sampler = VulkanSampler::makeShared();
+    m_texture_sampler->create(m_context_p, sampler_info);
+
+    m_material.create(m_context_p, m_graphics_pipeline.getShaderProgram()->getDescriptorSetLayoutBindingList(enum_cast(DescriptorSetBindingPoints::ePerMaterial)));
+    m_material.setTexture(1, 1, m_texture_image)
+        .setTexture(1, 0, m_texture_image2)
+        .setSampler(2, 0, m_texture_sampler)
+        .commitUpdate();
 }
 
 void lcf::VulkanRenderer::render(const lcf::Entity & camera)
@@ -218,7 +279,7 @@ void lcf::VulkanRenderer::render(const lcf::Entity & camera)
         .setMinDepth(0.0f).setMaxDepth(1.0f);
     vk::Rect2D scissor;
     scissor.setOffset({ 0, 0 }).setExtent({ width, height });
-
+    
     cmd.begin(vk::CommandBufferBeginInfo{});
     /*
     ! DescriptorSet和Buffer都是command buffer的Resource，需要允许cmd.acquire(resource)
@@ -239,32 +300,38 @@ void lcf::VulkanRenderer::render(const lcf::Entity & camera)
         .addWriteSegment({as_bytes_from_value(camera_view), sizeof(Matrix4x4)})
         .addWriteSegment({as_bytes_from_value(projection_view), 2 * sizeof(Matrix4x4)});
     
-    VulkanDescriptorManager &descriptor_manager = current_frame_resources.descriptor_manager;
+    auto &descriptor_manager = current_frame_resources.descriptor_manager;
     descriptor_manager.resetAllocatedSets();
-    auto per_material_descriptor_set = *descriptor_manager.allocate(m_graphics_pipeline.getDescriptorSetLayout(enum_cast(DescriptorSetBindingPoints::ePerMaterial)));
+    const auto & per_material_ds_prototype = m_graphics_pipeline.getDescriptorSetPrototype(enum_cast(DescriptorSetBindingPoints::ePerMaterial));
+    auto per_material_descriptor_set = *descriptor_manager.allocate(per_material_ds_prototype.getLayout());
     {
         vk::DescriptorImageInfo image_info;
-        image_info.setImageLayout(*m_cube_map->getLayout())
-            // .setImageView(m_texture_image->getDefaultView())
-            .setImageView(m_cube_map->getDefaultView())
-            .setSampler(m_texture_sampler.get());
+        image_info.setImageLayout(*m_texture_image->getLayout())
+            .setImageView(m_texture_image->getDefaultView());
+        
+        vk::DescriptorImageInfo image2_info;
+        image2_info.setImageLayout(*m_texture_image2->getLayout())
+            .setImageView(m_texture_image2->getDefaultView());
+        
+        vk::DescriptorImageInfo sampler_info;
+        sampler_info.setSampler(m_texture_sampler->getHandle());
 
-        auto per_material_bindings = m_graphics_pipeline.getDescriptorSetLayoutBindings(enum_cast(DescriptorSetBindingPoints::ePerMaterial));
-        VulkanDescriptorWriter writer(m_context_p, per_material_descriptor_set, per_material_bindings);
-        writer.add(1, image_info)
-            .write();
+        VulkanDescriptorWriter writer = per_material_ds_prototype.generateWriter();
+        writer.add(1, 0, image_info)
+            .add(1, 1, image2_info)
+            .add(2, 0, sampler_info)
+            .write(per_material_descriptor_set);
     }
     
     cmd.setViewport(0, viewport);
     cmd.setScissor(0, scissor);
-    cmd.bindPipeline(m_graphics_pipeline.getType(), m_graphics_pipeline.getHandle());
 
     std::vector<Matrix4x4> model_matrices(2);
     model_matrices[0].scale(0.5f);
     static float angle = 0.0f;
     angle += 0.1f;
     model_matrices[1].scale(0.5f);
-    model_matrices[1].translateLocal({ 1.0f, 0.2f, 0.2f });
+    model_matrices[1].translateLocal({ 6.0f, 0.2f, 0.2f });
     model_matrices[1].rotateAroundSelf(Quaternion::fromAxisAndAngle({1.0f, 1.0f, 0.0f}, angle));
 
     m_per_renderable_vertex_buffer.addWriteSegment({as_bytes_from_value(m_mesh.getVertexBufferAddress()), 0u});
@@ -300,13 +367,33 @@ void lcf::VulkanRenderer::render(const lcf::Entity & camera)
     current_framebuffer.beginRendering(cmd);
 
     uint32_t dynamic_offset = 0;
-    cmd.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), 0, m_per_view_descriptor_set, dynamic_offset);
-    cmd.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), 1, m_per_renderable_descriptor_set, nullptr);
-    cmd.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), 2, per_material_descriptor_set, nullptr);
+    cmd.bindPipeline(m_graphics_pipeline.getType(), m_graphics_pipeline.getHandle());
+    cmd.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), enum_cast(DescriptorSetBindingPoints::ePerView), m_per_view_descriptor_set, dynamic_offset);
+    cmd.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), enum_cast(DescriptorSetBindingPoints::ePerRenderable), m_per_renderable_descriptor_set, nullptr);
+    cmd.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), enum_cast(DescriptorSetBindingPoints::ePerMaterial), m_material.getDescriptorSet(), nullptr);
+    // cmd.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), enum_cast(DescriptorSetBindingPoints::ePerMaterial), per_material_descriptor_set, nullptr);
     
     cmd.drawIndirectCount(m_indirect_call_buffer.getHandle(), sizeof(vk::DrawIndirectCommand),
         m_indirect_call_buffer.getHandle(), 0,
         1, sizeof(vk::DrawIndirectCommand));
+    
+    cmd.bindPipeline(m_skybox_pipeline.getType(), m_skybox_pipeline.getHandle());
+    const auto & skybox_prototype = m_skybox_pipeline.getDescriptorSetPrototype(enum_cast(DescriptorSetBindingPoints::ePerMaterial));
+    auto cube_map_ds = *descriptor_manager.allocate(skybox_prototype.getLayout());
+    {
+        vk::DescriptorImageInfo image_info;
+        image_info.setImageLayout(*m_cube_map->getLayout())
+            .setImageView(m_cube_map->getDefaultView())
+            .setSampler(m_texture_sampler->getHandle());
+
+        VulkanDescriptorWriter writer = skybox_prototype.generateWriter();
+        writer.add(1, image_info)
+            .write(cube_map_ds);
+    }
+
+    cmd.bindDescriptorSets(m_skybox_pipeline.getType(), m_skybox_pipeline.getPipelineLayout(), enum_cast(DescriptorSetBindingPoints::ePerView), m_per_view_descriptor_set, dynamic_offset);
+    cmd.bindDescriptorSets(m_skybox_pipeline.getType(), m_skybox_pipeline.getPipelineLayout(), enum_cast(DescriptorSetBindingPoints::ePerMaterial), cube_map_ds, nullptr);
+    cmd.draw(36, 1, 0, 0); // draw with const data in shader program
     
     current_framebuffer.endRendering(cmd);
     auto & target_image_sp = render_target->getTargetImageSharedPointer();
@@ -314,9 +401,10 @@ void lcf::VulkanRenderer::render(const lcf::Entity & camera)
     auto msaa_attachment = current_framebuffer.getMSAAResolveAttachment();
     if (msaa_attachment) {
         VulkanAttachment target_attachment(target_image_sp);
+        auto [w, h, z] = target_image_sp->getExtent();
         msaa_attachment->blitTo(cmd, target_attachment, vk::Filter::eLinear,
             {{0, 0, 0}, {static_cast<int32_t>(width), static_cast<int32_t>(height), 1}},
-            {{0, 0, 0}, {static_cast<int32_t>(width), static_cast<int32_t>(height), 1}});
+            {{0, 0, 0}, {static_cast<int32_t>(w), static_cast<int32_t>(h), 1}});
     }
 
     target_image_sp->transitLayout(cmd, vk::ImageLayout::ePresentSrcKHR);

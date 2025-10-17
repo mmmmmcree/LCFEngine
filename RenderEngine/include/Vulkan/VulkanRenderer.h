@@ -11,6 +11,8 @@
 #include "VulkanCommandBufferObject.h"
 #include "VulkanBufferObject.h"
 #include "VulkanMesh.h"
+#include "VulkanSampler.h"
+#include "VulkanMaterial.h"
 
 namespace lcf {
     using namespace lcf::render;
@@ -41,12 +43,12 @@ namespace lcf {
         uint32_t m_current_frame_index = 0;
 
         //! temporary
-        VulkanDescriptorManager m_global_descriptor_manager;
         vk::DescriptorSet m_per_view_descriptor_set;
         vk::DescriptorSet m_per_renderable_descriptor_set;
 
         VulkanPipeline m_compute_pipeline;
         VulkanPipeline m_graphics_pipeline;
+        VulkanPipeline m_skybox_pipeline;
 
         VulkanBufferObject m_per_view_uniform_buffer;
 
@@ -59,7 +61,9 @@ namespace lcf {
         VulkanBufferObject m_per_renderable_transform_buffer;
 
         VulkanImage::SharedPointer m_cube_map;
-        VulkanImage::UniquePointer m_texture_image;
-        vk::UniqueSampler m_texture_sampler;
+        VulkanImage::SharedPointer m_texture_image;
+        VulkanImage::SharedPointer m_texture_image2;
+        VulkanSampler::SharedPointer m_texture_sampler;
+        VulkanMaterial m_material;
     };
 }
