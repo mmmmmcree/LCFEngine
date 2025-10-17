@@ -37,7 +37,7 @@ namespace lcf {
         uint32_t m_columns = 1;
         uint32_t m_array_size = 1;
         uint32_t m_offset = 0;
-        uint32_t m_size;
+        uint32_t m_size = 0;
         MemberList m_members;
     };
 
