@@ -35,6 +35,9 @@ bool VulkanFramebufferObject::create(VulkanContext *context_p, const VulkanFrame
             .create(context_p);
         m_color_attachments.emplace_back(image_sp);
     }
+    for (const auto & color_attachment : m_color_attachments) {
+        m_layer_count = std::min(m_layer_count, color_attachment.getLayerCount());
+    }
     if (create_info.hasDepthStencilFormat()) {
         auto image_sp = VulkanImage::makeShared();
         image_sp->setUsage(vk::ImageUsageFlagBits::eDepthStencilAttachment)
@@ -64,7 +67,7 @@ VulkanFramebufferObject & VulkanFramebufferObject::addColorAttachment(const Atta
     return *this;
 }
 
-void VulkanFramebufferObject::beginRendering(VulkanCommandBufferObject & cmd)
+void VulkanFramebufferObject::beginRendering(VulkanCommandBufferObject & cmd) noexcept
 {
     std::vector<vk::RenderingAttachmentInfo> color_attachment_infos(m_color_attachments.size());
     for (int i = 0; i < m_color_attachments.size(); ++i) {
@@ -95,13 +98,27 @@ void VulkanFramebufferObject::beginRendering(VulkanCommandBufferObject & cmd)
     }
     vk::RenderingInfo rendering_info;
     rendering_info.setRenderArea({ { 0, 0 }, m_extent })
-        .setLayerCount(1)
+        .setLayerCount(m_layer_count)
         .setColorAttachments(color_attachment_infos)
         .setPDepthAttachment(&depth_stencil_attachment_info);
     cmd.beginRendering(rendering_info);
 }
 
-void VulkanFramebufferObject::endRendering(VulkanCommandBufferObject & cmd)
+void VulkanFramebufferObject::endRendering(VulkanCommandBufferObject & cmd) noexcept
 {
     cmd.endRendering();
+}
+
+void lcf::render::VulkanFramebufferObject::setViewportAndScissor(VulkanCommandBufferObject &cmd) noexcept
+{
+    auto [w, h] = m_extent;
+    vk::Viewport viewport;
+    viewport.setX(0.0f).setY(h)
+        .setWidth(static_cast<float>(w))
+        .setHeight(-static_cast<float>(h))
+        .setMinDepth(0.0f).setMaxDepth(1.0f);
+    vk::Rect2D scissor;
+    scissor.setOffset({ 0, 0 }).setExtent(m_extent);
+    cmd.setViewport(0, viewport);
+    cmd.setScissor(0, scissor);
 }

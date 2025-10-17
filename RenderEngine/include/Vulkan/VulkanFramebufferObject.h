@@ -45,11 +45,13 @@ namespace lcf::render {
         OptionalAttachment getColorAttachment(uint32_t index) noexcept { return m_color_attachments.size() > index? std::make_optional(m_color_attachments[index]) : std::nullopt; }
         OptionalAttachment getDepthStencilAttachment() noexcept { return m_depth_stencil_attachment; }
         OptionalAttachment getMSAAResolveAttachment() noexcept { return m_msaa_resolve_attachment; }
-        void beginRendering(VulkanCommandBufferObject & cmd);
-        void endRendering(VulkanCommandBufferObject & cmd);
+        void beginRendering(VulkanCommandBufferObject & cmd) noexcept;
+        void endRendering(VulkanCommandBufferObject & cmd) noexcept;
+        void setViewportAndScissor(VulkanCommandBufferObject & cmd) noexcept;
     private:
         vk::Extent2D m_max_extent = {std::numeric_limits<uint32_t>::max(), std::numeric_limits<uint32_t>::max()};
         vk::Extent2D m_extent = {std::numeric_limits<uint32_t>::max(), std::numeric_limits<uint32_t>::max()};
+        uint32_t m_layer_count = std::numeric_limits<uint32_t>::max();
         vk::Format m_depth_stencil_format = vk::Format::eUndefined;
         AttachmentList m_color_attachments;
         OptionalAttachment m_depth_stencil_attachment;
