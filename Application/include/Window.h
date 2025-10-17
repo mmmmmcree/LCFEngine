@@ -12,8 +12,5 @@ namespace lcf {
         Window(Window &&) = delete;
         Window & operator=(const Window &) = delete;
         Window & operator=(Window &&) = delete;
-        const InputManager * getInputManager() const { return m_input_manager; }
-    protected:
-        InputManager * m_input_manager;
     };
 }
