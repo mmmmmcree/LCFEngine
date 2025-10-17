@@ -27,9 +27,7 @@ namespace lcf::render {
         VulkanShaderProgram * getShaderProgram() const { return m_shader_program.get(); }
         vk::PipelineLayout getPipelineLayout() const { return m_shader_program->getPipelineLayout(); }
         vk::Pipeline getHandle() const { return m_pipeline.get(); }
-        const DescriptorSetLayoutList & getDescriptorSetLayoutList() const { return m_shader_program->getDescriptorSetLayoutList(); }
-        vk::DescriptorSetLayout getDescriptorSetLayout(uint32_t set) const noexcept { return m_shader_program->getDescriptorSetLayoutList()[set]; }
-        DescriptorSetLayoutBindings getDescriptorSetLayoutBindings(uint32_t set) const noexcept { return m_shader_program->getDescriptorSetLayoutBindingTable()[set]; }
+        const VulkanDescriptorSetPrototype & getDescriptorSetPrototype(uint32_t set) const { return m_shader_program->getDescriptorSetPrototype(set); }
         vk::PipelineBindPoint getType() const { return m_type; }
     private:
         VulkanContext * m_context_p = nullptr;
@@ -59,24 +57,50 @@ namespace lcf::render {
             vk::PrimitiveTopology topology = vk::PrimitiveTopology::eTriangleList,
             const std::vector<vk::Format> & color_attachment_formats = {},
             vk::Format depth_attachment_format = vk::Format::eUndefined,
-            vk::SampleCountFlagBits rasterization_samples = vk::SampleCountFlagBits::e1
+            bool depth_test_enable = true,
+            bool depth_write_enable = true,
+            vk::CompareOp depth_compare_op = vk::CompareOp::eLess,
+            vk::SampleCountFlagBits rasterization_samples = vk::SampleCountFlagBits::e1,
+            vk::CullModeFlags cull_mode = vk::CullModeFlagBits::eNone,
+            vk::FrontFace front_face = vk::FrontFace::eCounterClockwise
         ) : m_shader_program(shader_program),
             m_color_attachment_formats(color_attachment_formats),
             m_depth_attachment_format(depth_attachment_format),
-            m_rasterization_samples(rasterization_samples) { }
+            m_depth_test_enable(depth_test_enable),
+            m_depth_write_enable(depth_write_enable),
+            m_depth_compare_op(depth_compare_op),
+            m_rasterization_samples(rasterization_samples),
+            m_cull_mode(cull_mode),
+            m_front_face(front_face)
+        { }
         Self & setShaderProgram(const VulkanShaderProgram::SharedPointer & shader_program) { m_shader_program = shader_program; return *this; }
         Self & addColorAttachmentFormat(vk::Format format) { m_color_attachment_formats.emplace_back(format); return *this; }
         Self & addColorAttachmentFormats(const std::span<const vk::Format> & formats) { m_color_attachment_formats.insert(m_color_attachment_formats.end(), formats.begin(), formats.end()); return *this; }
+        Self & setDepthTestEnabled(bool enable) { m_depth_test_enable = enable; return *this; }
+        Self & setDepthWriteEnabled(bool enable) { m_depth_write_enable = enable; return *this; }
+        Self & setDepthCompareOp(vk::CompareOp compare_op) { m_depth_compare_op = compare_op; return *this; }
         Self & setDepthAttachmentFormat(vk::Format format) { m_depth_attachment_format = format; return *this; }
         Self & setRasterizationSamples(vk::SampleCountFlagBits samples) { m_rasterization_samples = samples; return *this; }
-        const VulkanShaderProgram::SharedPointer & getShaderProgram() const { return m_shader_program; }
-        const std::vector<vk::Format> & getColorAttachmentFormats() const { return m_color_attachment_formats; }
-        vk::Format getDepthAttachmentFormat() const { return m_depth_attachment_format; }
-        vk::SampleCountFlagBits getRasterizationSamples() const { return m_rasterization_samples; }
+        Self & setCullMode(vk::CullModeFlags cull_mode) { m_cull_mode = cull_mode; return *this; }
+        Self & setFrontFace(vk::FrontFace front_face) { m_front_face = front_face; return *this; }
+        const VulkanShaderProgram::SharedPointer & getShaderProgram() const noexcept { return m_shader_program; }
+        const std::vector<vk::Format> & getColorAttachmentFormats() const noexcept { return m_color_attachment_formats; }
+        bool isDepthTestEnabled() const noexcept { return m_depth_test_enable; }
+        bool isDepthWriteEnabled() const noexcept { return m_depth_write_enable; }
+        vk::CompareOp getDepthCompareOp() const noexcept { return m_depth_compare_op; }
+        vk::Format getDepthAttachmentFormat() const noexcept { return m_depth_attachment_format; }
+        vk::SampleCountFlagBits getRasterizationSamples() const noexcept { return m_rasterization_samples; }
+        vk::CullModeFlags getCullMode() const noexcept { return m_cull_mode; }
+        vk::FrontFace getFrontFace() const noexcept { return m_front_face; }
     private:
         VulkanShaderProgram::SharedPointer m_shader_program;
         std::vector<vk::Format> m_color_attachment_formats;
         vk::Format m_depth_attachment_format;
+        bool m_depth_test_enable;
+        bool m_depth_write_enable;
+        vk::CompareOp m_depth_compare_op;
         vk::SampleCountFlagBits m_rasterization_samples;
+        vk::CullModeFlags m_cull_mode;
+        vk::FrontFace m_front_face;
     };
 }
