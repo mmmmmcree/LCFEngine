@@ -13,10 +13,6 @@ lcf::render::VulkanShaderProgram::VulkanShaderProgram(VulkanContext *context) :
 
 lcf::render::VulkanShaderProgram::~VulkanShaderProgram()
 {
-    auto device = m_context_p->getDevice();
-    for (auto descriptor_set_layout : m_descriptor_set_layout_list) {
-        device.destroyDescriptorSetLayout(descriptor_set_layout);
-    }
 }
 
 VulkanShaderProgram & lcf::render::VulkanShaderProgram::addShaderFromGlslFile(ShaderTypeFlagBits stage, std::string_view file_path)
@@ -34,9 +30,18 @@ bool lcf::render::VulkanShaderProgram::link()
     if (not this->isLinked()) { return false; }
     this->createShaderStageInfoList();
     this->createDescriptorSetLayoutBindingTable();
-    this->createDescriptorSetLayoutList();
+    this->createDescriptorSetPrototypes();
     this->createPipelineLayout();
     return m_is_linked;
+}
+
+bool lcf::render::VulkanShaderProgram::hasVertexInput() const noexcept
+{
+    if (not m_is_linked) { return false; }
+    bool has_vertex_stage = m_stage_to_shader_map.contains(ShaderTypeFlagBits::eVertex);
+    if (not has_vertex_stage) { return false; }
+    const auto &vertex_shader = m_stage_to_shader_map.at(ShaderTypeFlagBits::eVertex);
+    return not vertex_shader->getResources().stage_inputs.empty();
 }
 
 void lcf::render::VulkanShaderProgram::setPushConstantData(vk::ShaderStageFlags stage, std::span<const void *> data_list)
@@ -87,6 +92,12 @@ void lcf::render::VulkanShaderProgram::createDescriptorSetLayoutBindingTable()
         for (const auto &resource : resources.sampled_images) {
             resource_info_list.emplace_back(enum_cast<vk::ShaderStageFlagBits>(stage), vk::DescriptorType::eCombinedImageSampler, resource);
         }
+        for (const auto &resource : resources.separate_images) {
+            resource_info_list.emplace_back(enum_cast<vk::ShaderStageFlagBits>(stage), vk::DescriptorType::eSampledImage, resource);
+        }
+        for (const auto &resource : resources.separate_samplers) {
+            resource_info_list.emplace_back(enum_cast<vk::ShaderStageFlagBits>(stage), vk::DescriptorType::eSampler, resource);
+        }
         for (const auto &resource : resources.storage_images) {
             resource_info_list.emplace_back(enum_cast<vk::ShaderStageFlagBits>(stage), vk::DescriptorType::eStorageImage, resource);
         }
@@ -116,16 +127,15 @@ void lcf::render::VulkanShaderProgram::createDescriptorSetLayoutBindingTable()
            .setStageFlags(descriptor_set_layout_binding.stageFlags | resource_info.stage)
            .setBinding(shader_resource.getBinding());
     }
+
 }
 
-void lcf::render::VulkanShaderProgram::createDescriptorSetLayoutList()
+void lcf::render::VulkanShaderProgram::createDescriptorSetPrototypes()
 {
-    auto device = m_context_p->getDevice();
     for (uint32_t set = 0; set < m_descriptor_set_layout_binding_table.size(); ++set) {
         const auto &descriptor_set_layout_bindings = m_descriptor_set_layout_binding_table[set];
-        vk::DescriptorSetLayoutCreateInfo descriptor_set_layout_info;
-        descriptor_set_layout_info.setBindings(descriptor_set_layout_bindings);
-        m_descriptor_set_layout_list.emplace_back(device.createDescriptorSetLayout(descriptor_set_layout_info));
+        auto & ds_prototype = m_descriptor_set_prototype_list.emplace_back(descriptor_set_layout_bindings, set);
+        ds_prototype.create(m_context_p);
     }
 }
 
@@ -178,7 +188,11 @@ void lcf::render::VulkanShaderProgram::createPipelineLayout()
 
     auto device = m_context_p->getDevice();
     vk::PipelineLayoutCreateInfo pipeline_layout_info;
-    pipeline_layout_info.setSetLayouts(m_descriptor_set_layout_list)
+    std::vector<vk::DescriptorSetLayout> descriptor_set_layout_list;
+    for (const auto & ds_prototype : m_descriptor_set_prototype_list) {
+        descriptor_set_layout_list.emplace_back(ds_prototype.getLayout());
+    }
+    pipeline_layout_info.setSetLayouts(descriptor_set_layout_list)
         .setPushConstantRanges(push_constant_range_list);
     try {
         m_pipeline_layout = device.createPipelineLayoutUnique(pipeline_layout_info);
