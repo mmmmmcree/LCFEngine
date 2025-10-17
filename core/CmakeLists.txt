@@ -13,7 +13,7 @@ if(WIN32)
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>
         ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/$<CONFIG>
     ) 
-endif()
+endif() 
 
 find_package(EnTT CONFIG REQUIRED)
  

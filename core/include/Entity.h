@@ -1,21 +1,22 @@
 #pragma once
 
 #include <entt/entt.hpp>
+#include "Registry.h"
 
 namespace lcf {
-    using Registry = entt::registry;
+    class Registry;
+    using Dispatcher = entt::dispatcher;
     using EntityHandle = entt::entity;
 
     class Entity
     {
     public:
-        Entity(Registry * registry_p, Entity * signal_manager = nullptr);
+        Entity(Registry * registry_p);
         Entity(const Entity & other) = delete;
         Entity(Entity && other) noexcept;
         Entity & operator=(const Entity & other) = delete;
         Entity & operator=(Entity && other) noexcept;
         ~Entity();
-        void setSignalManager(Entity * signal_manager_p) { m_signal_manager_p = signal_manager_p; }
         EntityHandle getHandle() const { return m_entity; }
         template <typename Component, typename... Args>
         Component & requireComponent(Args &&... args) const;
@@ -23,12 +24,12 @@ namespace lcf {
         Component & getComponent() const;
         template <typename Component>
         bool hasComponent() const;
-        Entity * getSignalManager() const { return m_signal_manager_p; }
-        template <typename Signal>
-        void emitSignal(const typename Signal::SignalInfo & signal_info) const;
+        template <typename SignalInfo>
+        void emitSignal(const SignalInfo & signal_info) const;
+        template <typename SignalInfo>
+        void enqueueSignal(const SignalInfo & signal_info) const;
     private:
         Registry * m_registry_p = nullptr;
-        Entity * m_signal_manager_p = nullptr; //optional
         EntityHandle m_entity;
     };
 
@@ -39,8 +40,8 @@ namespace lcf {
         EntityHandle sender = entt::null;
     };
 
-    template <typename Signal>
-    concept entity_eignal_c = std::derived_from<typename Signal::SignalInfo, EntitySignalInfoBase>;
+    template <typename SignalInfo>
+    concept entity_eignal_info_c = std::derived_from<SignalInfo, EntitySignalInfoBase>;
 }
 
 template <typename Component, typename... Args>
@@ -61,15 +62,22 @@ inline bool lcf::Entity::hasComponent() const
     return m_registry_p->any_of<Component>(m_entity);
 }
 
-template <typename Signal>
-inline void lcf::Entity::emitSignal(const typename Signal::SignalInfo &signal_info) const
+template <typename SignalInfo>
+inline void lcf::Entity::emitSignal(const SignalInfo &signal_info) const
 {
-    using SignalInfo = typename Signal::SignalInfo;
-    if (m_signal_manager_p) {
-        if constexpr (entity_eignal_c<Signal>) {
-            SignalInfo & info = const_cast<SignalInfo &>(signal_info);
-            info.sender = m_entity;
-        }
-        m_signal_manager_p->requireComponent<Signal>().publish(signal_info);
+    if constexpr (entity_eignal_info_c<SignalInfo>) {
+        SignalInfo & info = const_cast<SignalInfo &>(signal_info);
+        info.sender = m_entity;
     }
+    m_registry_p->ctx().get<Dispatcher>().trigger(signal_info);
+}
+
+template <typename SignalInfo>
+inline void lcf::Entity::enqueueSignal(const SignalInfo &signal_info) const
+{
+    if constexpr (entity_eignal_info_c<SignalInfo>) {
+        SignalInfo & info = const_cast<SignalInfo &>(signal_info);
+        info.sender = m_entity;
+    }
+    m_registry_p->ctx().get<Dispatcher>().enqueue(signal_info);
 }

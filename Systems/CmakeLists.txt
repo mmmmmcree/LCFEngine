@@ -18,7 +18,7 @@ foreach(ITEM ${INCLUDE_DIRS})
 endforeach()
 include_directories( 
   ${CMAKE_CURRENT_SOURCE_DIR}/include 
-  ${DIRS_ONLY} 
+  ${DIRS_ONLY}  
 )      
  
 
