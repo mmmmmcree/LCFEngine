@@ -30,7 +30,7 @@ namespace lcf::render {
         std::optional<T> m_value;
     };
 
-    class VulkanImage : public STDSelfSharedPointerDefs<VulkanImage>
+    class VulkanImage : public STDPointerDefs<VulkanImage>
     {
         using Self = VulkanImage;
         struct ImageViewKey
@@ -106,6 +106,13 @@ namespace lcf::render {
         uint32_t getLayoutKey(uint32_t layer, uint32_t mip_level) const noexcept { return layer * this->getMipLevelCount() + mip_level; }
         std::vector<LayoutMapIntervalType> getLayoutIntervals(uint32_t base_layer, uint32_t layer_count, uint32_t base_mip_level, uint32_t mip_level_count) const noexcept;
         std::optional<vk::ImageLayout> getLayout(uint32_t base_layer, uint32_t layer_count, uint32_t base_mip_level, uint32_t mip_level_count) const noexcept;
+        void blitTo(VulkanCommandBufferObject & cmd,
+            const vk::ImageSubresourceLayers & src_subresource,
+            const std::pair<vk::Offset3D, vk::Offset3D> & src_offsets,
+            VulkanImage & dst,
+            const vk::ImageSubresourceLayers & dst_subresource,
+            const std::pair<vk::Offset3D, vk::Offset3D> & dst_offsets,
+            vk::Filter filter);
     private:
         VulkanContext * m_context_p;
         vk::ImageCreateFlags m_flags = {};
@@ -125,16 +132,15 @@ namespace lcf::render {
         using Self = VulkanAttachment;
     public:
         using Offset3DPair = std::pair<vk::Offset3D, vk::Offset3D>;
-        VulkanAttachment(const VulkanImage::SharedPointer & image_p,
-            uint32_t mip_level = 0,
-            uint32_t layer = 0,
-            uint32_t layer_count = 1);
+        VulkanAttachment(const VulkanImage::SharedPointer & image_sp);
+        VulkanAttachment(const VulkanImage::SharedPointer & image_sp, uint32_t mip_level, uint32_t layer, uint32_t layer_count);
         VulkanAttachment(const VulkanAttachment & other) = default;
+        bool isValid() const noexcept { return m_image_sp and m_image_sp->isCreated(); }
         void blitTo(VulkanCommandBufferObject & cmd,
             VulkanAttachment & dst,
             vk::Filter filter,
             const Offset3DPair & src_offsets,
-            const Offset3DPair & dst_offsets);
+            const Offset3DPair & dst_offsets); 
         void blitTo(VulkanCommandBufferObject & cmd, VulkanAttachment & dst, vk::Filter filter);
         void copyTo(VulkanCommandBufferObject & cmd,
             VulkanAttachment & dst,

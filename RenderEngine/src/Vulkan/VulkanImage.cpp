@@ -28,7 +28,7 @@ bool lcf::render::VulkanImage::create(VulkanContext * context_p)
         .setUsage(m_usage)
         .setInitialLayout(vk::ImageLayout::eUndefined)
         .setSharingMode(vk::SharingMode::eExclusive);
-    m_image = m_context_p->getMemoryAllocator()->createImage(image_info);
+    m_image = m_context_p->getMemoryAllocator().createImage(image_info);
     auto interval = LayoutMapInterval::right_open(0, this->getMipLevelCount() * m_array_layers);
     m_layout_map.set(std::make_pair(interval, image_info.initialLayout));
     return this->isCreated();
@@ -62,14 +62,16 @@ void lcf::render::VulkanImage::setData(VulkanCommandBufferObject &cmd, std::span
 
 void lcf::render::VulkanImage::generateMipmaps(VulkanCommandBufferObject & cmd)
 {
-    VulkanAttachment src_attachment(this->shared_from_this(), 0, 0, m_array_layers);
+    using Offset3DPair = std::pair<vk::Offset3D, vk::Offset3D>;
+    Offset3DPair src_offsets = {{0, 0, 0}, {static_cast<int32_t>(m_extent.width), static_cast<int32_t>(m_extent.height), 1}};
+    auto aspect_flags = this->getAspectFlags();
     for (uint32_t level = 1; level < this->getMipLevelCount(); ++level) {
-        VulkanAttachment dst_attachment(this->shared_from_this(), level, 0, m_array_layers);
-        auto [sw, sh, sd] = src_attachment.getExtent();
-        auto [dw, dh, dd] = dst_attachment.getExtent();
-        src_attachment.blitTo(cmd, dst_attachment, vk::Filter::eLinear);
-        src_attachment = dst_attachment;
+        Offset3DPair dst_offsets = {{0, 0, 0}, {static_cast<int32_t>(m_extent.width) >> level, static_cast<int32_t>(m_extent.height) >> level, 1}};
+        this->blitTo(cmd, {aspect_flags, level - 1, 0, m_array_layers}, src_offsets,
+            *this, {aspect_flags, level, 0, m_array_layers}, dst_offsets, vk::Filter::eLinear);
+        src_offsets = dst_offsets;
     }
+    this->transitLayout(cmd, vk::ImageLayout::eShaderReadOnlyOptimal);
 }
 
 void lcf::render::VulkanImage::transitLayout(VulkanCommandBufferObject & cmd, vk::ImageLayout new_layout)
@@ -232,15 +234,45 @@ std::optional<vk::ImageLayout> lcf::render::VulkanImage::getLayout(uint32_t base
     return layout;
 }
 
+void lcf::render::VulkanImage::blitTo(VulkanCommandBufferObject &cmd,
+    const vk::ImageSubresourceLayers &src_subresource,
+    const std::pair<vk::Offset3D, vk::Offset3D> &src_offsets,
+    VulkanImage &dst,
+    const vk::ImageSubresourceLayers &dst_subresource,
+    const std::pair<vk::Offset3D, vk::Offset3D> & dst_offsets,
+    vk::Filter filter)
+{
+    this->transitLayout(cmd, {this->getAspectFlags(), src_subresource.mipLevel, 1, src_subresource.baseArrayLayer, src_subresource.layerCount}, vk::ImageLayout::eTransferSrcOptimal);
+    dst.transitLayout(cmd, {dst.getAspectFlags(), dst_subresource.mipLevel, 1, dst_subresource.baseArrayLayer, dst_subresource.layerCount}, vk::ImageLayout::eTransferDstOptimal);
+    vk::ImageBlit2 blit_region2 = {};
+    blit_region2.setSrcSubresource(src_subresource)
+        .setDstSubresource(dst_subresource);
+    memcpy(blit_region2.srcOffsets, &src_offsets, sizeof(blit_region2.srcOffsets));
+    memcpy(blit_region2.dstOffsets, &dst_offsets, sizeof(blit_region2.dstOffsets));
+    vk::BlitImageInfo2 blit_info = {};
+    blit_info.setSrcImage(this->getHandle())
+        .setSrcImageLayout(vk::ImageLayout::eTransferSrcOptimal)
+        .setDstImage(dst.getHandle())
+        .setDstImageLayout(vk::ImageLayout::eTransferDstOptimal)
+        .setRegions(blit_region2)
+        .setFilter(filter);
+    cmd.blitImage2(blit_info);
+}
+
 // - VulkanAttachment
 
-lcf::render::VulkanAttachment::VulkanAttachment(const VulkanImage::SharedPointer & image_sp, uint32_t mip_level, uint32_t layer, uint32_t layer_count) :
+lcf::render::VulkanAttachment::VulkanAttachment(const VulkanImage::SharedPointer &image_sp) :
+    VulkanAttachment(image_sp, 0, 0, image_sp ? image_sp->getArrayLayerCount() : 1u)
+{
+}
+
+lcf::render::VulkanAttachment::VulkanAttachment(const VulkanImage::SharedPointer &image_sp, uint32_t mip_level, uint32_t layer, uint32_t layer_count) :
     m_image_sp(image_sp),
     m_mip_level(mip_level),
     m_layer(layer),
     m_layer_count(layer_count)
 {
-    if (not m_image_sp or not m_image_sp->isCreated()) {
+    if (not this->isValid()) {
         LCF_THROW_RUNTIME_ERROR("lcf::render::VulkanAttachment::VulkanAttachment: Invalid image for attachment");
     }
     bool is_layer_valid = m_layer + m_layer_count <= m_image_sp->getArrayLayerCount();
@@ -252,22 +284,15 @@ lcf::render::VulkanAttachment::VulkanAttachment(const VulkanImage::SharedPointer
 
 void VulkanAttachment::blitTo(VulkanCommandBufferObject & cmd, VulkanAttachment &dst, vk::Filter filter, const Offset3DPair &src_offsets, const Offset3DPair &dst_offsets)
 {
-    auto & dst_image_sp = dst.getImageSharedPointer();
-    this->transitLayout(cmd, vk::ImageLayout::eTransferSrcOptimal);
-    dst.transitLayout(cmd, vk::ImageLayout::eTransferDstOptimal);
-    vk::ImageBlit2 blit_region2 = {};
-    blit_region2.setSrcSubresource(vk::ImageSubresourceLayers(m_image_sp->getAspectFlags(), m_mip_level, m_layer, m_layer_count))
-        .setDstSubresource(vk::ImageSubresourceLayers(dst_image_sp->getAspectFlags(), dst.getMipLevel(), dst.getLayer(), dst.getLayerCount()));
-    memcpy(blit_region2.srcOffsets, &src_offsets, sizeof(Offset3DPair));
-    memcpy(blit_region2.dstOffsets, &dst_offsets, sizeof(Offset3DPair));
-    vk::BlitImageInfo2 blit_info = {};
-    blit_info.setSrcImage(m_image_sp->getHandle())
-        .setSrcImageLayout(vk::ImageLayout::eTransferSrcOptimal)
-        .setDstImage(dst_image_sp->getHandle())
-        .setDstImageLayout(vk::ImageLayout::eTransferDstOptimal)
-        .setRegions(blit_region2)
-        .setFilter(filter);
-    cmd.blitImage2(blit_info);
+    auto & dst_image = *dst.getImageSharedPointer();
+    m_image_sp->blitTo(cmd,
+        vk::ImageSubresourceLayers(m_image_sp->getAspectFlags(), m_mip_level, m_layer, m_layer_count),
+        src_offsets,
+        dst_image,
+        vk::ImageSubresourceLayers(dst_image.getAspectFlags(), dst.getMipLevel(), dst.getLayer(), dst.getLayerCount()),
+        dst_offsets,
+        filter
+    );
 }
 
 void lcf::render::VulkanAttachment::blitTo(VulkanCommandBufferObject &cmd, VulkanAttachment &dst, vk::Filter filter)
