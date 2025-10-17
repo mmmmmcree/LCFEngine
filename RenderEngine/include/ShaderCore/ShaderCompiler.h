@@ -15,6 +15,7 @@ namespace lcf {
         SpvCode compileGlslSourceFileToSpv(const char *file_path, ShaderTypeFlagBits type, const char * entry_point = "main", bool optimize = false);
         ShaderResources analyzeSpvCode(const SpvCode &spv_code);
     private:
+        ShaderResource parseBufferResource(const spirv_cross::Compiler &spv_compiler, const spirv_cross::Resource &resource);
         ShaderResource parseResource(const spirv_cross::Compiler &spv_compiler, const spirv_cross::Resource &resource);
         void parseResourceMembers(ShaderResourceMember &resource, const spirv_cross::Compiler &spv_compiler, spirv_cross::TypeID type_id);
         ShaderResource parseInputResource(const spirv_cross::Compiler &spv_compiler, const spirv_cross::Resource &resource);

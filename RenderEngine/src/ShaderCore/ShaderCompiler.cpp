@@ -61,19 +61,37 @@ lcf::ShaderResources lcf::ShaderCompiler::analyzeSpvCode(const SpvCode &spv_code
     }
     std::ranges::sort(result.stage_inputs, [](const auto &a, const auto &b) { return a.getLocation() < b.getLocation(); });
     for (const auto &resources : resources.uniform_buffers) {
-        result.uniform_buffers.emplace_back(this->parseResource(spv_compiler, resources));
+        result.uniform_buffers.emplace_back(this->parseBufferResource(spv_compiler, resources));
     }
     for (const auto &resources : resources.storage_buffers) {
-        result.storage_buffers.emplace_back(this->parseResource(spv_compiler, resources));
+        result.storage_buffers.emplace_back(this->parseBufferResource(spv_compiler, resources));
     }
     for (const auto &resources : resources.sampled_images) {
         result.sampled_images.emplace_back(this->parseResource(spv_compiler, resources));
+    }
+    for (const auto &resources : resources.separate_images) {
+        result.separate_images.emplace_back(this->parseResource(spv_compiler, resources));
+    }
+    for (const auto &resources : resources.separate_samplers) {
+        result.separate_samplers.emplace_back(this->parseResource(spv_compiler, resources));
     }
     for (const auto &resources : resources.storage_images) {
         result.storage_images.emplace_back(this->parseResource(spv_compiler, resources));
     }
     for (const auto &resources : resources.push_constant_buffers) {
         result.push_constant_buffers.emplace_back(this->parseResource(spv_compiler, resources));
+    }
+    return result;
+}
+
+lcf::ShaderResource lcf::ShaderCompiler::parseBufferResource(const spirv_cross::Compiler &spv_compiler, const spirv_cross::Resource &resource)
+{
+    auto result = this->parseResource(spv_compiler, resource);
+    auto &members = result.getMembers();
+    auto buffer_ranges = spv_compiler.get_active_buffer_ranges(resource.id);
+    for (const auto &buffer_range : buffer_ranges) {
+        members[buffer_range.index].setOffset(buffer_range.offset)
+            .setSizeInBytes(buffer_range.range);
     }
     return result;
 }
@@ -86,27 +104,23 @@ lcf::ShaderResource lcf::ShaderCompiler::parseResource(const spirv_cross::Compil
         .setBinding(spv_compiler.get_decoration(resource.id, spv::DecorationBinding))
         .setSet(spv_compiler.get_decoration(resource.id, spv::DecorationDescriptorSet));
     this->parseResourceMembers(result, spv_compiler, resource.type_id);
-    auto &members = result.getMembers();
-    auto buffer_ranges = spv_compiler.get_active_buffer_ranges(resource.id);
-    for (const auto &buffer_range : buffer_ranges) {
-        members[buffer_range.index].setOffset(buffer_range.offset)
-            .setSizeInBytes(buffer_range.range);
-    }
     return result;
 }
 
 void lcf::ShaderCompiler::parseResourceMembers(ShaderResourceMember &resource, const spirv_cross::Compiler &spv_compiler, spirv_cross::TypeID type_id)
 {
     const auto &type = spv_compiler.get_type(type_id);
+    size_t array_size = 1;
+    for (auto size : type.array) { array_size *= size; }
     resource.setBaseDataType(enum_cast<ShaderDataType>(type.basetype))
         .setWidth(type.width)
         .setColumns(type.columns)
         .setVecSize(type.vecsize)
-        .setArraySize(type.array.size());
+        .setArraySize(array_size);
     if (type.basetype == spirv_cross::SPIRType::Struct) {
         resource.setSizeInBytes(spv_compiler.get_declared_struct_size(type));
     }
-    uint32_t size = 0;
+    if (type.member_types.empty()) { return; } // if empty, the size of the data structure is undefined
     for (int i = 0; i < type.member_types.size(); ++i) {
         const auto &member_type = spv_compiler.get_type(type.member_types[i]);
         ShaderResourceMember member;
