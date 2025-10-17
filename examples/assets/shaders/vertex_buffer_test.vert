@@ -4,6 +4,8 @@
 #extension GL_EXT_debug_printf : require
 #extension GL_EXT_spirv_intrinsics : require
 
+#include "camera_uniform.glsl"
+
 struct Vertex
 {
     vec3 position;
@@ -26,11 +28,6 @@ layout(buffer_reference, std430) readonly buffer IndexBuffer
 	uint16_t indices[];
 };
 
-layout(set = 0, binding = 0) uniform camera_uniforms {
-    mat4 projection;
-    mat4 view;
-    mat4 projection_view;
-};
 
 layout(std430, set = 1, binding = 0) readonly buffer vertex_buffers_ssbo {
     VertexBuffer vertex_buffers[];

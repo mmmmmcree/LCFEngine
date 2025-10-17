@@ -6,7 +6,7 @@ layout(location = 0) in VS_OUT {
     vec2 uv;
 } fs_in;
 
-layout(binding = 1) uniform sampler2D tex;
+// layout(binding = 1) uniform sampler2D tex;
 
 void main()
 {

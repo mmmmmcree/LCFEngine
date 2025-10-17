@@ -7,12 +7,13 @@ layout(location = 0) in VS_OUT {
 } fs_in;
 
 // layout(set = 2, binding = 1) uniform sampler2D tex;
-layout(set = 2, binding = 1) uniform samplerCube tex;
+layout(set = 2, binding = 1) uniform texture2D textures[2];
+layout(set = 2, binding = 2) uniform sampler _sampler;
 
 
 void main()
 {
-    // frag_color = vec4(fs_in.color, 1.0);
-    // frag_color = texture(tex, fs_in.uv);
-    frag_color = texture(tex, fs_in.color);
+    vec4 texture1 = texture(sampler2D(textures[0], _sampler), fs_in.uv);
+    vec4 texture2 = texture(sampler2D(textures[1], _sampler), fs_in.uv);
+    frag_color = mix(texture1, texture2, 0.5);
 }
