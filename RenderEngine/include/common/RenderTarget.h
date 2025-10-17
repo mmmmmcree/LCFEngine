@@ -2,6 +2,7 @@
 
 #include <utility>
 #include "PointerDefs.h"
+#include <atomic>
 
 namespace lcf::render {
     class RenderTarget : public STDPointerDefs<RenderTarget>
@@ -25,7 +26,7 @@ namespace lcf::render {
         uint32_t getHeight() const { return m_extent.second; }
         Extent getExtent() const { return m_extent; }
     protected:
-        bool m_need_to_update = true;
+        std::atomic_bool m_need_to_update = true;
         Extent m_extent;
         uint32_t m_max_width = 0;
         uint32_t m_max_height = 0;
