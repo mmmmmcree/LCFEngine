@@ -6,6 +6,7 @@
 #include "Entity.h"
 #include "TransformSystem.h"
 #include "Timer.h"
+#include <QTimer>
 
 class CustomRenderWindow : public lcf::RenderWindow
 {
@@ -27,10 +28,13 @@ protected:
     }
 };
 
+
 int main(int argc, char* argv[]) {
     lcf::GuiApplication app(argc, argv);
     lcf::render::VulkanContext context;
+    lcf::InputManager input_manager;
     CustomRenderWindow render_window;
+    render_window.installEventFilter(&input_manager);
     context.registerWindow(&render_window);
     context.create();
     lcf::VulkanRenderer renderer(&context);
@@ -40,19 +44,14 @@ int main(int argc, char* argv[]) {
     render_window.show();
 
     lcf::Registry registry;
-    lcf::TransformSystem transform_system(&registry);
-    
-    lcf::Entity signal_manager(&registry);
-    auto & transform_acquired_signal = signal_manager.requireComponent<lcf::TransformUpdateSignal>();
-    transform_acquired_signal.connect<&lcf::TransformSystem::onTransformUpdate>(transform_system);
-    auto & transform_hierarchy_attach_signal = signal_manager.requireComponent<lcf::TransformHierarchyAttachSignal>();
-    transform_hierarchy_attach_signal.connect<&lcf::TransformSystem::onTransformHierarchyAttach>(transform_system);
+    auto & dispatcher = registry.ctx().get<lcf::Dispatcher>();
 
-    lcf::Entity camera_entity(&registry, &signal_manager);
+    lcf::TransformSystem transform_system(&registry);
+    lcf::Entity camera_entity(&registry);
     camera_entity.requireComponent<lcf::Transform>();
     
     lcf::modules::TrackballController trackball_controller;
-    trackball_controller.setInputManager(render_window.getInputManager());
+    trackball_controller.setInputManager(&input_manager);
 
     int update_interval = 5;
     double refresh_rate = render_window.screen()->refreshRate();
@@ -60,14 +59,26 @@ int main(int argc, char* argv[]) {
         update_interval /= refresh_rate / 60.0;
     }
 
-    lcf::ThreadTimer timer;
-    timer.setInterval(std::chrono::milliseconds(update_interval));
-    timer.setCallback([&] {
+    QTimer timer;    
+    timer.setInterval(update_interval);
+    QObject::connect(&timer, &QTimer::timeout, [&] {
+        dispatcher.update();
+        input_manager.update();
         trackball_controller.update(camera_entity);
         transform_system.update();
         renderer.render(camera_entity);
     });
     timer.start();
+    
+    // lcf::ThreadTimer timer;
+    // timer.setInterval(std::chrono::milliseconds(update_interval));
+    // timer.setCallback([&] {
+    //     input_manager.update();
+    //     trackball_controller.update(camera_entity);
+    //     transform_system.update();
+    //     renderer.render(camera_entity);
+    // });
+    // timer.start();
 
     app.exec();
 
