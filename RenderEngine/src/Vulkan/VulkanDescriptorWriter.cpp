@@ -1,10 +1,10 @@
 #include "VulkanDescriptorWriter.h"
+#include "VulkanContext.h"
 
 using namespace lcf::render;
 
-VulkanDescriptorWriter::VulkanDescriptorWriter(VulkanContext *context_p, vk::DescriptorSet descriptor_set, DescriptorSetLayoutBindings binding_list) :
+VulkanDescriptorWriter::VulkanDescriptorWriter(VulkanContext *context_p, DescriptorSetLayoutBindings binding_list) :
     m_context_p(context_p),
-    m_write_descriptor_set(descriptor_set),
     m_layout_binding_list(binding_list)
 {
 }
@@ -18,8 +18,7 @@ VulkanDescriptorWriter & VulkanDescriptorWriter::add(uint32_t binding, uint32_t 
 {
     const auto &binding_info = m_layout_binding_list[binding];
     vk::WriteDescriptorSet & write_descriptor_set = m_write_descriptor_sets.emplace_back();
-    write_descriptor_set.setDstSet(m_write_descriptor_set)
-        .setDstBinding(binding_info.binding)
+    write_descriptor_set.setDstBinding(binding_info.binding)
         .setDstArrayElement(index)
         .setDescriptorType(binding_info.descriptorType)
         .setDescriptorCount(binding_info.descriptorCount)
@@ -36,8 +35,7 @@ VulkanDescriptorWriter & lcf::render::VulkanDescriptorWriter::add(uint32_t bindi
 {
     const auto &binding_info = m_layout_binding_list[binding];
     vk::WriteDescriptorSet & write_descriptor_set = m_write_descriptor_sets.emplace_back();
-    write_descriptor_set.setDstSet(m_write_descriptor_set)
-        .setDstBinding(binding_info.binding)
+    write_descriptor_set.setDstBinding(binding_info.binding)
         .setDstArrayElement(index)
         .setDescriptorType(binding_info.descriptorType)
         .setDescriptorCount(binding_info.descriptorCount)
@@ -45,8 +43,11 @@ VulkanDescriptorWriter & lcf::render::VulkanDescriptorWriter::add(uint32_t bindi
     return *this;    
 }
 
-void lcf::render::VulkanDescriptorWriter::write()
+void lcf::render::VulkanDescriptorWriter::write(vk::DescriptorSet set)
 {
     auto device = m_context_p->getDevice();
+    for (auto &write_descriptor_set : m_write_descriptor_sets) {
+        write_descriptor_set.setDstSet(set);
+    }
     device.updateDescriptorSets(m_write_descriptor_sets, nullptr); //todo: replace nullptr with descriptorCopies
 }
