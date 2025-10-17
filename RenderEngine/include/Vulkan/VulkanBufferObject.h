@@ -9,7 +9,6 @@
 #include "PointerDefs.h"
 #include "BufferWriteSegment.h"
 #include <span>
-// #include <boost/icl/interval_map.hpp> //- use interval tree to manage write segments
 #include <deque>
 #include <vulkan/vulkan.hpp>
 
@@ -21,7 +20,6 @@ namespace lcf::render {
         using Self = VulkanBufferObject;
     public:
         IMPORT_POINTER_DEFS(STDPointerDefs<VulkanBufferObject>);
-        // using WriteSegments = boost::icl::interval_map<uint32_t, BufferWriteSegment>; //- use interval tree to manage write segments
         using WriteSegments = BufferWriteSegments;
         using ExecuteWriteSequenceMethod = void (Self::*)(VulkanCommandBufferObject &);
         VulkanBufferObject() = default;

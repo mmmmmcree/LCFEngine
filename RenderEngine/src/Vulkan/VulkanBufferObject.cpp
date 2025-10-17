@@ -98,7 +98,7 @@ void lcf::render::VulkanBufferObject::recreate(uint32_t size_in_bytes)
     }
     m_size = boost::alignment::align_up(size_in_bytes, 4u);
     vk::BufferCreateInfo buffer_info = {{}, m_size, usage_flags, vk::SharingMode::eExclusive};
-    auto memory_allocator = m_context_p->getMemoryAllocator();
+    auto & memory_allocator = m_context_p->getMemoryAllocator();
     m_buffer_sp = VulkanBufferResource::makeShared();
     m_buffer_sp->create(memory_allocator, buffer_info, {memory_flags});
     if (usage_flags & vk::BufferUsageFlagBits::eShaderDeviceAddress) {
@@ -139,22 +139,12 @@ VulkanBufferObject &VulkanBufferObject::resize(uint32_t size_in_bytes, VulkanCom
 
 VulkanBufferObject & VulkanBufferObject::addWriteSegment(const BufferWriteSegment &segment) noexcept
 {
-    /*
-    - use interval tree to manage write segments
-    auto segment_interval = boost::icl::interval<uint32_t>::right_open(segment.getBeginOffsetInBytes(), segment.getEndOffsetInBytes());
-    m_write_segments.set(std::make_pair(segment_interval, segment));
-    */
     m_write_segments.add(segment);
     return *this;
 }
 
 VulkanBufferObject & VulkanBufferObject::addWriteSegmentIfAbsent(const BufferWriteSegment &segment) noexcept
 {
-    /*
-    - use interval tree to manage write segments
-    auto segment_interval = boost::icl::interval<uint32_t>::right_open(segment.getBeginOffsetInBytes(), segment.getEndOffsetInBytes());
-    m_write_segments.add(std::make_pair(segment_interval, segment));
-    */
     m_write_segments.addIfAbsent(segment);
     return *this;
 }
@@ -199,13 +189,6 @@ void lcf::render::VulkanBufferObject::copyFromBufferWithBarriers(VulkanCommandBu
 
 void VulkanBufferObject::writeSegmentsDirectly(const WriteSegments &segments, uint32_t dst_offset_in_bytes)
 {
-    /*
-    - use interval tree to manage write segments
-    for (const auto &[interval, write_segment] : segments) {
-        memcpy(m_buffer_up->getMappedMemoryPtr() + interval.lower() + dst_offset_in_bytes,
-            write_segment.getData(), interval.upper() - interval.lower());
-    }
-    */
     for (const auto & write_segment : segments) {
         memcpy(m_buffer_sp->getMappedMemoryPtr() + write_segment.getBeginOffsetInBytes() + dst_offset_in_bytes,
             write_segment.getData(), write_segment.getSizeInBytes());
