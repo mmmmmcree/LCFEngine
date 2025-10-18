@@ -117,24 +117,24 @@ void lcf::VulkanRenderer::create()
     vk::DescriptorSetLayoutCreateInfo per_renderable_descriptor_set_layout_info;
     per_renderable_descriptor_set_layout_info.setBindings(vkconstants::per_renderable_bindings);
     auto per_renderable_descriptor_set_layout = device.createDescriptorSetLayoutUnique(per_renderable_descriptor_set_layout_info);
-    m_per_view_descriptor_set = *global_descriptor_manager.allocate(per_view_descriptor_set_layout.get());
-    m_per_renderable_descriptor_set = *global_descriptor_manager.allocate(per_renderable_descriptor_set_layout.get());
+    m_per_view_descriptor_set = global_descriptor_manager.allocate(per_view_descriptor_set_layout.get());
+    m_per_renderable_descriptor_set = global_descriptor_manager.allocate(per_renderable_descriptor_set_layout.get());
 
     vk::DescriptorBufferInfo per_view_buffer_info;
     per_view_buffer_info.setBuffer(m_per_view_uniform_buffer.getHandle())
         .setOffset(0)
         .setRange(m_per_view_uniform_buffer.getSize());
     VulkanDescriptorWriter per_view_writer(m_context_p, vkconstants::per_view_bindings);
-    per_view_writer.add(enum_cast(PerViewBindingPoints::eCamera), per_view_buffer_info)
+    per_view_writer.add(to_integral(PerViewBindingPoints::eCamera), per_view_buffer_info)
         .write(m_per_view_descriptor_set);
 
     vk::DescriptorBufferInfo per_renderable_vertex_buffer_info(m_per_renderable_vertex_buffer.getHandle(), 0, vk::WholeSize);
     vk::DescriptorBufferInfo per_renderable_index_buffer_info(m_per_renderable_index_buffer.getHandle(), 0, vk::WholeSize);
     vk::DescriptorBufferInfo per_renderable_transform_buffer_info(m_per_renderable_transform_buffer.getHandle(), 0, vk::WholeSize);
     VulkanDescriptorWriter per_renderable_writer(m_context_p, vkconstants::per_renderable_bindings);
-    per_renderable_writer.add(enum_cast(PerRenderableBindingPoints::eVertexBuffer), per_renderable_vertex_buffer_info)
-        .add(enum_cast(PerRenderableBindingPoints::eIndexBuffer), per_renderable_index_buffer_info)
-        .add(enum_cast(PerRenderableBindingPoints::eTransform), per_renderable_transform_buffer_info)
+    per_renderable_writer.add(to_integral(PerRenderableBindingPoints::eVertexBuffer), per_renderable_vertex_buffer_info)
+        .add(to_integral(PerRenderableBindingPoints::eIndexBuffer), per_renderable_index_buffer_info)
+        .add(to_integral(PerRenderableBindingPoints::eTransform), per_renderable_transform_buffer_info)
         .write(m_per_renderable_descriptor_set);
         
     /*
@@ -203,7 +203,7 @@ void lcf::VulkanRenderer::create()
             .setImageView(m_texture_image->getDefaultView())
             .setSampler(sphere_sampler.get());
         VulkanDescriptorWriter writer = ds_prototype.generateWriter();
-        writer.add(0, image_info).write(*ds);
+        writer.add(0, image_info).write(ds);
         auto [w, h, z] = m_cube_map->getExtent();
         VulkanFramebufferObjectCreateInfo fbo_info;
         fbo_info.setMaxExtent({w, h});
@@ -211,7 +211,7 @@ void lcf::VulkanRenderer::create()
         fbo.addColorAttachment(m_cube_map)
             .create(m_context_p, fbo_info);
         cmd.bindPipeline(stc_pipeline.getType(), stc_pipeline.getHandle());
-        cmd.bindDescriptorSets(stc_pipeline.getType(), stc_pipeline.getPipelineLayout(), ds_prototype.getSet(), *ds, nullptr);
+        cmd.bindDescriptorSets(stc_pipeline.getType(), stc_pipeline.getPipelineLayout(), ds_prototype.getSet(), ds, nullptr);
         fbo.setViewportAndScissor(cmd);
         fbo.beginRendering(cmd);
         cmd.draw(36, 1, 0, 0); // draw with const data in shader program
@@ -251,7 +251,7 @@ void lcf::VulkanRenderer::create()
     m_texture_sampler = VulkanSampler::makeShared();
     m_texture_sampler->create(m_context_p, sampler_info);
 
-    m_material.create(m_context_p, m_graphics_pipeline.getShaderProgram()->getDescriptorSetLayoutBindingList(enum_cast(DescriptorSetBindingPoints::ePerMaterial)));
+    m_material.create(m_context_p, m_graphics_pipeline.getShaderProgram()->getDescriptorSetLayoutBindingList(to_integral(DescriptorSetBindingPoints::ePerMaterial)));
     m_material.setTexture(1, 1, m_texture_image)
         .setTexture(1, 0, m_texture_image2)
         .setSampler(2, 0, m_texture_sampler)
@@ -302,8 +302,8 @@ void lcf::VulkanRenderer::render(const lcf::Entity & camera)
     
     auto &descriptor_manager = current_frame_resources.descriptor_manager;
     descriptor_manager.resetAllocatedSets();
-    const auto & per_material_ds_prototype = m_graphics_pipeline.getDescriptorSetPrototype(enum_cast(DescriptorSetBindingPoints::ePerMaterial));
-    auto per_material_descriptor_set = *descriptor_manager.allocate(per_material_ds_prototype.getLayout());
+    const auto & per_material_ds_prototype = m_graphics_pipeline.getDescriptorSetPrototype(to_integral(DescriptorSetBindingPoints::ePerMaterial));
+    auto per_material_descriptor_set = descriptor_manager.allocate(per_material_ds_prototype.getLayout());
     {
         vk::DescriptorImageInfo image_info;
         image_info.setImageLayout(*m_texture_image->getLayout())
@@ -368,9 +368,9 @@ void lcf::VulkanRenderer::render(const lcf::Entity & camera)
 
     uint32_t dynamic_offset = 0;
     cmd.bindPipeline(m_graphics_pipeline.getType(), m_graphics_pipeline.getHandle());
-    cmd.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), enum_cast(DescriptorSetBindingPoints::ePerView), m_per_view_descriptor_set, dynamic_offset);
-    cmd.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), enum_cast(DescriptorSetBindingPoints::ePerRenderable), m_per_renderable_descriptor_set, nullptr);
-    cmd.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), enum_cast(DescriptorSetBindingPoints::ePerMaterial), m_material.getDescriptorSet(), nullptr);
+    cmd.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), to_integral(DescriptorSetBindingPoints::ePerView), m_per_view_descriptor_set, dynamic_offset);
+    cmd.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), to_integral(DescriptorSetBindingPoints::ePerRenderable), m_per_renderable_descriptor_set, nullptr);
+    cmd.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), to_integral(DescriptorSetBindingPoints::ePerMaterial), m_material.getDescriptorSet(), nullptr);
     // cmd.bindDescriptorSets(m_graphics_pipeline.getType(), m_graphics_pipeline.getPipelineLayout(), enum_cast(DescriptorSetBindingPoints::ePerMaterial), per_material_descriptor_set, nullptr);
     
     cmd.drawIndirectCount(m_indirect_call_buffer.getHandle(), sizeof(vk::DrawIndirectCommand),
@@ -378,8 +378,8 @@ void lcf::VulkanRenderer::render(const lcf::Entity & camera)
         1, sizeof(vk::DrawIndirectCommand));
     
     cmd.bindPipeline(m_skybox_pipeline.getType(), m_skybox_pipeline.getHandle());
-    const auto & skybox_prototype = m_skybox_pipeline.getDescriptorSetPrototype(enum_cast(DescriptorSetBindingPoints::ePerMaterial));
-    auto cube_map_ds = *descriptor_manager.allocate(skybox_prototype.getLayout());
+    const auto & skybox_prototype = m_skybox_pipeline.getDescriptorSetPrototype(to_integral(DescriptorSetBindingPoints::ePerMaterial));
+    auto cube_map_ds = descriptor_manager.allocate(skybox_prototype.getLayout());
     {
         vk::DescriptorImageInfo image_info;
         image_info.setImageLayout(*m_cube_map->getLayout())
@@ -391,8 +391,8 @@ void lcf::VulkanRenderer::render(const lcf::Entity & camera)
             .write(cube_map_ds);
     }
 
-    cmd.bindDescriptorSets(m_skybox_pipeline.getType(), m_skybox_pipeline.getPipelineLayout(), enum_cast(DescriptorSetBindingPoints::ePerView), m_per_view_descriptor_set, dynamic_offset);
-    cmd.bindDescriptorSets(m_skybox_pipeline.getType(), m_skybox_pipeline.getPipelineLayout(), enum_cast(DescriptorSetBindingPoints::ePerMaterial), cube_map_ds, nullptr);
+    cmd.bindDescriptorSets(m_skybox_pipeline.getType(), m_skybox_pipeline.getPipelineLayout(), to_integral(DescriptorSetBindingPoints::ePerView), m_per_view_descriptor_set, dynamic_offset);
+    cmd.bindDescriptorSets(m_skybox_pipeline.getType(), m_skybox_pipeline.getPipelineLayout(), to_integral(DescriptorSetBindingPoints::ePerMaterial), cube_map_ds, nullptr);
     cmd.draw(36, 1, 0, 0); // draw with const data in shader program
     
     current_framebuffer.endRendering(cmd);

@@ -4,11 +4,6 @@
 
 using namespace lcf::render;
 
-lcf::render::VulkanMaterial::~VulkanMaterial()
-{
-    //todo recycle descriptor set to descriptor manager
-}
-
 bool lcf::render::VulkanMaterial::create(VulkanContext *context_p, BindingViewList bindings)
 {
     m_context_p = context_p;
@@ -19,10 +14,7 @@ bool lcf::render::VulkanMaterial::create(VulkanContext *context_p, BindingViewLi
     layout_info.setBindings(m_bindings);
     m_descriptor_set_layout = device.createDescriptorSetLayoutUnique(layout_info);
     auto & descriptor_manager = m_context_p->getDescriptorManager();
-    auto allocated_descriptor_set = descriptor_manager.allocate(m_descriptor_set_layout.get());
-    if (allocated_descriptor_set.has_value()) {
-        m_descriptor_set = allocated_descriptor_set.value();
-    }
+    m_descriptor_set = descriptor_manager.allocateUnique(m_descriptor_set_layout.get());
     for (const auto & binding_info : m_bindings) {
         uint32_t binding = binding_info.binding;
         size_t count = binding_info.descriptorCount;
@@ -38,15 +30,15 @@ bool lcf::render::VulkanMaterial::create(VulkanContext *context_p, BindingViewLi
             } break;
         }
     }
-    return m_descriptor_set;
+    return m_descriptor_set.get();
 }
 
 VulkanMaterial & lcf::render::VulkanMaterial::setTexture(uint32_t binding, uint32_t index, const VulkanImage::SharedPointer &texture)
 {
     if (binding >= m_bindings.size()) { return *this; }
     const auto & binding_info = m_bindings[binding];
-    auto descriptor_type = binding_info.descriptorType;
-    if (descriptor_type != vk::DescriptorType::eCombinedImageSampler and descriptor_type != vk::DescriptorType::eSampledImage) { return *this; }
+    auto desc_type = binding_info.descriptorType;
+    if (not (desc_type == vk::DescriptorType::eCombinedImageSampler or desc_type == vk::DescriptorType::eSampledImage)) { return *this; }
     auto & texture_list = m_texture_map[binding];
     if (index >= texture_list.size()) { return *this; }
     texture_list[index] = texture;
@@ -58,8 +50,8 @@ VulkanMaterial & lcf::render::VulkanMaterial::setSampler(uint32_t binding, uint3
 {
     if (binding >= m_bindings.size()) { return *this; }
     const auto & binding_info = m_bindings[binding];
-    auto descriptor_type = binding_info.descriptorType;
-    if (descriptor_type != vk::DescriptorType::eCombinedImageSampler and descriptor_type != vk::DescriptorType::eSampler) { return *this; }
+    auto desc_type = binding_info.descriptorType;
+    if (not (desc_type == vk::DescriptorType::eCombinedImageSampler or desc_type == vk::DescriptorType::eSampler)) { return *this; }
     auto & sampler_list = m_sampler_map[binding];
     if (index >= sampler_list.size()) { return *this; }
     sampler_list[index] = sampler;
@@ -97,5 +89,5 @@ void lcf::render::VulkanMaterial::commitUpdate()
         }
     }
     m_dirty_bindings.reset();
-    writer.write(m_descriptor_set);
+    writer.write(m_descriptor_set.get());
 }
