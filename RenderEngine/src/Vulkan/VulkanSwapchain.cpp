@@ -83,7 +83,6 @@ bool lcf::render::VulkanSwapchain::recreate()
             .setFormat(swapchain_info.imageFormat)
             .create(m_context_p, swapchain_images[i]);
     }
-    m_need_to_update = false;
     return true;
 }
 
@@ -91,6 +90,7 @@ bool lcf::render::VulkanSwapchain::prepareForRender()
 {
     if (not m_surface) { return false; }
     auto physical_device = m_context_p->getPhysicalDevice();
+    vk::Extent2D old_extent = this->getExtent();
     try {
         m_surface_capabilities = physical_device.getSurfaceCapabilitiesKHR(m_surface);
     } catch (const vk::SystemError &e) {
@@ -98,7 +98,7 @@ bool lcf::render::VulkanSwapchain::prepareForRender()
     }
     this->setExtent(m_surface_capabilities.currentExtent.width, m_surface_capabilities.currentExtent.height);
     if (this->getWidth() == 0 or this->getHeight() == 0) { return false; }
-    if (m_need_to_update) { this->recreate(); }
+    if (old_extent != this->getExtent()) { this->recreate(); }
     return this->acquireAvailableTarget();
 }
 
@@ -127,13 +127,13 @@ bool lcf::render::VulkanSwapchain::acquireAvailableTarget()
 {
     auto device = m_context_p->getDevice();
     vk::Result acquire_result;
+    static size_t i = 0;
     try {
         std::tie(acquire_result, m_image_index) = device.acquireNextImageKHR(m_swapchain.get(), UINT64_MAX, this->getTargetAvailableSemaphore(), nullptr);
+    } catch (const vk::OutOfDateKHRError & e) {
+        return this->recreate() and this->acquireAvailableTarget();
     } catch (const vk::SystemError &e) {
         return false;
-    }
-    if (acquire_result == vk::Result::eErrorOutOfDateKHR) {
-        return this->recreate();
     }
     return acquire_result == vk::Result::eSuccess or acquire_result == vk::Result::eSuboptimalKHR;
 }

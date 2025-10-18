@@ -35,6 +35,11 @@ bool lcf::RenderWindow::event(QEvent * event)
             auto surface_event = static_cast<QPlatformSurfaceEvent *>(event);
             if (surface_event->surfaceEventType() == QPlatformSurfaceEvent::SurfaceAboutToBeDestroyed) {
                 qDebug() << "SurfaceAboutToBeDestroyed";
+                /*
+                todo 1. notify render target about surface destruction, may need atomic bool flag in render target
+                todo 2. wait for all rendering tasks to finish, may need to wait for a semaphore or fence
+                todo 3. destroy surface and render target
+                */
             }
         }
     }
@@ -49,8 +54,5 @@ void lcf::RenderWindow::closeEvent(QCloseEvent *event)
 
 void lcf::RenderWindow::resizeEvent(QResizeEvent *event)
 {
-    if (m_render_target) {
-        m_render_target->requireUpdate();
-    }
     Window::resizeEvent(event);
 }
