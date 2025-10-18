@@ -27,7 +27,7 @@ ByteView Mesh::getVertexDataSpan(VertexSemanticFlags semantic_bit) const noexcep
 
 Mesh & Mesh::clearVertexData(VertexSemanticFlags semantic_flags)
 {
-    auto semantic_value = enum_cast(semantic_flags);
+    auto semantic_value = to_integral(semantic_flags);
     while (semantic_value != 0) {
         size_t attribute_index = std::countr_zero(semantic_value);
         m_vertex_data[attribute_index].clear();

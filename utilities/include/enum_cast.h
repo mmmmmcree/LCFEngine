@@ -48,7 +48,7 @@ namespace lcf {
     }
 
     template <enum_c Enum>
-    constexpr std::underlying_type_t<Enum> enum_cast(Enum e)
+    constexpr std::underlying_type_t<Enum> to_integral(Enum e)
     {
         return static_cast<std::underlying_type_t<Enum>>(e);
     };
