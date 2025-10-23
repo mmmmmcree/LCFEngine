@@ -2,6 +2,7 @@
 
 #include <utility>
 #include "PointerDefs.h"
+#include <atomic>
 
 namespace lcf::render {
     class RenderTarget : public STDPointerDefs<RenderTarget>
@@ -11,9 +12,8 @@ namespace lcf::render {
         using Extent = std::pair<uint32_t, uint32_t>;
         RenderTarget() = default;
         virtual ~RenderTarget() = default;
-        virtual void create() = 0;
-        virtual bool isCreated() = 0;
-        virtual bool isValid() const = 0;
+        void setActive() noexcept { m_silent = false; }
+        void setSelient() noexcept { m_silent = true; }
         Self & setMaximalExtent(uint32_t width, uint32_t height) { m_max_width = width; m_max_height = height; return *this; }
         uint32_t getMaximalWidth() const { return std::max(m_max_width, this->getWidth()); }
         uint32_t getMaximalHeight() const { return std::max(m_max_height, this->getHeight()); }
@@ -26,5 +26,6 @@ namespace lcf::render {
         Extent m_extent;
         uint32_t m_max_width = 0;
         uint32_t m_max_height = 0;
+        std::atomic_bool m_silent = false;
     };
 }
