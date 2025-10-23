@@ -7,12 +7,12 @@ lcf::InputManager::InputManager(QObject *parent) : QObject(parent)
 bool lcf::InputManager::eventFilter(QObject *watched, QEvent *event)
 {
     switch (event->type()) {
-        case QEvent::KeyPress: { this->handleKeyPressEvent(static_cast<QKeyEvent*>(event)); } return true;
-        case QEvent::KeyRelease: { this->handleKeyReleaseEvent(static_cast<QKeyEvent*>(event)); }  return true;
-        case QEvent::MouseButtonPress: { this->handleMousePressEvent(static_cast<QMouseEvent*>(event)); } return true;
-        case QEvent::MouseButtonRelease: { this->handleMouseReleaseEvent(static_cast<QMouseEvent*>(event)); } return true;
-        case QEvent::MouseMove: { this->handleMouseMoveEvent(static_cast<QMouseEvent*>(event)); }  return true;
-        case QEvent::Wheel: { this->handleWheelEvent(static_cast<QWheelEvent*>(event)); }  return true;
+        case QEvent::KeyPress: { this->handleKeyPressEvent(static_cast<QKeyEvent*>(event)); } break;
+        case QEvent::KeyRelease: { this->handleKeyReleaseEvent(static_cast<QKeyEvent*>(event)); }  break;
+        case QEvent::MouseButtonPress: { this->handleMousePressEvent(static_cast<QMouseEvent*>(event)); } break;
+        case QEvent::MouseButtonRelease: { this->handleMouseReleaseEvent(static_cast<QMouseEvent*>(event)); } break;
+        case QEvent::MouseMove: { this->handleMouseMoveEvent(static_cast<QMouseEvent*>(event)); } return true;
+        case QEvent::Wheel: { this->handleWheelEvent(static_cast<QWheelEvent*>(event)); }  break;
     }
     return QObject::eventFilter(watched, event);
 }
@@ -53,6 +53,7 @@ void lcf::InputManager::handleWheelEvent(QWheelEvent *event) noexcept
 
 void lcf::InputManager::update() noexcept
 {
+    std::lock_guard lock(m_mutex);
     this->getReadableState() = this->getWritableState();
 }
 

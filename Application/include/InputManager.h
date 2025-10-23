@@ -7,8 +7,8 @@
 #include <QWheelEvent>
 #include <QHash>
 #include <array>
-
 #include "Vector.h"
+#include <mutex>
 
 namespace lcf {
     class InputManager : public QObject
@@ -42,6 +42,7 @@ namespace lcf {
         InputState & getReadableState()  noexcept { return m_input_states[1]; }
         const InputState & getReadableState() const noexcept { return m_input_states[1]; }
     private:
+        std::mutex m_mutex;
         struct InputState
         {
             QSet<Key> m_pressed_keys;
