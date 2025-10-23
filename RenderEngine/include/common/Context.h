@@ -3,7 +3,7 @@
 #include "RenderTarget.h"
 #include <vector>
 
-namespace lcf {
+namespace lcf::render {
     class RenderWindow;
 }
 
