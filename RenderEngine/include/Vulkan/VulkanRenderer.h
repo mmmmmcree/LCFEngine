@@ -24,7 +24,7 @@ namespace lcf {
         VulkanRenderer(const VulkanRenderer&) = delete;
         VulkanRenderer& operator=(const VulkanRenderer&) = delete;
         ~VulkanRenderer();
-        void setRenderTarget(const RenderTarget::SharedPointer & render_target);
+        void setRenderTarget(RenderTarget::WeakPointer render_target);
         void create();
         void render(const Entity & camera);
     private:
@@ -33,7 +33,7 @@ namespace lcf {
         struct FrameResources
         {
             FrameResources() = default;
-            vk::UniqueSemaphore render_finished;
+            // vk::UniqueSemaphore render_finished;
             VulkanCommandBufferObject command_buffer;
             VulkanDescriptorManager descriptor_manager;
             // temporary

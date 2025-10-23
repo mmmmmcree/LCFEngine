@@ -29,11 +29,14 @@ lcf::VulkanRenderer::~VulkanRenderer()
     device.waitIdle();
 }
 
-void lcf::VulkanRenderer::setRenderTarget(const RenderTarget::SharedPointer & render_target)
+void lcf::VulkanRenderer::setRenderTarget(RenderTarget::WeakPointer render_target_wp)
 {
+    auto render_target = render_target_wp.lock();
     if (not render_target) { return; }
-    render_target->create(); //make sure the target is created
+    //! temp
     m_render_target = std::static_pointer_cast<VulkanSwapchain>(render_target);
+    auto rt = m_render_target.lock();
+    if (rt) { rt->create(m_context_p); }
 }
 
 void lcf::VulkanRenderer::create()
@@ -63,7 +66,7 @@ void lcf::VulkanRenderer::create()
     m_graphics_pipeline.create(m_context_p, graphic_pipeline_info);
 
     for (auto &resources : m_frame_resources) {
-        resources.render_finished = device.createSemaphoreUnique({});
+        // resources.render_finished = device.createSemaphoreUnique({});
         resources.command_buffer.create(m_context_p);
         resources.descriptor_manager.create(m_context_p);
 
@@ -262,14 +265,13 @@ void lcf::VulkanRenderer::render(const lcf::Entity & camera)
 {
     auto device = m_context_p->getDevice();
     auto &current_frame_resources = m_frame_resources[m_current_frame_index];
-    if (m_render_target.expired()) { return; }
-    
-    const auto &render_target = m_render_target.lock();
-    if (not render_target->prepareForRender()) { return; }
 
-    
     VulkanCommandBufferObject & cmd = current_frame_resources.command_buffer; 
     cmd.prepareForRecording();
+
+    if (m_render_target.expired()) { return; }
+    const auto &render_target = m_render_target.lock();
+    if (not render_target->prepareForRender()) { return; }
 
     auto [width, height] = render_target->getExtent();
     vk::Viewport viewport;
@@ -396,7 +398,10 @@ void lcf::VulkanRenderer::render(const lcf::Entity & camera)
     cmd.draw(36, 1, 0, 0); // draw with const data in shader program
     
     current_framebuffer.endRendering(cmd);
-    auto & target_image_sp = render_target->getTargetImageSharedPointer();
+
+    // auto & target_image_sp = render_target->getTargetImageSharedPointer();
+    auto & render_target_resources = render_target->getCurrentFrameResources();
+    auto & target_image_sp = render_target_resources.getImageSharedPointer();
     // blit to target
     auto msaa_attachment = current_framebuffer.getMSAAResolveAttachment();
     if (msaa_attachment) {
@@ -410,15 +415,16 @@ void lcf::VulkanRenderer::render(const lcf::Entity & camera)
     target_image_sp->transitLayout(cmd, vk::ImageLayout::ePresentSrcKHR);
     cmd.end();
 
-    vk::Semaphore render_finished = current_frame_resources.render_finished.get();
+    // vk::Semaphore render_finished = current_frame_resources.render_finished.get();
     vk::SemaphoreSubmitInfo wait_info;
-    wait_info.setSemaphore(render_target->getTargetAvailableSemaphore())
+    wait_info.setSemaphore(render_target_resources.getTargetAvailableSemaphore())
         .setStageMask(vk::PipelineStageFlagBits2::eColorAttachmentOutput);
     cmd.addWaitSubmitInfo(wait_info)
-        .addSignalSubmitInfo(render_finished);
+        .addSignalSubmitInfo(render_target_resources.getPresentReadySemaphore());
     cmd.submit(vk::QueueFlagBits::eGraphics);
 
 
-    render_target->finishRender(render_finished);
+    // render_target->finishRender(render_finished);
+    render_target->finishRender();
     ++m_current_frame_index %= m_frame_resources.size();
 }

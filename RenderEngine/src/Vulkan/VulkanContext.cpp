@@ -22,7 +22,7 @@ void lcf::render::VulkanContext::registerWindow(RenderWindow * window)
     window->create();
     vk::SurfaceKHR surface = m_vk_instance.surfaceForWindow(window); //! surface is available after window is created
     window->setVulkanInstance(nullptr);
-    auto render_target = VulkanSwapchain::makeShared(this, surface);
+    auto render_target = VulkanSwapchain::makeShared(surface);
     window->setRenderTarget(render_target);
     m_surface_render_targets.emplace_back(render_target);
 }
@@ -49,11 +49,13 @@ void lcf::render::VulkanContext::setupVulkanInstance()
         .setApiVersion(vk::makeVersion(1, 3, 2));
     std::set<std::string> required_extensions = {
         VK_KHR_SURFACE_EXTENSION_NAME,
+        VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME,
+        VK_EXT_SURFACE_MAINTENANCE_1_EXTENSION_NAME,
         "VK_KHR_win32_surface",
         "VK_KHR_xcb_surface",
         "VK_MVK_macos_surface",
         "VK_KHR_android_surface",
-        "VK_KHR_wayland_surface"
+        "VK_KHR_wayland_surface",
     #ifndef NDEBUG
         VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
     #endif
@@ -160,13 +162,14 @@ void lcf::render::VulkanContext::createLogicalDevice()
 
     std::vector<const char *> required_extensions = {
         VK_KHR_MAINTENANCE1_EXTENSION_NAME,
-        VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME,
         VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME,
         VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME,
+        VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME,
     };
     if (not m_surface_render_targets.empty()) {
         std::vector<const char *> extensions = {
             VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+            VK_EXT_SWAPCHAIN_MAINTENANCE_1_EXTENSION_NAME,
         };
         required_extensions.insert(required_extensions.end(), extensions.begin(), extensions.end());
     }
