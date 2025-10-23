@@ -38,6 +38,7 @@ namespace lcf {
 
     class ThreadTimer
     {
+        using Self = ThreadTimer;
     public:
         using IOContext = BoostThreadIOContext;
         using Timer = boost::asio::steady_timer;
@@ -54,15 +55,17 @@ namespace lcf {
         {
             this->stop();
         }
-        void setInterval(Interval milliseconds)
+        Self & setInterval(Interval milliseconds)
         {
             LockGuard lock(m_mutex);
             m_interval = milliseconds;
+            return *this;
         }
-        void setCallback(Callback && callback)
+        Self & setCallback(Callback && callback)
         {
             LockGuard lock(m_mutex);
             m_callback = std::move(callback);
+            return *this;
         }
         void start()
         {
