@@ -8,10 +8,11 @@
 #include "Timer.h"
 #include <QTimer>
 
-class CustomRenderWindow : public lcf::RenderWindow
+class CustomRenderWindow : public lcf::render::RenderWindow
 {
 public:
-    CustomRenderWindow(lcf::RenderWindow * parent = nullptr) : lcf::RenderWindow(parent)
+    CustomRenderWindow(lcf::Window * parent = nullptr) :
+        lcf::render::RenderWindow(parent)
     {
     }
 protected:
@@ -58,27 +59,24 @@ int main(int argc, char* argv[]) {
     if (refresh_rate > 60.0) {
         update_interval /= refresh_rate / 60.0;
     }
-
-    QTimer timer;    
-    timer.setInterval(update_interval);
-    QObject::connect(&timer, &QTimer::timeout, [&] {
+    
+    auto render_loop = [&] {
         dispatcher.update();
         input_manager.update();
         trackball_controller.update(camera_entity);
         transform_system.update();
         renderer.render(camera_entity);
-    });
-    timer.start();
-    
-    // lcf::ThreadTimer timer;
-    // timer.setInterval(std::chrono::milliseconds(update_interval));
-    // timer.setCallback([&] {
-    //     input_manager.update();
-    //     trackball_controller.update(camera_entity);
-    //     transform_system.update();
-    //     renderer.render(camera_entity);
-    // });
+    };
+
+    // QTimer timer;    
+    // timer.setInterval(update_interval);
+    // QObject::connect(&timer, &QTimer::timeout, render_loop);
     // timer.start();
+    
+    lcf::ThreadTimer timer;
+    timer.setCallback(render_loop)
+        .setInterval(std::chrono::milliseconds(update_interval))
+        .start();
 
     app.exec();
 
