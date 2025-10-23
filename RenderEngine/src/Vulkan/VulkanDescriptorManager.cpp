@@ -26,7 +26,7 @@ vk::DescriptorSet VulkanDescriptorManager::allocate(vk::DescriptorSetLayout layo
 
 VulkanDescriptorManager::DescriptorSetList VulkanDescriptorManager::allocate(std::span<const vk::DescriptorSetLayout> layouts)
 {
-    auto pool = this->tryGetPool();
+    auto pool = this->tryGetPool({});
     if (not pool) { return {}; }
     auto device = m_context_p->getDevice();
     vk::DescriptorSetAllocateInfo alloc_info;
@@ -35,7 +35,7 @@ VulkanDescriptorManager::DescriptorSetList VulkanDescriptorManager::allocate(std
     try {
         descriptor_sets = device.allocateDescriptorSets(alloc_info);
     } catch (const vk::OutOfPoolMemoryError &e) {
-        this->getPoolGroup().setCurrentAvailablePoolFull();
+        this->getPoolGroup({}).setCurrentAvailablePoolFull();
         return this->allocate(layouts);
     }
     return descriptor_sets;
@@ -68,7 +68,7 @@ VulkanDescriptorManager::UniqueDescriptorSetList VulkanDescriptorManager::alloca
 void lcf::render::VulkanDescriptorManager::resetAllocatedSets()
 {
     auto device = m_context_p->getDevice();
-    auto & [full_pools, available_pools] = this->getPoolGroup();
+    auto & [full_pools, available_pools] = this->getPoolGroup({});
     available_pools.insert(available_pools.end(), full_pools.begin(), full_pools.end());
     for (auto &pool : available_pools) {
         device.resetDescriptorPool(pool);

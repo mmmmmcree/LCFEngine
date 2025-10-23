@@ -34,9 +34,9 @@ namespace lcf::render {
         UniqueDescriptorSetList allocateUnique(std::span<const vk::DescriptorSetLayout> layouts);
         void resetAllocatedSets();
     private:
-        vk::DescriptorPool createNewPool(vk::DescriptorPoolCreateFlags flags = {}); //todo may pass CreateInfo instead
-        vk::DescriptorPool tryGetPool(vk::DescriptorPoolCreateFlags flags = {});
-        PoolGroup & getPoolGroup(vk::DescriptorPoolCreateFlags flags = {});
+        vk::DescriptorPool createNewPool(vk::DescriptorPoolCreateFlags flags); //todo may pass CreateInfo instead
+        vk::DescriptorPool tryGetPool(vk::DescriptorPoolCreateFlags flags);
+        PoolGroup & getPoolGroup(vk::DescriptorPoolCreateFlags flags);
     private:
         VulkanContext * m_context_p = nullptr;
         PoolGroupMap m_pool_group_map;
