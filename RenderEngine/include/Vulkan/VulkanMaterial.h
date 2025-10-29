@@ -24,7 +24,7 @@ namespace lcf::render {
         VulkanMaterial() = default;
         ~VulkanMaterial() = default;
         bool create(VulkanContext * context_p, BindingViewList bindings); //todo create with MaterialCreateInfo, which has param like PBR or Phong ...
-        vk::DescriptorSet getDescriptorSet() const noexcept { return m_descriptor_set.get(); }
+        const vk::DescriptorSet & getDescriptorSet() const noexcept { return m_descriptor_set.get(); }
         Self & setTexture(uint32_t binding, uint32_t index, const VulkanImage::SharedPointer & texture);
         Self & setSampler(uint32_t binding, uint32_t index, const VulkanSampler::SharedPointer & sampler);
         void commitUpdate();
