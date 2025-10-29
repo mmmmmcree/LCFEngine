@@ -28,18 +28,21 @@ bool lcf::render::VulkanMemoryAllocator::create(VulkanContext * context)
     return vmaCreateAllocator(&allocator_info, &m_allocator) == VK_SUCCESS;
 }
 
-VMAImage::UniquePointer lcf::render::VulkanMemoryAllocator::createImage(const vk::ImageCreateInfo &image_info)
+VMAImage::UniquePointer lcf::render::VulkanMemoryAllocator::createImage(const vk::ImageCreateInfo &image_info, const MemoryAllocationCreateInfo &mem_alloc_info)
 {
-    VmaAllocationCreateInfo alloc_info = {
-        .requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+    VmaAllocationCreateInfo alloc_create_info = {
+        .requiredFlags = static_cast<VkMemoryPropertyFlags>(mem_alloc_info.memory_flags)
     };
+    if (mem_alloc_info.memory_flags & vk::MemoryPropertyFlagBits::eHostVisible) {
+        alloc_create_info.flags |= VMA_ALLOCATION_CREATE_MAPPED_BIT ;
+    }
     VkImage image = nullptr;
     VmaAllocation allocation = nullptr;
     VmaAllocationInfo allocation_info = {};
     VkResult result = vmaCreateImage(
         m_allocator,
         reinterpret_cast<const VkImageCreateInfo *>(&image_info),
-        &alloc_info,
+        &alloc_create_info,
         &image,
         &allocation,
         &allocation_info
@@ -47,7 +50,7 @@ VMAImage::UniquePointer lcf::render::VulkanMemoryAllocator::createImage(const vk
     if (result != VK_SUCCESS) {
         LCF_THROW_RUNTIME_ERROR("lcf::render::VulkanMemoryAllocator::createImage: Failed to create image with VMA.");
     }
-    return VMAImage::makeUnique(m_allocator, allocation, image, allocation_info.size);
+    return VMAImage::makeUnique(m_allocator, allocation, image, allocation_info.size, allocation_info.pMappedData);
 }
 
 VMABuffer::UniquePointer VulkanMemoryAllocator::createBuffer(const vk::BufferCreateInfo &buffer_info, const MemoryAllocationCreateInfo &mem_alloc_info)
@@ -94,15 +97,21 @@ vk::Result lcf::render::VMABuffer::flush(VkDeviceSize offset, VkDeviceSize size)
     return static_cast<vk::Result>(vmaFlushAllocation(m_allocator, m_allocation, offset, size));
 }
 
-lcf::render::VMAImage::VMAImage(VmaAllocator allocator, VmaAllocation allocation, vk::Image image, vk::DeviceSize size) :
+lcf::render::VMAImage::VMAImage(VmaAllocator allocator, VmaAllocation allocation, vk::Image image, vk::DeviceSize size, void * mapped_data_p) :
     m_allocator(allocator),
     m_allocation(allocation),
     m_image(image),
-    m_size(size)
+    m_size(size),
+    m_mapped_data_p(static_cast<std::byte *>(mapped_data_p))
 {
 }
 
 lcf::render::VMAImage::~VMAImage()
 {
     vmaDestroyImage(m_allocator, m_image, m_allocation);
+}
+
+vk::Result lcf::render::VMAImage::flush(VkDeviceSize offset, VkDeviceSize size)
+{
+    return static_cast<vk::Result>(vmaFlushAllocation(m_allocator, m_allocation, offset, size));
 }

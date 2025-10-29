@@ -8,26 +8,31 @@
 namespace lcf::render {
     class VulkanContext;
 
+    struct MemoryAllocationCreateInfo;
+
     class VMAImage : public STDPointerDefs<VMAImage>
     {
     public:
         VMAImage(VmaAllocator allocator,
             VmaAllocation allocation,
             vk::Image image,
-            vk::DeviceSize size);
+            vk::DeviceSize size,
+            void * mapped_data_p = nullptr);
         ~VMAImage();
         vk::Image getHandle() const noexcept { return m_image; }
+        std::byte * getMappedMemoryPtr() const noexcept { return m_mapped_data_p; }
         vk::DeviceSize getSize() const noexcept { return m_size; }
+        vk::Result flush(VkDeviceSize offset = 0, VkDeviceSize size = VK_WHOLE_SIZE);
     private:
         VmaAllocator m_allocator = nullptr;
         VmaAllocation m_allocation = nullptr;
         vk::Image m_image = nullptr;
+        std::byte * m_mapped_data_p = nullptr;
         vk::DeviceSize m_size = 0;
     };
 
     class VMABuffer : public STDPointerDefs<VMABuffer>
     {
-        using Self = VMABuffer;
     public:
         VMABuffer(VmaAllocator allocator,
             VmaAllocation allocation,
@@ -47,13 +52,6 @@ namespace lcf::render {
         vk::DeviceSize m_size = 0;
     };
 
-    struct MemoryAllocationCreateInfo
-    {
-        MemoryAllocationCreateInfo(vk::MemoryPropertyFlags _memory_flags) :
-            memory_flags(_memory_flags) {}
-        vk::MemoryPropertyFlags memory_flags;
-    };
-
     class VulkanMemoryAllocator
     {
     public:
@@ -62,9 +60,17 @@ namespace lcf::render {
         VulkanMemoryAllocator & operator=(const VulkanMemoryAllocator &) = delete;
         ~VulkanMemoryAllocator();
         bool create(VulkanContext * context);
-        VMAImage::UniquePointer createImage(const vk::ImageCreateInfo & image_info);
+        VMAImage::UniquePointer createImage(const vk::ImageCreateInfo & image_info, const MemoryAllocationCreateInfo & mem_alloc_info);
         VMABuffer::UniquePointer createBuffer(const vk::BufferCreateInfo & buffer_info, const MemoryAllocationCreateInfo & mem_alloc_info);
     private:
         VmaAllocator m_allocator = nullptr;
     };
+
+    struct MemoryAllocationCreateInfo
+    {
+        MemoryAllocationCreateInfo(vk::MemoryPropertyFlags _memory_flags) :
+            memory_flags(_memory_flags) {}
+        vk::MemoryPropertyFlags memory_flags;
+    };
+
 }

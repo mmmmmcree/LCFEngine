@@ -75,12 +75,14 @@ namespace lcf::render {
         bool create(VulkanContext * context_p);
         bool create(VulkanContext * context_p, vk::Image external_image);
         void setData(VulkanCommandBufferObject & cmd, std::span<const std::byte> data, uint32_t layer = 0);
+        Image readData();
         void generateMipmaps(VulkanCommandBufferObject & cmd);
         bool isCreated() const noexcept { return this->getHandle(); }
         void transitLayout(VulkanCommandBufferObject & cmd, vk::ImageLayout new_layout);
         void transitLayout(VulkanCommandBufferObject & cmd, const vk::ImageSubresourceRange & subresource_range, vk::ImageLayout new_layout);
         void copyFrom(VulkanCommandBufferObject & cmd, vk::Buffer buffer, std::span<const vk::BufferImageCopy> regions);
-        vk::Image getHandle() const;
+        vk::Image getHandle() const noexcept;
+        std::byte * getMappedMemoryPtr() const noexcept;
         vk::ImageView getDefaultView() const;
         vk::ImageView getView(const ImageViewKey & image_view_key) const;
         Self & addImageFlags(vk::ImageCreateFlags flags) { m_flags |= flags; return *this; }
@@ -100,6 +102,7 @@ namespace lcf::render {
         vk::ImageAspectFlags getAspectFlags() const noexcept;
         std::optional<vk::ImageLayout> getLayout() const noexcept { return this->getLayout(0, m_array_layers, 0, m_mip_level_count); }
     private:
+        bool _create(VulkanContext * context_p, vk::ImageTiling tiling, MemoryAllocationCreateInfo memory_info);
         vk::UniqueImageView generateView(const ImageViewKey & image_view_key) const;
         vk::ImageViewType deduceImageViewType(const vk::ImageSubresourceRange & subresource_range) const noexcept;
         vk::ImageSubresourceRange getFullResourceRange() const noexcept;
@@ -113,6 +116,13 @@ namespace lcf::render {
             const vk::ImageSubresourceLayers & dst_subresource,
             const std::pair<vk::Offset3D, vk::Offset3D> & dst_offsets,
             vk::Filter filter);
+        void copyTo(VulkanCommandBufferObject & cmd,
+            const vk::ImageSubresourceLayers & src_subresource,
+            const vk::Offset3D & src_offset,
+            VulkanImage & dst,
+            const vk::ImageSubresourceLayers & dst_subresource,
+            const vk::Offset3D & dst_offset,
+            const vk::Extent3D & extent);
     private:
         VulkanContext * m_context_p;
         vk::ImageCreateFlags m_flags = {};
