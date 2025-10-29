@@ -7,7 +7,6 @@
 #include "VulkanImage.h"
 #include "VulkanFramebufferObject.h"
 #include "Entity.h"
-#include "VulkanTimelineSemaphore.h"
 #include "VulkanCommandBufferObject.h"
 #include "VulkanBufferObject.h"
 #include "VulkanMesh.h"
@@ -20,20 +19,17 @@ namespace lcf {
     class VulkanRenderer
     {
     public:
-        VulkanRenderer(VulkanContext * context);
+        VulkanRenderer() = default;
         VulkanRenderer(const VulkanRenderer&) = delete;
         VulkanRenderer& operator=(const VulkanRenderer&) = delete;
         ~VulkanRenderer();
-        void setRenderTarget(RenderTarget::WeakPointer render_target);
-        void create();
-        void render(const Entity & camera);
+        void create(VulkanContext * context_p, const std::pair<uint32_t, uint32_t> & max_extent);
+        void render(const Entity & camera, RenderTarget::WeakPointer render_target_wp);
     private:
         VulkanContext * m_context_p;
-        VulkanSwapchain::WeakPointer m_render_target;
         struct FrameResources
         {
             FrameResources() = default;
-            // vk::UniqueSemaphore render_finished;
             VulkanCommandBufferObject command_buffer;
             VulkanDescriptorManager descriptor_manager;
             // temporary
@@ -60,10 +56,7 @@ namespace lcf {
         VulkanBufferObject m_per_renderable_index_buffer;
         VulkanBufferObject m_per_renderable_transform_buffer;
 
-        VulkanImage::SharedPointer m_cube_map;
-        VulkanImage::SharedPointer m_texture_image;
-        VulkanImage::SharedPointer m_texture_image2;
-        VulkanSampler::SharedPointer m_texture_sampler;
         VulkanMaterial m_material;
+        VulkanMaterial m_skybox_material;
     };
 }

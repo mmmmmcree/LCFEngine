@@ -41,6 +41,7 @@ bool RenderWindow::event(QEvent * event)
             if (surface_event->surfaceEventType() == QPlatformSurfaceEvent::SurfaceAboutToBeDestroyed) {
                 m_render_target->setSelient(); //- 1. notify render target about surface destruction
                 while (m_render_target.use_count() > 1); // - 2. wait for all rendering tasks to finish
+                m_render_target.reset(); // - 3. release render target
             }
         }
     }
