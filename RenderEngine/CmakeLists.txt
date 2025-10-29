@@ -1,7 +1,5 @@
 project(RenderEngine)
-set(Vulkan_ROOT_DIR $ENV{VULKAN_SDK})  
-set(Vulkan_INCLUDE_DIR "${Vulkan_ROOT_DIR}/include")
-set(Vulkan_LIBRARY "${Vulkan_ROOT_DIR}/lib")  
+
 file(GLOB_RECURSE HEADERS "include/*.h")
 file(GLOB_RECURSE SOURCES "src/*.cpp") 
 
@@ -35,7 +33,7 @@ target_include_directories(${PROJECT_NAME}
         $<INSTALL_INTERFACE:include>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     PRIVATE 
-        ${Vulkan_INCLUDE_DIR}
+        $<TARGET_PROPERTY:Vulkan::Vulkan,INTERFACE_INCLUDE_DIRECTORIES>  # Vulkan 库的头文件由 find_package 自动处理
         ${VulkanMemoryAllocator_INCLUDE_DIRS}
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )          
@@ -48,7 +46,7 @@ target_link_libraries(${PROJECT_NAME}
         core 
         Boost::headers   
     PRIVATE 
-        ${Vulkan_LIBRARY}/vulkan-1.lib
+        Vulkan::Vulkan
         unofficial::shaderc::shaderc
         spirv-cross-core spirv-cross-glsl spirv-cross-cpp
         GPUOpen::VulkanMemoryAllocator 
