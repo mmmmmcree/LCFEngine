@@ -38,9 +38,9 @@ int main(int argc, char* argv[]) {
     render_window.installEventFilter(&input_manager);
     context.registerWindow(&render_window);
     context.create();
-    lcf::VulkanRenderer renderer(&context);
-    renderer.setRenderTarget(render_window.getRenderTarget());
-    renderer.create();
+
+    lcf::VulkanRenderer renderer;
+    renderer.create(&context, render_window.getRenderTarget().lock()->getMaximalExtent());
     render_window.resize(1280, 720);
     render_window.show();
 
@@ -65,7 +65,7 @@ int main(int argc, char* argv[]) {
         input_manager.update();
         trackball_controller.update(camera_entity);
         transform_system.update();
-        renderer.render(camera_entity);
+        renderer.render(camera_entity, render_window.getRenderTarget());
     };
 
     // QTimer timer;    
