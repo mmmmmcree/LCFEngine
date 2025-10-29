@@ -24,9 +24,9 @@ namespace lcf::render {
         using ExecuteWriteSequenceMethod = void (Self::*)(VulkanCommandBufferObject &);
         VulkanBufferObject() = default;
         VulkanBufferObject(const Self &) = delete;
-        VulkanBufferObject(Self &&) = delete;
+        VulkanBufferObject(Self && other);
         Self & operator=(const Self &) = delete;
-        Self & operator=(Self &&) = delete;
+        Self & operator=(Self && other);
         bool create(VulkanContext * context_p);
         bool isCreated() const noexcept { return m_buffer_sp and m_buffer_sp->getHandle(); }
         Self & setSize(uint32_t size_in_bytes) noexcept;

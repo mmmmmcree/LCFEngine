@@ -6,7 +6,36 @@
 
 using namespace lcf::render;
 
-bool VulkanBufferObject::create(VulkanContext * context_p)
+VulkanBufferObject::VulkanBufferObject(Self &&other) :
+    m_context_p(std::exchange(other.m_context_p, nullptr)),
+    m_timeline_semaphore_up(std::move(other.m_timeline_semaphore_up)),
+    m_buffer_sp(std::move(m_buffer_sp)),
+    m_execute_write_sequence_method(std::exchange(other.m_execute_write_sequence_method, nullptr)),
+    m_device_address(std::exchange(other.m_device_address, 0u)),
+    m_usage(std::exchange(other.m_usage, GPUBufferUsage::eUndefined)),
+    m_pattern(other.m_pattern),
+    m_stage_flags(other.m_stage_flags),
+    m_access_flags(other.m_access_flags),
+    m_write_segments(std::move(other.m_write_segments))
+{
+}
+
+VulkanBufferObject & VulkanBufferObject::operator=(Self &&other)
+{
+    m_context_p = std::exchange(other.m_context_p, nullptr);
+    m_timeline_semaphore_up = std::move(other.m_timeline_semaphore_up);
+    m_buffer_sp = std::move(m_buffer_sp);
+    m_execute_write_sequence_method = std::exchange(other.m_execute_write_sequence_method, nullptr);
+    m_device_address = std::exchange(other.m_device_address, 0u);
+    m_usage = std::exchange(other.m_usage, GPUBufferUsage::eUndefined);
+    m_pattern = other.m_pattern;
+    m_stage_flags = other.m_stage_flags;
+    m_access_flags = other.m_access_flags;
+    m_write_segments = std::move(other.m_write_segments);
+    return *this;
+}
+
+bool VulkanBufferObject::create(VulkanContext *context_p)
 {
     m_context_p = context_p;
     vk::BufferUsageFlags usage_flags;
@@ -85,7 +114,7 @@ void lcf::render::VulkanBufferObject::recreate(uint32_t size_in_bytes)
                 vk::BufferUsageFlagBits::eIndirectBuffer;
         } break;
         case GPUBufferUsage::eStaging : {
-            usage_flags = vk::BufferUsageFlagBits::eTransferSrc;
+            usage_flags = vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eTransferDst;
         } break;
     }
     switch (m_pattern) {
