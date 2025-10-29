@@ -23,6 +23,18 @@ lcf::Image::Image(std::string_view file_path, int requested_channels, bool flip_
     m_channels = std::max(m_channels, requested_channels);
 }
 
+lcf::Image::Image(int width, int height, int channels, void *data) :
+    m_width(width),
+    m_height(height),
+    m_channels(channels)
+{
+    size_t size_in_bytes = width * height * channels;
+    m_data = malloc(size_in_bytes);
+    if (data) {
+        memcpy(m_data, data, size_in_bytes);
+    }
+}
+
 lcf::Image::~Image()
 {
     stbi_image_free(m_data);
@@ -57,4 +69,9 @@ size_t lcf::Image::getSizeInBytes() const noexcept
 void lcf::Image::saveAsHDR(const char *filename) const
 {
     stbi_write_hdr(filename, m_width, m_height, m_channels, static_cast<const float *>(m_data));
+}
+
+void lcf::Image::saveAsJPG(const char *filename, int quality) const
+{
+    stbi_write_jpg(filename, m_width, m_height, m_channels, m_data, quality);
 }
