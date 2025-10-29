@@ -13,6 +13,7 @@ lcf::render::VulkanContext::VulkanContext()
 
 lcf::render::VulkanContext::~VulkanContext()
 {
+    m_device->waitIdle();
 }
 
 void lcf::render::VulkanContext::registerWindow(RenderWindow * window)
@@ -36,6 +37,9 @@ void lcf::render::VulkanContext::create()
     this->createCommandPool();
     m_memory_allocator.create(this);
     m_descriptor_manager.create(this);
+    for (auto &render_target : m_surface_render_targets) {
+        render_target->create(this);
+    }
     SurfaceRenderTargetList{}.swap(m_surface_render_targets);
 }
 
@@ -46,7 +50,7 @@ void lcf::render::VulkanContext::setupVulkanInstance()
         .setPEngineName("LCFEngine")
         .setApplicationVersion(vk::makeVersion(1, 0, 0))
         .setEngineVersion(vk::makeVersion(1, 0, 0))
-        .setApiVersion(vk::makeVersion(1, 3, 2));
+        .setApiVersion(VK_HEADER_VERSION_COMPLETE);
     std::set<std::string> required_extensions = {
         VK_KHR_SURFACE_EXTENSION_NAME,
         VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME,
@@ -134,19 +138,19 @@ void lcf::render::VulkanContext::findQueueFamilies()
     auto queue_families = m_physical_device.getQueueFamilyProperties();
     vk::QueueFlags required_flags = vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute;
     bool require_present = not m_surface_render_targets.empty();
-    for (int i = 0; i < queue_families.size(); ++i) {
-        const auto &queue_family = queue_families[i];
+    for (int queue_family_index = 0; queue_family_index < queue_families.size(); ++queue_family_index) {
+        const auto &queue_family = queue_families[queue_family_index];
         if (queue_family.queueFlags & (vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute)) {
             if (require_present) {
                 // make sure graphics queue also supports presenting to the surface
-                bool supports_all_surfaces = std::ranges::all_of(m_surface_render_targets, [this, i](const auto &render_target) {
-                    return m_physical_device.getSurfaceSupportKHR(i, render_target->getSurface());
+                bool supports_all_surfaces = std::ranges::all_of(m_surface_render_targets, [this, queue_family_index](const auto &render_target) {
+                    return m_physical_device.getSurfaceSupportKHR(queue_family_index, render_target->getSurface());
                 });
                 if (not supports_all_surfaces) { continue; }
             }
-            m_queue_family_indices[static_cast<uint32_t>(vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute)] = i;
-            m_queue_family_indices[static_cast<uint32_t>(vk::QueueFlagBits::eGraphics)] = i;
-            m_queue_family_indices[static_cast<uint32_t>(vk::QueueFlagBits::eCompute)] = i;
+            m_queue_family_indices[static_cast<uint32_t>(vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute)] = queue_family_index;
+            m_queue_family_indices[static_cast<uint32_t>(vk::QueueFlagBits::eGraphics)] = queue_family_index;
+            m_queue_family_indices[static_cast<uint32_t>(vk::QueueFlagBits::eCompute)] = queue_family_index;
             required_flags &= ~(vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute);
         }
         if (not required_flags) { break; }
