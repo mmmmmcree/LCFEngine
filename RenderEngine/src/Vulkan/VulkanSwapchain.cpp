@@ -11,6 +11,12 @@ VulkanSwapchain::VulkanSwapchain(vk::SurfaceKHR surface) :
 {
 }
 
+lcf::render::VulkanSwapchain::~VulkanSwapchain()
+{
+    auto device = m_context_p->getDevice();
+    device.waitIdle();
+}
+
 void VulkanSwapchain::create(VulkanContext * context_p)
 {
     if (this->isCreated()) { return; }
@@ -52,7 +58,7 @@ bool VulkanSwapchain::recreate()
     auto [cur_width, cur_height] = m_surface_capabilities.currentExtent;
     this->setExtent(cur_width, cur_height);
     if (cur_width == 0 or cur_height == 0) { return false; }
-    m_surface_format = vk::SurfaceFormatKHR{vk::Format::eB8G8R8A8Srgb, vk::ColorSpaceKHR::eSrgbNonlinear};
+    
     vk::CompositeAlphaFlagBitsKHR composite_bit = vk::CompositeAlphaFlagBitsKHR::eOpaque;
     while (composite_bit & vk::FlagTraits<vk::CompositeAlphaFlagBitsKHR>::allFlags) {
         using MaskType = typename vk::CompositeAlphaFlagsKHR::MaskType;

@@ -20,6 +20,7 @@ namespace lcf::render {
         using SemaphorePool = std::queue<vk::UniqueSemaphore>;
         using PendingRecycleResourcesQueue = std::queue<PendingRecycleResources>;
         VulkanSwapchain(vk::SurfaceKHR surface);
+        ~VulkanSwapchain();
         void create(VulkanContext * context_p);
         bool isCreated() const noexcept { return m_swapchain.get(); }
         bool isValid() const noexcept { return m_surface and m_swapchain.get(); }
