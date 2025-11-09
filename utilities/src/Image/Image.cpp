@@ -50,7 +50,7 @@ std::span<const std::byte> lcf::Image::getInterleavedDataSpan() const noexcept
     }, gil::const_view(m_image));
 }
 
-bool lcf::Image::loadFrom(const std::filesystem::path &path)
+bool lcf::Image::loadFromFile(const std::filesystem::path &path)
 {
     if (not std::filesystem::exists(path)) { return false; }
     bool successful = false;
@@ -61,7 +61,7 @@ bool lcf::Image::loadFrom(const std::filesystem::path &path)
     return successful;
 }
 
-bool lcf::Image::loadFrom(std::span<const std::byte> data, Format format, size_t width)
+bool lcf::Image::loadFromMemory(std::span<const std::byte> data, Format format, size_t width)
 {
     size_t row_size_in_bytes = getChannelCount(format) * getBytesPerChannel(format) * width;
     if (data.size() % row_size_in_bytes != 0) { return false; }

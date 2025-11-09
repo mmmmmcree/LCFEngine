@@ -56,7 +56,7 @@ lcf::Image VulkanImage::readData()
         this->transitLayout(cmd, old_layout);
     });
     Image image;
-    image.loadFrom({staging_buffer.getMappedMemoryPtr(), staging_buffer.getSize()}, Image::Format::eRGBA8Uint, width);
+    image.loadFromMemory({staging_buffer.getMappedMemoryPtr(), staging_buffer.getSize()}, Image::Format::eRGBA8Uint, width);
     return image;
 }
 
