@@ -16,7 +16,7 @@
 #include <boost/container/small_vector.hpp>
 #include "common/glsl_alignment_traits.h"
 #include "as_bytes.h"
-#include "Mesh.h"
+#include "ModelLoader.h"
 
 lcf::VulkanRenderer::~VulkanRenderer()
 {
@@ -84,18 +84,6 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         .setSize(size_of_v<vk::DrawIndirectCommand> + 1 * size_of_v<vk::DrawIndexedIndirectCommand>) // uint32_t(for IndirectDrawCount) + padding | vk::DrawIndirectCommand ... 
         .create(m_context_p);
 
-    Mesh mesh_data;
-    mesh_data.create(std::size(data::cube_positions));
-    mesh_data.setVertexData(VertexSemanticFlags::ePosition, as_bytes(data::cube_positions))
-        .setVertexData(VertexSemanticFlags::eNormal, as_bytes(data::cube_normals))
-        .setVertexData(VertexSemanticFlags::eTexCoord0, as_bytes(data::cube_uvs))
-        .setIndexData(data::cube_indices);
-
-
-    vkutils::immediate_submit(m_context_p, [this, &mesh_data](VulkanCommandBufferObject & cmd) {
-        m_mesh.create(m_context_p, cmd, mesh_data);
-    });
-
 
     auto & global_descriptor_manager = m_context_p->getDescriptorManager();
     vk::DescriptorSetLayoutCreateInfo per_view_descriptor_set_layout_info;
@@ -123,14 +111,42 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         .add(to_integral(PerRenderableBindingPoints::eIndexBuffer), per_renderable_index_buffer_info)
         .add(to_integral(PerRenderableBindingPoints::eTransform), per_renderable_transform_buffer_info)
         .write(m_per_renderable_descriptor_set);
-        
+
+    auto mesh_sp = Mesh::makeShared();
+    mesh_sp->create(std::size(data::cube_positions));
+    mesh_sp->setVertexData(VertexSemanticFlags::ePosition, as_bytes(data::cube_positions))
+        .setVertexData(VertexSemanticFlags::eNormal, as_bytes(data::cube_normals))
+        .setVertexData(VertexSemanticFlags::eTexCoord0, as_bytes(data::cube_uvs))
+        .setIndexData(data::cube_indices);
+
+    auto material_sp = Material::makeShared();
+    auto image1_sp = Image::makeShared();
+    image1_sp->loadFrom("assets/images/bk.jpg");
+    image1_sp->convertTo(Image::Format::eRGBA8Uint);
+    auto image2_sp = Image::makeShared();
+    image2_sp->loadFrom("assets/images/qt256.png");
+    image2_sp->convertTo(Image::Format::eRGBA8Uint);
+    // material_sp->addImage(Image::makeShared("assets/images/bk.jpg", 4))
+    //     .addImage(Image::makeShared("assets/images/qt256.png", 4));
+    material_sp->addImage(image1_sp)
+        .addImage(image2_sp);
+
+    Model cube_model = ModelLoader().load("./assets/models/dinosaur/source/Rampaging T-Rex.glb");
+    cube_model.addMaterial(material_sp);
+    // Model cube_model;
+    // cube_model.addMesh(mesh_sp) 
+    //     .addMaterial(material_sp);
+
+    vkutils::immediate_submit(m_context_p, [this, &cube_model](VulkanCommandBufferObject & cmd) {
+        m_mesh.create(m_context_p, cmd, cube_model.getMesh(0));
+    });
 
     VulkanImage::SharedPointer cube_map_sp;
     VulkanImage::SharedPointer texture1_sp;
     VulkanImage::SharedPointer texture2_sp;
     VulkanSampler::SharedPointer sampler_sp;
 
-    Image image("assets/images/bk.jpg", 4);
+    const Image & image = material_sp->getImage(0);
     texture1_sp = VulkanImage::makeShared();
     texture1_sp->setFormat(vk::Format::eR8G8B8A8Unorm)
         .setUsage(vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst)
@@ -138,7 +154,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         .setExtent({ image.getWidth(), image.getHeight(), 1u })
         .create(m_context_p);
 
-    Image image2("assets/images/qt256.png", 4);
+    const Image & image2 = material_sp->getImage(1);
     texture2_sp = VulkanImage::makeShared();
     texture2_sp->setFormat(vk::Format::eR8G8B8A8Unorm)
         .setUsage(vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst)
@@ -172,9 +188,8 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         .setAddressModeW(vk::SamplerAddressMode::eClampToEdge);
     auto sphere_sampler = device.createSamplerUnique(sphere_sampler_info);
 
-
     vkutils::immediate_submit(m_context_p, [&](VulkanCommandBufferObject & cmd) {
-        texture1_sp->setData(cmd, image.getDataSpan());
+        texture1_sp->setData(cmd, image.getInterleavedDataSpan());
         texture1_sp->generateMipmaps(cmd);
         const auto & ds_prototype = stc_pipeline.getDescriptorSetPrototype(0);
         auto & global_descriptor_manager = m_context_p->getDescriptorManager();
@@ -199,7 +214,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         fbo.endRendering(cmd);
         cube_map_sp->transitLayout(cmd, vk::ImageLayout::eShaderReadOnlyOptimal);
 
-        texture2_sp->setData(cmd, image2.getDataSpan());
+        texture2_sp->setData(cmd, image2.getInterleavedDataSpan());
         texture2_sp->generateMipmaps(cmd);
     });
 
@@ -310,7 +325,7 @@ void lcf::VulkanRenderer::render(const Entity & camera, RenderTarget::WeakPointe
          * firstInstance: instance index, use as offset to locate model matrix, one for each instance
          */
         auto & indirect_call = indirect_calls[i];
-        indirect_call.setVertexCount(std::size(data::cube_indices))
+        indirect_call.setVertexCount(m_mesh.getIndexCount())
             .setInstanceCount(2)
             .setFirstVertex(i)
             .setFirstInstance(instance_count);

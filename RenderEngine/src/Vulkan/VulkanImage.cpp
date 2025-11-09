@@ -55,7 +55,9 @@ lcf::Image VulkanImage::readData()
         cmd.copyImageToBuffer(this->getHandle(), vk::ImageLayout::eTransferSrcOptimal, staging_buffer.getHandle(), region);
         this->transitLayout(cmd, old_layout);
     });
-    return Image(width, height, 4, staging_buffer.getMappedMemoryPtr());
+    Image image;
+    image.loadFrom({staging_buffer.getMappedMemoryPtr(), staging_buffer.getSize()}, Image::Format::eRGBA8Uint, width);
+    return image;
 }
 
 void lcf::render::VulkanImage::generateMipmaps(VulkanCommandBufferObject & cmd)

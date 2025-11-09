@@ -49,13 +49,12 @@ namespace lcf {
         VulkanBufferObject m_per_view_uniform_buffer;
 
         VulkanBufferObject m_indirect_call_buffer;
-
-        VulkanMesh m_mesh;
         
         VulkanBufferObject m_per_renderable_vertex_buffer;
         VulkanBufferObject m_per_renderable_index_buffer;
         VulkanBufferObject m_per_renderable_transform_buffer;
 
+        VulkanMesh m_mesh;
         VulkanMaterial m_material;
         VulkanMaterial m_skybox_material;
     };
