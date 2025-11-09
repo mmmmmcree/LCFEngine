@@ -131,7 +131,7 @@ namespace lcf {
         std::span<const std::byte> getInterleavedDataSpan() const noexcept;
         bool loadFromFile(const std::filesystem::path & path);
         bool loadFromMemory(std::span<const std::byte> data, Format format, size_t width);
-        bool saveTo(const std::filesystem::path & path) const;
+        bool saveToFile(const std::filesystem::path & path) const;
         Self & recreate(size_t width, size_t height, size_t alignment = 0);
         Self & convertTo(Format format);
         Self & flipUpDown();

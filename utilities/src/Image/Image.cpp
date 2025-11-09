@@ -9,6 +9,9 @@
 #include <boost/gil/extension/io/png.hpp>
 #include <boost/gil/extension/io/jpeg.hpp>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+
 using namespace lcf;
 using namespace boost;
 
@@ -89,9 +92,9 @@ bool lcf::Image::loadFromMemory(std::span<const std::byte> data, Format format, 
     return true;
 }
 
-bool lcf::Image::saveTo(const std::filesystem::path &path) const
+bool lcf::Image::saveToFile(const std::filesystem::path &path) const
 {
-    return this->getImageView().saveTo(path);
+    return this->getImageView().saveToFile(path);
 }
 
 Image & lcf::Image::recreate(size_t width, size_t height, size_t alignment)
