@@ -144,6 +144,8 @@ namespace lcf {
         static size_t getBytesPerChannel(Format format) { return getDataType(format) & 0x1F; }
         static std::filesystem::path getExtension(FileType type);
         static FileType deduceFileType(const std::filesystem::path & path);
+        bool loadUint8FromFile(const std::filesystem::path & path, Format format);
+        bool loadUint16FromFile(const std::filesystem::path & path, Format format);
         bool loadFromPNG(const std::filesystem::path & path);
         bool loadFromPNG(const std::filesystem::path & path, Format format);
         bool loadFromJPG(const std::filesystem::path & path);

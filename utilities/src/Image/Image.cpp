@@ -185,6 +185,30 @@ Image::FileType lcf::Image::deduceFileType(const std::filesystem::path & path)
     return file_type_map.at(ext);
 }
 
+bool lcf::Image::loadUint8FromFile(const std::filesystem::path &path, Format format)
+{
+    int width, height, channels;
+    auto start = std::chrono::high_resolution_clock::now();
+    stbi_uc * data = stbi_load(path.string().c_str(), &width, &height, &channels, getChannelCount(format));
+    if (data == nullptr) { return false; }
+    std::span<std::byte> span(reinterpret_cast<std::byte *>(data), width * height * channels * sizeof(stbi_uc));
+    this->loadFromMemory(span, format, width);
+    stbi_image_free(data);
+    return true;
+}
+
+bool lcf::Image::loadUint16FromFile(const std::filesystem::path &path, Format format)
+{
+    int width, height, channels;
+    auto start = std::chrono::high_resolution_clock::now();
+    stbi_us * data = stbi_load_16(path.string().c_str(), &width, &height, &channels, getChannelCount(format));
+    if (data == nullptr) { return false; }
+    std::span<std::byte> span(reinterpret_cast<std::byte *>(data), width * height * channels * sizeof(stbi_us));
+    this->loadFromMemory(span, format, width);
+    stbi_image_free(data);
+    return true;
+}
+
 bool lcf::Image::loadFromPNG(const std::filesystem::path & path)
 {
     gil::read_image(path.string(), m_image, gil::png_tag{});
@@ -194,35 +218,15 @@ bool lcf::Image::loadFromPNG(const std::filesystem::path & path)
 bool lcf::Image::loadFromPNG(const std::filesystem::path &path, Format format)
 {
     switch (format) {
-        case Format::eGray8Uint: {
-            gil::gray8_image_t image;
-            gil::read_image(path.string(), image, gil::png_tag{});
-            m_image = std::move(image);
-        } break;
-        case Format::eGray16Uint: {
-            gil::gray16_image_t image;
-            gil::read_image(path.string(), image, gil::png_tag{});
-            m_image = std::move(image);
-        } break;
-        case Format::eRGB8Uint: {
-            gil::rgb8_image_t image;
-            gil::read_image(path.string(), image, gil::png_tag{});
-            m_image = std::move(image);
-        } break;
-        case Format::eRGB16Uint: {
-            gil::rgb16_image_t image;
-            gil::read_image(path.string(), image, gil::png_tag{});
-            m_image = std::move(image);
-        } break;
+        case Format::eGray8Uint:
+        case Format::eRGB8Uint:
         case Format::eRGBA8Uint: {
-            gil::rgba8_image_t image;
-            gil::read_image(path.string(), image, gil::png_tag{});
-            m_image = std::move(image);
+            this->loadUint8FromFile(path, format);
         } break;
+        case Format::eGray16Uint:
+        case Format::eRGB16Uint:
         case Format::eRGBA16Uint: {
-            gil::rgba16_image_t image;
-            gil::read_image(path.string(), image, gil::png_tag{});
-            m_image = std::move(image);
+            this->loadUint16FromFile(path, format);
         } break;
         case Format::eBGR8Uint: {
             gil::bgr8_image_t image;
@@ -253,24 +257,10 @@ bool lcf::Image::loadFromJPG(const std::filesystem::path & path)
 bool lcf::Image::loadFromJPG(const std::filesystem::path &path, Format format)
 {
     switch (format) {
-        case Format::eGray8Uint: {
-            gil::gray8_image_t image;
-            gil::read_image(path.string(), image, gil::jpeg_tag{});
-            m_image = std::move(image);
-        } break;
-        case Format::eRGB8Uint: {
-            gil::rgb8_image_t image;
-            gil::read_image(path.string(), image, gil::jpeg_tag{});
-            m_image = std::move(image);
-        }
+        case Format::eGray8Uint: 
+        case Format::eRGB8Uint:
         case Format::eRGBA8Uint: {
-            //test load from memory
-            int width, height, channels;
-            stbi_uc * data = stbi_load(path.string().c_str(), &width, &height, &channels, 4);
-            if (data == nullptr) { return false; }
-            std::span<std::byte> span(reinterpret_cast<std::byte *>(data), width * height * channels * sizeof(stbi_uc));
-            this->loadFromMemory(span, format, width);
-            stbi_image_free(data);
+            this->loadUint8FromFile(path, format);
         } break;
         case Format::eBGR8Uint: {
             gil::bgr8_image_t image;
