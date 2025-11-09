@@ -130,6 +130,7 @@ namespace lcf {
         std::span<std::byte> getInterleavedDataSpan() noexcept;
         std::span<const std::byte> getInterleavedDataSpan() const noexcept;
         bool loadFromFile(const std::filesystem::path & path);
+        bool loadFromFile(const std::filesystem::path & path, Format format);
         bool loadFromMemory(std::span<const std::byte> data, Format format, size_t width);
         bool saveToFile(const std::filesystem::path & path) const;
         Self & recreate(size_t width, size_t height, size_t alignment = 0);
@@ -144,7 +145,9 @@ namespace lcf {
         static std::filesystem::path getExtension(FileType type);
         static FileType deduceFileType(const std::filesystem::path & path);
         bool loadFromPNG(const std::filesystem::path & path);
+        bool loadFromPNG(const std::filesystem::path & path, Format format);
         bool loadFromJPG(const std::filesystem::path & path);
+        bool loadFromJPG(const std::filesystem::path & path, Format format);
         void updateFormat();
     private:
         Format m_format = Format::eInvalid;
