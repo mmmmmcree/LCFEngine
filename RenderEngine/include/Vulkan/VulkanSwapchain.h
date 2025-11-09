@@ -11,10 +11,10 @@ namespace lcf::render {
 
     class VulkanSwapchain : public RenderTarget, public STDPointerDefs<VulkanSwapchain>
     {
-    public:
-        IMPORT_POINTER_DEFS(STDPointerDefs<VulkanSwapchain>);
         struct FrameResources;
         struct PendingRecycleResources;
+    public:
+        IMPORT_POINTER_DEFS(STDPointerDefs<VulkanSwapchain>);
         using OptionalFrameResources = std::optional<FrameResources>;
         using FencePool = std::queue<vk::UniqueFence>;
         using SemaphorePool = std::queue<vk::UniqueSemaphore>;
