@@ -36,8 +36,8 @@ namespace lcf {
     struct EntitySignalInfoBase
     {
         EntitySignalInfoBase() = default;
-        EntitySignalInfoBase(EntityHandle entity) : sender(entity) {}
-        EntityHandle sender = entt::null;
+        EntitySignalInfoBase(EntityHandle entity) : m_sender(entity) {}
+        EntityHandle m_sender = entt::null;
     };
 
     template <typename SignalInfo>
@@ -67,7 +67,7 @@ inline void lcf::Entity::emitSignal(const SignalInfo &signal_info) const
 {
     if constexpr (entity_eignal_info_c<SignalInfo>) {
         SignalInfo & info = const_cast<SignalInfo &>(signal_info);
-        info.sender = m_entity;
+        info.m_sender = m_entity;
     }
     m_registry_p->ctx().get<Dispatcher>().trigger(signal_info);
 }
@@ -77,7 +77,7 @@ inline void lcf::Entity::enqueueSignal(const SignalInfo &signal_info) const
 {
     if constexpr (entity_eignal_info_c<SignalInfo>) {
         SignalInfo & info = const_cast<SignalInfo &>(signal_info);
-        info.sender = m_entity;
+        info.m_sender = m_entity;
     }
     m_registry_p->ctx().get<Dispatcher>().enqueue(signal_info);
 }

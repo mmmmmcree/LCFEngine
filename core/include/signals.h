@@ -5,7 +5,8 @@
 namespace lcf {
     struct TransformHierarchyAttachSignalInfo : EntitySignalInfoBase
     {
-        EntityHandle parent;
+        TransformHierarchyAttachSignalInfo(EntityHandle parent) : m_parent(parent) {}
+        EntityHandle m_parent;
     };
 
     struct TransformUpdateSignalInfo : EntitySignalInfoBase { };
