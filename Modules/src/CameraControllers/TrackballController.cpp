@@ -23,9 +23,9 @@ void lcf::modules::TrackballController::update(Entity & camera)
     }
 
     auto & camera_transform = camera.getComponent<Transform>();
-    Vector3D right = camera_transform.getXAxis();
-    Vector3D up = camera_transform.getYAxis();
-    Vector3D delta_center = right * delta_right + up * delta_up;
+    Vector3D<float> right = camera_transform.getXAxis();
+    Vector3D<float> up = camera_transform.getYAxis();
+    Vector3D<float> delta_center = right * delta_right + up * delta_up;
     m_center += delta_center;
     Quaternion pitch = Quaternion::fromAxisAndAngle(right, delta_pitch);
     Quaternion yaw = Quaternion::fromAxisAndAngle({0.0f, 1.0f, 0.0f}, delta_yaw);

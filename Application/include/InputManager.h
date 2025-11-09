@@ -13,8 +13,8 @@
 namespace lcf {
     class InputManager : public QObject
     {
-    public:
         class InputState;
+    public:
         using Key = Qt::Key;
         using MouseButton = Qt::MouseButton;
         using MouseButtons = Qt::MouseButtons;
@@ -27,8 +27,8 @@ namespace lcf {
         bool isKeyPressed(Key key) const noexcept;
         bool isMouseButtonPressed(MouseButton button) const noexcept;
         bool isMouseButtonsPressed(MouseButtons buttons) const noexcept;
-        const Vector2D_D & getMousePosition() const noexcept;
-        const Vector2D_I & getWheelDelta() const noexcept;
+        const Vector2D<double> & getMousePosition() const noexcept;
+        const Vector2D<int> & getWheelDelta() const noexcept;
     protected:
         bool eventFilter(QObject *watched, QEvent *event) override;
     private:
@@ -46,8 +46,8 @@ namespace lcf {
         struct InputState
         {
             QSet<Key> m_pressed_keys;
-            Vector2D_D m_current_mouse_pos;
-            Vector2D_I m_wheel_delta;
+            Vector2D<double> m_current_mouse_pos;
+            Vector2D<int> m_wheel_delta;
             MouseButtons m_pressed_mouse_buttons = MouseButton::NoButton;
         };   
         std::array<InputState, 2> m_input_states;

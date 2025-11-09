@@ -18,8 +18,8 @@ namespace lcf::modules
         float m_sensitivity = 0.2f;
         float m_move_speed = 0.005f;
         float m_zoom_speed = 0.01f;
-        Vector3D m_center;
-        Vector2D_D m_last_mouse_pos;
-        Vector2D_I m_last_wheel_delta;
+        Vector3D<float> m_center;
+        Vector2D<double> m_last_mouse_pos;
+        Vector2D<int> m_last_wheel_delta;
     };
 };

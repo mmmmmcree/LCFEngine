@@ -42,13 +42,13 @@ void lcf::InputManager::handleMouseReleaseEvent(QMouseEvent *event) noexcept
 void lcf::InputManager::handleMouseMoveEvent(QMouseEvent *event) noexcept
 {
     auto [x, y] = event->position();
-    this->getWritableState().m_current_mouse_pos = Vector2D_D(x, y);
+    this->getWritableState().m_current_mouse_pos = Vector2D<double>(x, y);
 }
 
 void lcf::InputManager::handleWheelEvent(QWheelEvent *event) noexcept
 {
     auto [dx, dy] = event->angleDelta();
-    this->getWritableState().m_wheel_delta += Vector2D_I(dx, dy);
+    this->getWritableState().m_wheel_delta += Vector2D<int>(dx, dy);
 }
 
 void lcf::InputManager::update() noexcept
@@ -72,12 +72,12 @@ bool lcf::InputManager::isMouseButtonsPressed(MouseButtons buttons) const noexce
     return this->getReadableState().m_pressed_mouse_buttons & buttons;
 }
 
-const lcf::Vector2D_D & lcf::InputManager::getMousePosition() const noexcept
+const lcf::Vector2D<double> & lcf::InputManager::getMousePosition() const noexcept
 {
     return this->getReadableState().m_current_mouse_pos;
 }
 
-const lcf::Vector2D_I &lcf::InputManager::getWheelDelta() const noexcept
+const lcf::Vector2D<int> &lcf::InputManager::getWheelDelta() const noexcept
 {
     return this->getReadableState().m_wheel_delta;
 }
