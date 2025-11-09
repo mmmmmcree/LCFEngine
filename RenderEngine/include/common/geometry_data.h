@@ -3,19 +3,19 @@
 #include "Vector.h"
 
 namespace lcf::render::data {
-    constexpr Vector3D quad_positions[] = {
+    constexpr Vector3D<float> quad_positions[] = {
         {-1.0f, -1.0f, 0.0f},
         {+1.0f, -1.0f, 0.0f},
         {+1.0f, +1.0f, 0.0f},
         {-1.0f, +1.0f, 0.0f}
     };
-    constexpr Vector3D quad_colors[] = {
+    constexpr Vector3D<float> quad_colors[] = {
         {1.0f, 0.0f, 0.0f},
         {0.0f, 1.0f, 0.0f},
         {0.0f, 0.0f, 1.0f},
         {1.0f, 1.0f, 1.0f}
     };
-    constexpr Vector2D quad_uvs[] = {
+    constexpr Vector2D<float> quad_uvs[] = {
         {0.0f, 1.0f},
         {1.0f, 1.0f},
         {1.0f, 0.0f},
@@ -23,7 +23,7 @@ namespace lcf::render::data {
     };
     constexpr uint16_t quad_indices[] = { 0, 1, 2, 2, 3, 0 };
 
-    constexpr Vector3D cube_positions[] = {
+    constexpr Vector3D<float> cube_positions[] = {
         {-1.0f, -1.0f, -1.0f}, {-1.0f, +1.0f, -1.0f}, {+1.0f, +1.0f, -1.0f}, {+1.0f, -1.0f, -1.0f}, //- back face
         {-1.0f, -1.0f, -1.0f}, {-1.0f, -1.0f, +1.0f}, {+1.0f, -1.0f, +1.0f}, {+1.0f, -1.0f, -1.0f}, //- left face
         {+1.0f, -1.0f, -1.0f}, {+1.0f, -1.0f, +1.0f}, {+1.0f, +1.0f, +1.0f}, {+1.0f, +1.0f, -1.0f}, //- right face
@@ -31,7 +31,7 @@ namespace lcf::render::data {
         {-1.0f, +1.0f, -1.0f}, {-1.0f, +1.0f, +1.0f}, {-1.0f, -1.0f, +1.0f}, {-1.0f, -1.0f, -1.0f}, //- bottom face
         {-1.0f, -1.0f, +1.0f}, {+1.0f, -1.0f, +1.0f}, {+1.0f, +1.0f, +1.0f}, {-1.0f, +1.0f, +1.0f}, //- front face
     };
-    constexpr Vector3D cube_normals[] = {
+    constexpr Vector3D<float> cube_normals[] = {
         {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, -1.0f}, //- back face
         {-1.0f, 0.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, //- left face
         {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, //- right face
@@ -39,7 +39,7 @@ namespace lcf::render::data {
         {0.0f, -1.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, //- bottom face
         {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, //- front face
     };
-    constexpr Vector2D cube_uvs[] = {
+    constexpr Vector2D<float> cube_uvs[] = {
         {0.0f, 1.0f}, {1.0f, 1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f}, //- back face
         {0.0f, 1.0f}, {1.0f, 1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f}, //- left face
         {0.0f, 1.0f}, {1.0f, 1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f}, //- right face
