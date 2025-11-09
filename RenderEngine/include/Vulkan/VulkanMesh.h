@@ -15,6 +15,8 @@ namespace lcf::render {
         bool create(VulkanContext * context_p, VulkanCommandBufferObject & cmd, const Mesh & mesh);
         const vk::DeviceAddress & getVertexBufferAddress() const noexcept { return m_vertex_buffer.getDeviceAddress(); }
         const vk::DeviceAddress & getIndexBufferAddress() const noexcept { return m_index_buffer.getDeviceAddress(); }
+        uint32_t getVertexCount() const noexcept { return m_vertex_count; }
+        uint32_t getIndexCount() const noexcept { return m_index_count; }
     private:
         VulkanBufferObject m_vertex_buffer;
         VulkanBufferObject m_index_buffer;
