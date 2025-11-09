@@ -19,6 +19,8 @@ endif()
 find_package(Stb REQUIRED)
 find_package(Boost REQUIRED)
 find_package(magic_enum CONFIG REQUIRED)
+find_package(PNG REQUIRED)    
+find_package(JPEG REQUIRED)
 
 file(GLOB_RECURSE INCLUDE_DIRS CONFIGURE_DEPENDS LIST_DIRECTORIES true "${CMAKE_CURRENT_SOURCE_DIR}/include/*")
 set(DIRS_ONLY "")
@@ -46,4 +48,6 @@ target_link_libraries(${PROJECT_NAME}
       magic_enum::magic_enum
       Boost::headers 
     PRIVATE
-)
+      PNG::PNG
+      JPEG::JPEG
+) 
