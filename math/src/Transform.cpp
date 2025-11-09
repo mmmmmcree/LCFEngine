@@ -1,5 +1,6 @@
 #include "Transform.h"
 
+using namespace lcf;
 
 lcf::Transform::Transform(const Transform &other) :
     m_is_inverted_dirty(other.m_is_inverted_dirty), 
@@ -42,10 +43,10 @@ const lcf::Matrix4x4 &lcf::Transform::getInvertedWorldMatrix() const noexcept
 
 void lcf::Transform::translateWorld(float x, float y, float z) noexcept
 {
-    this->translateWorld(Vector3D(x, y, z));
+    this->translateWorld(Vector3D<float>(x, y, z));
 }
 
-void lcf::Transform::translateWorld(const Vector3D &translation) noexcept
+void lcf::Transform::translateWorld(const Vector3D<float> &translation) noexcept
 {
     if (translation.isNull()) { return; }
     m_local_matrix.setColumn(3, Vector4D(this->getTranslation() + translation, 1.0f));
@@ -54,10 +55,10 @@ void lcf::Transform::translateWorld(const Vector3D &translation) noexcept
 
 void lcf::Transform::translateLocal(float x, float y, float z) noexcept
 {
-    this->translateLocal(Vector3D(x, y, z));
+    this->translateLocal(Vector3D<float>(x, y, z));
 }
 
-void lcf::Transform::translateLocal(const Vector3D &translation) noexcept
+void lcf::Transform::translateLocal(const Vector3D<float> &translation) noexcept
 {
     if (translation.isNull()) { return; }
     m_local_matrix.translateLocal(translation);
@@ -101,7 +102,7 @@ void lcf::Transform::rotateLocalZAxis(float angle_degrees) noexcept
     this->rotateLocal(Quaternion::fromAxisAndAngle(this->getZAxis(), angle_degrees));
 }
 
-void lcf::Transform::rotateAround(const Quaternion &rotation, const Vector3D &position) noexcept
+void lcf::Transform::rotateAround(const Quaternion &rotation, const Vector3D<float> &position) noexcept
 {
     if (rotation.isNull() or rotation.isIdentity()) { return; }
     m_local_matrix.rotateAround(rotation, position);
@@ -124,15 +125,15 @@ void lcf::Transform::rotateAroundSelf(const Quaternion &rotation) noexcept
 
 void lcf::Transform::scale(float factor) noexcept
 {
-    this->scale(Vector3D(factor, factor, factor));
+    this->scale(Vector3D<float>(factor, factor, factor));
 }
 
 void lcf::Transform::scale(float x, float y, float z) noexcept
 {
-    this->scale(Vector3D(x, y, z));
+    this->scale(Vector3D<float>(x, y, z));
 }
 
-void lcf::Transform::scale(const Vector3D &scale) noexcept
+void lcf::Transform::scale(const Vector3D<float> &scale) noexcept
 {
     m_local_matrix.scale(max(scale, std::numeric_limits<float>::epsilon()));
     this->markDirty();
@@ -140,10 +141,10 @@ void lcf::Transform::scale(const Vector3D &scale) noexcept
 
 void lcf::Transform::setTranslation(float x, float y, float z) noexcept
 {
-    this->setTranslation(Vector3D(x, y, z));
+    this->setTranslation(Vector3D<float>(x, y, z));
 }
 
-void lcf::Transform::setTranslation(const Vector3D &position) noexcept
+void lcf::Transform::setTranslation(const Vector3D<float> &position) noexcept
 {
     m_local_matrix.setColumn(3, Vector4D(position, 1.0f));
     this->markDirty();
@@ -157,20 +158,20 @@ void lcf::Transform::setRotation(const Quaternion &rotation) noexcept
 
 void lcf::Transform::setRotation(float angle_degrees, float x, float y, float z) noexcept
 {
-    this->setRotation(angle_degrees, Vector3D(x, y, z));
+    this->setRotation(angle_degrees, Vector3D<float>(x, y, z));
 }
 
-void lcf::Transform::setRotation(float angle_degrees, const Vector3D &axis) noexcept
+void lcf::Transform::setRotation(float angle_degrees, const Vector3D<float> &axis) noexcept
 {
     this->setRotation(Quaternion::fromAxisAndAngle(axis.normalized(), angle_degrees));
 }
 
 void lcf::Transform::setScale(float x, float y, float z) noexcept
 {
-    this->setScale(max(Vector3D(x, y, z), std::numeric_limits<float>::epsilon()));
+    this->setScale(max(Vector3D<float>(x, y, z), std::numeric_limits<float>::epsilon()));
 }
 
-void lcf::Transform::setScale(const Vector3D &scale) noexcept
+void lcf::Transform::setScale(const Vector3D<float> &scale) noexcept
 {
     m_local_matrix.setScale(scale);
     this->markDirty();
@@ -178,32 +179,32 @@ void lcf::Transform::setScale(const Vector3D &scale) noexcept
 
 void lcf::Transform::setScale(float factor) noexcept
 {
-    this->setScale(Vector3D(factor, factor, factor));
+    this->setScale(Vector3D<float>(factor, factor, factor));
 }
 
-void lcf::Transform::setTRS(const Vector3D &translation, const Quaternion &rotation, const Vector3D &scale) noexcept
+void lcf::Transform::setTRS(const Vector3D<float> &translation, const Quaternion &rotation, const Vector3D<float> &scale) noexcept
 {
     this->setTranslation(translation);
     this->setRotation(rotation);
     this->setScale(scale);
 }
 
-lcf::Vector3D lcf::Transform::getXAxis() const noexcept
+lcf::Vector3D<float> lcf::Transform::getXAxis() const noexcept
 {
     return this->getLocalMatrix().getColumn(0).toVector3D();
 }
 
-lcf::Vector3D lcf::Transform::getYAxis() const noexcept
+lcf::Vector3D<float> lcf::Transform::getYAxis() const noexcept
 {
     return this->getLocalMatrix().getColumn(1).toVector3D();
 }
 
-lcf::Vector3D lcf::Transform::getZAxis() const noexcept
+lcf::Vector3D<float> lcf::Transform::getZAxis() const noexcept
 {
     return this->getLocalMatrix().getColumn(2).toVector3D();
 }
 
-lcf::Vector3D lcf::Transform::getTranslation() const noexcept
+lcf::Vector3D<float> lcf::Transform::getTranslation() const noexcept
 {
     return m_local_matrix.getColumn(3).toVector3D();
 }
@@ -213,7 +214,55 @@ lcf::Quaternion lcf::Transform::getRotation() const noexcept
     return m_local_matrix.getRotation();
 }
 
-lcf::Vector3D lcf::Transform::getScale() const noexcept
+lcf::Vector3D<float> lcf::Transform::getScale() const noexcept
 {
     return m_local_matrix.getScale();
+}
+
+//- HierarchicalTransform -//
+
+bool lcf::HierarchicalTransform::setParent(HierarchicalTransform *parent)
+{
+    auto ancestor = parent;
+    while (ancestor) {
+        if (ancestor == this) { return false; }
+        ancestor = ancestor->getParent();
+    }
+    if (m_parent) { m_parent->removeChild(this); }
+    m_parent = parent;
+    if (m_parent) {
+        m_parent->addChild(this);
+        m_level = m_parent->getLevel() + 1;
+    }
+    return true;
+}
+
+const HierarchicalTransform *lcf::HierarchicalTransform::getRoot() const
+{
+    auto root = this;
+    if (not m_parent)  { return root; }
+    auto parent = m_parent;
+    while (parent) {
+        if (not parent->getParent()) {
+            root = parent;
+            break;
+        }
+        parent = parent->getParent();
+    }
+    return root;
+}
+
+bool lcf::HierarchicalTransform::addChild(HierarchicalTransform *child)
+{
+    if (not child or child->getParent() == this) { return false; }
+    m_children.emplace_back(child);
+    return true;
+}
+
+void lcf::HierarchicalTransform::removeChild(HierarchicalTransform *child)
+{
+    auto it = std::ranges::find(m_children, child);
+    if (it == m_children.end()) { return; }
+    std::swap(*it, m_children.back());
+    m_children.pop_back();
 }
