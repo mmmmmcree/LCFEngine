@@ -45,6 +45,9 @@ void lcf::render::VulkanContext::create()
 
 void lcf::render::VulkanContext::setupVulkanInstance()
 {
+#if ( VULKAN_HPP_DISPATCH_LOADER_DYNAMIC == 1 )
+    VULKAN_HPP_DEFAULT_DISPATCHER.init();
+#endif
     vk::ApplicationInfo app_info;
     app_info.setPApplicationName("LCFEngine")
         .setPEngineName("LCFEngine")
@@ -95,12 +98,9 @@ void lcf::render::VulkanContext::setupVulkanInstance()
     validation_features.setEnabledValidationFeatures(enabled_validation_features);
     instance_info.setPNext(&validation_features);
 #endif
-#if ( VULKAN_HPP_DISPATCH_LOADER_DYNAMIC == 1 )
-    VULKAN_HPP_DEFAULT_DISPATCHER.init();
-#endif
     vk::Instance instance = vk::createInstance(instance_info);
 #if ( VULKAN_HPP_DISPATCH_LOADER_DYNAMIC == 1 )
-    VULKAN_HPP_DEFAULT_DISPATCHER.init(vk::Instance(m_vk_instance.vkInstance()));
+    VULKAN_HPP_DEFAULT_DISPATCHER.init(instance);
 #endif
     m_vk_instance.setVkInstance(instance);
     if (not m_vk_instance.create()) {
