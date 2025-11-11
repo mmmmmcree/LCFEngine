@@ -11,11 +11,13 @@
 #include <vector>
 #include <unordered_map>
 #include <stack>
+#include "Window2.h"
 
 
 namespace lcf::render {
     class VulkanContext : public Context
     {
+        using Self = VulkanContext;
     public:
         using SurfaceRenderTargetList = std::vector<VulkanSwapchain::SharedPointer>;
         using QueueFamilyIndexMap = std::unordered_map<uint32_t, uint32_t>; // <vk::QueueFlagBits, index>
@@ -24,11 +26,12 @@ namespace lcf::render {
         VulkanContext(const VulkanContext &other) = delete;
         VulkanContext & operator=(const VulkanContext &other) = delete;
         ~VulkanContext();
-        void registerWindow(RenderWindow * window);
+        Self & registerWindow(gui::Window * window);
+        // void registerWindow(RenderWindow * window);
         void create();
         bool isCreated() const { return m_device.get(); }
         bool isValid() const { return m_device.get(); }
-        vk::Instance getInstance() const { return m_vk_instance.vkInstance(); }
+        vk::Instance getInstance() const noexcept { return m_instance.get(); }
         vk::PhysicalDevice getPhysicalDevice() const { return m_physical_device; }
         vk::Device getDevice() const { return m_device.get(); }
         vk::CommandPool getCommandPool() const { return m_command_pool.get(); }
@@ -44,7 +47,8 @@ namespace lcf::render {
         void createLogicalDevice();
         void createCommandPool();
     private:
-        QVulkanInstance m_vk_instance;
+    public:
+        vk::UniqueInstance m_instance;
         vk::PhysicalDevice m_physical_device;
         vk::UniqueDevice m_device;
         SurfaceRenderTargetList m_surface_render_targets;

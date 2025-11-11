@@ -10,12 +10,13 @@ add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
 add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 
 add_subdirectory(Application)
+add_subdirectory(GUI) 
 add_subdirectory(math)  
 add_subdirectory(utilities)
 add_subdirectory(RenderEngine)
 add_subdirectory(examples)  
 add_subdirectory(core)  
 add_subdirectory(Modules) 
-add_subdirectory(Systems) 
+add_subdirectory(Systems)  
   
    

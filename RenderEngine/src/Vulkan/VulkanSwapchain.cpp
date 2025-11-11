@@ -5,9 +5,9 @@
 
 using namespace lcf::render;
 
-VulkanSwapchain::VulkanSwapchain(vk::SurfaceKHR surface) :
+VulkanSwapchain::VulkanSwapchain(UniqueSurface && unique_surface) :
     RenderTarget(),
-    m_surface(surface)
+    m_surface(std::move(unique_surface))
 {
 }
 
@@ -22,9 +22,9 @@ void VulkanSwapchain::create(VulkanContext * context_p)
     if (this->isCreated()) { return; }
     m_context_p = context_p;
     vk::PhysicalDevice physical_device = m_context_p->getPhysicalDevice();
-    auto surface_formats = physical_device.getSurfaceFormatsKHR(m_surface);
-    auto present_modes = physical_device.getSurfacePresentModesKHR(m_surface);
-    m_surface_capabilities = physical_device.getSurfaceCapabilitiesKHR(m_surface);
+    auto surface_formats = physical_device.getSurfaceFormatsKHR(this->getSurface());
+    auto present_modes = physical_device.getSurfacePresentModesKHR(this->getSurface());
+    m_surface_capabilities = physical_device.getSurfaceCapabilitiesKHR(this->getSurface());
     auto surface_it = std::ranges::find_if(surface_formats, [](const auto& f) {
         return f == vk::SurfaceFormatKHR{vk::Format::eB8G8R8A8Srgb, vk::ColorSpaceKHR::eSrgbNonlinear};
     });
@@ -54,7 +54,7 @@ bool VulkanSwapchain::finishRender()
 bool VulkanSwapchain::recreate()
 {
     vk::PhysicalDevice physical_device = m_context_p->getPhysicalDevice();
-    m_surface_capabilities = physical_device.getSurfaceCapabilitiesKHR(m_surface);
+    m_surface_capabilities = physical_device.getSurfaceCapabilitiesKHR(this->getSurface());
     auto [cur_width, cur_height] = m_surface_capabilities.currentExtent;
     this->setExtent(cur_width, cur_height);
     if (cur_width == 0 or cur_height == 0) { return false; }
@@ -70,7 +70,7 @@ bool VulkanSwapchain::recreate()
     vk::UniqueSwapchainKHR new_swapchain;
     std::vector<vk::Image> swapchain_images;
     vk::SwapchainCreateInfoKHR swapchain_info;
-    swapchain_info.setSurface(m_surface)
+    swapchain_info.setSurface(this->getSurface())
         .setMinImageCount(m_swapchain_images.size())
         .setImageFormat(m_surface_format.format)
         .setImageColorSpace(m_surface_format.colorSpace)

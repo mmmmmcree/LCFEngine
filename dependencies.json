@@ -15,9 +15,8 @@
       "version>=": "1.6.48"
     },
     {
-      "name": "qtbase",
-      "default-features": false,
-      "features": ["gui", "widgets", "vulkan"]
+      "name": "sdl3[vulkan]",
+      "version>=": "3.2.18"
     },
     {
       "name": "stb",

@@ -1,10 +1,12 @@
 #include "VulkanContext.h"
+#include "WindowSystem.h"
 #include <QLoggingCategory>
 #include <QDebug>
 #include <set>
 #include <string>
 #include <algorithm>
 
+using namespace lcf::render;
 
 lcf::render::VulkanContext::VulkanContext()
 {
@@ -13,20 +15,32 @@ lcf::render::VulkanContext::VulkanContext()
 
 lcf::render::VulkanContext::~VulkanContext()
 {
+    m_surface_render_targets.clear();
     m_device->waitIdle();
 }
 
-void lcf::render::VulkanContext::registerWindow(RenderWindow * window)
+VulkanContext & lcf::render::VulkanContext::registerWindow(gui::Window * window)
 {
-    window->setSurfaceType(QSurface::VulkanSurface);
-    window->setVulkanInstance(&m_vk_instance);
-    window->create();
-    vk::SurfaceKHR surface = m_vk_instance.surfaceForWindow(window); //! surface is available after window is created
-    window->setVulkanInstance(nullptr);
-    auto render_target = VulkanSwapchain::makeShared(surface);
-    window->setRenderTarget(render_target);
+    auto surface = window->create(this->getInstance());
+    VulkanSwapchain::UniqueSurface unique_surface(surface, [this](vk::SurfaceKHR surface) {
+        m_instance->destroySurfaceKHR(surface);
+    });
+    auto render_target = VulkanSwapchain::makeShared(std::move(unique_surface));
     m_surface_render_targets.emplace_back(render_target);
+    return *this;
 }
+
+// void lcf::render::VulkanContext::registerWindow(RenderWindow * window)
+// {
+//     window->setSurfaceType(QSurface::VulkanSurface);
+//     window->setVulkanInstance(&m_vk_instance);
+//     window->create();
+//     vk::SurfaceKHR surface = m_vk_instance.surfaceForWindow(window); //! surface is available after window is created
+//     window->setVulkanInstance(nullptr);
+//     auto render_target = VulkanSwapchain::makeShared(surface);
+//     window->setRenderTarget(render_target);
+//     m_surface_render_targets.emplace_back(render_target);
+// }
 
 void lcf::render::VulkanContext::create()
 {
@@ -40,7 +54,7 @@ void lcf::render::VulkanContext::create()
     for (auto &render_target : m_surface_render_targets) {
         render_target->create(this);
     }
-    SurfaceRenderTargetList{}.swap(m_surface_render_targets);
+    // SurfaceRenderTargetList{}.swap(m_surface_render_targets);
 }
 
 void lcf::render::VulkanContext::setupVulkanInstance()
@@ -55,18 +69,19 @@ void lcf::render::VulkanContext::setupVulkanInstance()
         .setEngineVersion(vk::makeVersion(1, 0, 0))
         .setApiVersion(VK_HEADER_VERSION_COMPLETE);
     std::set<std::string> required_extensions = {
-        VK_KHR_SURFACE_EXTENSION_NAME,
-        VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME,
-        VK_EXT_SURFACE_MAINTENANCE_1_EXTENSION_NAME,
-        "VK_KHR_win32_surface",
-        "VK_KHR_xcb_surface",
-        "VK_MVK_macos_surface",
-        "VK_KHR_android_surface",
-        "VK_KHR_wayland_surface",
     #ifndef NDEBUG
         VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
     #endif
     };
+    auto win_sys_required_extensions = lcf::gui::WindowSystem::getInstance().getRequiredVulkanExtensions();
+    required_extensions.insert(win_sys_required_extensions.begin(), win_sys_required_extensions.end());
+    if (required_extensions.contains(VK_KHR_SURFACE_EXTENSION_NAME)) {
+        std::vector<std::string> surface_required_extensions = {
+            VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME,
+            VK_EXT_SURFACE_MAINTENANCE_1_EXTENSION_NAME,
+        };
+        required_extensions.insert(surface_required_extensions.begin(), surface_required_extensions.end());
+    }
     auto available_extensions = vk::enumerateInstanceExtensionProperties();
     std::vector<const char*> extensions;
     for (const auto &extension : available_extensions) {
@@ -98,20 +113,15 @@ void lcf::render::VulkanContext::setupVulkanInstance()
     validation_features.setEnabledValidationFeatures(enabled_validation_features);
     instance_info.setPNext(&validation_features);
 #endif
-    vk::Instance instance = vk::createInstance(instance_info);
+    m_instance = vk::createInstanceUnique(instance_info);
 #if ( VULKAN_HPP_DISPATCH_LOADER_DYNAMIC == 1 )
-    VULKAN_HPP_DEFAULT_DISPATCHER.init(instance);
+    VULKAN_HPP_DEFAULT_DISPATCHER.init(this->getInstance());
 #endif
-    m_vk_instance.setVkInstance(instance);
-    if (not m_vk_instance.create()) {
-        qFatal("Failed to create Vulkan instance: %d", m_vk_instance.errorCode());
-    }
 }
 
 void lcf::render::VulkanContext::pickPhysicalDevice()
 {
-    vk::Instance instance = m_vk_instance.vkInstance();
-    auto devices = instance.enumeratePhysicalDevices();
+    auto devices = m_instance->enumeratePhysicalDevices();
     if (devices.empty()) {
         qFatal() << "No physical devices found";
         return;

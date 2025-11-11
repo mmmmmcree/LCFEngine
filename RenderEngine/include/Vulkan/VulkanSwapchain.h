@@ -5,6 +5,7 @@
 #include "VulkanImage.h"
 #include <optional>
 #include <queue>
+#include <functional>
 
 namespace lcf::render {
     class VulkanContext;
@@ -15,11 +16,12 @@ namespace lcf::render {
         struct PendingRecycleResources;
     public:
         IMPORT_POINTER_DEFS(STDPointerDefs<VulkanSwapchain>);
+        using UniqueSurface = std::unique_ptr<VkSurfaceKHR_T, std::function<void(vk::SurfaceKHR)>>;
         using OptionalFrameResources = std::optional<FrameResources>;
         using FencePool = std::queue<vk::UniqueFence>;
         using SemaphorePool = std::queue<vk::UniqueSemaphore>;
         using PendingRecycleResourcesQueue = std::queue<PendingRecycleResources>;
-        VulkanSwapchain(vk::SurfaceKHR surface);
+        VulkanSwapchain(UniqueSurface && unique_surface);
         ~VulkanSwapchain();
         void create(VulkanContext * context_p);
         bool isCreated() const noexcept { return m_swapchain.get(); }
@@ -28,7 +30,7 @@ namespace lcf::render {
         bool finishRender();
         const FrameResources & getCurrentFrameResources() const noexcept { return *m_current_frame_resources; }
         vk::SwapchainKHR getHandle() const noexcept { return m_swapchain.get(); }
-        vk::SurfaceKHR getSurface() const noexcept { return m_surface; }
+        vk::SurfaceKHR getSurface() const noexcept { return m_surface.get(); }
         vk::Extent2D getExtent() const noexcept { return m_surface_capabilities.currentExtent; }
     private:
         bool recreate();
@@ -76,8 +78,8 @@ namespace lcf::render {
     private:
         inline static constexpr uint32_t SWAPCHAIN_BUFFER_COUNT = 4;
         VulkanContext * m_context_p = nullptr;
+        UniqueSurface m_surface;
         vk::UniqueSwapchainKHR m_swapchain;
-        vk::SurfaceKHR m_surface;
         vk::SurfaceFormatKHR m_surface_format;
         vk::PresentModeKHR  m_present_mode;
         vk::SurfaceCapabilitiesKHR m_surface_capabilities;
