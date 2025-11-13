@@ -1,6 +1,8 @@
 #pragma once
 
 #include "gui_forward_declares.h"
+#include "gui_enums.h"
+#include "Registry.h"
 #include <string>
 #include <vector>
 
@@ -9,19 +11,23 @@ namespace lcf::gui {
     {
         using Self = WindowCreateInfo;
         WindowCreateInfo(
+            Registry * registry_p = nullptr,
             uint32_t width = 1280,
             uint32_t height = 720,
             SurfaceType surface_type = SurfaceType::eNone,
             std::string_view title = "") :
+            m_registry_p(registry_p),
             m_width(width),
             m_height(height),
             m_surface_type(surface_type),
             m_title(title) { }
-        WindowCreateInfo(const Self & other) = default;
-        Self & operator=(const Self & other) = default;
+        WindowCreateInfo(const Self & other) = delete;
+        Self & operator=(const Self & other) = delete;
         WindowCreateInfo(Self && other) = default;
         Self & operator=(Self && other) = default;
         ~WindowCreateInfo() = default;
+        Self & setRegistryPtr(Registry * registry_p) noexcept { m_registry_p = registry_p; return *this; }
+        Registry * getRegistryPtr() const noexcept { return m_registry_p; }
         Self & setWidth(uint32_t width) noexcept { m_width = width; return *this; }
         uint32_t getWidth() const noexcept { return m_width; }
         Self & setHeight(uint32_t height) noexcept { m_height = height; return *this; }
@@ -31,6 +37,7 @@ namespace lcf::gui {
         Self & setTitle(std::string_view title) noexcept { m_title = title; return *this; }
         const std::string & getTitle() const noexcept { return m_title; }
 
+        Registry * m_registry_p;
         uint32_t m_width;
         uint32_t m_height;
         SurfaceType m_surface_type;
@@ -107,4 +114,14 @@ namespace lcf::gui {
         DisplayModeInfo m_current_mode_info;
         std::vector<DisplayModeInfo> m_available_mode_infos;
     };
+}
+
+#include "SurfaceBridge.h" 
+
+#include "sdl/SDLWindow.h"
+#include "sdl/SDLWindowSystem.h"
+
+namespace lcf::gui {
+    using Window = SDLWindow;
+    using WindowSystem = SDLWindowSystem;
 }

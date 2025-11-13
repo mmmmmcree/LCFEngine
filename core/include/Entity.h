@@ -11,13 +11,17 @@ namespace lcf {
     class Entity
     {
     public:
-        Entity(Registry * registry_p);
+        Entity() = default;
+        Entity(Registry & registry);
         Entity(const Entity & other) = delete;
         Entity(Entity && other) noexcept;
         Entity & operator=(const Entity & other) = delete;
         Entity & operator=(Entity && other) noexcept;
         ~Entity();
-        EntityHandle getHandle() const { return m_entity; }
+        void setRegistry(Registry & registry);
+        EntityHandle getHandle() const noexcept { return m_entity; }
+        template <typename Component, typename... Args>
+        Component & emplaceComponent(Args &&... args) const;
         template <typename Component, typename... Args>
         Component & requireComponent(Args &&... args) const;
         template <typename Component>
@@ -29,8 +33,10 @@ namespace lcf {
         template <typename SignalInfo>
         void enqueueSignal(const SignalInfo & signal_info) const;
     private:
+        void destroy();
+    private:
         Registry * m_registry_p = nullptr;
-        EntityHandle m_entity;
+        EntityHandle m_entity = entt::null;
     };
 
     struct EntitySignalInfoBase
@@ -45,7 +51,13 @@ namespace lcf {
 }
 
 template <typename Component, typename... Args>
-inline Component & lcf::Entity::requireComponent(Args &&...args) const
+inline Component &lcf::Entity::emplaceComponent(Args &&...args) const
+{
+    return m_registry_p->emplace<Component>(m_entity, std::forward<Args>(args)...);
+}
+
+template <typename Component, typename... Args>
+inline Component &lcf::Entity::requireComponent(Args &&...args) const
 {
     return m_registry_p->get_or_emplace<Component>(m_entity, std::forward<Args>(args)...);
 }

@@ -3,6 +3,7 @@
 #include "VulkanRenderer.h"
 #include "VulkanShaderProgram.h"
 #include "vulkan_utililtie.h"
+#include "gui_types.h"
 #include "Vector.h"
 #include "InterleavedBuffer.h"
 #include "Matrix.h"
@@ -257,7 +258,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         .commitUpdate();
 }
 
-void lcf::VulkanRenderer::render(const Entity & camera, RenderTarget::WeakPointer render_target_wp)
+void lcf::VulkanRenderer::render(const Entity & camera, const Entity & render_target)
 {
     auto device = m_context_p->getDevice();
     auto &current_frame_resources = m_frame_resources[m_current_frame_index];
@@ -265,11 +266,12 @@ void lcf::VulkanRenderer::render(const Entity & camera, RenderTarget::WeakPointe
     VulkanCommandBufferObject & cmd = current_frame_resources.command_buffer; 
     cmd.prepareForRecording();
 
+    auto render_target_wp = render_target.getComponent<VulkanSwapchain::WeakPointer>();
     if (render_target_wp.expired()) { return; }
-    const auto & render_target = std::static_pointer_cast<VulkanSwapchain>(render_target_wp.lock());
-    if (not render_target->prepareForRender()) { return; }
+    const auto & render_target_sp = render_target_wp.lock();
+    if (not render_target_sp->prepareForRender()) { return; }
 
-    auto [width, height] = render_target->getExtent();
+    auto [width, height] = render_target_sp->getExtent();
     vk::Viewport viewport;
     viewport.setX(0.0f).setY(height)
         .setWidth(static_cast<float>(width))
@@ -360,7 +362,7 @@ void lcf::VulkanRenderer::render(const Entity & camera, RenderTarget::WeakPointe
     
     current_framebuffer.endRendering(cmd);
 
-    auto & render_target_resources = render_target->getCurrentFrameResources();
+    auto & render_target_resources = render_target_sp->getCurrentFrameResources();
     auto & target_image_sp = render_target_resources.getImageSharedPointer();
     // blit to target
     auto msaa_attachment = current_framebuffer.getMSAAResolveAttachment();
@@ -382,6 +384,6 @@ void lcf::VulkanRenderer::render(const Entity & camera, RenderTarget::WeakPointe
         .addSignalSubmitInfo(render_target_resources.getPresentReadySemaphore());
     cmd.submit(vk::QueueFlagBits::eGraphics);
 
-    render_target->finishRender();
+    render_target_sp->finishRender();
     ++m_current_frame_index %= m_frame_resources.size();
 }

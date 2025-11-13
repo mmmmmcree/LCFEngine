@@ -1,5 +1,6 @@
 #pragma once
 
+#include "gui_forward_declares.h"
 #include "sdl/SDLWindow.h"
 #include <vector>
 #include <string>
@@ -9,14 +10,17 @@ namespace lcf::gui {
     class SDLWindowSystem
     {
         friend class SDLWindow;
-        SDLWindowSystem();
+        using DisplayerInfoList = std::vector<DisplayerInfo>;
         using WindowPtrSet = std::set<SDLWindow *>;
     public:
         static SDLWindowSystem & getInstance();
         ~SDLWindowSystem();
+        DisplayerInfoList getDisplayerInfoList() const;
+        DisplayerInfo getPrimaryDisplayerInfo() const;
         SDLWindow::UniquePointer allocateWindow();
         std::vector<std::string> getRequiredVulkanExtensions() const;
     private:
+        SDLWindowSystem();
         void deallocateWindow(SDLWindow * window_p);
     private:
         WindowPtrSet m_window_ptr_set;

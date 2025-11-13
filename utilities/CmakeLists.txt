@@ -19,6 +19,7 @@ endif()
 find_package(Stb REQUIRED)
 find_package(Boost REQUIRED)
 find_package(magic_enum CONFIG REQUIRED)
+find_package(nlohmann_json CONFIG REQUIRED)
 find_package(PNG REQUIRED)    
 find_package(JPEG REQUIRED)
 
@@ -47,6 +48,7 @@ target_link_libraries(${PROJECT_NAME}
     PUBLIC
       magic_enum::magic_enum
       Boost::headers 
+      nlohmann_json::nlohmann_json
     PRIVATE
       PNG::PNG
       JPEG::JPEG

@@ -1,13 +1,15 @@
 #include "VulkanSwapchain.h"
 #include "VulkanContext.h"
+#include "gui_types.h"
 #include "error.h"
 #include "enum_name.h"
 
 using namespace lcf::render;
 
-VulkanSwapchain::VulkanSwapchain(UniqueSurface && unique_surface) :
+
+lcf::render::VulkanSwapchain::VulkanSwapchain(const gui::VulkanSurfaceBridge::SharedPointer &surface_bridge_sp) :
     RenderTarget(),
-    m_surface(std::move(unique_surface))
+    m_surface_bridge_sp(surface_bridge_sp)
 {
 }
 
@@ -15,6 +17,7 @@ lcf::render::VulkanSwapchain::~VulkanSwapchain()
 {
     auto device = m_context_p->getDevice();
     device.waitIdle();
+    this->destroy();
 }
 
 void VulkanSwapchain::create(VulkanContext * context_p)
@@ -33,11 +36,17 @@ void VulkanSwapchain::create(VulkanContext * context_p)
     });
     m_surface_format = surface_it != surface_formats.end() ? *surface_it : surface_formats.front();
     m_present_mode = present_it != present_modes.end() ? *present_it : vk::PresentModeKHR::eFifo;   
+    m_surface_bridge_sp->setState(gui::SurfaceState::eActive);
 }
 
 bool VulkanSwapchain::prepareForRender()
 {
-    if (m_silent) { return false; }
+    if (m_surface_bridge_sp->getState() != gui::SurfaceState::eActive) {
+        if (m_surface_bridge_sp->getState() == gui::SurfaceState::eAboutToDestroy) {
+            this->destroy();
+        }
+        return false;
+    }
     if (not m_swapchain) { this->recreate(); }
     return this->acquireAvailableTarget();
 }
@@ -49,6 +58,19 @@ bool VulkanSwapchain::finishRender()
         this->tryRecycle();
     }
     return successful;
+}
+
+vk::SurfaceKHR lcf::render::VulkanSwapchain::getSurface() const noexcept
+{
+    return m_surface_bridge_sp->getSurface();
+}
+
+void lcf::render::VulkanSwapchain::destroy()
+{
+    if (m_surface_bridge_sp->getState() == gui::SurfaceState::eDestroyed) { return; }
+    m_swapchain.reset();
+    m_context_p->getInstance().destroySurfaceKHR(this->getSurface());
+    m_surface_bridge_sp->setState(gui::SurfaceState::eDestroyed);
 }
 
 bool VulkanSwapchain::recreate()

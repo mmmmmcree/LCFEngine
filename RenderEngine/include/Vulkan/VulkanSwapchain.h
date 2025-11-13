@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common/RenderTarget.h"
+#include "SurfaceBridge.h"
 #include <vulkan/vulkan.hpp>
 #include "VulkanImage.h"
 #include <optional>
@@ -16,23 +17,23 @@ namespace lcf::render {
         struct PendingRecycleResources;
     public:
         IMPORT_POINTER_DEFS(STDPointerDefs<VulkanSwapchain>);
-        using UniqueSurface = std::unique_ptr<VkSurfaceKHR_T, std::function<void(vk::SurfaceKHR)>>;
         using OptionalFrameResources = std::optional<FrameResources>;
         using FencePool = std::queue<vk::UniqueFence>;
         using SemaphorePool = std::queue<vk::UniqueSemaphore>;
         using PendingRecycleResourcesQueue = std::queue<PendingRecycleResources>;
-        VulkanSwapchain(UniqueSurface && unique_surface);
+        VulkanSwapchain(const gui::VulkanSurfaceBridge::SharedPointer & surface_bridge_sp);
         ~VulkanSwapchain();
         void create(VulkanContext * context_p);
         bool isCreated() const noexcept { return m_swapchain.get(); }
-        bool isValid() const noexcept { return m_surface and m_swapchain.get(); }
+        bool isValid() const noexcept { return m_swapchain.get(); }
         bool prepareForRender();
         bool finishRender();
         const FrameResources & getCurrentFrameResources() const noexcept { return *m_current_frame_resources; }
         vk::SwapchainKHR getHandle() const noexcept { return m_swapchain.get(); }
-        vk::SurfaceKHR getSurface() const noexcept { return m_surface.get(); }
+        vk::SurfaceKHR getSurface() const noexcept;
         vk::Extent2D getExtent() const noexcept { return m_surface_capabilities.currentExtent; }
     private:
+        void destroy();
         bool recreate();
         bool acquireAvailableTarget();
         bool present();
@@ -77,8 +78,8 @@ namespace lcf::render {
         };
     private:
         inline static constexpr uint32_t SWAPCHAIN_BUFFER_COUNT = 4;
+        gui::VulkanSurfaceBridge::SharedPointer  m_surface_bridge_sp;
         VulkanContext * m_context_p = nullptr;
-        UniqueSurface m_surface;
         vk::UniqueSwapchainKHR m_swapchain;
         vk::SurfaceFormatKHR m_surface_format;
         vk::PresentModeKHR  m_present_mode;

@@ -1,4 +1,4 @@
-#include "WindowSystem.h"
+#include "gui_types.h"
 #include "Vulkan/VulkanContext.h"
 #include "Vulkan/VulkanRenderer.h"
 #include "Timer.h"
@@ -6,21 +6,29 @@
 
 int main(int argc, char *argv[])
 {
+    lcf::Registry registry;
+
     auto window_up = lcf::gui::WindowSystem::getInstance().allocateWindow();
+    lcf::gui::WindowCreateInfo window_info;
+    window_info.setRegistryPtr(&registry)
+        .setWidth(1280)
+        .setHeight(720)
+        .setSurfaceType(lcf::gui::SurfaceType::eVulkan);
+    window_up->create(window_info); //- create before register
+    window_up->show(); //- show after create
+
     lcf::render::VulkanContext context;
-    context.registerWindow(window_up.get())
+    context.registerWindow(window_up->getEntity())
         .create();
 
     lcf::VulkanRenderer renderer;
-    renderer.create(&context, {2560, 1440});
-    window_up->show();
+    renderer.create(&context, lcf::gui::WindowSystem::getInstance().getPrimaryDisplayerInfo().getDesktopModeInfo().getRenderExtent());
 
-    lcf::Registry registry;
-    lcf::Entity camera_entity(&registry);
+    lcf::Entity camera_entity(registry);
     camera_entity.requireComponent<lcf::Transform>();
 
     auto render_loop = [&] {
-        renderer.render(camera_entity, context.m_surface_render_targets[0]);
+        renderer.render(camera_entity, window_up->getEntity()); //todo make a data pack
     };
 
         

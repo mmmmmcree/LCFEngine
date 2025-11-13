@@ -1,5 +1,8 @@
 #include "sdl/SDLWindow.h"
 #include "sdl/SDLWindowSystem.h"
+#include <SDL3/SDL_vulkan.h>
+#include "SurfaceBridge.h" 
+#include "gui_types.h"
 
 lcf::gui::SDLWindow::~SDLWindow()
 {
@@ -18,29 +21,40 @@ bool lcf::gui::SDLWindow::create()
     return this->isCreated();
 }
 
-VkSurfaceKHR lcf::gui::SDLWindow::create(VkInstance instance)
+bool lcf::gui::SDLWindow::create(const WindowCreateInfo &info)
 {
-    if (this->isCreated()) { return nullptr; }
-    m_window_p = SDL_CreateWindow("temp name", 800, 600,
-        SDL_WINDOW_VULKAN |
-        SDL_WINDOW_RESIZABLE |
-        SDL_WINDOW_HIDDEN
-    );
+    if (this->isCreated()) { return false; }
+    auto registry_p = info.getRegistryPtr();
+    if (not registry_p) { return false; }
+    m_entity.setRegistry(*registry_p);
+    SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN; //todo temp
+    switch (info.getSurfaceType()) {
+        case SurfaceType::eVulkan: { flags |= SDL_WINDOW_VULKAN; } break;
+    }
+    m_window_p = SDL_CreateWindow(info.getTitle().c_str(), info.getWidth(), info.getHeight(), flags);
     if (not m_window_p) {
-        const char* error = SDL_GetError();
-        SDL_Log("Window creation failed: %s", error);
-        return nullptr;
+        SDL_Log("lcf::gui::SDLWindow creation failed: %s", SDL_GetError());
+        return false;
+    }
+    switch (info.getSurfaceType()) {
+        case SurfaceType::eVulkan: {
+            auto & bridge_sp = m_entity.requireComponent<VulkanSurfaceBridge::SharedPointer>();
+            bridge_sp = VulkanSurfaceBridge::makeShared();
+            bridge_sp->createFrontend(m_window_p);
+        } break;
     }
     m_state = WindowState::eHidden;
-    VkSurfaceKHR surface;
-    return SDL_Vulkan_CreateSurface(m_window_p, instance, nullptr, &surface) ? surface : nullptr;
+    return this->isCreated();
 }
 
 void lcf::gui::SDLWindow::pollEvents()
 {
     for (SDL_Event event; SDL_PollEvent(&event);) {
         switch (event.type) {
-            case SDL_EVENT_QUIT: { m_state = WindowState::eAboutToClose; } break;
+            case SDL_EVENT_QUIT: {
+                m_state = WindowState::eAboutToClose;
+                this->setSurfaceState(SurfaceState::eAboutToDestroy);
+            } break;
         }
     }
 }
@@ -50,6 +64,7 @@ void lcf::gui::SDLWindow::show()
     if (m_state != WindowState::eHidden) { return; }
     SDL_ShowWindow(m_window_p);
     m_state = WindowState::eNormal;
+    this->setSurfaceState(SurfaceState::eActive);
 }
 
 void lcf::gui::SDLWindow::setFullScreen()
@@ -64,4 +79,12 @@ void lcf::gui::SDLWindow::hide()
     if (m_state == WindowState::eHidden) { return; }
     SDL_HideWindow(m_window_p);
     m_state = WindowState::eHidden;
+    this->setSurfaceState(SurfaceState::eSilent);
+}
+
+void lcf::gui::SDLWindow::setSurfaceState(SurfaceState state) noexcept
+{
+    auto & bridge_sp = m_entity.getComponent<VulkanSurfaceBridge::SharedPointer>();
+    if (bridge_sp->getState() == SurfaceState::eNotCreated) { return; }
+    bridge_sp->setState(state);
 }

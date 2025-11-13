@@ -1,10 +1,10 @@
 #include "VulkanContext.h"
-#include "WindowSystem.h"
 #include <QLoggingCategory>
 #include <QDebug>
 #include <set>
 #include <string>
 #include <algorithm>
+#include "gui_types.h"
 
 using namespace lcf::render;
 
@@ -19,28 +19,15 @@ lcf::render::VulkanContext::~VulkanContext()
     m_device->waitIdle();
 }
 
-VulkanContext & lcf::render::VulkanContext::registerWindow(gui::Window * window)
+VulkanContext & lcf::render::VulkanContext::registerWindow(Entity &window_entity)
 {
-    auto surface = window->create(this->getInstance());
-    VulkanSwapchain::UniqueSurface unique_surface(surface, [this](vk::SurfaceKHR surface) {
-        m_instance->destroySurfaceKHR(surface);
-    });
-    auto render_target = VulkanSwapchain::makeShared(std::move(unique_surface));
+    auto & bridge_sp = window_entity.getComponent<gui::VulkanSurfaceBridge::SharedPointer>();
+    bridge_sp->createBackend(this->getInstance());
+    auto render_target = VulkanSwapchain::makeShared(bridge_sp);
     m_surface_render_targets.emplace_back(render_target);
+    window_entity.emplaceComponent<VulkanSwapchain::WeakPointer>(render_target); //? maybe variant for headless mode
     return *this;
 }
-
-// void lcf::render::VulkanContext::registerWindow(RenderWindow * window)
-// {
-//     window->setSurfaceType(QSurface::VulkanSurface);
-//     window->setVulkanInstance(&m_vk_instance);
-//     window->create();
-//     vk::SurfaceKHR surface = m_vk_instance.surfaceForWindow(window); //! surface is available after window is created
-//     window->setVulkanInstance(nullptr);
-//     auto render_target = VulkanSwapchain::makeShared(surface);
-//     window->setRenderTarget(render_target);
-//     m_surface_render_targets.emplace_back(render_target);
-// }
 
 void lcf::render::VulkanContext::create()
 {

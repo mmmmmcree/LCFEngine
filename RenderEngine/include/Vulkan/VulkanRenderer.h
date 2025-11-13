@@ -24,7 +24,8 @@ namespace lcf {
         VulkanRenderer& operator=(const VulkanRenderer&) = delete;
         ~VulkanRenderer();
         void create(VulkanContext * context_p, const std::pair<uint32_t, uint32_t> & max_extent);
-        void render(const Entity & camera, RenderTarget::WeakPointer render_target_wp);
+        // void render(const Entity & camera, RenderTarget::WeakPointer render_target_wp);
+        void render(const Entity & camera, const Entity & render_target);
     private:
         VulkanContext * m_context_p;
         struct FrameResources

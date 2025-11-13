@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common/Context.h"
+#include "Entity.h"
 #include "VulkanSwapchain.h"
 #include "VulkanMemoryAllocator.h"
 #include "VulkanCommandBufferObject.h"
@@ -11,8 +12,6 @@
 #include <vector>
 #include <unordered_map>
 #include <stack>
-#include "Window2.h"
-
 
 namespace lcf::render {
     class VulkanContext : public Context
@@ -26,8 +25,7 @@ namespace lcf::render {
         VulkanContext(const VulkanContext &other) = delete;
         VulkanContext & operator=(const VulkanContext &other) = delete;
         ~VulkanContext();
-        Self & registerWindow(gui::Window * window);
-        // void registerWindow(RenderWindow * window);
+        Self & registerWindow(Entity & window_entity);
         void create();
         bool isCreated() const { return m_device.get(); }
         bool isValid() const { return m_device.get(); }

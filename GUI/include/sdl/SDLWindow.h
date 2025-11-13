@@ -1,9 +1,11 @@
 #pragma once
 
-#include <SDL3/SDL.h>
 #include "PointerDefs.h"
-#include "GUIEnums.h"
-#include <SDL3/SDL_vulkan.h>
+#include "Entity.h"
+#include "gui_forward_declares.h"
+#include "gui_enums.h"
+#include <SDL3/SDL.h>
+#include <atomic>
 
 namespace lcf::gui {
     class SDLWindowSystem;
@@ -15,7 +17,9 @@ namespace lcf::gui {
     public:
         ~SDLWindow();
         bool create();
-        VkSurfaceKHR create(VkInstance instance);
+        bool create(const WindowCreateInfo & info);
+        Entity & getEntity() noexcept { return m_entity; }
+        const Entity & getEntity() const noexcept { return m_entity; }
         bool isCreated() const noexcept { return m_window_p and m_state != WindowState::eNotCreated; }
         WindowState getState() const noexcept { return m_state; }
         void pollEvents();
@@ -23,7 +27,11 @@ namespace lcf::gui {
         void setFullScreen();
         void hide();
     private:
+        void setSurfaceState(SurfaceState state) noexcept;
+    private:
         SDL_Window * m_window_p = nullptr;
+        Entity m_entity;
         WindowState m_state = WindowState::eNotCreated;
     };
+
 }
