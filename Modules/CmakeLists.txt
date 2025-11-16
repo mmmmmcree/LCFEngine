@@ -35,6 +35,6 @@ target_link_libraries(${PROJECT_NAME}
         math
         utilities 
         core
-        Application 
+        input
     PRIVATE
 )

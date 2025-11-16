@@ -1,4 +1,4 @@
-project(Application)
+project(input)
 
 file(GLOB_RECURSE HEADERS "include/*.h")
 file(GLOB_RECURSE SOURCES "src/*.cpp")
@@ -16,8 +16,6 @@ if(WIN32)
     )    
 endif() 
   
-find_package(Qt6 REQUIRED COMPONENTS Gui Widgets Core)  
-
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 target_include_directories(${PROJECT_NAME}
@@ -30,8 +28,7 @@ target_include_directories(${PROJECT_NAME}
  
 target_link_libraries(${PROJECT_NAME} 
     PUBLIC
-        Qt6::Gui
-        Qt6::Widgets
-        Qt6::Core
+        core
         math
+        utilities
 )

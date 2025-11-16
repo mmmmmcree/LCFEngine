@@ -16,7 +16,7 @@ namespace lcf::render {
 		VulkanShader& operator=(const VulkanShader& other) = delete;
 		~VulkanShader() override;
 		operator bool() const;
-		virtual bool compileGlslFile(std::string_view file_path) override;
+		virtual bool compileGlslFile(const std::filesystem::path & file_path) override;
 		virtual bool isCompiled() const override;
 		vk::PipelineShaderStageCreateInfo getShaderStageInfo() const;
 	private:

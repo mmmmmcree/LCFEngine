@@ -45,7 +45,6 @@ target_link_libraries(${PROJECT_NAME}
         math
         utilities 
         GUI 
-        Application 
         core 
         Boost::headers   
     PRIVATE 

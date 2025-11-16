@@ -1,9 +1,7 @@
 #include "VulkanShader.h"
 #include "VulkanContext.h"
 #include "ShaderCompiler.h"
-#include <QFile>
-#include <QFileInfo>
-#include <QDebug>
+#include "log.h"
 
 
 lcf::render::VulkanShader::VulkanShader(VulkanContext * context, ShaderTypeFlagBits type) :
@@ -24,20 +22,20 @@ lcf::render::VulkanShader::operator bool() const
     return this->isCompiled();
 }
 
-bool lcf::render::VulkanShader::compileGlslFile(std::string_view file_path)
+bool lcf::render::VulkanShader::compileGlslFile(const std::filesystem::path & file_path)
 {
     ShaderCompiler compiler;
     compiler.addMacroDefinition("VULKAN_SHADER");
-    QString include_dir = QFileInfo(file_path.data()).path() + "/include";
-    compiler.addIncludeDirectory(include_dir.toLocal8Bit().constData());
-    auto spirv_code =  compiler.compileGlslSourceFileToSpv(file_path.data(), m_stage, m_entry_point.c_str());
+    auto include_dir = file_path.parent_path() / "include";
+    compiler.addIncludeDirectory(include_dir.string());
+    auto spirv_code =  compiler.compileGlslSourceFileToSpv(file_path, m_stage, m_entry_point.c_str());
     m_resources = compiler.analyzeSpvCode(spirv_code);
     vk::ShaderModuleCreateInfo module_info;
     module_info.setCode(spirv_code);
     try {
         m_module = m_context_p->getDevice().createShaderModuleUnique(module_info);
     } catch (const vk::Error& e) {
-        qDebug() << "VulkanShader::compileGlslFile: " << e.what();
+        lcf_log_debug(e.what());
     }
     return this->isCompiled();
 }

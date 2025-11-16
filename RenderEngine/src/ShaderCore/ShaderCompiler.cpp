@@ -38,22 +38,21 @@ lcf::SpvCode lcf::ShaderCompiler::compileGlslSourceToSpv(const char *shader_name
     return {result.cbegin(), result.cend()};
 }
 
-lcf::SpvCode lcf::ShaderCompiler::compileGlslSourceFileToSpv(const char *file_path, ShaderTypeFlagBits type, const char *entry_point, bool optimize)
+lcf::SpvCode lcf::ShaderCompiler::compileGlslSourceFileToSpv(const std::filesystem::path & file_path, ShaderTypeFlagBits type, const char *entry_point, bool optimize)
 {
-    auto path = std::filesystem::path(file_path);
-    if (not std::filesystem::exists(path)) {
-        std::runtime_error error(std::format("file {} not found", file_path));
+    if (not std::filesystem::exists(file_path)) {
+        std::runtime_error error(std::format("file {} not found", file_path.string()));
         lcf_log_error(error.what());
         throw error;
     }
-    std::ifstream file(path, std::ios::in);
+    std::ifstream file(file_path, std::ios::in);
     if (not file.is_open()) {
-        std::runtime_error error(std::format("failed to open file {}", file_path));
+        std::runtime_error error(std::format("failed to open file {}", file_path.string()));
         lcf_log_error(error.what());
         throw error;
     }
     std::string file_content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-    return this->compileGlslSourceToSpv(path.filename().string().c_str(), type, file_content.c_str(), entry_point, optimize);
+    return this->compileGlslSourceToSpv(file_path.filename().string().c_str(), type, file_content.c_str(), entry_point, optimize);
 }
 
 lcf::ShaderResources lcf::ShaderCompiler::analyzeSpvCode(const SpvCode &spv_code)

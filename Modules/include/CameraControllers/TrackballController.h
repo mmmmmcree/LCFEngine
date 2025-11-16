@@ -1,12 +1,12 @@
 #pragma once
 
 #include "Transform.h"
-#include "InputManager.h"
 #include "Entity.h"
 #include <optional>
 
-namespace lcf::modules
-{
+namespace lcf::modules {
+    class InputManager;
+    
     class TrackballController
     {
     public:

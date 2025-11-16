@@ -11,7 +11,7 @@ foreach(module ${CONFIG_MODULES})
     include(${module})
 endforeach()
 
-add_subdirectory(Application)
+add_subdirectory(input)
 add_subdirectory(GUI) 
 add_subdirectory(math)  
 add_subdirectory(utilities)
@@ -21,4 +21,4 @@ add_subdirectory(core)
 add_subdirectory(Modules) 
 add_subdirectory(Systems)    
   
-   
+    

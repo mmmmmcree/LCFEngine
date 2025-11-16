@@ -6,9 +6,7 @@
 #include "VulkanMemoryAllocator.h"
 #include "VulkanCommandBufferObject.h"
 #include "VulkanDescriptorManager.h"
-#include "RenderWindow.h"
 #include <vulkan/vulkan.hpp>
-#include <QVulkanInstance>
 #include <vector>
 #include <unordered_map>
 #include <stack>

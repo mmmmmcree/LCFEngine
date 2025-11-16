@@ -1,6 +1,5 @@
 #include "VulkanContext.h"
-#include <QLoggingCategory>
-#include <QDebug>
+#include "log.h"
 #include <set>
 #include <string>
 #include <algorithm>
@@ -112,8 +111,9 @@ void lcf::render::VulkanContext::pickPhysicalDevice()
 {
     auto devices = m_instance->enumeratePhysicalDevices();
     if (devices.empty()) {
-        qFatal() << "No physical devices found";
-        return;
+        std::runtime_error error("No physical devices found");
+        lcf_log_error(error.what());
+        throw error;
     }
     std::ranges::sort(devices, [this](const vk::PhysicalDevice &a, const vk::PhysicalDevice &b) {
         return calculatePhysicalDeviceScore(a) > calculatePhysicalDeviceScore(b);
@@ -182,7 +182,7 @@ void lcf::render::VulkanContext::createLogicalDevice()
         required_extensions_set.erase(available_extension.extensionName.data());
     }
     for (const auto &extension : required_extensions_set) {
-        qWarning() << "Required extension not available: " << extension;
+        lcf_log_warn("Required extension not available: {}", extension);
     }
 
     vk::StructureChain<vk::DeviceCreateInfo,
@@ -206,7 +206,7 @@ void lcf::render::VulkanContext::createLogicalDevice()
     try {
         m_device = m_physical_device.createDeviceUnique(device_info.get());
     } catch (const vk::SystemError &e) {
-        qFatal() << "Failed to create logical device: " << e.what();
+        lcf_log_error(e.what());
     }
     m_queues[static_cast<uint32_t>(vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute)] = m_device->getQueue(this->getQueueFamilyIndex(vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute), 0);
     m_queues[static_cast<uint32_t>(vk::QueueFlagBits::eGraphics)] = m_device->getQueue(this->getQueueFamilyIndex(vk::QueueFlagBits::eGraphics), 0);
@@ -221,6 +221,6 @@ void lcf::render::VulkanContext::createCommandPool()
     try {
         m_command_pool = m_device->createCommandPoolUnique(command_pool_info);
     } catch (const vk::SystemError &e) {
-        qFatal() << "Failed to create command pool: " << e.what();
+        lcf_log_error(e.what());
     }
 }
