@@ -41,6 +41,7 @@ target_include_directories(${PROJECT_NAME}
 link_directories(${Vulkan_LIBRARY})
 target_link_libraries(${PROJECT_NAME}
     PUBLIC   
+        graphic_api_config
         math
         utilities 
         GUI 
