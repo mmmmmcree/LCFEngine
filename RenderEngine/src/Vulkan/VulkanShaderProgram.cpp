@@ -1,6 +1,6 @@
 #include "VulkanShaderProgram.h"
 #include "VulkanContext.h"
-#include "error.h"
+#include "log.h"
 #include <format>
 
 using namespace lcf::render;
@@ -197,6 +197,8 @@ void lcf::render::VulkanShaderProgram::createPipelineLayout()
     try {
         m_pipeline_layout = device.createPipelineLayoutUnique(pipeline_layout_info);
     } catch (const vk::SystemError &e) {
-        LCF_THROW_RUNTIME_ERROR(std::format("lcf::render::VulkanShaderProgram::createPipelineLayout(): failed to create pipeline layout: {}", e.what()));
+        std::runtime_error error(std::format("failed to create pipeline layout: {}", e.what()));
+        lcf_log_error(error.what());
+        throw error;
     }
 }

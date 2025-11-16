@@ -45,7 +45,6 @@ namespace lcf::render {
         void createLogicalDevice();
         void createCommandPool();
     private:
-    public:
         vk::UniqueInstance m_instance;
         vk::PhysicalDevice m_physical_device;
         vk::UniqueDevice m_device;

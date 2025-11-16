@@ -51,7 +51,6 @@ SDLWindow::UniquePointer lcf::gui::SDLWindowSystem::allocateWindow()
 std::vector<std::string> lcf::gui::SDLWindowSystem::getRequiredVulkanExtensions() const
 {
     std::vector<std::string> extensions;
-    if (m_window_ptr_set.empty()) { return extensions; } // headless surface ?
     uint32_t count;
     auto sdl_extensions = SDL_Vulkan_GetInstanceExtensions(&count);
     for (uint32_t i = 0; i < count; ++i) {

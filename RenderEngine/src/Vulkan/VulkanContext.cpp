@@ -41,13 +41,15 @@ void lcf::render::VulkanContext::create()
     for (auto &render_target : m_surface_render_targets) {
         render_target->create(this);
     }
-    // SurfaceRenderTargetList{}.swap(m_surface_render_targets);
 }
 
 void lcf::render::VulkanContext::setupVulkanInstance()
 {
 #if ( VULKAN_HPP_DISPATCH_LOADER_DYNAMIC == 1 )
-    VULKAN_HPP_DEFAULT_DISPATCHER.init();
+    static bool s_vulkan_loaded = [] -> bool {
+        VULKAN_HPP_DEFAULT_DISPATCHER.init();
+        return true;
+    }();
 #endif
     vk::ApplicationInfo app_info;
     app_info.setPApplicationName("LCFEngine")

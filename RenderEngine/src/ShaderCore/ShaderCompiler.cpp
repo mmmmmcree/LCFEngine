@@ -1,8 +1,8 @@
 #include "ShaderCompiler.h"
 #include "ShaderIncluder.h"
+#include "log.h"
 #include <filesystem>
 #include <fstream>
-#include "error.h"
 
 void lcf::ShaderCompiler::addMacroDefinition(std::string_view macro_definition)
 {
@@ -31,8 +31,9 @@ lcf::SpvCode lcf::ShaderCompiler::compileGlslSourceToSpv(const char *shader_name
     if (optimize) { options.SetOptimizationLevel(shaderc_optimization_level_size); }
     shaderc::SpvCompilationResult result = compiler.CompileGlslToSpv(source_code, enum_cast<shaderc_shader_kind>(type), shader_name, entry_point, options);
     if (result.GetCompilationStatus() != shaderc_compilation_status_success) {
-        LCF_THROW_RUNTIME_ERROR(std::format("lcf::ShaderCompiler::compileGlslSourceToSpv: shader compilation failed: {}", result.GetErrorMessage()));
-        return {};
+        std::runtime_error error(std::format("shader compilation failed: {}", result.GetErrorMessage()));
+        lcf_log_error(error.what());
+        throw error;
     }
     return {result.cbegin(), result.cend()};
 }
@@ -41,11 +42,15 @@ lcf::SpvCode lcf::ShaderCompiler::compileGlslSourceFileToSpv(const char *file_pa
 {
     auto path = std::filesystem::path(file_path);
     if (not std::filesystem::exists(path)) {
-        LCF_THROW_RUNTIME_ERROR(std::format("lcf::ShaderCompiler::compileGlslSourceFileToSpv: file {} not found", file_path));
+        std::runtime_error error(std::format("file {} not found", file_path));
+        lcf_log_error(error.what());
+        throw error;
     }
     std::ifstream file(path, std::ios::in);
     if (not file.is_open()) {
-        LCF_THROW_RUNTIME_ERROR(std::format("lcf::ShaderCompiler::compileGlslSourceFileToSpv: failed to open file {}", file_path));
+        std::runtime_error error(std::format("failed to open file {}", file_path));
+        lcf_log_error(error.what());
+        throw error;
     }
     std::string file_content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
     return this->compileGlslSourceToSpv(path.filename().string().c_str(), type, file_content.c_str(), entry_point, optimize);

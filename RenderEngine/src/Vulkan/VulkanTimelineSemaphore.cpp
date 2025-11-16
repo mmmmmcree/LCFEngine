@@ -1,6 +1,6 @@
 #include "VulkanTimelineSemaphore.h"
 #include "VulkanContext.h"
-#include "error.h"
+#include "log.h"
 #include <magic_enum/magic_enum.hpp>
 
 
@@ -25,9 +25,9 @@ void lcf::render::VulkanTimelineSemaphore::waitFor(uint64_t value) const
         .setPValues(&value);
     auto result = device.waitSemaphores(wait_info, UINT64_MAX);
     if (result != vk::Result::eSuccess) {
-        LCF_THROW_RUNTIME_ERROR(std::format(
-            "lcf::render::VulkanTimelineSemaphore::waitFor: Failed to wait for timeline semaphore Error code: {}",
-            magic_enum::enum_name(result)));
+        std::runtime_error error(std::format("Failed to wait for timeline semaphore Error code: {}", magic_enum::enum_name(result)));
+        lcf_log_error(error.what());
+        throw error;
     }
 }
 

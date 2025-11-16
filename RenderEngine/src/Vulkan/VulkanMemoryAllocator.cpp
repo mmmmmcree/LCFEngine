@@ -2,7 +2,7 @@
 #include "VulkanContext.h"
 #define VMA_IMPLEMENTATION
 #include <vma/vk_mem_alloc.h>
-#include "error.h"
+#include "log.h"
 
 using namespace lcf::render;
 
@@ -48,7 +48,9 @@ VMAImage::UniquePointer lcf::render::VulkanMemoryAllocator::createImage(const vk
         &allocation_info
     );
     if (result != VK_SUCCESS) {
-        LCF_THROW_RUNTIME_ERROR("lcf::render::VulkanMemoryAllocator::createImage: Failed to create image with VMA.");
+        std::runtime_error error("Failed to create image with VMA.");
+        lcf_log_error(error.what());
+        throw error;
     }
     return VMAImage::makeUnique(m_allocator, allocation, image, allocation_info.size, allocation_info.pMappedData);
 }
@@ -73,7 +75,9 @@ VMABuffer::UniquePointer VulkanMemoryAllocator::createBuffer(const vk::BufferCre
         &allocation_info
     );
     if (result != VK_SUCCESS) {
-        LCF_THROW_RUNTIME_ERROR("lcf::render::VulkanMemoryAllocator::createBuffer: Failed to create buffer with VMA.");
+        std::runtime_error error("Failed to create buffer with VMA.");
+        lcf_log_error(error.what());
+        throw error;
     }
     return VMABuffer::makeUnique(m_allocator, allocation, buffer, allocation_info.size, allocation_info.pMappedData);
 }

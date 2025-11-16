@@ -1,7 +1,6 @@
 #include "VulkanSwapchain.h"
 #include "VulkanContext.h"
 #include "gui_types.h"
-#include "error.h"
 #include "enum_name.h"
 
 using namespace lcf::render;

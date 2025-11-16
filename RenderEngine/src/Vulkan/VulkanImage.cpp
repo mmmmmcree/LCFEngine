@@ -2,7 +2,7 @@
 #include "VulkanContext.h"
 #include "VulkanBufferObject.h"
 #include "vulkan_utililtie.h"
-#include "error.h"
+#include "log.h"
 
 using namespace lcf::render;
 
@@ -328,12 +328,16 @@ lcf::render::VulkanAttachment::VulkanAttachment(const VulkanImage::SharedPointer
     m_layer_count(layer_count)
 {
     if (not this->isValid()) {
-        LCF_THROW_RUNTIME_ERROR("lcf::render::VulkanAttachment::VulkanAttachment: Invalid image for attachment");
+        std::runtime_error error("Invalid image for attachment");
+        lcf_log_error(error.what());
+        throw error;
     }
     bool is_layer_valid = m_layer + m_layer_count <= m_image_sp->getArrayLayerCount();
     bool is_mip_level_valid = m_mip_level < m_image_sp->getMipLevelCount();
     if (not is_layer_valid or not is_mip_level_valid) {
-        LCF_THROW_RUNTIME_ERROR("lcf::render::VulkanAttachment::VulkanAttachment: Invalid attachment parameters");
+        std::runtime_error error("Invalid attachment parameters");
+        lcf_log_error(error.what());
+        throw error;
     }
 }
 
