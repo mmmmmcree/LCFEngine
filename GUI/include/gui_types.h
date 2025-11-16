@@ -118,6 +118,7 @@ namespace lcf::gui {
 
 #include "SurfaceBridge.h" 
 
+#ifdef USE_SDL3
 #include "sdl/SDLWindow.h"
 #include "sdl/SDLWindowSystem.h"
 
@@ -125,3 +126,4 @@ namespace lcf::gui {
     using Window = SDLWindow;
     using WindowSystem = SDLWindowSystem;
 }
+#endif // USE_SDL3
