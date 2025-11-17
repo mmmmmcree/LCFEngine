@@ -1,5 +1,3 @@
-#pragma once
-
 #include "ShaderProgram.h"
 
 lcf::Shader *lcf::ShaderProgram::getShader(ShaderTypeFlagBits stage) const
