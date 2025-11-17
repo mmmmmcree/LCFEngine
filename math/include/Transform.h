@@ -68,8 +68,8 @@ namespace lcf {
         HierarchicalTransform * getParent() const { return m_parent; }
         const HierarchicalTransform * getRoot() const;
         const ChildrenList & getChildren() const noexcept { return m_children; }
-        void markDirty() { m_dirty = true; }
-        void markClean() { m_dirty = false; }
+        void markDirty() noexcept { m_dirty = true; }
+        void markClean() noexcept { m_dirty = false; }
         bool isDirty() const noexcept { return m_dirty; }
         void setWorldMatrix(const Matrix4x4 & world_matrix) { m_world_matrix = world_matrix; }
         uint32_t getLevel() const noexcept { return m_level; }

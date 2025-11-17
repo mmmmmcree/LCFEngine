@@ -110,7 +110,7 @@ void lcf::TransformSystem::markDirty(EntityHandle entity, HierarchicalTransform 
     hierarchy.markDirty();
 }
 
-void lcf::TransformSystem::updateDirtyEntityBFS(EntityHandle entity)
+void lcf::TransformSystem::updateDirtyEntityBFS(EntityHandle entity) noexcept
 {
     HierarchicalTransform & hierarchy = m_registry_p->get<HierarchicalTransform>(entity);
     if (not hierarchy.isDirty()) { return; } //- the return condition shows that the entity is updated by their parent
@@ -124,11 +124,11 @@ void lcf::TransformSystem::updateDirtyEntityBFS(EntityHandle entity)
         Transform & parent_transform = m_registry_p->get<Transform>(parent);
         hierarchy.setWorldMatrix(parent_transform.getWorldMatrix() * transform.getLocalMatrix());
     }
-    std::queue<EntityHandle> bfs_queue;
-    bfs_queue.emplace(entity);
+    std::deque<EntityHandle> bfs_queue;
+    bfs_queue.emplace_back(entity);
     while (not bfs_queue.empty()) {
         auto cur_entity = bfs_queue.front();
-        bfs_queue.pop();
+        bfs_queue.pop_front();
         auto & cur_hierarchy = m_registry_p->get<HierarchicalTransform>(cur_entity);
         for (auto child : cur_hierarchy.getChildren()) {
             EntityHandle child_entity = m_hierarchical_to_entity_map[child];
@@ -136,13 +136,13 @@ void lcf::TransformSystem::updateDirtyEntityBFS(EntityHandle entity)
             auto & child_transform = m_registry_p->get<Transform>(child_entity);
             child_hierarchy.setWorldMatrix(cur_hierarchy.getWorldMatrix() * child_transform.getLocalMatrix());
             child_hierarchy.markClean();
-            bfs_queue.emplace(child_entity);
+            bfs_queue.emplace_back(child_entity);
         }
     }
     hierarchy.markClean();
 }
 
-void lcf::TransformSystem::updateDirtyEntityDFS(EntityHandle entity)
+void lcf::TransformSystem::updateDirtyEntityDFS(EntityHandle entity) noexcept
 {
     HierarchicalTransform & hierarchy = m_registry_p->get<HierarchicalTransform>(entity);
     if (not hierarchy.isDirty()) { return; } //- the return condition shows that the entity is updated by their parent
@@ -162,7 +162,7 @@ void lcf::TransformSystem::updateDirtyEntityDFS(EntityHandle entity)
     hierarchy.markClean();
 }
 
-void lcf::TransformSystem::updateRecursively(EntityHandle entity, const Matrix4x4 &parent_world_matrix)
+void lcf::TransformSystem::updateRecursively(EntityHandle entity, const Matrix4x4 &parent_world_matrix) noexcept
 {
     auto & hierarchy = m_registry_p->get<HierarchicalTransform>(entity);
     auto & transform = m_registry_p->get<Transform>(entity);
