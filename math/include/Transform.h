@@ -57,31 +57,6 @@ namespace lcf {
         Matrix4x4 m_local_matrix;
         const Matrix4x4 * m_world_matrix = &m_local_matrix;
         mutable Matrix4x4 m_inverted_world_matrix;
-        mutable bool m_is_inverted_dirty = false;
-    };
-
-    class HierarchicalTransform
-    {
-    public:
-        using ChildrenList = std::vector<HierarchicalTransform *>;
-        bool setParent(HierarchicalTransform * parent);
-        HierarchicalTransform * getParent() const { return m_parent; }
-        const HierarchicalTransform * getRoot() const;
-        const ChildrenList & getChildren() const noexcept { return m_children; }
-        void markDirty() noexcept { m_dirty = true; }
-        void markClean() noexcept { m_dirty = false; }
-        bool isDirty() const noexcept { return m_dirty; }
-        void setWorldMatrix(const Matrix4x4 & world_matrix) { m_world_matrix = world_matrix; }
-        uint32_t getLevel() const noexcept { return m_level; }
-        const Matrix4x4 & getWorldMatrix() const noexcept { return m_world_matrix; }
-    private:
-        bool addChild(HierarchicalTransform * child);
-        void removeChild(HierarchicalTransform * child);
-    private:
-        Matrix4x4 m_world_matrix;
-        ChildrenList m_children;
-        HierarchicalTransform * m_parent = nullptr;
-        uint16_t m_level = 0;
-        bool m_dirty = true;
+        mutable bool m_is_inverted_dirty = true;
     };
 }

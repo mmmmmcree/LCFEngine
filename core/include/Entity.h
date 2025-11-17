@@ -7,6 +7,7 @@ namespace lcf {
     class Registry;
     using Dispatcher = entt::dispatcher;
     using EntityHandle = entt::entity;
+    constexpr EntityHandle null_entity = entt::null;
 
     class Entity
     {
