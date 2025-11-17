@@ -17,7 +17,7 @@ namespace lcf {
         static constexpr uint16_t s_frequent_level_count = 4;
         using FrequentLevelMap = std::array<FrequentLargeList, s_frequent_level_count>;
         using UnfrequentLevelMap = boost::container::flat_map<uint16_t, FrequentLargeList>;
-        TransformSystem(Registry * registry_p);
+        TransformSystem(Registry & registry);
         ~TransformSystem();
         void onTransformUpdate(const TransformUpdateSignalInfo & info);
         void onTransformHierarchyAttach(const TransformHierarchyAttachSignalInfo & info);

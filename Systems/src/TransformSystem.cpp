@@ -1,8 +1,8 @@
 #include "TransformSystem.h"
 #include "signals.h"
 
-lcf::TransformSystem::TransformSystem(Registry *registry_p) :
-    m_registry_p(registry_p)
+lcf::TransformSystem::TransformSystem(Registry & registry) :
+    m_registry_p(&registry)
 {
     auto & dispatcher = m_registry_p->ctx().get<Dispatcher>();
     dispatcher.sink<lcf::TransformHierarchyAttachSignalInfo>().connect<&lcf::TransformSystem::onTransformHierarchyAttach>(*this);
