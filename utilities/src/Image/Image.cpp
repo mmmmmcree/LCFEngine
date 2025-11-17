@@ -135,7 +135,7 @@ Image & lcf::Image::convertTo(Format format)
 
 Image & lcf::Image::flipUpDown()
 {
-    boost::gil::apply_operation(m_image, [](auto& img) {
+    boost::variant2::visit([&](auto&& img) {
         auto v = gil::view(img);
         size_t height = v.height();
         for (size_t y = 0; y < height / 2; ++y) {
@@ -143,19 +143,19 @@ Image & lcf::Image::flipUpDown()
             auto bottom_row = v.row_begin(height - 1 - y);
             std::swap_ranges(top_row, v.row_end(y), bottom_row);
         }
-    });
+    }, m_image);
     return *this;
 }
 
 Image & lcf::Image::flipLeftRight()
 {
-    boost::gil::apply_operation(m_image, [](auto& img) {
+    boost::variant2::visit([&](auto&& img) {
         auto v = gil::view(img);
         size_t height = v.height();
         for (size_t y = 0; y < height; ++y) {
             std::reverse(v.row_begin(y), v.row_end(y));
         }
-    });
+    }, m_image);
     return *this;
 }
 

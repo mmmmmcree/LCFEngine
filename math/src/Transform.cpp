@@ -49,7 +49,7 @@ void lcf::Transform::translateWorld(float x, float y, float z) noexcept
 void lcf::Transform::translateWorld(const Vector3D<float> &translation) noexcept
 {
     if (translation.isNull()) { return; }
-    m_local_matrix.setColumn(3, Vector4D(this->getTranslation() + translation, 1.0f));
+    m_local_matrix.setColumn(3, Vector4D<float>(this->getTranslation() + translation, 1.0f));;
     this->markDirty();
 }
 
@@ -146,7 +146,7 @@ void lcf::Transform::setTranslation(float x, float y, float z) noexcept
 
 void lcf::Transform::setTranslation(const Vector3D<float> &position) noexcept
 {
-    m_local_matrix.setColumn(3, Vector4D(position, 1.0f));
+    m_local_matrix.setColumn(3, Vector4D<float>(position, 1.0f));
     this->markDirty();
 }
 

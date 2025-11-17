@@ -7,7 +7,7 @@
 #include <array>
 
 namespace lcf::render {
-    VulkanContext;
+    class VulkanContext;
 
     class VulkanMaterial
     {

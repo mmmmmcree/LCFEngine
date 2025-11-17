@@ -1,11 +1,6 @@
-#pragma once
-
 #include "VulkanRenderer.h"
 #include "VulkanShaderProgram.h"
 #include "vulkan_utililtie.h"
-#include "gui_types.h"
-#include "Vector.h"
-#include "InterleavedBuffer.h"
 #include "Matrix.h"
 #include "geometry_data.h"
 #include "Quaternion.h"
@@ -15,7 +10,6 @@
 #include "Transform.h"
 #include "VulkanDescriptorSetLayout.h"
 #include <boost/container/small_vector.hpp>
-#include "common/glsl_alignment_traits.h"
 #include "as_bytes.h"
 #include "ModelLoader.h"
 
