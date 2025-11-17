@@ -187,13 +187,6 @@ namespace lcf {
         eKeydivision = 0x0f7,
         eKeyydiaeresis = 0x0ff,
 
-        // The rest of the Unicode values are skipped here,
-        // so that we can represent them along with Qt::Keys
-        // in the same data type. The maximum Unicode value
-        // is 0x0010ffff, so we start our custom keys at
-        // 0x01000000 to not clash with the Unicode values,
-        // but still give plenty of room to grow.
-
         eKeyEscape = 0x01000000,                // misc keys
         eKeyTab = 0x01000001,
         eKeyBacktab = 0x01000002,
@@ -264,10 +257,6 @@ namespace lcf {
         eKeyHelp = 0x01000058,
         eKeyDirection_L = 0x01000059,
         eKeyDirection_R = 0x01000060,
-
-        // International input method support (X keycode - 0xEE00, the
-        // definition follows Qt/Embedded 2.3.7) Only interesting if
-        // you are writing your own input method
 
         // International & multi-key character composition
         eKeyAltGr               = 0x01001103,
@@ -512,10 +501,6 @@ namespace lcf {
         eKeySuspend = 0x0100010c,
         eKeyContrastAdjust = 0x0100010d,
 
-        // We can remove these two for Qt 7:
-        eKeyLaunchG  = 0x0100010e,
-        eKeyLaunchH  = 0x0100010f,
-
         eKeyTouchpadToggle = 0x01000110,
         eKeyTouchpadOn = 0x01000111,
         eKeyTouchpadOff = 0x01000112,
@@ -576,10 +561,5 @@ namespace lcf {
 
         eKeyCamera = 0x01100020,
         eKeyCameraFocus = 0x01100021,
-
-        // WARNING: Do not add any keys in the range 0x01200000 to 0xffffffff,
-        // as those bits are reserved for the Qt::KeyboardModifier enum below.
-
-        eKeyUnknown = 0x01ffffff
     };
 }
