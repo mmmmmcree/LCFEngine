@@ -22,13 +22,15 @@ namespace lcf {
         void onTransformUpdate(const TransformUpdateSignalInfo & info);
         void onTransformHierarchyAttach(const TransformHierarchyAttachSignalInfo & info);
         void onTransformHierarchyDetach(const TransformHierarchyDetachSignalInfo & info);
-        void update();
+        void updateBFS();
+        void updateDFS();
     private:
         void attach(EntityHandle parent, EntityHandle child);
         void detach(EntityHandle entity);
         void markDirty(EntityHandle entity, HierarchicalTransform & hierarchy);
-        void updateDirtyEntity(EntityHandle entity);
-        void updateRecursive(EntityHandle entity, const Matrix4x4 & parent_world_matrix);
+        void updateDirtyEntityBFS(EntityHandle entity);
+        void updateDirtyEntityDFS(EntityHandle entity);
+        void updateRecursively(EntityHandle entity, const Matrix4x4 & parent_world_matrix);
     private:
         Registry * m_registry_p;
         HierarchicalToEntityMap m_hierarchical_to_entity_map;

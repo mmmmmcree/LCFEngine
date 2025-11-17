@@ -36,18 +36,36 @@ void lcf::TransformSystem::onTransformHierarchyDetach(const TransformHierarchyDe
     this->detach(info.m_sender);
 }
 
-void lcf::TransformSystem::update()
+void lcf::TransformSystem::updateBFS()
 {
     for (uint16_t level = 0; level < s_frequent_level_count; ++level) {
         auto & dirty_entitys = m_frequent_level_map[level];
         for (auto entity : dirty_entitys) {
-            this->updateDirtyEntity(entity);
+            this->updateDirtyEntityBFS(entity);
         }
         dirty_entitys.clear();
     }
     for (auto &[level, entities] : m_unfrequent_level_map) {
         for (auto entity : entities) {
-            this->updateDirtyEntity(entity);
+            this->updateDirtyEntityBFS(entity);
+        }
+    }
+    m_unfrequent_level_map.clear();
+    m_dirty_entities.clear();
+}
+
+void lcf::TransformSystem::updateDFS()
+{
+    for (uint16_t level = 0; level < s_frequent_level_count; ++level) {
+        auto & dirty_entitys = m_frequent_level_map[level];
+        for (auto entity : dirty_entitys) {
+            this->updateDirtyEntityDFS(entity);
+        }
+        dirty_entitys.clear();
+    }
+    for (auto &[level, entities] : m_unfrequent_level_map) {
+        for (auto entity : entities) {
+            this->updateDirtyEntityDFS(entity);
         }
     }
     m_unfrequent_level_map.clear();
@@ -92,7 +110,39 @@ void lcf::TransformSystem::markDirty(EntityHandle entity, HierarchicalTransform 
     hierarchy.markDirty();
 }
 
-void lcf::TransformSystem::updateDirtyEntity(EntityHandle entity)
+void lcf::TransformSystem::updateDirtyEntityBFS(EntityHandle entity)
+{
+    HierarchicalTransform & hierarchy = m_registry_p->get<HierarchicalTransform>(entity);
+    if (not hierarchy.isDirty()) { return; } //- the return condition shows that the entity is updated by their parent
+    EntityHandle parent = entt::null;;
+    auto parent_it = m_hierarchical_to_entity_map.find(hierarchy.getParent());
+    if (parent_it != m_hierarchical_to_entity_map.end()) { parent = parent_it->second; }
+    auto & transform = m_registry_p->get<Transform>(entity);
+    if (parent == entt::null) {
+        hierarchy.setWorldMatrix(transform.getLocalMatrix());
+    } else {
+        Transform & parent_transform = m_registry_p->get<Transform>(parent);
+        hierarchy.setWorldMatrix(parent_transform.getWorldMatrix() * transform.getLocalMatrix());
+    }
+    std::queue<EntityHandle> bfs_queue;
+    bfs_queue.emplace(entity);
+    while (not bfs_queue.empty()) {
+        auto cur_entity = bfs_queue.front();
+        bfs_queue.pop();
+        auto & cur_hierarchy = m_registry_p->get<HierarchicalTransform>(cur_entity);
+        for (auto child : cur_hierarchy.getChildren()) {
+            EntityHandle child_entity = m_hierarchical_to_entity_map[child];
+            auto & child_hierarchy = m_registry_p->get<HierarchicalTransform>(child_entity);
+            auto & child_transform = m_registry_p->get<Transform>(child_entity);
+            child_hierarchy.setWorldMatrix(cur_hierarchy.getWorldMatrix() * child_transform.getLocalMatrix());
+            child_hierarchy.markClean();
+            bfs_queue.emplace(child_entity);
+        }
+    }
+    hierarchy.markClean();
+}
+
+void lcf::TransformSystem::updateDirtyEntityDFS(EntityHandle entity)
 {
     HierarchicalTransform & hierarchy = m_registry_p->get<HierarchicalTransform>(entity);
     if (not hierarchy.isDirty()) { return; } //- the return condition shows that the entity is updated by their parent
@@ -106,18 +156,19 @@ void lcf::TransformSystem::updateDirtyEntity(EntityHandle entity)
         Transform & parent_transform = m_registry_p->get<Transform>(parent);
         hierarchy.setWorldMatrix(parent_transform.getWorldMatrix() * transform.getLocalMatrix());
     }
-    hierarchy.markClean();
     for (auto child : hierarchy.getChildren()) {
-        this->updateRecursive(m_hierarchical_to_entity_map[child], hierarchy.getWorldMatrix());
+        this->updateRecursively(m_hierarchical_to_entity_map[child], hierarchy.getWorldMatrix());
     }
+    hierarchy.markClean();
 }
 
-void lcf::TransformSystem::updateRecursive(EntityHandle entity, const Matrix4x4 &parent_world_matrix)
+void lcf::TransformSystem::updateRecursively(EntityHandle entity, const Matrix4x4 &parent_world_matrix)
 {
     auto & hierarchy = m_registry_p->get<HierarchicalTransform>(entity);
     auto & transform = m_registry_p->get<Transform>(entity);
     hierarchy.setWorldMatrix(parent_world_matrix * transform.getLocalMatrix());
     for (auto child : hierarchy.getChildren()) {
-        this->updateRecursive(m_hierarchical_to_entity_map[child], hierarchy.getWorldMatrix());
+        this->updateRecursively(m_hierarchical_to_entity_map[child], hierarchy.getWorldMatrix());
     }
+    hierarchy.markClean();
 }
