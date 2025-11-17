@@ -13,11 +13,15 @@ namespace lcf {
     public:
         static void init()
         {
-    #ifndef NDEBUG
-            initDebug();
-    #else
-            initRelease();
-    #endif
+            static bool initialized = []() -> bool
+            {
+        #ifndef NDEBUG
+                initDebug();
+        #else
+                initRelease();
+        #endif
+                return true;
+            }();
         }
     private:
     #ifndef NDEBUG
@@ -29,6 +33,7 @@ namespace lcf {
                 "\033[35m[%Y-%m-%d\033[0m \033[95m%H:%M:%S.%e]\033[0m "
                 "\033[93m[%s\033[0m: \033[96mline %#]\033[0m "
                 "\033[94m%!()\033[0m "
+                "\033[32m[thread id: %t]\033[0m "
                 "%^[%l]\n%v%$"
             );
             std::filesystem::create_directories("logs");
@@ -45,13 +50,8 @@ namespace lcf {
     #else
         static void initRelease()
         {
-            auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-            console_sink->set_color_mode(spdlog::color_mode::always);
-            console_sink->set_pattern("%^[%l]%$ [%H:%M:%S] \n%v");
-            auto logger = std::make_shared<spdlog::logger>("release", console_sink);
-            logger->set_level(spdlog::level::info);
-            logger->flush_on(spdlog::level::warn);
-            spdlog::set_default_logger(logger);
+            auto logger = spdlog::default_logger();
+            logger->set_pattern("[%H:%M:%S] %^[%l]%$ \n%v");
         }
     #endif
     };
