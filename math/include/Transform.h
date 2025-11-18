@@ -1,10 +1,8 @@
 #pragma once
-
 #include "Matrix.h"
 #include "Vector.h"
 #include "Quaternion.h"
 #include "PointerDefs.h"
-#include <vector>
 
 namespace lcf {
     class Transform
@@ -12,13 +10,14 @@ namespace lcf {
     public:
         Transform() = default;
         Transform(const Transform &other);
-        Transform &operator=(const Transform &other);
+        Transform(Transform && other) noexcept;
+        Transform & operator=(const Transform &other);
+        Transform & operator=(Transform && other) noexcept;
         void setLocalMatrix(const Matrix4x4 & matrix) noexcept;
-        void setWorldMatrix(const Matrix4x4 * world_matrix) noexcept; // controlled by TransformSystem
-        const Matrix4x4 & getWorldMatrix() const noexcept { return *m_world_matrix; }
+        void setWorldMatrix(const Matrix4x4 & world_matrix) noexcept;
+        void setWorldMatrix(Matrix4x4 && world_matrix) noexcept;
+        const Matrix4x4 & getWorldMatrix() const noexcept { return m_world_matrix; }
         const Matrix4x4 & getLocalMatrix() const noexcept { return m_local_matrix; }
-        const Matrix4x4 & getInvertedWorldMatrix() const noexcept;
-        bool isHierarchy() const noexcept { return m_world_matrix != &m_local_matrix; }
         void translateWorld(float x, float y, float z) noexcept;
         void translateWorld(const Vector3D<float> &translation) noexcept;
         void translateLocal(float x, float y, float z) noexcept;
@@ -52,11 +51,7 @@ namespace lcf {
         Quaternion getRotation() const noexcept;
         Vector3D<float> getScale() const noexcept;
     private:
-        void markDirty() const noexcept { m_is_inverted_dirty = true; }
-    private:
         Matrix4x4 m_local_matrix;
-        const Matrix4x4 * m_world_matrix = &m_local_matrix;
-        mutable Matrix4x4 m_inverted_world_matrix;
-        mutable bool m_is_inverted_dirty = true;
+        Matrix4x4 m_world_matrix;
     };
 }

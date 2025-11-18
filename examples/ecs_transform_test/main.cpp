@@ -30,28 +30,25 @@
             {
                 if (not m_is_dirty) { return m_world_matrix; }
                 m_is_dirty = false;
-                // ++s_count;
+                ++s_count;
                 return m_world_matrix = m_parent ? m_parent->getWorldMatrix() * this->getLocalMatrix() : this->getLocalMatrix();
             }
             void markDirty()
             {
                 if (m_is_dirty) { return; }
                 m_is_dirty = true;
-                m_is_inverted_dirty = true;
                 for (auto child : m_children) {
                     child->markDirty();
                 }
             }
         private:
             mutable bool m_is_dirty = true;
-            mutable bool m_is_inverted_dirty = true;
             OOPTransform * m_parent = nullptr;
             std::vector<OOPTransform *> m_children;
             Matrix4x4 m_local_matrix;
             mutable Matrix4x4 m_world_matrix;
-            mutable Matrix4x4 m_inverted_world_matrix;
         public:
-            // inline static int s_count = 0;
+            inline static int s_count = 0;
         };
     }
 
@@ -84,8 +81,8 @@
             }
             oop_transforms.emplace_back(new lcf::OOPTransform);
         }
-        std::ranges::shuffle(entities_dfs, gen);
         std::ranges::shuffle(oop_transforms, gen);
+        
 
 
         for (int i = 1; i < num_nodes; ++i) {
@@ -97,29 +94,37 @@
         }
 
         // clear first dirty flag
-        transform_system_dfs.updateDFS();
+        transform_system_dfs.update();
         for (int i = 0; i < num_nodes; ++i) {
             oop_transforms[i]->getWorldMatrix();
         }
 
         
+
+        
+
+        auto start_dfs = std::chrono::high_resolution_clock::now();
         for (size_t update_index : update_indices) {
-            // lcf_log_info("update index: {}", update_index);
             lcf::Vector3D<float> offset(0.1, 0.2, 0.3);
             auto & entity_dfs = entities_dfs[update_index];
             entity_dfs.getComponent<lcf::Transform>().translateLocal(offset);
             entity_dfs.emitSignal<lcf::TransformUpdateSignalInfo>({}); 
-            oop_transforms[update_index]->translateLocal(offset);
         }
-        
-        auto start_dfs = std::chrono::high_resolution_clock::now();
-        transform_system_dfs.updateDFS();
+        transform_system_dfs.update();
         auto end_dfs = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::micro> duration_dfs = end_dfs - start_dfs;
 
+        std::vector<int> access_order(num_nodes);
+        std::iota(access_order.begin(), access_order.end(), 0);
+        std::ranges::shuffle(access_order, gen);
+
         auto start_oop = std::chrono::high_resolution_clock::now();
-        for (int i = 0; i < num_nodes; ++i) {
-            oop_transforms[i]->getWorldMatrix();
+        for (size_t update_index : update_indices) {
+            lcf::Vector3D<float> offset(0.1, 0.2, 0.3);
+            oop_transforms[update_index]->translateLocal(offset);
+        }
+        for (int idx : access_order) {
+            oop_transforms[idx]->getWorldMatrix();
         }
         auto end_oop = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::micro> duration_oop = end_oop - start_oop;
