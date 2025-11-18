@@ -64,26 +64,26 @@
         for (int i = 0; i < num_updates; ++i) {
             update_indices[i] = dis(gen);
         }
-        lcf::Registry registry_dfs;
+        lcf::Registry registry_dfs, registry_oop;
         lcf::TransformSystem transform_system_dfs(registry_dfs);
         
         std::vector<lcf::Entity> entities_dfs;
         entities_dfs.reserve(num_nodes);
         std::vector<lcf::OOPTransform *> oop_transforms;
         oop_transforms.reserve(num_nodes);
-        std::list<lcf::Registry> junks;
+        std::vector<lcf::Entity> entities_oop;
+        entities_oop.reserve(num_nodes);
         
         for (int i = 0; i < num_nodes; ++i) {
             entities_dfs.emplace_back(registry_dfs);
-            entities_dfs.back().requireComponent<lcf::Transform>();
-            for (int j = 0; j < 10; ++j) {
-                junks.emplace_back();
-            }
+            entities_dfs[i].requireComponent<lcf::Transform>();
             oop_transforms.emplace_back(new lcf::OOPTransform);
+
+            entities_oop.emplace_back(registry_oop);
+            entities_oop[i].requireComponent<lcf::OOPTransform>();
         }
         std::ranges::shuffle(oop_transforms, gen);
         
-
 
         for (int i = 1; i < num_nodes; ++i) {
             int parent_index = std::uniform_int_distribution<>(0, i - 1)(gen);
@@ -91,6 +91,10 @@
             // lcf_log_error("parent_index: {}, cur_index: {}", parent_index, i);
             entities_dfs[i].emitSignal<lcf::TransformHierarchyAttachSignalInfo>(entities_dfs[parent_index].getHandle());
             oop_transforms[i]->attachTo(oop_transforms[parent_index]);
+
+            auto & child = entities_oop[i].getComponent<lcf::OOPTransform>();
+            auto & parent = entities_oop[parent_index].getComponent<lcf::OOPTransform>();
+            child.attachTo(&parent);
         }
 
         // clear first dirty flag
@@ -98,18 +102,23 @@
         for (int i = 0; i < num_nodes; ++i) {
             oop_transforms[i]->getWorldMatrix();
         }
-
+        for (auto [entity, transform] : registry_oop.view<lcf::OOPTransform>().each()) {
+            transform.getWorldMatrix();
+        }
         
 
-        
-
-        auto start_dfs = std::chrono::high_resolution_clock::now();
         for (size_t update_index : update_indices) {
             lcf::Vector3D<float> offset(0.1, 0.2, 0.3);
             auto & entity_dfs = entities_dfs[update_index];
             entity_dfs.getComponent<lcf::Transform>().translateLocal(offset);
             entity_dfs.emitSignal<lcf::TransformUpdateSignalInfo>({}); 
+            oop_transforms[update_index]->translateLocal(offset);
+
+            auto & entity_oop = entities_oop[update_index];
+            entity_oop.getComponent<lcf::OOPTransform>().translateLocal(offset);
         }
+
+        auto start_dfs = std::chrono::high_resolution_clock::now();
         transform_system_dfs.update();
         auto end_dfs = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::micro> duration_dfs = end_dfs - start_dfs;
@@ -119,18 +128,24 @@
         std::ranges::shuffle(access_order, gen);
 
         auto start_oop = std::chrono::high_resolution_clock::now();
-        for (size_t update_index : update_indices) {
-            lcf::Vector3D<float> offset(0.1, 0.2, 0.3);
-            oop_transforms[update_index]->translateLocal(offset);
-        }
         for (int idx : access_order) {
             oop_transforms[idx]->getWorldMatrix();
         }
         auto end_oop = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::micro> duration_oop = end_oop - start_oop;
+
+        auto start_oop_view = std::chrono::high_resolution_clock::now();
+        for (auto [entity, transform] : registry_oop.view<lcf::OOPTransform>().each()) {
+            transform.getWorldMatrix();
+        }
+        auto end_oop_view = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::micro> duration_oop_view = end_oop_view - start_oop_view;
+
+
         
         lcf_log_info("Transform system dfs execution time: {:.4f} us", duration_dfs.count()); 
         lcf_log_info("OOP Transform execution time: {:.4f} us", duration_oop.count());
+        lcf_log_info("OOP Transform view execution time: {:.4f} us", duration_oop_view.count());
         // lcf_log_info("update count dfs {}, oop {}", lcf::TransformSystem::s_update_count, lcf::OOPTransform::s_count);
 
         //check:
@@ -138,9 +153,11 @@
         for (int i = 0; i < num_nodes; ++i) {
             const auto & mat_dfs = entities_dfs[i].getComponent<lcf::Transform>().getWorldMatrix();
             const auto & mat_oop = oop_transforms[i]->getWorldMatrix();
+            const auto & mat_oop_view = entities_oop[i].getComponent<lcf::OOPTransform>().getWorldMatrix();
             // lcf_log_info("index: {}, mat_dfs: {}, mat_oop: {}", i, lcf::to_string(mat_dfs), lcf::to_string(mat_oop));
-            if (mat_dfs != mat_oop) {
-                all_matched &= false;
+            if (mat_dfs != mat_oop || mat_dfs != mat_oop_view) {
+                all_matched = false;
+                break;
             }
         }
         if (all_matched) {

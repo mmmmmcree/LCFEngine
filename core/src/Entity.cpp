@@ -14,6 +14,8 @@ lcf::Entity::Entity(Entity && other) noexcept :
 
 lcf::Entity & lcf::Entity::operator=(Entity && other) noexcept
 {
+    if (this == &other) { return *this; }
+    this->destroy();
     m_registry_p = other.m_registry_p;
     m_entity = std::move(other.m_entity);
     return *this;
