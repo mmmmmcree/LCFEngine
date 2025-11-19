@@ -27,7 +27,9 @@ namespace lcf {
             T m31, T m32, T m33, T m34,
             T m41, T m42, T m43, T m44);
         Self & operator=(const Self &mat) noexcept { memcpy(this, &mat, sizeof(GLMMatrix4x4)); return *this; }
+        Self & operator=(Self && mat) noexcept { Base::operator=(std::move(mat)); return *this; }
         Self & operator=(const Base &mat) noexcept { memcpy(this, &mat, sizeof(GLMMatrix4x4)); return *this; }
+        Self & operator=(Base && mat) noexcept { Base::operator=(std::move(mat)); return *this; }
         Self operator*(const Self & mat) const noexcept { return static_cast<Base>(*this) * static_cast<Base>(mat); }
         Self & operator*=(const Self & mat) noexcept { return *this = *this * mat; }
         void setToIdentity() noexcept { *this = glm::identity<Base>(); }
