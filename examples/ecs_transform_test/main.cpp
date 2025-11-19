@@ -32,13 +32,6 @@ namespace lcf {
             this->markDirty();
         }
         const Matrix4x4 & getLocalMatrix() const noexcept { return m_local_matrix; }
-        void update() noexcept
-        {
-            if (m_is_dirty) {
-                m_world_matrix = m_parent ? m_parent->getWorldMatrix() * this->getLocalMatrix() : this->getLocalMatrix();
-                m_is_dirty = false;
-            }
-        }
         const Matrix4x4 & getWorldMatrix() const noexcept
         {
             if (not m_is_dirty) { return m_world_matrix; }
@@ -113,10 +106,10 @@ namespace lcf {
         // // clear first dirty flag
         transform_system_dfs.update();
         for (int i = 0; i < num_nodes; ++i) {
-            oop_transforms[i]->update();
+            oop_transforms[i]->getWorldMatrix();
         }
         for (auto [entity, transform] : registry_oop.view<lcf::OOPTransform>().each()) {
-            transform.update();
+            transform.getWorldMatrix();
         }
         
 
@@ -142,14 +135,14 @@ namespace lcf {
 
         auto start_oop = std::chrono::high_resolution_clock::now();
         for (int idx : access_order) {
-            oop_transforms[idx]->update();
+            oop_transforms[idx]->getWorldMatrix();
         }
         auto end_oop = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::micro> duration_oop = end_oop - start_oop;
 
         auto start_oop_view = std::chrono::high_resolution_clock::now();
         for (auto [entity, transform] : registry_oop.view<lcf::OOPTransform>().each()) {
-            transform.update();
+            transform.getWorldMatrix();
         }
         auto end_oop_view = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::micro> duration_oop_view = end_oop_view - start_oop_view;
