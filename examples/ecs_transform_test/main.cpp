@@ -13,8 +13,13 @@
 namespace lcf {
     class OOPTransform
     {
+        using Self = OOPTransform;
     public:
-        OOPTransform() = default;
+        using ChildrenPtrList = std::vector<Self *>;
+        OOPTransform()
+        {
+            m_children.reserve(4);
+        }
         void attachTo(OOPTransform * parent) noexcept
         {
             m_parent = parent;
@@ -50,8 +55,8 @@ namespace lcf {
         }
     private:
         mutable bool m_is_dirty = true;
-        OOPTransform * m_parent = nullptr;
-        std::vector<OOPTransform *> m_children;
+        Self * m_parent = nullptr;
+        ChildrenPtrList m_children;
         Matrix4x4 m_local_matrix;
         mutable Matrix4x4 m_world_matrix;
     };
@@ -73,21 +78,22 @@ namespace lcf {
         lcf::TransformSystem transform_system_dfs(registry_dfs);
         
         std::vector<lcf::Entity> entities_dfs;
-        entities_dfs.reserve(num_nodes);
         std::vector<lcf::OOPTransform *> oop_transforms;
-        oop_transforms.reserve(num_nodes);
         std::vector<lcf::Entity> entities_oop;
-        entities_oop.reserve(num_nodes);
+
+        std::vector<lcf::Registry> junks;
         
         for (int i = 0; i < num_nodes; ++i) {
             entities_dfs.emplace_back(registry_dfs);
             entities_dfs[i].requireComponent<lcf::Transform>();
+            for (int j = 0; j < 10; ++j) {
+                junks.emplace_back();
+            }
             oop_transforms.emplace_back(new lcf::OOPTransform);
-
             entities_oop.emplace_back(registry_oop);
             entities_oop[i].requireComponent<lcf::OOPTransform>();
         }
-        std::ranges::shuffle(oop_transforms, gen);
+        std::vector<lcf::Registry>{}.swap(junks);
         
 
         for (int i = 1; i < num_nodes; ++i) {
