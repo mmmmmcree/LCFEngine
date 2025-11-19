@@ -62,7 +62,7 @@ namespace lcf {
     };
 }
 
-    void performance_test(int num_nodes, float update_ratio)
+    void performance_test(int num_nodes, float update_ratio, float attach_probability)
     {
         int num_updates = static_cast<int>(num_nodes * update_ratio);
         std::vector<size_t> update_indices(num_updates);
@@ -97,9 +97,8 @@ namespace lcf {
         }
         std::vector<lcf::Registry>{}.swap(junks);
         
-        const double attach_probability = 0.7;
         for (int i = 1; i < num_nodes; ++i) {
-            if (std::uniform_real_distribution<>(0.0, 1.0)(gen) > attach_probability) { continue; }
+            if (std::uniform_real_distribution<float>(0.0, 1.0)(gen) > attach_probability) { continue; }
             int parent_index = std::uniform_int_distribution<>(0, i - 1)(gen);
             if (parent_index == i) { continue; }
             // lcf_log_error("parent_index: {}, cur_index: {}", parent_index, i);
@@ -186,20 +185,20 @@ int main(int argc, char *argv[])
 {
     lcf::Logger::init();
     lcf_log_warn("performance_test(10, 2f)");
-    performance_test(10, 0.4f);
+    performance_test(10, 0.4f, 0.8);
     lcf_log_warn("performance_test(100, 0.4f)");
-    performance_test(100, 0.4f);
+    performance_test(100, 0.4f, 0.8);
     lcf_log_warn("performance_test(500, 0.4f)"); 
-    performance_test(500, 0.4f);
+    performance_test(500, 0.4f, 0.8);
     lcf_log_warn("performance_test(1000, 0.4f)");
-    performance_test(1000, 0.4f);
+    performance_test(1000, 0.4f, 0.8);
     lcf_log_warn("performance_test(2000, 0.4f)");
-    performance_test(2000, 0.4f);
+    performance_test(2000, 0.4f, 0.8);
     lcf_log_warn("performance_test(5000, 0.4f)");
-    performance_test(5000, 0.4f);
+    performance_test(5000, 0.4f, 0.8);
     lcf_log_warn("performance_test(10000, 0.4f)");
-    performance_test(10000, 0.4f);
-    performance_test(50000, 0.4f);
+    performance_test(10000, 0.4f, 0.8);
+    performance_test(50000, 0.4f, 0.8);
 
     return 0;
 }
