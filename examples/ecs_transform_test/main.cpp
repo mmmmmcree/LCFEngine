@@ -176,28 +176,21 @@ namespace lcf {
 int main(int argc, char *argv[])
 {
     lcf::Logger::init();
-    // lcf_log_warn("performance_test(10, 2f)");
-    // performance_test(10, 0.6f);
-    // lcf_log_warn("performance_test(100, 0.4f)");
-    // performance_test(100, 0.6f);
-    // lcf_log_warn("performance_test(500, 0.4f)"); 
-    // performance_test(500, 0.6f);
-    // lcf_log_warn("performance_test(1000, 0.4f)");
-    // performance_test(1000, 0.6f);
-    // lcf_log_warn("performance_test(2000, 0.4f)");
-    // performance_test(2000, 0.6f);
-    // lcf_log_warn("performance_test(5000, 0.4f)");
-    // performance_test(5000, 0.6f);
-    // lcf_log_warn("performance_test(10000, 0.4f)");
-    // performance_test(10000, 0.6f);
-    // performance_test(50000, 0.6f);
-    
-    int num_nodes = 100;
-    lcf::Registry registry;
-    std::vector<lcf::Entity> entities;
-    for (int i = 0; i < num_nodes; ++i) {
-        entities.emplace_back(registry);
-    }
+    lcf_log_warn("performance_test(10, 2f)");
+    performance_test(10, 0.4f);
+    lcf_log_warn("performance_test(100, 0.4f)");
+    performance_test(100, 0.4f);
+    lcf_log_warn("performance_test(500, 0.4f)"); 
+    performance_test(500, 0.4f);
+    lcf_log_warn("performance_test(1000, 0.4f)");
+    performance_test(1000, 0.4f);
+    lcf_log_warn("performance_test(2000, 0.4f)");
+    performance_test(2000, 0.4f);
+    lcf_log_warn("performance_test(5000, 0.4f)");
+    performance_test(5000, 0.4f);
+    lcf_log_warn("performance_test(10000, 0.4f)");
+    performance_test(10000, 0.4f);
+    performance_test(50000, 0.4f);
 
     return 0;
 }
