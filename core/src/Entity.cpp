@@ -8,7 +8,7 @@ lcf::Entity::Entity(Registry & registry) :
 
 lcf::Entity::Entity(Entity && other) noexcept :
     m_registry_p(other.m_registry_p),
-    m_entity(std::move(other.m_entity))
+    m_entity(std::exchange(other.m_entity, null_entity))
 {
 }
 
@@ -17,7 +17,7 @@ lcf::Entity & lcf::Entity::operator=(Entity && other) noexcept
     if (this == &other) { return *this; }
     this->destroy();
     m_registry_p = other.m_registry_p;
-    m_entity = std::move(other.m_entity);
+    m_entity = std::exchange(other.m_entity, null_entity); 
     return *this;
 }
 
@@ -35,8 +35,8 @@ void lcf::Entity::setRegistry(Registry & registry)
 
 void lcf::Entity::destroy()
 {
-    if (not m_registry_p) { return; }
+    if (not m_registry_p or m_entity == null_entity) { return; }
     m_registry_p->destroy(m_entity);
     m_registry_p = nullptr;
-    m_entity = entt::null;
+    m_entity = null_entity;
 }
