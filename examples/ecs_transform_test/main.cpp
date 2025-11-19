@@ -86,6 +86,8 @@ namespace lcf {
         for (int i = 0; i < num_nodes; ++i) {
             entities_dfs.emplace_back(registry_dfs);
             entities_dfs[i].requireComponent<lcf::Transform>();
+            entities_dfs[i].requireComponent<lcf::TransformHierarchy>();
+            entities_dfs[i].requireComponent<lcf::TransformState>();
             for (int j = 0; j < 10; ++j) {
                 junks.emplace_back();
             }
@@ -95,8 +97,9 @@ namespace lcf {
         }
         std::vector<lcf::Registry>{}.swap(junks);
         
-
+        const double attach_probability = 0.7;
         for (int i = 1; i < num_nodes; ++i) {
+            if (std::uniform_real_distribution<>(0.0, 1.0)(gen) > attach_probability) { continue; }
             int parent_index = std::uniform_int_distribution<>(0, i - 1)(gen);
             if (parent_index == i) { continue; }
             // lcf_log_error("parent_index: {}, cur_index: {}", parent_index, i);
@@ -108,7 +111,7 @@ namespace lcf {
             child.attachTo(&parent);
         }
 
-        // clear first dirty flag
+        // // clear first dirty flag
         transform_system_dfs.update();
         for (int i = 0; i < num_nodes; ++i) {
             oop_transforms[i]->update();

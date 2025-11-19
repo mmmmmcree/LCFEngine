@@ -84,10 +84,11 @@ void lcf::TransformSystem::detach(EntityHandle entity)
 
 void lcf::TransformSystem::markDirty(EntityHandle entity) noexcept
 {
+    auto * hierarchy_p = m_registry_p->try_get<TransformHierarchy>(entity);
+    if (not hierarchy_p) { return; }
     if (m_dirty_entities.contains(entity)) { return; }
     m_dirty_entities.push(entity);
-    auto & hierarchy = m_registry_p->get<TransformHierarchy>(entity);
-    auto level = hierarchy.getLevel();
+    auto level = hierarchy_p->getLevel();
     if (level < s_frequent_level_count) {
         m_frequent_level_map[level].emplace_back(entity);
     } else {
