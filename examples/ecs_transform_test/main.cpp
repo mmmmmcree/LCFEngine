@@ -10,47 +10,52 @@
 #include <numeric>
 #include <random>
 
-    namespace lcf {
-        class OOPTransform
+namespace lcf {
+    class OOPTransform
+    {
+    public:
+        OOPTransform() = default;
+        void attachTo(OOPTransform * parent) noexcept
         {
-        public:
-            OOPTransform() = default;
-            void attachTo(OOPTransform * parent) noexcept {
-                m_parent = parent;
-                parent->m_children.emplace_back(this);
-            }
-            void translateLocal(const Vector3D<float> &translation) noexcept
-            {
-                if (translation.isNull()) { return; }
-                m_local_matrix.translateLocal(translation);
-                this->markDirty();
-            }
-            const Matrix4x4 & getLocalMatrix() const noexcept { return m_local_matrix; }
-            const Matrix4x4 & getWorldMatrix() const noexcept
-            {
-                if (not m_is_dirty) { return m_world_matrix; }
+            m_parent = parent;
+            parent->m_children.emplace_back(this);
+        }
+        void translateLocal(const Vector3D<float> &translation) noexcept
+        {
+            if (translation.isNull()) { return; }
+            m_local_matrix.translateLocal(translation);
+            this->markDirty();
+        }
+        const Matrix4x4 & getLocalMatrix() const noexcept { return m_local_matrix; }
+        void update() noexcept
+        {
+            if (m_is_dirty) {
+                m_world_matrix = m_parent ? m_parent->getWorldMatrix() * this->getLocalMatrix() : this->getLocalMatrix();
                 m_is_dirty = false;
-                ++s_count;
-                return m_world_matrix = m_parent ? m_parent->getWorldMatrix() * this->getLocalMatrix() : this->getLocalMatrix();
             }
-            void markDirty()
-            {
-                if (m_is_dirty) { return; }
-                m_is_dirty = true;
-                for (auto child : m_children) {
-                    child->markDirty();
-                }
+        }
+        const Matrix4x4 & getWorldMatrix() const noexcept
+        {
+            if (not m_is_dirty) { return m_world_matrix; }
+            m_is_dirty = false;
+            return m_world_matrix = m_parent ? m_parent->getWorldMatrix() * this->getLocalMatrix() : this->getLocalMatrix();
+        }
+        void markDirty()
+        {
+            if (m_is_dirty) { return; }
+            m_is_dirty = true;
+            for (auto child : m_children) {
+                child->markDirty();
             }
-        private:
-            mutable bool m_is_dirty = true;
-            OOPTransform * m_parent = nullptr;
-            std::vector<OOPTransform *> m_children;
-            Matrix4x4 m_local_matrix;
-            mutable Matrix4x4 m_world_matrix;
-        public:
-            inline static int s_count = 0;
-        };
-    }
+        }
+    private:
+        mutable bool m_is_dirty = true;
+        OOPTransform * m_parent = nullptr;
+        std::vector<OOPTransform *> m_children;
+        Matrix4x4 m_local_matrix;
+        mutable Matrix4x4 m_world_matrix;
+    };
+}
 
     void performance_test(int num_nodes, float update_ratio)
     {
@@ -100,10 +105,10 @@
         // clear first dirty flag
         transform_system_dfs.update();
         for (int i = 0; i < num_nodes; ++i) {
-            oop_transforms[i]->getWorldMatrix();
+            oop_transforms[i]->update();
         }
         for (auto [entity, transform] : registry_oop.view<lcf::OOPTransform>().each()) {
-            transform.getWorldMatrix();
+            transform.update();
         }
         
 
@@ -129,14 +134,14 @@
 
         auto start_oop = std::chrono::high_resolution_clock::now();
         for (int idx : access_order) {
-            oop_transforms[idx]->getWorldMatrix();
+            oop_transforms[idx]->update();
         }
         auto end_oop = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::micro> duration_oop = end_oop - start_oop;
 
         auto start_oop_view = std::chrono::high_resolution_clock::now();
         for (auto [entity, transform] : registry_oop.view<lcf::OOPTransform>().each()) {
-            transform.getWorldMatrix();
+            transform.update();
         }
         auto end_oop_view = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::micro> duration_oop_view = end_oop_view - start_oop_view;
@@ -172,19 +177,27 @@ int main(int argc, char *argv[])
 {
     lcf::Logger::init();
     // lcf_log_warn("performance_test(10, 2f)");
-    performance_test(10, 0.6f);
-    lcf_log_warn("performance_test(100, 0.4f)");
-    performance_test(100, 0.6f);
-    lcf_log_warn("performance_test(500, 0.4f)"); 
-    performance_test(500, 0.6f);
-    lcf_log_warn("performance_test(1000, 0.4f)");
-    performance_test(1000, 0.6f);
-    lcf_log_warn("performance_test(2000, 0.4f)");
-    performance_test(2000, 0.6f);
-    lcf_log_warn("performance_test(5000, 0.4f)");
-    performance_test(5000, 0.6f);
-    lcf_log_warn("performance_test(10000, 0.4f)");
-    performance_test(10000, 0.6f);
-    performance_test(50000, 0.6f);
+    // performance_test(10, 0.6f);
+    // lcf_log_warn("performance_test(100, 0.4f)");
+    // performance_test(100, 0.6f);
+    // lcf_log_warn("performance_test(500, 0.4f)"); 
+    // performance_test(500, 0.6f);
+    // lcf_log_warn("performance_test(1000, 0.4f)");
+    // performance_test(1000, 0.6f);
+    // lcf_log_warn("performance_test(2000, 0.4f)");
+    // performance_test(2000, 0.6f);
+    // lcf_log_warn("performance_test(5000, 0.4f)");
+    // performance_test(5000, 0.6f);
+    // lcf_log_warn("performance_test(10000, 0.4f)");
+    // performance_test(10000, 0.6f);
+    // performance_test(50000, 0.6f);
+    
+    int num_nodes = 100;
+    lcf::Registry registry;
+    std::vector<lcf::Entity> entities;
+    for (int i = 0; i < num_nodes; ++i) {
+        entities.emplace_back(registry);
+    }
+
     return 0;
 }
