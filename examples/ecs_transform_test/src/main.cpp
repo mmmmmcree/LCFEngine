@@ -9,51 +9,10 @@
 #include <algorithm>
 #include <numeric>
 #include <random>
+#include "OOPTransform.h"
+#include "TransformSystem2.h"
 
-namespace lcf {
-    class OOPTransform
-    {
-        using Self = OOPTransform;
-    public:
-        using ChildrenPtrList = std::vector<Self *>;
-        OOPTransform()
-        {
-            m_children.reserve(4);
-        }
-        void attachTo(OOPTransform * parent) noexcept
-        {
-            m_parent = parent;
-            parent->m_children.emplace_back(this);
-        }
-        void translateLocal(const Vector3D<float> &translation) noexcept
-        {
-            if (translation.isNull()) { return; }
-            m_local_matrix.translateLocal(translation);
-            this->markDirty();
-        }
-        const Matrix4x4 & getLocalMatrix() const noexcept { return m_local_matrix; }
-        const Matrix4x4 & getWorldMatrix() const noexcept
-        {
-            if (not m_is_dirty) { return m_world_matrix; }
-            m_is_dirty = false;
-            return m_world_matrix = m_parent ? m_parent->getWorldMatrix() * this->getLocalMatrix() : this->getLocalMatrix();
-        }
-        void markDirty()
-        {
-            if (m_is_dirty) { return; }
-            m_is_dirty = true;
-            for (auto child : m_children) {
-                child->markDirty();
-            }
-        }
-    private:
-        mutable bool m_is_dirty = true;
-        Self * m_parent = nullptr;
-        ChildrenPtrList m_children;
-        Matrix4x4 m_local_matrix;
-        mutable Matrix4x4 m_world_matrix;
-    };
-}
+
 
     void performance_test(int num_nodes, float update_ratio, float attach_probability)
     {
@@ -69,10 +28,14 @@ namespace lcf {
         }
         lcf::Registry registry_dfs, registry_oop;
         lcf::TransformSystem transform_system_dfs(registry_dfs);
+
+        lcf::Registry registry_sep_oop;
+        lcf::TransformSystem2 transform_system2(registry_sep_oop);
         
         std::vector<lcf::Entity> entities_dfs;
         std::vector<lcf::OOPTransform *> oop_transforms;
         std::vector<lcf::Entity> entities_oop;
+        std::vector<lcf::Entity> entities_sep_oop;
 
         std::vector<lcf::Registry> junks;
         
@@ -87,6 +50,11 @@ namespace lcf {
             oop_transforms.emplace_back(new lcf::OOPTransform);
             entities_oop.emplace_back(registry_oop);
             entities_oop[i].requireComponent<lcf::OOPTransform>();
+
+            entities_sep_oop.emplace_back(registry_sep_oop);
+            entities_sep_oop[i].requireComponent<lcf::OOPTransform2>();
+            entities_sep_oop[i].requireComponent<lcf::OOPTransform2Hierarchy>();
+
         }
         std::vector<lcf::Registry>{}.swap(junks);
         
@@ -101,6 +69,8 @@ namespace lcf {
             auto & child = entities_oop[i].getComponent<lcf::OOPTransform>();
             auto & parent = entities_oop[parent_index].getComponent<lcf::OOPTransform>();
             child.attachTo(&parent);
+
+            entities_sep_oop[i].emitSignal<lcf::OOPTransform2AttachSignalInfo>(entities_sep_oop[parent_index].getHandle());
         }
 
         // // clear first dirty flag
@@ -111,9 +81,11 @@ namespace lcf {
         for (auto [entity, transform] : registry_oop.view<lcf::OOPTransform>().each()) {
             transform.getWorldMatrix();
         }
+        transform_system2.update();
         
 
         for (size_t update_index : update_indices) {
+            // lcf_log_info("update index: {}", update_index);
             lcf::Vector3D<float> offset(0.1, 0.2, 0.3);
             auto & entity_dfs = entities_dfs[update_index];
             entity_dfs.getComponent<lcf::Transform>().translateLocal(offset);
@@ -122,6 +94,11 @@ namespace lcf {
 
             auto & entity_oop = entities_oop[update_index];
             entity_oop.getComponent<lcf::OOPTransform>().translateLocal(offset);
+
+            auto & entity_sep_oop = entities_sep_oop[update_index];
+
+            entity_sep_oop.getComponent<lcf::OOPTransform2>().translateLocal(offset);
+            entity_sep_oop.emitSignal<lcf::OOPTransform2UpdateSignalInfo>({});
         }
 
         auto start_dfs = std::chrono::high_resolution_clock::now();
@@ -146,22 +123,27 @@ namespace lcf {
         }
         auto end_oop_view = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::micro> duration_oop_view = end_oop_view - start_oop_view;
-
-
+        
+        auto start_sep_oop = std::chrono::high_resolution_clock::now();
+        transform_system2.update();
+        auto end_sep_oop = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::micro> duration_sep_oop = end_sep_oop - start_sep_oop;
         
         lcf_log_info("Transform system dfs execution time: {:.4f} us", duration_dfs.count()); 
         lcf_log_info("OOP Transform execution time: {:.4f} us", duration_oop.count());
         lcf_log_info("OOP Transform view execution time: {:.4f} us", duration_oop_view.count());
+        lcf_log_info("Separate OOP Transform execution time: {:.4f} us", duration_sep_oop.count());
         // lcf_log_info("update count dfs {}, oop {}", lcf::TransformSystem::s_update_count, lcf::OOPTransform::s_count);
 
         //check:
         bool all_matched = true;
         for (int i = 0; i < num_nodes; ++i) {
             const auto & mat_dfs = entities_dfs[i].getComponent<lcf::Transform>().getWorldMatrix();
-            const auto & mat_oop = oop_transforms[i]->getWorldMatrix();
-            const auto & mat_oop_view = entities_oop[i].getComponent<lcf::OOPTransform>().getWorldMatrix();
-            // lcf_log_info("index: {}, mat_dfs: {}, mat_oop: {}", i, lcf::to_string(mat_dfs), lcf::to_string(mat_oop));
-            if (mat_dfs != mat_oop || mat_dfs != mat_oop_view) {
+            const auto & mat_oop = oop_transforms[i]->getPlainWorldMatrix();
+            const auto & mat_oop_view = entities_oop[i].getComponent<lcf::OOPTransform>().getPlainWorldMatrix();
+            const auto & mat_sep_oop = entities_sep_oop[i].getComponent<lcf::OOPTransform2>().getPlainWorldMatrix();
+            // lcf_log_info("index{}\n{}\n{}", i, lcf::to_string(mat_sep_oop), lcf::to_string(mat_sep_oop_lowest));
+            if (mat_dfs != mat_oop || mat_dfs != mat_oop_view || mat_dfs != mat_sep_oop) {
                 all_matched = false;
                 break;
             }

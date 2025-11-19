@@ -1,12 +1,17 @@
 project(ecs_transform_test)
 
-add_executable(${PROJECT_NAME} main.cpp)
+file(GLOB_RECURSE SOURCES "src/*.cpp")
+
+include_directories(  
+  ${CMAKE_CURRENT_SOURCE_DIR}/include 
+)
+add_executable(${PROJECT_NAME} ${SOURCES})
 
 target_link_libraries(${PROJECT_NAME}
-    PRIVATE
+    PRIVATE 
+        core
         utilities
         math
-        Systems
 )
 
 set_target_properties(${PROJECT_NAME} PROPERTIES
