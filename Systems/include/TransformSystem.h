@@ -22,7 +22,7 @@ namespace lcf {
         using UnfrequentLevelMap = entt::dense_map<uint32_t, FrequentLargeList>;
         TransformSystem(Registry & registry);
         ~TransformSystem();
-        void onTransformUpdate(const TransformUpdateSignalInfo & info);
+        void onTransformUpdate(const TransformUpdateSignalInfo & info) noexcept;
         void onTransformHierarchyAttach(const TransformHierarchyAttachSignalInfo & info);
         void onTransformHierarchyDetach(const TransformHierarchyDetachSignalInfo & info);
         void update() noexcept;

@@ -20,7 +20,7 @@ lcf::TransformSystem::~TransformSystem()
     dispatcher.sink<lcf::TransformUpdateSignalInfo>().disconnect(this);
 }
 
-void lcf::TransformSystem::onTransformUpdate(const TransformUpdateSignalInfo &info)
+void lcf::TransformSystem::onTransformUpdate(const TransformUpdateSignalInfo &info) noexcept
 {
     this->markDirty(info.m_sender);
 }
@@ -73,8 +73,9 @@ void lcf::TransformSystem::markDirty(EntityHandle entity) noexcept
     transform.markDirty();
     auto * inverted_matrix = m_registry_p->try_get<TransformInvertedWorldMatrix>(entity);
     if (inverted_matrix) { inverted_matrix->markDirty(); }
-    auto & hierarchy = m_registry_p->get<TransformHierarchy>(entity);
-    for (auto child : hierarchy.getChildren()) {
+    auto * hierarchy = m_registry_p->try_get<TransformHierarchy>(entity);
+    if (not hierarchy) { return; }
+    for (auto child : hierarchy->getChildren()) {
         this->markDirty(child);
     }
 }

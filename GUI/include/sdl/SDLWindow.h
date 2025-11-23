@@ -5,7 +5,7 @@
 #include "gui_forward_declares.h"
 #include "gui_enums.h"
 #include <SDL3/SDL.h>
-#include <atomic>
+#include "InputState.h"
 
 namespace lcf::gui {
     class SDLWindowSystem;
@@ -16,10 +16,11 @@ namespace lcf::gui {
         SDLWindow() = default;
     public:
         ~SDLWindow();
-        bool create();
         bool create(const WindowCreateInfo & info);
         Entity & getEntity() noexcept { return m_entity; }
         const Entity & getEntity() const noexcept { return m_entity; }
+        template <typename Component>
+        Component & getComponent() const { return m_entity.getComponent<Component>(); }
         bool isCreated() const noexcept { return m_window_p and m_state != WindowState::eNotCreated; }
         WindowState getState() const noexcept { return m_state; }
         void pollEvents();
@@ -32,6 +33,7 @@ namespace lcf::gui {
         SDL_Window * m_window_p = nullptr;
         Entity m_entity;
         WindowState m_state = WindowState::eNotCreated;
+        InputState m_input_state;
     };
 
 }
