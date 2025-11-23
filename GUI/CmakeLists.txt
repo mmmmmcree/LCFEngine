@@ -1,4 +1,4 @@
-project(Application)
+project(GUI)
 
 file(GLOB_RECURSE HEADERS "include/*.h")
 file(GLOB_RECURSE SOURCES "src/*.cpp")
@@ -14,12 +14,10 @@ if(WIN32)
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>
         ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/$<CONFIG>
     )    
-endif() 
-  
-find_package(Qt6 REQUIRED COMPONENTS Gui Widgets Core)  
-
+endif()   
+ 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
-
+ 
 target_include_directories(${PROJECT_NAME}
     PUBLIC
         $<INSTALL_INTERFACE:include>
@@ -27,11 +25,14 @@ target_include_directories(${PROJECT_NAME}
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 ) 
- 
+   
 target_link_libraries(${PROJECT_NAME} 
     PUBLIC
-        Qt6::Gui
-        Qt6::Widgets
-        Qt6::Core
+        window_config
+        graphic_api_config
+        core
+        input
         math
-)
+        utilities
+    PRIVATE
+)  

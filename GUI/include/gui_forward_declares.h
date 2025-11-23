@@ -1,0 +1,24 @@
+#pragma once
+
+// common types
+namespace lcf::gui {
+    struct WindowCreateInfo;
+    struct DisplayModeInfo;
+    struct DisplayerInfo;
+}
+
+// specific window related
+class SDL_Window;
+namespace lcf::gui {
+    class SDLWindow;
+    class SDLWindowSystem;
+
+    #define WINDOW_IMPL_DECLARE SDL_Window
+    #define WINDOW_DECLARE SDLWindow
+    #define WINDOW_SYSTEM_DECLARE SDLWindowSystem
+}
+
+// specific graphics api related
+namespace lcf::gui {
+    class VulkanSurfaceBridge;
+}

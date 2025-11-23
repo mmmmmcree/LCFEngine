@@ -1,25 +1,21 @@
 #pragma once
 
-#include "Transform.h"
-#include "InputManager.h"
 #include "Entity.h"
-#include <optional>
+#include "input_forward_declares.h"
+#include "Vector.h"
 
-namespace lcf::modules
-{
+namespace lcf::modules {
     class TrackballController
     {
     public:
         TrackballController() = default;
-        void setInputManager(const InputManager * input_manager) { m_input_manager = input_manager; }
+        void setInputReader(const InputReader & input_reader) { m_input_reader = &input_reader; }
         void update(Entity & camera);
     private:
-        const InputManager * m_input_manager = nullptr;
+        const InputReader * m_input_reader = nullptr;
         float m_sensitivity = 0.2f;
-        float m_move_speed = 0.005f;
-        float m_zoom_speed = 0.01f;
+        float m_move_speed = 0.05f;
+        float m_zoom_speed = 1.0f;
         Vector3D<float> m_center;
-        Vector2D<double> m_last_mouse_pos;
-        Vector2D<int> m_last_wheel_delta;
     };
 };

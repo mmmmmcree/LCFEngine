@@ -3,6 +3,7 @@
 #include <boost/asio.hpp>
 #include "PointerDefs.h"
 
+//todo move this file to core ?
 namespace lcf {
     class BoostIOContext : public boost::asio::io_context, public STDPointerDefs<BoostIOContext>
     {

@@ -38,7 +38,9 @@ namespace lcf {
         GLMQuaternion() = default;
         GLMQuaternion(float scalar, float x, float y, float z) : Base(scalar, x, y, z) {}
         GLMQuaternion(const GLMQuaternion &quaternion) : Base(quaternion) {}
+        GLMQuaternion(GLMQuaternion && quaternion) : Base(std::move(quaternion)) {}
         GLMQuaternion(const Base & quaternion) : Base(quaternion) {}
+        GLMQuaternion(Base && quaternion) : Base(std::move(quaternion)) {}
         Self & operator=(const Base & vec) noexcept { memcpy(this, &vec, sizeof(Base)); return *this; }
         Self & operator=(const Self & vec) noexcept { memcpy(this, &vec, sizeof(Base)); return *this; }
         Self & operator=(Base && vec) noexcept { return Base::operator=(std::move(vec)); }

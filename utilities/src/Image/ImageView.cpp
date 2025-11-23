@@ -26,7 +26,7 @@ size_t lcf::ImageView::getBytesPerChannel() const noexcept
 {
     return variant2::visit([](auto && img_view) {
         using ViewType = std::decay_t<decltype(img_view)>;
-        return sizeof(gil::channel_type<ViewType>::type);
+        return sizeof(typename gil::channel_type<ViewType>::type);
     }, m_image_view);
 }
 

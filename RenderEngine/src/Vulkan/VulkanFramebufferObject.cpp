@@ -1,14 +1,15 @@
 #include "VulkanFramebufferObject.h"
-#include "error.h"
 #include "VulkanContext.h"
+#include "log.h"
 
 using namespace lcf::render;
 
 bool VulkanFramebufferObject::create(VulkanContext *context_p, const VulkanFramebufferObjectCreateInfo &create_info)
 {
     if (not context_p or not context_p->isCreated()) {
-        LCF_THROW_RUNTIME_ERROR("lcf::render::VulkanFrameBufferObject::create: Invalid context");
-        return false;
+        std::runtime_error error("Invalid context");
+        lcf_log_error(error.what());
+        throw error;
     }
     m_max_extent = create_info.getMaxExtent();
     m_extent = std::min({m_max_extent, create_info.getExtent(), m_extent});

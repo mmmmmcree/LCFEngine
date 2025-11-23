@@ -22,6 +22,7 @@ namespace lcf {
         GLMVector2D(const Base &vec) { memcpy(this, &vec, sizeof(Base)); }
         GLMVector2D(const Self & other) : Base(other) {}
         GLMVector2D(Self && other) : Base(std::move(other)) {}
+        GLMVector2D(Base && other) : Base(std::move(other)) {}
         Self & operator=(const Base & vec) noexcept { memcpy(this, &vec, sizeof(Base)); return *this; }
         Self & operator=(const Self & vec) noexcept { memcpy(this, &vec, sizeof(Base)); return *this; }
         Self & operator=(Base && vec) noexcept { return Base::operator=(std::move(vec)); }
@@ -71,6 +72,7 @@ namespace lcf {
         GLMVector3D(const Base &vec) { memcpy(this, &vec, sizeof(Base)); }
         GLMVector3D(const Self & other) : Base(other) {}
         GLMVector3D(Self && other) : Base(std::move(other)) {}
+        GLMVector3D(Base && other) : Base(std::move(other)) {}
         Self & operator=(const Base & vec) noexcept { memcpy(this, &vec, sizeof(Base)); return *this; }
         Self & operator=(const Self & vec) noexcept { memcpy(this, &vec, sizeof(Base)); return *this; }
         Self & operator=(Base && vec) noexcept { Base::operator=(std::move(vec)); return *this; }
@@ -113,7 +115,8 @@ namespace lcf {
         constexpr GLMVector4D(T x, T y, T z, T w) noexcept : Base(x, y, z, w) {}
         GLMVector4D(const Vec2::Base &vec, T z = static_cast<T>(0), T w = static_cast<T>(1)) : Base(vec.x, vec.y, z, w) {}
         GLMVector4D(const Vec3::Base &vec, T w = static_cast<T>(1)) : Base(vec.x, vec.y, vec.z, w) {}
-        GLMVector4D(const Base &vec) { memcpy(this, &vec, sizeof(Base)); }
+        GLMVector4D(const Base &vec) noexcept { memcpy(this, &vec, sizeof(Base)); }
+        GLMVector4D(Base && vec) noexcept : Base(std::move(vec)) {}
         GLMVector4D(const Self & other) : Base(other) {}
         GLMVector4D(Self && other) : Base(std::move(other)) {}
         Self & operator=(const Base & vec) noexcept { memcpy(this, &vec, sizeof(Base)); return *this; }

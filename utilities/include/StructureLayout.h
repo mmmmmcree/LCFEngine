@@ -89,6 +89,5 @@ namespace lcf {
     {
         if (data_index >= bytes.size() / layout.getStructualSize()) { return; }
         *extract_field_at<StructureLayout, T, false>(layout, field_index, data_index, bytes) = data;
-        return *this;
     }
 }

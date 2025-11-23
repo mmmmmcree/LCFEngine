@@ -1,10 +1,6 @@
-#pragma once
-
 #include "VulkanRenderer.h"
 #include "VulkanShaderProgram.h"
 #include "vulkan_utililtie.h"
-#include "Vector.h"
-#include "InterleavedBuffer.h"
 #include "Matrix.h"
 #include "geometry_data.h"
 #include "Quaternion.h"
@@ -14,7 +10,6 @@
 #include "Transform.h"
 #include "VulkanDescriptorSetLayout.h"
 #include <boost/container/small_vector.hpp>
-#include "common/glsl_alignment_traits.h"
 #include "as_bytes.h"
 #include "ModelLoader.h"
 
@@ -257,7 +252,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         .commitUpdate();
 }
 
-void lcf::VulkanRenderer::render(const Entity & camera, RenderTarget::WeakPointer render_target_wp)
+void lcf::VulkanRenderer::render(const Entity & camera, const Entity & render_target)
 {
     auto device = m_context_p->getDevice();
     auto &current_frame_resources = m_frame_resources[m_current_frame_index];
@@ -265,11 +260,12 @@ void lcf::VulkanRenderer::render(const Entity & camera, RenderTarget::WeakPointe
     VulkanCommandBufferObject & cmd = current_frame_resources.command_buffer; 
     cmd.prepareForRecording();
 
+    auto render_target_wp = render_target.getComponent<VulkanSwapchain::WeakPointer>();
     if (render_target_wp.expired()) { return; }
-    const auto & render_target = std::static_pointer_cast<VulkanSwapchain>(render_target_wp.lock());
-    if (not render_target->prepareForRender()) { return; }
+    const auto & render_target_sp = render_target_wp.lock();
+    if (not render_target_sp->prepareForRender()) { return; }
 
-    auto [width, height] = render_target->getExtent();
+    auto [width, height] = render_target_sp->getExtent();
     vk::Viewport viewport;
     viewport.setX(0.0f).setY(height)
         .setWidth(static_cast<float>(width))
@@ -289,11 +285,10 @@ void lcf::VulkanRenderer::render(const Entity & camera, RenderTarget::WeakPointe
     Matrix4x4 projection, projection_view;
     projection.perspective(60.0f, static_cast<float>(width) / height, 0.1f, 1000.0f);
     auto &camera_transform = camera.getComponent<Transform>();
-    const auto & camera_view = camera_transform.getInvertedWorldMatrix();
-    projection_view = projection * camera_view;
-
+    const auto & camera_view = camera.getComponent<TransformInvertedWorldMatrix>();
+    projection_view = projection * camera_view.getMatrix();
     m_per_view_uniform_buffer.addWriteSegment({as_bytes_from_value(projection), 0u})
-        .addWriteSegment({as_bytes_from_value(camera_view), sizeof(Matrix4x4)})
+        .addWriteSegment({as_bytes_from_value(camera_view.getMatrix()), sizeof(Matrix4x4)})
         .addWriteSegment({as_bytes_from_value(projection_view), 2 * sizeof(Matrix4x4)});
     
     auto &descriptor_manager = current_frame_resources.descriptor_manager;
@@ -360,7 +355,7 @@ void lcf::VulkanRenderer::render(const Entity & camera, RenderTarget::WeakPointe
     
     current_framebuffer.endRendering(cmd);
 
-    auto & render_target_resources = render_target->getCurrentFrameResources();
+    auto & render_target_resources = render_target_sp->getCurrentFrameResources();
     auto & target_image_sp = render_target_resources.getImageSharedPointer();
     // blit to target
     auto msaa_attachment = current_framebuffer.getMSAAResolveAttachment();
@@ -382,6 +377,6 @@ void lcf::VulkanRenderer::render(const Entity & camera, RenderTarget::WeakPointe
         .addSignalSubmitInfo(render_target_resources.getPresentReadySemaphore());
     cmd.submit(vk::QueueFlagBits::eGraphics);
 
-    render_target->finishRender();
+    render_target_sp->finishRender();
     ++m_current_frame_index %= m_frame_resources.size();
 }

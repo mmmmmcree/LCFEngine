@@ -1,7 +1,7 @@
 #include "VulkanPipeline.h"
 #include "VulkanContext.h"
 #include "VulkanShaderProgram.h"
-#include "error.h"
+#include "log.h"
 
 using namespace lcf::render;
 
@@ -13,7 +13,9 @@ bool VulkanPipeline::create(VulkanContext *context, const ComputePipelineCreateI
     if (not m_shader_program or
         not m_shader_program->isLinked() or
         not m_shader_program->containsStage(ShaderTypeFlagBits::eCompute)) {
-        LCF_THROW_RUNTIME_ERROR("lcf::render::VulkanPipeline::create(): shader program is invalid");
+        std::runtime_error error("shader program is invalid");
+        lcf_log_error(error.what());
+        throw error;
     }
     auto device = m_context_p->getDevice();
     vk::ComputePipelineCreateInfo compute_pipeline_info;
@@ -33,7 +35,9 @@ bool VulkanPipeline::create(VulkanContext *context, const GraphicPipelineCreateI
     if (not m_shader_program or
         not m_shader_program->isLinked() or
         m_shader_program->containsStage(ShaderTypeFlagBits::eCompute)) {
-        LCF_THROW_RUNTIME_ERROR("lcf::render::VulkanPipeline::create(): shader program is invalid");
+        std::runtime_error error("shader program is invalid");
+        lcf_log_error(error.what());
+        throw error;
     }
 
     auto device = m_context_p->getDevice();

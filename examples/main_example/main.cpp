@@ -1,84 +1,59 @@
-#include "Application.h"
-#include "RenderWindow.h"
+#include "gui_types.h"
+#include "input_types.h"
 #include "Vulkan/VulkanContext.h"
 #include "Vulkan/VulkanRenderer.h"
-#include "CameraControllers/TrackballController.h"
-#include "Entity.h"
-#include "TransformSystem.h"
 #include "Timer.h"
-#include <QTimer>
+#include "Transform.h"
+#include "TransformSystem.h"
+#include "CameraControllers/TrackballController.h"
+#include "log.h"
 
-class CustomRenderWindow : public lcf::render::RenderWindow
+int main(int argc, char *argv[])
 {
-public:
-    CustomRenderWindow(lcf::Window * parent = nullptr) :
-        lcf::render::RenderWindow(parent)
-    {
-    }
-protected:
-    void keyPressEvent(QKeyEvent *event) override
-    {
-        switch (event->key()) {
-            case Qt::Key_F1: {
-                this->setWindowState(Qt::WindowFullScreen);
-            } break;
-            case Qt::Key_Escape: {
-                this->setWindowState(Qt::WindowNoState);
-            } break;
-        }
-    }
-};
+    lcf::Logger::init();
+    lcf::Registry registry;
+    lcf::render::VulkanContext context; //- create context before create vulkan window(load vulkan if use dynamic link library)
+
+    auto window_up = lcf::gui::WindowSystem::getInstance().allocateWindow();
+    lcf::gui::WindowCreateInfo window_info;
+    window_info.setRegistryPtr(&registry)
+        .setWidth(1280)
+        .setHeight(720)
+        .setSurfaceType(lcf::gui::SurfaceType::eVulkan);
+    window_up->create(window_info); //- create window before register to context
+    window_up->show(); //- show after create
 
 
-int main(int argc, char* argv[]) {
-    lcf::GuiApplication app(argc, argv);
-    lcf::render::VulkanContext context;
-    lcf::InputManager input_manager;
-    CustomRenderWindow render_window;
-    render_window.installEventFilter(&input_manager);
-    context.registerWindow(&render_window);
-    context.create();
+    context.registerWindow(window_up->getEntity())
+        .create();
 
     lcf::VulkanRenderer renderer;
-    renderer.create(&context, render_window.getRenderTarget().lock()->getMaximalExtent());
-    render_window.resize(1280, 720);
-    render_window.show();
+    renderer.create(&context, lcf::gui::WindowSystem::getInstance().getPrimaryDisplayerInfo().getDesktopModeInfo().getRenderExtent());
 
-    lcf::Registry registry;
-    auto & dispatcher = registry.ctx().get<lcf::Dispatcher>();
+    lcf::TransformSystem transform_system(registry);
+    lcf::Entity camera_entity(registry);
+    auto & transform = camera_entity.requireComponent<lcf::Transform>();
+    camera_entity.requireComponent<lcf::TransformInvertedWorldMatrix>(transform.getWorldMatrix());
 
-    lcf::TransformSystem transform_system(&registry);
-    lcf::Entity camera_entity(&registry);
-    camera_entity.requireComponent<lcf::Transform>();
-    
+    lcf::InputReader input_reader;
     lcf::modules::TrackballController trackball_controller;
-    trackball_controller.setInputManager(&input_manager);
+    trackball_controller.setInputReader(input_reader);
 
-    int update_interval = 5;
-    double refresh_rate = render_window.screen()->refreshRate();
-    if (refresh_rate > 60.0) {
-        update_interval /= refresh_rate / 60.0;
-    }
-    
     auto render_loop = [&] {
-        dispatcher.update();
-        input_manager.update();
-        trackball_controller.update(camera_entity);
+        input_reader.update(window_up->getComponent<lcf::InputCollector>().getSnapshot());
+        trackball_controller.update(camera_entity); //todo upadate multiple camera entity
         transform_system.update();
-        renderer.render(camera_entity, render_window.getRenderTarget());
+        renderer.render(camera_entity, window_up->getEntity()); //todo make a data pack
     };
-
-    // QTimer timer;    
-    // timer.setInterval(update_interval);
-    // QObject::connect(&timer, &QTimer::timeout, render_loop);
-    // timer.start();
-    
+        
     lcf::ThreadTimer timer;
     timer.setCallback(render_loop)
-        .setInterval(std::chrono::milliseconds(update_interval))
+        .setInterval(std::chrono::milliseconds(1))
         .start();
 
-    app.exec();
-
+    while (true) {
+        window_up->pollEvents();
+        if (window_up->getState() == lcf::gui::WindowState::eAboutToClose) { break; }
+    }
     return 0;
 }

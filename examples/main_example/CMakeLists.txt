@@ -20,22 +20,6 @@ add_custom_command(TARGET main_example POST_BUILD
     VERBATIM
 ) 
 
-# if(MSVC)
-#     target_compile_options(${PROJECT_NAME} PRIVATE
-#         /permissive-
-#         /Zc:__cplusplus
-#         /Wall
-#         /Zc:forScope
-#         /Zc:inline
-#         /Zc:strictStrings
-#         /Zc:throwingNew
-#         /Zc:referenceBinding
-#         /Zc:noexceptTypes
-#         /Zc:ternary
-#         /analyze
-#     )
-# endif() 
-
 set_target_properties(main_example PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )

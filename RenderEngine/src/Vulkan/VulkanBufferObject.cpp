@@ -1,8 +1,8 @@
 #include "VulkanBufferObject.h"
 #include "VulkanContext.h"
+#include "log.h"
 #include <boost/align.hpp>
 #include "vulkan_utililtie.h"
-#include "error.h"
 
 using namespace lcf::render;
 
@@ -42,8 +42,9 @@ bool VulkanBufferObject::create(VulkanContext *context_p)
     vk::MemoryPropertyFlags memory_flags;
     switch (m_usage) {
         case GPUBufferUsage::eUndefined : {
-            LCF_THROW_RUNTIME_ERROR("lcf::render::VulkanBufferObject::create: Undefined buffer usage");
-            return false;
+            std::runtime_error error("Undefined buffer usage");
+            lcf_log_error(error.what());
+            throw error;
         } break;
         case GPUBufferUsage::eVertex : {
             m_stage_flags = vk::PipelineStageFlagBits2::eVertexInput;

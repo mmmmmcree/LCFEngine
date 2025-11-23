@@ -3,6 +3,7 @@
 #include <utility>
 #include "PointerDefs.h"
 #include <atomic>
+#include <algorithm>
 
 namespace lcf::render {
     class RenderTarget : public STDPointerDefs<RenderTarget>
