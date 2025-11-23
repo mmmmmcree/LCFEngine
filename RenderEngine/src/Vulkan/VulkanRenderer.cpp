@@ -285,8 +285,9 @@ void lcf::VulkanRenderer::render(const Entity & camera, const Entity & render_ta
     Matrix4x4 projection, projection_view;
     projection.perspective(60.0f, static_cast<float>(width) / height, 0.1f, 1000.0f);
     auto &camera_transform = camera.getComponent<Transform>();
-    const auto & camera_view = camera_transform.getInvertedWorldMatrix();
-    projection_view = projection * camera_view;
+    // const auto & camera_view = camera_transform.getInvertedWorldMatrix();
+    const auto & camera_view = camera.getComponent<TransformInvertedWorldMatrix>();
+    projection_view = projection * camera_view.getMatrix();
 
     m_per_view_uniform_buffer.addWriteSegment({as_bytes_from_value(projection), 0u})
         .addWriteSegment({as_bytes_from_value(camera_view), sizeof(Matrix4x4)})

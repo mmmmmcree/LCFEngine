@@ -44,6 +44,13 @@ void lcf::Transform::setWorldMatrix(Matrix4x4 &&world_matrix) noexcept
     m_world_matrix = std::move(world_matrix);
 }
 
+const Matrix4x4 &lcf::Transform::getWorldMatrix() const noexcept
+{
+    if (not m_is_dirty) { return m_world_matrix; }
+    m_is_dirty = false;
+    return m_world_matrix = m_parent ? m_parent->getWorldMatrix() * this->getLocalMatrix() : this->getLocalMatrix();
+}
+
 void lcf::Transform::translateWorld(float x, float y, float z) noexcept
 {
     this->translateWorld(Vector3D<float>(x, y, z));

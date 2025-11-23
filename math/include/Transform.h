@@ -5,8 +5,11 @@
 #include "PointerDefs.h"
 
 namespace lcf {
+    class CachedInvertedMatrix;
+
     class Transform
     {
+        using Self = Transform;
     public:
         Transform() = default;
         Transform(const Transform &other);
@@ -14,9 +17,15 @@ namespace lcf {
         Transform & operator=(const Transform &other);
         Transform & operator=(Transform && other) noexcept;
         void setLocalMatrix(const Matrix4x4 & matrix) noexcept;
+        void setParent(Self & parent) noexcept { m_parent = &parent; }
+        void setNullParent() noexcept { m_parent = nullptr; }
+        Self * getParentPtr() const noexcept { return m_parent; }
+        void markDirty() noexcept { m_is_dirty = true; }
+        void cleanDirty() noexcept { m_is_dirty = false; }
+        bool isDirty() const noexcept { return m_is_dirty; }
         void setWorldMatrix(const Matrix4x4 & world_matrix) noexcept;
         void setWorldMatrix(Matrix4x4 && world_matrix) noexcept;
-        const Matrix4x4 & getWorldMatrix() const noexcept { return m_world_matrix; }
+        const Matrix4x4 & getWorldMatrix() const noexcept;
         const Matrix4x4 & getLocalMatrix() const noexcept { return m_local_matrix; }
         void translateWorld(float x, float y, float z) noexcept;
         void translateWorld(const Vector3D<float> &translation) noexcept;
@@ -51,7 +60,30 @@ namespace lcf {
         Quaternion getRotation() const noexcept;
         Vector3D<float> getScale() const noexcept;
     private:
+        mutable bool m_is_dirty = true;
+        Self * m_parent = nullptr;
         Matrix4x4 m_local_matrix;
-        Matrix4x4 m_world_matrix;
+        mutable Matrix4x4 m_world_matrix;
     };
+    
+    class CachedInvertedMatrix
+    {
+    public:
+        CachedInvertedMatrix(const Matrix4x4 & original_matrix) : m_original_matrix_p(&original_matrix) {}
+        void markDirty() noexcept { m_is_dirty = true; }
+        void cleanDirty() noexcept { m_is_dirty = false; }
+        bool isDirty() const noexcept { return m_is_dirty; }
+        const Matrix4x4 & getMatrix() const noexcept
+        {
+            if (not m_is_dirty) { return m_matrix; }
+            m_is_dirty = false;
+            return m_matrix = m_original_matrix_p->inverted();
+        }
+    private:
+        const Matrix4x4 * m_original_matrix_p = nullptr;
+        mutable bool m_is_dirty = true;
+        mutable Matrix4x4 m_matrix;
+    };
+
+    class TransformInvertedWorldMatrix : public CachedInvertedMatrix {};
 }

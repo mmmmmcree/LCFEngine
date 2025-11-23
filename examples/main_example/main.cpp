@@ -27,9 +27,11 @@ int main(int argc, char *argv[])
     renderer.create(&context, lcf::gui::WindowSystem::getInstance().getPrimaryDisplayerInfo().getDesktopModeInfo().getRenderExtent());
 
     lcf::Entity camera_entity(registry);
-    camera_entity.requireComponent<lcf::Transform>();
+    auto & transform = camera_entity.requireComponent<lcf::Transform>();
+    camera_entity.requireComponent<lcf::TransformInvertedWorldMatrix>(transform.getWorldMatrix());
 
     auto render_loop = [&] {
+        
         renderer.render(camera_entity, window_up->getEntity()); //todo make a data pack
     };
         
