@@ -4,6 +4,7 @@
 #include "PointerDefs.h"
 #include <filesystem>
 #include <span>
+#include <functional>
 #include <boost/gil.hpp>
 #include <boost/gil/extension/dynamic_image/dynamic_image_all.hpp>
 
@@ -118,10 +119,10 @@ namespace lcf {
         Image(ImageVariant && image) noexcept : m_image(std::move(image)) {}
         Image & operator=(ImageVariant && image) noexcept { m_image = std::move(image); return *this; }
         Format getFormat() const noexcept { return m_format; }
-        ColorSpace getColorSpace() const noexcept { return getColorSpace(m_format); }
-        DataType getDataType() const noexcept { return getDataType(m_format); }
-        uint32_t getChannelCount() const noexcept { return getChannelCount(m_format); }
-        uint32_t getBytesPerChannel() const noexcept { return getBytesPerChannel(m_format); }
+        ColorSpace getColorSpace() const noexcept { return get_color_space(m_format); }
+        DataType getDataType() const noexcept { return get_data_type(m_format); }
+        uint32_t getChannelCount() const noexcept { return get_channel_count(m_format); }
+        uint32_t getBytesPerChannel() const noexcept { return get_bytes_per_channel(m_format); }
         uint32_t getWidth() const noexcept;
         uint32_t getHeight() const noexcept;
         std::pair<uint32_t, uint32_t> getDimensions() const noexcept { return { this->getWidth(), this->getHeight() }; }
@@ -138,14 +139,14 @@ namespace lcf {
         Self & flipUpDown();
         Self & flipLeftRight();
     private:
-        static ColorSpace getColorSpace(Format format) { return static_cast<ColorSpace>(to_integral(format) & 0xFFFF); }
-        static DataType getDataType(Format format) { return static_cast<DataType>((to_integral(format) >> 16) & 0xFF); }
-        static size_t getChannelCount(Format format) { return to_integral(getColorSpace(format)) & 0xFF; }
-        static size_t getBytesPerChannel(Format format) { return getDataType(format) & 0x1F; }
-        static std::filesystem::path getExtension(FileType type);
-        static FileType deduceFileType(const std::filesystem::path & path);
-        bool loadUint8FromFile(const std::filesystem::path & path, Format format);
-        bool loadUint16FromFile(const std::filesystem::path & path, Format format);
+        static ColorSpace get_color_space(Format format) { return static_cast<ColorSpace>(to_integral(format) & 0xFFFF); }
+        static DataType get_data_type(Format format) { return static_cast<DataType>((to_integral(format) >> 16) & 0xFF); }
+        static size_t get_channel_count(Format format) { return to_integral(get_color_space(format)) & 0xFF; }
+        static size_t get_bytes_per_channel(Format format) { return get_data_type(format) & 0x1F; }
+        static std::filesystem::path get_extension(FileType type);
+        static FileType deduce_file_type(const std::filesystem::path & path);
+    private:
+        bool loadFromFileFast(const std::filesystem::path &path, Format format);
         bool loadFromPNG(const std::filesystem::path & path);
         bool loadFromPNG(const std::filesystem::path & path, Format format);
         bool loadFromJPG(const std::filesystem::path & path);

@@ -58,7 +58,7 @@ lcf::ConstImageView lcf::ConstImageView::getSubView(size_t top_left_x, size_t to
 
 bool lcf::ConstImageView::saveToFile(const std::filesystem::path &path) const
 {
-    switch (Image::deduceFileType(path)) {
+    switch (Image::deduce_file_type(path)) {
         case Image::FileType::eJPG: { return this->saveToJPG(path); };
         case Image::FileType::ePNG: { return this->saveToPNG(path); };
     }

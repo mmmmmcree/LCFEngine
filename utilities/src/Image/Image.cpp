@@ -57,7 +57,7 @@ bool lcf::Image::loadFromFile(const std::filesystem::path &path)
 {
     if (not std::filesystem::exists(path)) { return false; }
     bool successful = false;
-    switch (Image::deduceFileType(path)) {
+    switch (Image::deduce_file_type(path)) {
         case Image::FileType::eJPG: { successful = this->loadFromJPG(path); } break;
         case Image::FileType::ePNG: { successful = this->loadFromPNG(path); } break;
     }
@@ -69,7 +69,7 @@ bool lcf::Image::loadFromFile(const std::filesystem::path &path, Format format)
 {
     if (not std::filesystem::exists(path)) { return false; }
     bool successful = false;
-    switch (Image::deduceFileType(path)) {
+    switch (Image::deduce_file_type(path)) {
         case Image::FileType::eJPG: { successful = this->loadFromJPG(path, format); } break;
         case Image::FileType::ePNG: { successful = this->loadFromPNG(path, format); } break;
     }
@@ -79,7 +79,7 @@ bool lcf::Image::loadFromFile(const std::filesystem::path &path, Format format)
 
 bool lcf::Image::loadFromMemory(std::span<const std::byte> data, Format format, size_t width)
 {
-    size_t row_size_in_bytes = getChannelCount(format) * getBytesPerChannel(format) * width;
+    size_t row_size_in_bytes = get_channel_count(format) * get_bytes_per_channel(format) * width;
     if (data.size() % row_size_in_bytes != 0) { return false; }
     size_t height = data.size() / row_size_in_bytes;
     switch (format) {
@@ -120,11 +120,11 @@ Image & lcf::Image::convertTo(Format format)
 {
     if (m_format == format) { return *this; }
 
-    if (getColorSpace(m_format) == ColorSpace::eGray and getColorSpace(format) == ColorSpace::eGray) {
+    if (get_color_space(m_format) == ColorSpace::eGray and get_color_space(format) == ColorSpace::eGray) {
         details::convert_from_gray_to_gray(m_image, m_format, format);
-    } else if (getColorSpace(m_format) == ColorSpace::eGray) {
+    } else if (get_color_space(m_format) == ColorSpace::eGray) {
         details::convert_from_gray_to_color(m_image, m_format, format);
-    } else if (getColorSpace(format) == ColorSpace::eGray) {
+    } else if (get_color_space(format) == ColorSpace::eGray) {
         details::convert_from_color_to_gray(m_image, m_format, format);
     } else {
         details::convert_from_color_to_color(m_image, m_format, format);
@@ -159,7 +159,7 @@ Image & lcf::Image::flipLeftRight()
     return *this;
 }
 
-std::filesystem::path lcf::Image::getExtension(FileType type)
+std::filesystem::path lcf::Image::get_extension(FileType type)
 {
     std::filesystem::path ext;
     switch (type)
@@ -171,7 +171,7 @@ std::filesystem::path lcf::Image::getExtension(FileType type)
     return ext;
 }
 
-Image::FileType lcf::Image::deduceFileType(const std::filesystem::path & path)
+Image::FileType lcf::Image::deduce_file_type(const std::filesystem::path & path)
 {
     static std::unordered_map<std::filesystem::path, FileType> file_type_map
     {
@@ -185,25 +185,19 @@ Image::FileType lcf::Image::deduceFileType(const std::filesystem::path & path)
     return file_type_map.at(ext);
 }
 
-bool lcf::Image::loadUint8FromFile(const std::filesystem::path &path, Format format)
+bool lcf::Image::loadFromFileFast(const std::filesystem::path &path, Format format)
 {
     int width, height, channels;
-    auto start = std::chrono::high_resolution_clock::now();
-    stbi_uc * data = stbi_load(path.string().c_str(), &width, &height, &channels, getChannelCount(format));
+    int requested_channels = get_channel_count(format);
+    void * data = nullptr;
+    size_t bytes_per_channel = get_bytes_per_channel(format);
+    switch (bytes_per_channel) {
+        case 1: { data = stbi_load(path.string().c_str(), &width, &height, &channels, requested_channels); } break;
+        case 2: { data = stbi_load_16(path.string().c_str(), &width, &height, &channels, requested_channels); } break;
+    }
     if (data == nullptr) { return false; }
-    std::span<std::byte> span(reinterpret_cast<std::byte *>(data), width * height * channels * sizeof(stbi_uc));
-    this->loadFromMemory(span, format, width);
-    stbi_image_free(data);
-    return true;
-}
-
-bool lcf::Image::loadUint16FromFile(const std::filesystem::path &path, Format format)
-{
-    int width, height, channels;
-    auto start = std::chrono::high_resolution_clock::now();
-    stbi_us * data = stbi_load_16(path.string().c_str(), &width, &height, &channels, getChannelCount(format));
-    if (data == nullptr) { return false; }
-    std::span<std::byte> span(reinterpret_cast<std::byte *>(data), width * height * channels * sizeof(stbi_us));
+    channels = std::max(channels, requested_channels);
+    std::span<std::byte> span(reinterpret_cast<std::byte *>(data), width * height * channels * bytes_per_channel);
     this->loadFromMemory(span, format, width);
     stbi_image_free(data);
     return true;
@@ -220,13 +214,11 @@ bool lcf::Image::loadFromPNG(const std::filesystem::path &path, Format format)
     switch (format) {
         case Format::eGray8Uint:
         case Format::eRGB8Uint:
-        case Format::eRGBA8Uint: {
-            this->loadUint8FromFile(path, format);
-        } break;
+        case Format::eRGBA8Uint:
         case Format::eGray16Uint:
         case Format::eRGB16Uint:
         case Format::eRGBA16Uint: {
-            this->loadUint16FromFile(path, format);
+            this->loadFromFileFast(path, format);
         } break;
         case Format::eBGR8Uint: {
             gil::bgr8_image_t image;
@@ -260,7 +252,7 @@ bool lcf::Image::loadFromJPG(const std::filesystem::path &path, Format format)
         case Format::eGray8Uint: 
         case Format::eRGB8Uint:
         case Format::eRGBA8Uint: {
-            this->loadUint8FromFile(path, format);
+            this->loadFromFileFast(path, format);
         } break;
         case Format::eBGR8Uint: {
             gil::bgr8_image_t image;
