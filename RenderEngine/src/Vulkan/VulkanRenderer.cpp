@@ -119,16 +119,11 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     image1_sp->loadFromFile("assets/images/bk.jpg", Image::Format::eRGBA8Uint);
     auto image2_sp = Image::makeShared();
     image2_sp->loadFromFile("assets/images/qt256.png", Image::Format::eRGBA8Uint);
-    // material_sp->addImage(Image::makeShared("assets/images/bk.jpg", 4))
-    //     .addImage(Image::makeShared("assets/images/qt256.png", 4));
     material_sp->addImage(image1_sp)
         .addImage(image2_sp);
 
     Model cube_model = ModelLoader().load("./assets/models/dinosaur/source/Rampaging T-Rex.glb");
     cube_model.addMaterial(material_sp);
-    // Model cube_model;
-    // cube_model.addMesh(mesh_sp) 
-    //     .addMaterial(material_sp);
 
     vkutils::immediate_submit(m_context_p, [this, &cube_model](VulkanCommandBufferObject & cmd) {
         m_mesh.create(m_context_p, cmd, cube_model.getMesh(0));
