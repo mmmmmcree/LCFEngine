@@ -4,7 +4,6 @@
 #include "PointerDefs.h"
 #include <filesystem>
 #include <span>
-#include <functional>
 #include <boost/gil.hpp>
 #include <boost/gil/extension/dynamic_image/dynamic_image_all.hpp>
 
