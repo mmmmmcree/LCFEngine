@@ -24,6 +24,7 @@ namespace lcf {
         void releaseMouseButtons(MouseButtonFlags buttons) noexcept;
         bool isMouseButtonsPressed(MouseButtonFlags buttons) const noexcept;
         void setMousePosition(const MousePosition & position) noexcept { m_mouse_position = position; }
+        void addMousePosition(const MousePosition & delta) noexcept { m_mouse_position += delta; }
         const MousePosition & getMousePosition() const noexcept { return m_mouse_position; }
         void addWheelOffset(const WheelOffset & delta) noexcept { m_wheel_offset += delta; }
         const WheelOffset & getWheelOffset() const noexcept { return m_wheel_offset; }

@@ -35,6 +35,7 @@ bool lcf::gui::SDLWindow::create(const WindowCreateInfo &info)
         SDL_Log("lcf::gui::SDLWindow creation failed: %s", SDL_GetError());
         return false;
     }
+    // SDL_SetWindowRelativeMouseMode(m_window_p, true); //infinite mouse movement
     switch (info.getSurfaceType()) {
         case SurfaceType::eVulkan: {
             auto & bridge_sp = m_entity.requireComponent<VulkanSurfaceBridge::SharedPointer>();
@@ -75,11 +76,11 @@ void lcf::gui::SDLWindow::pollEvents()
             case SDL_EVENT_MOUSE_WHEEL: {
                 m_input_state.addWheelOffset({event.wheel.integer_x, event.wheel.integer_y});
             } break;
+            case SDL_EVENT_MOUSE_MOTION: {
+                m_input_state.addMousePosition({event.motion.xrel, event.motion.yrel});
+            } break;
         }
     }
-    InputState::MousePosition mouse_pos;
-    SDL_GetMouseState(&mouse_pos.x, &mouse_pos.y);
-    m_input_state.setMousePosition(mouse_pos);
 
     auto & input_collector = m_entity.getComponent<InputCollector>();
     input_collector.collect(m_input_state);
