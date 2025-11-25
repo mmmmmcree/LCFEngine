@@ -45,11 +45,10 @@ namespace lcf {
         Self * m_parent = nullptr;
         ChildrenPtrList m_children;
         Matrix4x4 m_local_matrix;
+        mutable Matrix4x4 m_inverted_world_matrix;
         mutable Matrix4x4 m_world_matrix;
     };
-}
 
-namespace lcf {
     class OOPTransform2
     {
         using Self = OOPTransform2;

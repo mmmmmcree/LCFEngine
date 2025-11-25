@@ -2,6 +2,8 @@ project(ecs_transform_test)
 
 file(GLOB_RECURSE SOURCES "src/*.cpp")
 
+find_package(Tracy CONFIG REQUIRED)
+
 include_directories(  
   ${CMAKE_CURRENT_SOURCE_DIR}/include 
 )
@@ -12,6 +14,7 @@ target_link_libraries(${PROJECT_NAME}
         core
         utilities
         math
+        Tracy::TracyClient
 )
 
 set_target_properties(${PROJECT_NAME} PROPERTIES

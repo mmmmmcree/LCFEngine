@@ -2,7 +2,11 @@
 #include "signals.h"
 #include <deque>
 #include <algorithm>
-#include "Transform.h"
+#include "Matrix.h"
+#include "Vector.h"
+
+
+using Transform = lcf::ENTTTransform;
 
 lcf::TransformSystem::TransformSystem(Registry & registry) :
     m_registry_p(&registry)

@@ -2,6 +2,8 @@
 
 #include "Entity.h"
 #include "signals.h"
+#include "Vector.h"
+#include "Matrix.h"
 #include <boost/container/vector.hpp>
 #include <boost/pool/pool_alloc.hpp>
 #include <boost/container/flat_map.hpp>
@@ -81,5 +83,17 @@ namespace lcf {
     private:
         bool m_dirty = false;
     };
-   
+
+    class ENTTTransform
+    {
+    public:
+        ENTTTransform() = default;
+        void setWorldMatrix(const Matrix4x4 &matrix) noexcept { m_world_matrix = matrix; }
+        const Matrix4x4 &getWorldMatrix() const noexcept { return m_world_matrix; }
+        const Matrix4x4 &getLocalMatrix() const noexcept { return m_local_matrix; }
+        void translateLocal(const Vector3D<float> &translation) noexcept { m_local_matrix.translateLocal(translation); }
+    private:
+        Matrix4x4 m_local_matrix;
+        Matrix4x4 m_world_matrix;
+    };
 }
