@@ -45,7 +45,7 @@ void lcf::render::VulkanContext::create()
 void lcf::render::VulkanContext::setupVulkanInstance()
 {
 #if ( VULKAN_HPP_DISPATCH_LOADER_DYNAMIC == 1 )
-    static bool s_vulkan_loaded = [] -> bool {
+    static bool s_vulkan_loaded = []() -> bool {
         VULKAN_HPP_DEFAULT_DISPATCHER.init();
         return true;
     }();
@@ -134,34 +134,53 @@ int lcf::render::VulkanContext::calculatePhysicalDeviceScore(const vk::PhysicalD
 
 void lcf::render::VulkanContext::findQueueFamilies()
 {
-    auto queue_families = m_physical_device.getQueueFamilyProperties();
-    vk::QueueFlags required_flags = vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute;
-    bool require_present = not m_surface_render_targets.empty();
-    for (int queue_family_index = 0; queue_family_index < queue_families.size(); ++queue_family_index) {
-        const auto &queue_family = queue_families[queue_family_index];
-        if (queue_family.queueFlags & (vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute)) {
-            if (require_present) {
-                // make sure graphics queue also supports presenting to the surface
-                bool supports_all_surfaces = std::ranges::all_of(m_surface_render_targets, [this, queue_family_index](const auto &render_target) {
-                    return m_physical_device.getSurfaceSupportKHR(queue_family_index, render_target->getSurface());
+    auto queue_family_properties = m_physical_device.getQueueFamilyProperties();
+    auto get_queue_family_index = [this, &queue_family_properties](vk::QueueFlags desired_flags, vk::QueueFlags undesired_flags) -> std::optional<uint32_t>
+    {
+        std::optional<uint32_t> queue_family_index = std::nullopt;
+        for (int i = 0; i < queue_family_properties.size(); ++i) {
+            const auto & queue_family_property = queue_family_properties[i];
+            if (not (queue_family_property.queueFlags & desired_flags)) { continue; }
+            if (desired_flags & vk::QueueFlagBits::eGraphics) {
+                bool supports_all_surfaces = std::ranges::all_of(m_surface_render_targets, [this, i](const auto &render_target) {
+                    return m_physical_device.getSurfaceSupportKHR(i, render_target->getSurface());
                 });
                 if (not supports_all_surfaces) { continue; }
             }
-            m_queue_family_indices[static_cast<uint32_t>(vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute)] = queue_family_index;
-            m_queue_family_indices[static_cast<uint32_t>(vk::QueueFlagBits::eGraphics)] = queue_family_index;
-            m_queue_family_indices[static_cast<uint32_t>(vk::QueueFlagBits::eCompute)] = queue_family_index;
-            required_flags &= ~(vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute);
+            queue_family_index = i;
+            if (not (queue_family_property.queueFlags & undesired_flags)) { break; }
         }
-        if (not required_flags) { break; }
-    }   
+        return queue_family_index;
+    };
+    std::vector<std::pair<vk::QueueFlags, vk::QueueFlags>> queue_flags_pairs = {
+        { vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute, vk::QueueFlagBits {} },
+        { vk::QueueFlagBits::eGraphics, vk::QueueFlagBits {} },
+        { vk::QueueFlagBits::eTransfer, vk::QueueFlagBits::eCompute },
+        { vk::QueueFlagBits::eCompute, vk::QueueFlagBits::eTransfer },
+    };
+    for (auto [desired_flags, undesired_flags] : queue_flags_pairs) {
+        auto flags_key = static_cast<vk::QueueFlags::MaskType>(desired_flags);
+        auto queue_family_index = get_queue_family_index(desired_flags, undesired_flags);
+        if (queue_family_index) {
+            m_queue_family_indices[flags_key] = queue_family_index.value();
+        }
+    }
 }
 
 void lcf::render::VulkanContext::createLogicalDevice()
 {
     std::array<float, 1> queue_priorities = { 1.0f };
-    std::vector<vk::DeviceQueueCreateInfo> queue_infos(1);
-    queue_infos[0].setQueueFamilyIndex(this->getQueueFamilyIndex(vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute))
-        .setQueuePriorities(queue_priorities);
+    std::set<uint32_t> queue_family_indices;
+    for (auto [queue_flags, queue_index] : m_queue_family_indices) {
+        queue_family_indices.insert(queue_index);
+    }
+    std::vector<vk::DeviceQueueCreateInfo> queue_infos;
+    for (auto queue_index : queue_family_indices) {
+        vk::DeviceQueueCreateInfo queue_info;
+        queue_info.setQueueFamilyIndex(queue_index)
+            .setQueuePriorities(queue_priorities);
+        queue_infos.emplace_back(queue_info);
+    }
 
     std::vector<const char *> required_extensions = {
         VK_KHR_MAINTENANCE1_EXTENSION_NAME,
@@ -208,13 +227,16 @@ void lcf::render::VulkanContext::createLogicalDevice()
     } catch (const vk::SystemError &e) {
         lcf_log_error(e.what());
     }
-    m_queues[static_cast<uint32_t>(vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute)] = m_device->getQueue(this->getQueueFamilyIndex(vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute), 0);
-    m_queues[static_cast<uint32_t>(vk::QueueFlagBits::eGraphics)] = m_device->getQueue(this->getQueueFamilyIndex(vk::QueueFlagBits::eGraphics), 0);
-    m_queues[static_cast<uint32_t>(vk::QueueFlagBits::eCompute)] = m_device->getQueue(this->getQueueFamilyIndex(vk::QueueFlagBits::eCompute), 0);
+
+    auto queue_family_properties = m_physical_device.getQueueFamilyProperties();
+    for (auto [queue_flags, queue_index] : m_queue_family_indices) {
+        m_queues[queue_flags] = m_device->getQueue(queue_index, 0); // todo support one index multiple queues ?
+    }
 }
 
 void lcf::render::VulkanContext::createCommandPool()
 {
+    //todo support mutiple queues
     vk::CommandPoolCreateInfo command_pool_info;
     command_pool_info.setQueueFamilyIndex(this->getQueueFamilyIndex(vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute))
         .setFlags(vk::CommandPoolCreateFlagBits::eResetCommandBuffer);
