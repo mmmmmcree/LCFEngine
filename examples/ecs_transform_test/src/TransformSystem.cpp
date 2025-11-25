@@ -2,6 +2,7 @@
 #include "signals.h"
 #include <deque>
 #include <algorithm>
+#include "Transform.h"
 
 lcf::TransformSystem::TransformSystem(Registry & registry) :
     m_registry_p(&registry)

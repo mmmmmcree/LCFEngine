@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Entity.h"
-#include "Transform.h"
 #include "signals.h"
 #include <boost/container/vector.hpp>
 #include <boost/pool/pool_alloc.hpp>
