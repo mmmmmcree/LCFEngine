@@ -48,7 +48,7 @@ bool lcf::gui::SDLWindow::create(const WindowCreateInfo &info)
     return this->isCreated();
 }
 
-void lcf::gui::SDLWindow::pollEvents()
+void lcf::gui::SDLWindow::pollEvents() noexcept
 {
     for (SDL_Event event; SDL_PollEvent(&event);) {
         event.motion;
@@ -65,13 +65,15 @@ void lcf::gui::SDLWindow::pollEvents()
             } break;
             case SDL_EVENT_MOUSE_BUTTON_DOWN: {
                 m_input_state.pressMouseButtons(to_enum(event.button.button));                
-                if (event.button.clicks == 2) {
+                if (event.button.clicks >= 2) {
                     m_input_state.pressMouseButtons(MouseButtonFlags::eDoubleClicked);
                 }
             } break;
             case SDL_EVENT_MOUSE_BUTTON_UP: {
                 m_input_state.releaseMouseButtons(to_enum(event.button.button));
-                m_input_state.releaseMouseButtons(MouseButtonFlags::eDoubleClicked);
+                if (event.button.clicks >= 2) {
+                    m_input_state.releaseMouseButtons(MouseButtonFlags::eDoubleClicked);
+                }
             } break;
             case SDL_EVENT_MOUSE_WHEEL: {
                 m_input_state.addWheelOffset({event.wheel.integer_x, event.wheel.integer_y});

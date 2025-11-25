@@ -23,7 +23,7 @@ namespace lcf::gui {
         Component & getComponent() const { return m_entity.getComponent<Component>(); }
         bool isCreated() const noexcept { return m_window_p and m_state != WindowState::eNotCreated; }
         WindowState getState() const noexcept { return m_state; }
-        void pollEvents();
+        void pollEvents() noexcept;
         void show();
         void setFullScreen();
         void hide();
