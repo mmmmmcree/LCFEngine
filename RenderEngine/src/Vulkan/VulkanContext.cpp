@@ -64,8 +64,8 @@ VKAPI_ATTR void VKAPI_CALL vkDestroyDebugUtilsMessengerEXT(
 }
 
 VKAPI_ATTR vk::Bool32 VKAPI_CALL debug_callback(
-    vk::DebugUtilsMessageSeverityFlagBitsEXT message_severity,
-    vk::DebugUtilsMessageTypeFlagsEXT message_type,
+    vk::DebugUtilsMessageSeverityFlagBitsEXT severity_flags,
+    vk::DebugUtilsMessageTypeFlagsEXT type_flags,
     const vk::DebugUtilsMessengerCallbackDataEXT * callback_data,
     void * user_data);
 #endif
@@ -294,18 +294,19 @@ void lcf::render::VulkanContext::createCommandPool()
 
 #if !defined(NDEBUG) && !VULKAN_HPP_DISPATCH_LOADER_DYNAMIC
 VKAPI_ATTR vk::Bool32 VKAPI_CALL debug_callback(
-    vk::DebugUtilsMessageSeverityFlagBitsEXT message_severity,
-    vk::DebugUtilsMessageTypeFlagsEXT message_type,
+    vk::DebugUtilsMessageSeverityFlagBitsEXT severity_flags,
+    vk::DebugUtilsMessageTypeFlagsEXT type_flags,
     const vk::DebugUtilsMessengerCallbackDataEXT * callback_data,
     void * user_data)
 {
+    if (not callback_data->pMessage) { return false; }
     std::string log_output = std::format(
         "{:=^80}\n"
         "[Type] {}\n"
         "[Message ID] (0x{:x}) {}\n"
         "[Message] {}\n",
         "Vulkan Validation Layer",
-        vk::to_string(message_type),
+        vk::to_string(type_flags),
         static_cast<uint32_t>(callback_data->messageIdNumber),
         callback_data->pMessageIdName,
         callback_data->pMessage);
@@ -343,12 +344,10 @@ VKAPI_ATTR vk::Bool32 VKAPI_CALL debug_callback(
                 obj.pObjectName ? obj.pObjectName : "Unnamed");
         }
     }
-    switch (message_severity) {
-        case vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose: { lcf_log_trace(log_output); } break;
-        case vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo: { lcf_log_info(log_output); } break;
-        case vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning: { lcf_log_warn(log_output); } break;
-        case vk::DebugUtilsMessageSeverityFlagBitsEXT::eError: { lcf_log_error(log_output); } break;
-    }
+    if (severity_flags & vk::DebugUtilsMessageSeverityFlagBitsEXT::eError) { lcf_log_error(log_output); }
+    else if (severity_flags & vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning) { lcf_log_warn(log_output); }
+    else if (severity_flags & vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo) { lcf_log_info(log_output); }
+    else if (severity_flags & vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose) { lcf_log_trace(log_output); }
     return false;
 }
 #endif
