@@ -13,8 +13,7 @@ namespace lcf {
     public:
         static void init()
         {
-            static bool initialized = []() -> bool
-            {
+            static bool initialized = []() -> bool {
         #ifndef NDEBUG
                 initDebug();
         #else
@@ -24,7 +23,6 @@ namespace lcf {
             }();
         }
     private:
-    #ifndef NDEBUG
         static void initDebug()
         {
             auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
@@ -47,29 +45,38 @@ namespace lcf {
             logger->flush_on(spdlog::level::debug);
             spdlog::set_default_logger(logger);
         }
-    #else
         static void initRelease()
         {
             auto logger = spdlog::default_logger();
             logger->set_pattern("[%H:%M:%S] %^[%l]%$ \n%v");
         }
-    #endif
     };
 }
 
 #ifndef NDEBUG
-// Debug 模式：完整功能，编译所有日志
 #define lcf_log_trace(...)    SPDLOG_TRACE(__VA_ARGS__)
 #define lcf_log_debug(...)    SPDLOG_DEBUG(__VA_ARGS__)
 #define lcf_log_info(...)     SPDLOG_INFO(__VA_ARGS__)
 #define lcf_log_warn(...)     SPDLOG_WARN(__VA_ARGS__)
 #define lcf_log_error(...)    SPDLOG_ERROR(__VA_ARGS__)
 #define lcf_log_critical(...) SPDLOG_CRITICAL(__VA_ARGS__)
+#define lcf_log_trace_if(condition, ...)   do { if (condition) { SPDLOG_TRACE(__VA_ARGS__); } } while(false)
+#define lcf_log_debug_if(condition, ...)   do { if (condition) { SPDLOG_DEBUG(__VA_ARGS__); } } while(false)
+#define lcf_log_info_if(condition, ...)    do { if (condition) { SPDLOG_INFO(__VA_ARGS__); } } while(false)
+#define lcf_log_warn_if(condition, ...)    do { if (condition) { SPDLOG_WARN(__VA_ARGS__); } } while(false)
+#define lcf_log_error_if(condition, ...)   do { if (condition) { SPDLOG_ERROR(__VA_ARGS__); } } while(false)
+#define lcf_log_critical_if(condition, ...) do { if (condition) { SPDLOG_CRITICAL(__VA_ARGS__); } } while(false)
 #else
-#define lcf_log_trace(...)
-#define lcf_log_debug(...)
+#define lcf_log_trace(...) 
+#define lcf_log_debug(...) 
 #define lcf_log_info(...)     SPDLOG_INFO(__VA_ARGS__)
 #define lcf_log_warn(...)     SPDLOG_WARN(__VA_ARGS__)
 #define lcf_log_error(...)    SPDLOG_ERROR(__VA_ARGS__)
 #define lcf_log_critical(...) SPDLOG_CRITICAL(__VA_ARGS__)
+#define lcf_log_trace_if(condition, ...) 
+#define lcf_log_debug_if(condition, ...) 
+#define lcf_log_info_if(condition, ...)    do { if (condition) { SPDLOG_INFO(__VA_ARGS__); } } while(false)
+#define lcf_log_warn_if(condition, ...)    do { if (condition) { SPDLOG_WARN(__VA_ARGS__); } } while(false)
+#define lcf_log_error_if(condition, ...)   do { if (condition) { SPDLOG_ERROR(__VA_ARGS__); } } while(false)
+#define lcf_log_critical_if(condition, ...) do { if (condition) { SPDLOG_CRITICAL(__VA_ARGS__); } } while(false)
 #endif
