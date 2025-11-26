@@ -42,9 +42,37 @@ void lcf::render::VulkanContext::create()
     }
 }
 
+#if !defined(NDEBUG) && !VULKAN_HPP_DISPATCH_LOADER_DYNAMIC
+PFN_vkCreateDebugUtilsMessengerEXT  pfnVkCreateDebugUtilsMessengerEXT;
+PFN_vkDestroyDebugUtilsMessengerEXT pfnVkDestroyDebugUtilsMessengerEXT;
+
+VKAPI_ATTR VkResult VKAPI_CALL vkCreateDebugUtilsMessengerEXT(
+    VkInstance instance,
+    const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
+    const VkAllocationCallbacks* pAllocator,
+    VkDebugUtilsMessengerEXT* pMessenger)
+{
+  return pfnVkCreateDebugUtilsMessengerEXT(instance, pCreateInfo, pAllocator, pMessenger);
+}
+
+VKAPI_ATTR void VKAPI_CALL vkDestroyDebugUtilsMessengerEXT(
+    VkInstance instance,
+    VkDebugUtilsMessengerEXT messenger,
+    const VkAllocationCallbacks * pAllocator)
+{
+  return pfnVkDestroyDebugUtilsMessengerEXT(instance, messenger, pAllocator);
+}
+
+VKAPI_ATTR vk::Bool32 VKAPI_CALL debug_callback(
+    vk::DebugUtilsMessageSeverityFlagBitsEXT message_severity,
+    vk::DebugUtilsMessageTypeFlagsEXT message_type,
+    const vk::DebugUtilsMessengerCallbackDataEXT * callback_data,
+    void * user_data);
+#endif
+
 void lcf::render::VulkanContext::setupVulkanInstance()
 {
-#if ( VULKAN_HPP_DISPATCH_LOADER_DYNAMIC == 1 )
+#if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC
     static bool s_vulkan_loaded = []() -> bool {
         VULKAN_HPP_DEFAULT_DISPATCHER.init();
         return true;
@@ -98,12 +126,29 @@ void lcf::render::VulkanContext::setupVulkanInstance()
         vk::ValidationFeatureEnableEXT::eDebugPrintf
     };
     vk::ValidationFeaturesEXT validation_features;
-    validation_features.setEnabledValidationFeatures(enabled_validation_features);
     instance_info.setPNext(&validation_features);
 #endif
     m_instance = vk::createInstanceUnique(instance_info);
-#if ( VULKAN_HPP_DISPATCH_LOADER_DYNAMIC == 1 )
+#if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC
     VULKAN_HPP_DEFAULT_DISPATCHER.init(this->getInstance());
+#else
+    static bool s_dynamic_loaded = [this]() -> bool
+    {
+    #ifndef NDEBUG
+        pfnVkCreateDebugUtilsMessengerEXT = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(m_instance->getProcAddr("vkCreateDebugUtilsMessengerEXT"));
+        pfnVkDestroyDebugUtilsMessengerEXT = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(m_instance->getProcAddr("vkDestroyDebugUtilsMessengerEXT"));
+    #endif
+        return true;
+    }();
+#endif
+#ifndef NDEBUG
+    if (pfnVkCreateDebugUtilsMessengerEXT and pfnVkDestroyDebugUtilsMessengerEXT) {
+        vk::DebugUtilsMessengerCreateInfoEXT debug_messenger_info;
+        debug_messenger_info.setMessageSeverity(vk::FlagTraits<vk::DebugUtilsMessageSeverityFlagBitsEXT>::allFlags)
+            .setMessageType(vk::FlagTraits<vk::DebugUtilsMessageTypeFlagBitsEXT>::allFlags)
+            .setPfnUserCallback(&debug_callback);
+        m_debug_messenger = m_instance->createDebugUtilsMessengerEXTUnique(debug_messenger_info);
+    }
 #endif
 }
 
@@ -246,3 +291,64 @@ void lcf::render::VulkanContext::createCommandPool()
         lcf_log_error(e.what());
     }
 }
+
+#if !defined(NDEBUG) && !VULKAN_HPP_DISPATCH_LOADER_DYNAMIC
+VKAPI_ATTR vk::Bool32 VKAPI_CALL debug_callback(
+    vk::DebugUtilsMessageSeverityFlagBitsEXT message_severity,
+    vk::DebugUtilsMessageTypeFlagsEXT message_type,
+    const vk::DebugUtilsMessengerCallbackDataEXT * callback_data,
+    void * user_data)
+{
+    std::string log_output = std::format(
+        "{:=^80}\n"
+        "[Type] {}\n"
+        "[Message ID] (0x{:x}) {}\n"
+        "[Message] {}\n",
+        "Vulkan Validation Layer",
+        vk::to_string(message_type),
+        static_cast<uint32_t>(callback_data->messageIdNumber),
+        callback_data->pMessageIdName,
+        callback_data->pMessage);
+    if (callback_data->queueLabelCount > 0) {
+        log_output += std::format("<Queue Labels>\n");
+        for (uint32_t i = 0; i < callback_data->queueLabelCount; ++i) {
+            const auto & label = callback_data->pQueueLabels[i];
+            log_output += std::format(
+                "  [{}] Name: {}, Color: [{:.3f}, {:.3f}, {:.3f}, {:.3f}]\n",
+                i,
+                label.pLabelName ? label.pLabelName : "Unnamed",
+                label.color[0], label.color[1], label.color[2], label.color[3]);
+        }
+    }
+    if (callback_data->cmdBufLabelCount > 0) {
+        log_output += std::format("<Command Buffer Labels>\n");
+        for (uint32_t i = 0; i < callback_data->cmdBufLabelCount; ++i) {
+            const auto & label = callback_data->pCmdBufLabels[i];
+            log_output += std::format(
+                "  [{}] Name: {}, Color: [{:.3f}, {:.3f}, {:.3f}, {:.3f}]\n",
+                i,
+                label.pLabelName ? label.pLabelName : "Unnamed",
+                label.color[0], label.color[1], label.color[2], label.color[3]);
+        }
+    }
+    if (callback_data->objectCount > 0) {
+        log_output += std::format("<Related Objects>\n");
+        for (uint32_t i = 0; i < callback_data->objectCount; ++i) {
+            const auto & obj = callback_data->pObjects[i];
+            log_output += std::format(
+                "  [{}] Type: {}, Handle: 0x{:x}, Name: {}\n",
+                i,
+                vk::to_string(obj.objectType),
+                obj.objectHandle,
+                obj.pObjectName ? obj.pObjectName : "Unnamed");
+        }
+    }
+    switch (message_severity) {
+        case vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose: { lcf_log_trace(log_output); } break;
+        case vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo: { lcf_log_info(log_output); } break;
+        case vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning: { lcf_log_warn(log_output); } break;
+        case vk::DebugUtilsMessageSeverityFlagBitsEXT::eError: { lcf_log_error(log_output); } break;
+    }
+    return false;
+}
+#endif

@@ -9,7 +9,6 @@
 #include <vulkan/vulkan.hpp>
 #include <vector>
 #include <unordered_map>
-#include <stack>
 
 namespace lcf::render {
     class VulkanContext : public Context
@@ -46,6 +45,9 @@ namespace lcf::render {
         vk::UniqueInstance m_instance;
         vk::PhysicalDevice m_physical_device;
         vk::UniqueDevice m_device;
+    #ifndef NDEBUG
+        vk::UniqueDebugUtilsMessengerEXT m_debug_messenger;
+    #endif
         SurfaceRenderTargetList m_surface_render_targets;
         QueueFamilyIndexMap m_queue_family_indices;
         QueueMap m_queues;
