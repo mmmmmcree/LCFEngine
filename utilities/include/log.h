@@ -13,8 +13,7 @@ namespace lcf {
     public:
         static void init()
         {
-            static bool initialized = []() -> bool
-            {
+            static bool initialized = []() -> bool {
         #ifndef NDEBUG
                 initDebug();
         #else
