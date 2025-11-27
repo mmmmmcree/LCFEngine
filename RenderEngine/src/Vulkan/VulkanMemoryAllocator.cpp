@@ -28,7 +28,9 @@ bool lcf::render::VulkanMemoryAllocator::create(VulkanContext * context)
     return vmaCreateAllocator(&allocator_info, &m_allocator) == VK_SUCCESS;
 }
 
-VMAImage::UniquePointer lcf::render::VulkanMemoryAllocator::createImage(const vk::ImageCreateInfo &image_info, const MemoryAllocationCreateInfo &mem_alloc_info)
+VMAImage::UniquePointer lcf::render::VulkanMemoryAllocator::createImage(
+    const vk::ImageCreateInfo &image_info,
+    const MemoryAllocationCreateInfo &mem_alloc_info) const
 {
     VmaAllocationCreateInfo alloc_create_info = {
         .requiredFlags = static_cast<VkMemoryPropertyFlags>(mem_alloc_info.memory_flags)
@@ -55,7 +57,9 @@ VMAImage::UniquePointer lcf::render::VulkanMemoryAllocator::createImage(const vk
     return VMAImage::makeUnique(m_allocator, allocation, image, allocation_info.size, allocation_info.pMappedData);
 }
 
-VMABuffer::UniquePointer VulkanMemoryAllocator::createBuffer(const vk::BufferCreateInfo &buffer_info, const MemoryAllocationCreateInfo &mem_alloc_info)
+VMABuffer::UniquePointer VulkanMemoryAllocator::createBuffer(
+    const vk::BufferCreateInfo &buffer_info,
+    const MemoryAllocationCreateInfo &mem_alloc_info) const
 {
     VmaAllocationCreateInfo alloc_create_info = {
         .requiredFlags = static_cast<VkMemoryPropertyFlags>(mem_alloc_info.memory_flags)

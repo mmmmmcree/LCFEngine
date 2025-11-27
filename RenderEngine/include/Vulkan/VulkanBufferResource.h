@@ -16,7 +16,7 @@ namespace lcf::render {
         VulkanBufferResource(VulkanBufferResource && other) : m_buffer_up(std::move(other.m_buffer_up)) {}
         VulkanBufferResource & operator=(const VulkanBufferResource &) = delete;
         VulkanBufferResource & operator=(VulkanBufferResource && other) { m_buffer_up = std::move(other.m_buffer_up); return *this; }
-        bool create(VulkanMemoryAllocator & allocator,
+        bool create(const VulkanMemoryAllocator & allocator,
             const vk::BufferCreateInfo &buffer_info,
             const MemoryAllocationCreateInfo &memory_allocation_info);
         bool isCreated() const noexcept { return m_buffer_up.get(); }
