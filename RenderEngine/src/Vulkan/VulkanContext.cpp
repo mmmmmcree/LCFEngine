@@ -34,12 +34,32 @@ void lcf::render::VulkanContext::create()
     this->pickPhysicalDevice();
     this->findQueueFamilies();
     this->createLogicalDevice();
-    this->createCommandPool();
+    this->createCommandPools();
     m_memory_allocator.create(this);
     m_descriptor_manager.create(this);
     for (auto &render_target : m_surface_render_targets) {
         render_target->create(this);
     }
+}
+
+uint32_t lcf::render::VulkanContext::getQueueFamilyIndex(vk::QueueFlagBits type) const noexcept
+{
+    return m_queue_family_indices.at(type);
+}
+
+const vk::Queue & lcf::render::VulkanContext::getQueue(vk::QueueFlagBits type) const noexcept
+{
+    return m_queue_lists.at(type).front();
+}
+
+std::span<const vk::Queue> lcf::render::VulkanContext::getSubQueues(vk::QueueFlagBits type) const noexcept
+{ 
+    return std::span(m_queue_lists.at(type)).subspan(1);
+}
+
+const vk::CommandPool &lcf::render::VulkanContext::getCommandPool(vk::QueueFlagBits queue_type) const noexcept
+{
+    return m_command_pools.at(queue_type).get();
 }
 
 #if !defined(NDEBUG) && !VULKAN_HPP_DISPATCH_LOADER_DYNAMIC
@@ -142,7 +162,8 @@ void lcf::render::VulkanContext::setupVulkanInstance()
     }();
 #endif
 #ifndef NDEBUG
-    if (pfnVkCreateDebugUtilsMessengerEXT and pfnVkDestroyDebugUtilsMessengerEXT) {
+    bool is_renderdoc_env = std::getenv("ENABLE_VULKAN_RENDERDOC_CAPTURE"); //! RenderDoc Environment is contradictory to custom debug callback
+    if (pfnVkCreateDebugUtilsMessengerEXT and pfnVkDestroyDebugUtilsMessengerEXT and not is_renderdoc_env) {
         vk::DebugUtilsMessengerCreateInfoEXT debug_messenger_info;
         debug_messenger_info.setMessageSeverity(vk::FlagTraits<vk::DebugUtilsMessageSeverityFlagBitsEXT>::allFlags)
             .setMessageType(vk::FlagTraits<vk::DebugUtilsMessageTypeFlagBitsEXT>::allFlags)
@@ -197,36 +218,21 @@ void lcf::render::VulkanContext::findQueueFamilies()
         }
         return queue_family_index;
     };
-    std::vector<std::pair<vk::QueueFlags, vk::QueueFlags>> queue_flags_pairs = {
-        { vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute, vk::QueueFlagBits {} },
+    std::vector<std::pair<vk::QueueFlagBits, vk::QueueFlags>> queue_flags_pairs = {
         { vk::QueueFlagBits::eGraphics, vk::QueueFlagBits {} },
         { vk::QueueFlagBits::eTransfer, vk::QueueFlagBits::eCompute },
         { vk::QueueFlagBits::eCompute, vk::QueueFlagBits::eTransfer },
     };
-    for (auto [desired_flags, undesired_flags] : queue_flags_pairs) {
-        auto flags_key = static_cast<vk::QueueFlags::MaskType>(desired_flags);
-        auto queue_family_index = get_queue_family_index(desired_flags, undesired_flags);
+    for (auto [queue_type, undesired_flags] : queue_flags_pairs) {
+        auto queue_family_index = get_queue_family_index(queue_type, undesired_flags);
         if (queue_family_index) {
-            m_queue_family_indices[flags_key] = queue_family_index.value();
+            m_queue_family_indices[queue_type] = queue_family_index.value();
         }
     }
 }
 
 void lcf::render::VulkanContext::createLogicalDevice()
 {
-    std::array<float, 1> queue_priorities = { 1.0f };
-    std::set<uint32_t> queue_family_indices;
-    for (auto [queue_flags, queue_index] : m_queue_family_indices) {
-        queue_family_indices.insert(queue_index);
-    }
-    std::vector<vk::DeviceQueueCreateInfo> queue_infos;
-    for (auto queue_index : queue_family_indices) {
-        vk::DeviceQueueCreateInfo queue_info;
-        queue_info.setQueueFamilyIndex(queue_index)
-            .setQueuePriorities(queue_priorities);
-        queue_infos.emplace_back(queue_info);
-    }
-
     std::vector<const char *> required_extensions = {
         VK_KHR_MAINTENANCE1_EXTENSION_NAME,
         VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME,
@@ -264,6 +270,29 @@ void lcf::render::VulkanContext::createLogicalDevice()
         .setStorageBuffer16BitAccess(true);
     device_info.get<vk::PhysicalDeviceFeatures2>().setFeatures(m_physical_device.getFeatures());
 
+    static const std::unordered_map<vk::QueueFlagBits, uint32_t> s_ideal_queue_counts {
+        { vk::QueueFlagBits::eGraphics, 2 },
+        { vk::QueueFlagBits::eCompute, 2 },
+        { vk::QueueFlagBits::eTransfer, 1 },
+    };
+    auto queue_family_properties = m_physical_device.getQueueFamilyProperties();
+    std::unordered_map<uint32_t, std::vector<float>> index_to_priorities;
+    for (auto [queue_flags, queue_index] : m_queue_family_indices) {
+        uint32_t ideal_queue_count = s_ideal_queue_counts.at(queue_flags);
+        uint32_t available_queue_count = queue_family_properties[queue_index].queueCount;
+        uint32_t queue_count = std::min(ideal_queue_count, available_queue_count);
+        auto & priorities = index_to_priorities[queue_index];
+        for (size_t i = priorities.size(); i < queue_count; ++i) {
+            priorities.push_back(1.0f - i / static_cast<float>(ideal_queue_count));
+        }
+    }
+    std::vector<vk::DeviceQueueCreateInfo> queue_infos;
+    for (auto & [index, priorities] : index_to_priorities) {
+        vk::DeviceQueueCreateInfo queue_info;
+        queue_info.setQueueFamilyIndex(index)
+            .setQueuePriorities(priorities);
+        queue_infos.emplace_back(queue_info);
+    }
     device_info.get<vk::DeviceCreateInfo>().setQueueCreateInfos(queue_infos)
         .setPEnabledExtensionNames(required_extensions);
 
@@ -273,22 +302,27 @@ void lcf::render::VulkanContext::createLogicalDevice()
         lcf_log_error(e.what());
     }
 
-    auto queue_family_properties = m_physical_device.getQueueFamilyProperties();
-    for (auto [queue_flags, queue_index] : m_queue_family_indices) {
-        m_queues[queue_flags] = m_device->getQueue(queue_index, 0); // todo support one index multiple queues ?
+    for (auto [queue_type, queue_index] : m_queue_family_indices) {
+        auto & queue_list = m_queue_lists[queue_type];
+        uint32_t queue_count = index_to_priorities[queue_index].size();
+        queue_list.reserve(queue_count);
+        for (uint32_t i = 0; i < queue_count; ++i) {
+            queue_list.emplace_back(m_device->getQueue(queue_index, i));
+        }
     }
 }
 
-void lcf::render::VulkanContext::createCommandPool()
+void lcf::render::VulkanContext::createCommandPools()
 {
-    //todo support mutiple queues
-    vk::CommandPoolCreateInfo command_pool_info;
-    command_pool_info.setQueueFamilyIndex(this->getQueueFamilyIndex(vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute))
-        .setFlags(vk::CommandPoolCreateFlagBits::eResetCommandBuffer);
-    try {
-        m_command_pool = m_device->createCommandPoolUnique(command_pool_info);
-    } catch (const vk::SystemError &e) {
-        lcf_log_error(e.what());
+    for (auto [queue_type, queue_index] : m_queue_family_indices) {
+        vk::CommandPoolCreateInfo command_pool_info;
+        command_pool_info.setQueueFamilyIndex(queue_index)
+            .setFlags(vk::CommandPoolCreateFlagBits::eResetCommandBuffer);
+        try {
+            m_command_pools.emplace(std::make_pair(queue_type, m_device->createCommandPoolUnique(command_pool_info)));
+        } catch (const vk::SystemError &e) {
+            lcf_log_error(e.what());
+        }
     }
 }
 

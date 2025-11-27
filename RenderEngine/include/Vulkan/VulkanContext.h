@@ -16,8 +16,10 @@ namespace lcf::render {
         using Self = VulkanContext;
     public:
         using SurfaceRenderTargetList = std::vector<VulkanSwapchain::SharedPointer>;
-        using QueueFamilyIndexMap = std::unordered_map<uint32_t, uint32_t>; // <vk::QueueFlagBits, index>
-        using QueueMap = std::unordered_map<uint32_t, vk::Queue>; // <vk::QueueFlagBits, vk::Queue>
+        using QueueFamilyIndexMap = std::unordered_map<vk::QueueFlagBits, uint32_t>;
+        using QueueList = std::vector<vk::Queue>;
+        using QueueListMap = std::unordered_map<vk::QueueFlagBits, QueueList>;
+        using CommandBufferPoolMap = std::unordered_map<vk::QueueFlagBits, vk::UniqueCommandPool>;
         VulkanContext();
         VulkanContext(const VulkanContext &other) = delete;
         VulkanContext & operator=(const VulkanContext &other) = delete;
@@ -26,13 +28,14 @@ namespace lcf::render {
         void create();
         bool isCreated() const { return m_device.get(); }
         bool isValid() const { return m_device.get(); }
-        vk::Instance getInstance() const noexcept { return m_instance.get(); }
-        vk::PhysicalDevice getPhysicalDevice() const { return m_physical_device; }
-        vk::Device getDevice() const { return m_device.get(); }
-        vk::CommandPool getCommandPool() const { return m_command_pool.get(); }
-        uint32_t getQueueFamilyIndex(vk::QueueFlags flags) const { return m_queue_family_indices.at(static_cast<uint32_t>(flags)); }
-        vk::Queue getQueue(vk::QueueFlags flags) const { return m_queues.at(static_cast<uint32_t>(flags)); }
-        VulkanMemoryAllocator & getMemoryAllocator() noexcept { return m_memory_allocator; }
+        const vk::Instance & getInstance() const noexcept { return m_instance.get(); }
+        vk::PhysicalDevice getPhysicalDevice() const noexcept { return m_physical_device; }
+        const vk::Device & getDevice() const noexcept { return m_device.get(); }
+        uint32_t getQueueFamilyIndex(vk::QueueFlagBits type) const noexcept;
+        const vk::Queue & getQueue(vk::QueueFlagBits type) const noexcept;
+        std::span<const vk::Queue> getSubQueues(vk::QueueFlagBits type) const noexcept;
+        const vk::CommandPool & getCommandPool(vk::QueueFlagBits queue_type) const noexcept;
+        const VulkanMemoryAllocator & getMemoryAllocator() const noexcept { return m_memory_allocator; }
         VulkanDescriptorManager & getDescriptorManager() noexcept { return m_descriptor_manager; }
     private:
         void setupVulkanInstance();
@@ -40,7 +43,7 @@ namespace lcf::render {
         int calculatePhysicalDeviceScore(const vk::PhysicalDevice &device);
         void findQueueFamilies();
         void createLogicalDevice();
-        void createCommandPool();
+        void createCommandPools();
     private:
         vk::UniqueInstance m_instance;
         vk::PhysicalDevice m_physical_device;
@@ -50,8 +53,8 @@ namespace lcf::render {
     #endif
         SurfaceRenderTargetList m_surface_render_targets;
         QueueFamilyIndexMap m_queue_family_indices;
-        QueueMap m_queues;
-        vk::UniqueCommandPool m_command_pool;
+        QueueListMap m_queue_lists;
+        CommandBufferPoolMap m_command_pools;
         VulkanMemoryAllocator m_memory_allocator;
         VulkanDescriptorManager m_descriptor_manager; //todo single descriptor set freeable
     };

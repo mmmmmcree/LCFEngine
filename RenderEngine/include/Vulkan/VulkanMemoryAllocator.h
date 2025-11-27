@@ -60,8 +60,8 @@ namespace lcf::render {
         VulkanMemoryAllocator & operator=(const VulkanMemoryAllocator &) = delete;
         ~VulkanMemoryAllocator();
         bool create(VulkanContext * context);
-        VMAImage::UniquePointer createImage(const vk::ImageCreateInfo & image_info, const MemoryAllocationCreateInfo & mem_alloc_info);
-        VMABuffer::UniquePointer createBuffer(const vk::BufferCreateInfo & buffer_info, const MemoryAllocationCreateInfo & mem_alloc_info);
+        VMAImage::UniquePointer createImage(const vk::ImageCreateInfo & image_info, const MemoryAllocationCreateInfo & mem_alloc_info) const;
+        VMABuffer::UniquePointer createBuffer(const vk::BufferCreateInfo & buffer_info, const MemoryAllocationCreateInfo & mem_alloc_info) const;
     private:
         VmaAllocator m_allocator = nullptr;
     };

@@ -46,7 +46,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     m_graphics_pipeline.create(m_context_p, graphic_pipeline_info);
 
     for (auto &resources : m_frame_resources) {
-        resources.command_buffer.create(m_context_p);
+        resources.command_buffer.create(m_context_p, vk::QueueFlagBits::eGraphics);
         resources.descriptor_manager.create(m_context_p);
 
         VulkanFramebufferObjectCreateInfo fbo_info;
@@ -125,7 +125,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     Model cube_model = ModelLoader().load("./assets/models/dinosaur/source/Rampaging T-Rex.glb");
     cube_model.addMaterial(material_sp);
 
-    vkutils::immediate_submit(m_context_p, [this, &cube_model](VulkanCommandBufferObject & cmd) {
+    vkutils::immediate_submit(m_context_p, vk::QueueFlagBits::eTransfer, [this, &cube_model](VulkanCommandBufferObject & cmd) {
         m_mesh.create(m_context_p, cmd, cube_model.getMesh(0));
     });
 
@@ -176,7 +176,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         .setAddressModeW(vk::SamplerAddressMode::eClampToEdge);
     auto sphere_sampler = device.createSamplerUnique(sphere_sampler_info);
 
-    vkutils::immediate_submit(m_context_p, [&](VulkanCommandBufferObject & cmd) {
+    vkutils::immediate_submit(m_context_p, vk::QueueFlagBits::eGraphics, [&](VulkanCommandBufferObject & cmd) {
         texture1_sp->setData(cmd, image.getInterleavedDataSpan());
         texture1_sp->generateMipmaps(cmd);
         const auto & ds_prototype = stc_pipeline.getDescriptorSetPrototype(0);
@@ -370,7 +370,7 @@ void lcf::VulkanRenderer::render(const Entity & camera, const Entity & render_ta
         .setStageMask(vk::PipelineStageFlagBits2::eColorAttachmentOutput);
     cmd.addWaitSubmitInfo(wait_info)
         .addSignalSubmitInfo(render_target_resources.getPresentReadySemaphore());
-    cmd.submit(vk::QueueFlagBits::eGraphics);
+    cmd.submit();
 
     render_target_sp->finishRender();
     ++m_current_frame_index %= m_frame_resources.size();

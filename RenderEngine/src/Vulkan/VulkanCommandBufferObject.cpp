@@ -1,14 +1,15 @@
 #include "VulkanCommandBufferObject.h"
 #include "VulkanContext.h"
 
-bool lcf::render::VulkanCommandBufferObject::create(VulkanContext * context_p)
+bool lcf::render::VulkanCommandBufferObject::create(VulkanContext * context_p, vk::QueueFlagBits queue_type)
 {
     if (not context_p or not context_p->isCreated()) { return false; }
     m_context_p = context_p;
+    m_queue_type = queue_type;
     m_timeline_semaphore_sp = VulkanTimelineSemaphore::makeShared();
     m_timeline_semaphore_sp->create(m_context_p);
     vk::CommandBufferAllocateInfo command_buffer_info;
-    command_buffer_info.setCommandPool(m_context_p->getCommandPool())
+    command_buffer_info.setCommandPool(m_context_p->getCommandPool(queue_type))
         .setLevel(vk::CommandBufferLevel::ePrimary)
         .setCommandBufferCount(1);
     auto device = m_context_p->getDevice();
@@ -35,7 +36,7 @@ void lcf::render::VulkanCommandBufferObject::end()
     vk::CommandBuffer::end();
 }
 
-void lcf::render::VulkanCommandBufferObject::submit(vk::QueueFlags queue_flags)
+void lcf::render::VulkanCommandBufferObject::submit()
 {
     m_timeline_semaphore_sp->increaseTargetValue();
     m_signal_infos.emplace_back(m_timeline_semaphore_sp->generateSubmitInfo());
@@ -45,7 +46,7 @@ void lcf::render::VulkanCommandBufferObject::submit(vk::QueueFlags queue_flags)
     submit_info.setWaitSemaphoreInfos(m_wait_infos)
         .setSignalSemaphoreInfos(m_signal_infos)
         .setCommandBufferInfos(command_submit_info);
-    m_context_p->getQueue(queue_flags).submit2(submit_info);
+    m_context_p->getQueue(m_queue_type).submit2(submit_info);
 }
 
 void lcf::render::VulkanCommandBufferObject::acquireResource(const GPUResource::SharedPointer &resource_sp)

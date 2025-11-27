@@ -27,7 +27,58 @@ namespace lcf::render::vkutils {
 
     using TransitionDependency = std::tuple<vk::PipelineStageFlags2, vk::AccessFlags2, vk::PipelineStageFlags2, vk::AccessFlags2>;
 
-    constexpr TransitionDependency get_transition_dependency(vk::ImageLayout current_layout, vk::ImageLayout new_layout)
+    constexpr TransitionDependency get_transfer_transition_dependency(
+        vk::ImageLayout current_layout, 
+        vk::ImageLayout new_layout)
+    {
+        vk::PipelineStageFlags2 src_stage, dst_stage;
+        vk::AccessFlags2 src_access, dst_access;
+        
+        switch (current_layout) {
+            case vk::ImageLayout::eUndefined: {
+                src_stage = vk::PipelineStageFlagBits2::eTopOfPipe;
+                src_access = vk::AccessFlagBits2::eNone;
+            } break;
+            case vk::ImageLayout::eTransferSrcOptimal: {
+                src_stage = vk::PipelineStageFlagBits2::eTransfer;
+                src_access = vk::AccessFlagBits2::eTransferRead;
+            } break;
+            case vk::ImageLayout::eTransferDstOptimal: {
+                src_stage = vk::PipelineStageFlagBits2::eTransfer;
+                src_access = vk::AccessFlagBits2::eTransferWrite;
+            } break;
+            case vk::ImageLayout::eGeneral: {
+                src_stage = vk::PipelineStageFlagBits2::eTransfer;
+                src_access = vk::AccessFlagBits2::eTransferRead | vk::AccessFlagBits2::eTransferWrite;
+            } break;
+            default: {
+                src_stage = vk::PipelineStageFlagBits2::eTopOfPipe;
+                src_access = vk::AccessFlagBits2::eNone;
+            } break;
+        }
+        
+        switch (new_layout) {
+            case vk::ImageLayout::eTransferSrcOptimal: {
+                dst_stage = vk::PipelineStageFlagBits2::eTransfer;
+                dst_access = vk::AccessFlagBits2::eTransferRead;
+            } break;
+            case vk::ImageLayout::eTransferDstOptimal: {
+                dst_stage = vk::PipelineStageFlagBits2::eTransfer;
+                dst_access = vk::AccessFlagBits2::eTransferWrite;
+            } break;
+            case vk::ImageLayout::eGeneral: {
+                dst_stage = vk::PipelineStageFlagBits2::eTransfer;
+                dst_access = vk::AccessFlagBits2::eTransferRead | vk::AccessFlagBits2::eTransferWrite;
+            } break;
+            default: {
+                dst_stage = vk::PipelineStageFlagBits2::eBottomOfPipe;
+                dst_access = vk::AccessFlagBits2::eNone;
+            } break;
+        }
+        return std::make_tuple(src_stage, src_access, dst_stage, dst_access);
+    }
+
+    constexpr TransitionDependency get_graphic_transition_dependency(vk::ImageLayout current_layout, vk::ImageLayout new_layout)
     {
         vk::PipelineStageFlags2 src_stage, dst_stage;
         vk::AccessFlags2 src_access, dst_access;
@@ -90,5 +141,19 @@ namespace lcf::render::vkutils {
         return std::make_tuple(src_stage, src_access, dst_stage, dst_access);
     }
 
-    void immediate_submit(VulkanContext * context, std::function<void(VulkanCommandBufferObject &)> && submit_func);
+    constexpr TransitionDependency get_transition_dependency(vk::ImageLayout current_layout, vk::ImageLayout new_layout, vk::QueueFlagBits queue_type)
+    {
+        TransitionDependency dependency;
+        switch (queue_type) {
+            case vk::QueueFlagBits::eGraphics: {
+                dependency = get_graphic_transition_dependency(current_layout, new_layout);
+            } break;
+            case vk::QueueFlagBits::eTransfer: {
+                dependency = get_transfer_transition_dependency(current_layout, new_layout);
+            } break;
+        }
+        return dependency;
+    }
+
+    void immediate_submit(VulkanContext * context, vk::QueueFlagBits queue_type, std::function<void(VulkanCommandBufferObject &)> && submit_func);
 }

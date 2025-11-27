@@ -189,10 +189,16 @@ void VulkanBufferObject::commitWriteSegments(VulkanCommandBufferObject & cmd)
 
 void lcf::render::VulkanBufferObject::copyFromBufferWithBarriers(VulkanCommandBufferObject & cmd, vk::Buffer src, uint32_t data_size_in_bytes, uint32_t src_offset_in_bytes, uint32_t dst_offset_in_bytes)
 {
+    auto stage_mask = m_stage_flags;
+    auto access_mask = m_access_flags;
+    if (cmd.getQueueType() == vk::QueueFlagBits::eTransfer) { //todo temp
+        stage_mask = vk::PipelineStageFlagBits2KHR::eTransfer;
+        access_mask = vk::AccessFlagBits2KHR::eMemoryRead;
+    }
     if (not m_timeline_semaphore_up->isTargetReached()) {
         vk::BufferMemoryBarrier2 pre_buffer_barrier;
-        pre_buffer_barrier.setSrcStageMask(m_stage_flags)
-            .setSrcAccessMask(m_access_flags)
+        pre_buffer_barrier.setSrcStageMask(stage_mask)
+            .setSrcAccessMask(access_mask)
             .setDstStageMask(vk::PipelineStageFlagBits2KHR::eAllTransfer)
             .setDstAccessMask(vk::AccessFlagBits2KHR::eTransferWrite)
             .setBuffer(this->getHandle())
@@ -205,8 +211,8 @@ void lcf::render::VulkanBufferObject::copyFromBufferWithBarriers(VulkanCommandBu
     vk::BufferMemoryBarrier2 post_barrier;
     post_barrier.setSrcStageMask(vk::PipelineStageFlagBits2KHR::eAllTransfer)
         .setSrcAccessMask(vk::AccessFlagBits2KHR::eTransferWrite)
-        .setDstStageMask(m_stage_flags)
-        .setDstAccessMask(m_access_flags)
+        .setDstStageMask(stage_mask)
+        .setDstAccessMask(access_mask)
         .setBuffer(this->getHandle())
         .setOffset(dst_offset_in_bytes)
         .setSize(data_size_in_bytes);
