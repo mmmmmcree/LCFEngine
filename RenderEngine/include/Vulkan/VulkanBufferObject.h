@@ -60,8 +60,6 @@ namespace lcf::render {
         uint32_t m_size = 0;
         GPUBufferUsage m_usage = GPUBufferUsage::eUndefined;
         GPUBufferPattern m_pattern = GPUBufferPattern::eDynamic;
-        vk::PipelineStageFlags2 m_stage_flags = vk::PipelineStageFlagBits2KHR::eAllGraphics;
-        vk::AccessFlags2 m_access_flags = vk::AccessFlagBits2KHR::eMemoryRead;
         WriteSegments m_write_segments;
     };
 }

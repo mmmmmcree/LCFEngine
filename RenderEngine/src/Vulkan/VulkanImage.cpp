@@ -96,7 +96,7 @@ void lcf::render::VulkanImage::transitLayout(VulkanCommandBufferObject & cmd, co
         for (const auto & [equal_interval, wrapped_layout] : std::ranges::subrange(begin, end)) {
             auto [layer, layer_count, level, level_count] = from_interval(equal_interval & target_interval);
             vk::ImageLayout old_layout = wrapped_layout.getValue();
-            auto [src_stage, src_access, dst_stage, dst_access] = vkutils::get_transition_dependency(old_layout, new_layout, cmd.getQueueType());
+            auto [src_stage, src_access, dst_stage, dst_access] = vkutils::get_image_layout_transition_dependency(old_layout, new_layout, cmd.getQueueType());
             vk::ImageMemoryBarrier2 barrier;
             barrier.setImage(this->getHandle())
                 .setOldLayout(old_layout)

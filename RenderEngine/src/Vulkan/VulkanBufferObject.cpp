@@ -14,8 +14,6 @@ VulkanBufferObject::VulkanBufferObject(Self &&other) :
     m_device_address(std::exchange(other.m_device_address, 0u)),
     m_usage(std::exchange(other.m_usage, GPUBufferUsage::eUndefined)),
     m_pattern(other.m_pattern),
-    m_stage_flags(other.m_stage_flags),
-    m_access_flags(other.m_access_flags),
     m_write_segments(std::move(other.m_write_segments))
 {
 }
@@ -29,8 +27,6 @@ VulkanBufferObject & VulkanBufferObject::operator=(Self &&other)
     m_device_address = std::exchange(other.m_device_address, 0u);
     m_usage = std::exchange(other.m_usage, GPUBufferUsage::eUndefined);
     m_pattern = other.m_pattern;
-    m_stage_flags = other.m_stage_flags;
-    m_access_flags = other.m_access_flags;
     m_write_segments = std::move(other.m_write_segments);
     return *this;
 }
@@ -40,37 +36,6 @@ bool VulkanBufferObject::create(VulkanContext *context_p)
     m_context_p = context_p;
     vk::BufferUsageFlags usage_flags;
     vk::MemoryPropertyFlags memory_flags;
-    switch (m_usage) {
-        case GPUBufferUsage::eUndefined : {
-            std::runtime_error error("Undefined buffer usage");
-            lcf_log_error(error.what());
-            throw error;
-        } break;
-        case GPUBufferUsage::eVertex : {
-            m_stage_flags = vk::PipelineStageFlagBits2::eVertexInput;
-            m_access_flags = vk::AccessFlagBits2::eVertexAttributeRead;
-        } break;
-        case GPUBufferUsage::eIndex : {
-            m_stage_flags = vk::PipelineStageFlagBits2::eVertexInput;
-            m_access_flags = vk::AccessFlagBits2::eIndexRead;
-        } break;
-        case GPUBufferUsage::eUniform : {
-            m_stage_flags = vk::PipelineStageFlagBits2::eVertexShader | vk::PipelineStageFlagBits2::eFragmentShader;
-            m_access_flags = vk::AccessFlagBits2::eShaderRead;
-        } break;
-        case GPUBufferUsage::eShaderStorage : {
-            m_stage_flags = vk::PipelineStageFlagBits2::eVertexShader;
-            m_access_flags = vk::AccessFlagBits2::eShaderRead;
-        } break;
-        case GPUBufferUsage::eIndirect : {
-            m_stage_flags = vk::PipelineStageFlagBits2::eDrawIndirect;
-            m_access_flags = vk::AccessFlagBits2::eIndirectCommandRead;
-        } break;
-        case GPUBufferUsage::eStaging : {
-            m_stage_flags = vk::PipelineStageFlagBits2KHR::eAllGraphics;
-            m_access_flags = vk::AccessFlagBits2KHR::eMemoryRead;
-        } break;
-    }
     switch (m_pattern) {
         case GPUBufferPattern::eDynamic : {
             m_execute_write_sequence_method = &Self::executeWriteSequence;
@@ -189,18 +154,13 @@ void VulkanBufferObject::commitWriteSegments(VulkanCommandBufferObject & cmd)
 
 void lcf::render::VulkanBufferObject::copyFromBufferWithBarriers(VulkanCommandBufferObject & cmd, vk::Buffer src, uint32_t data_size_in_bytes, uint32_t src_offset_in_bytes, uint32_t dst_offset_in_bytes)
 {
-    auto stage_mask = m_stage_flags;
-    auto access_mask = m_access_flags;
-    if (cmd.getQueueType() == vk::QueueFlagBits::eTransfer) { //todo temp
-        stage_mask = vk::PipelineStageFlagBits2KHR::eTransfer;
-        access_mask = vk::AccessFlagBits2KHR::eMemoryRead;
-    }
+    auto [src_stage, src_access, dst_stage, dst_access] = vkutils::get_buffer_copy_dependency(m_usage, cmd.getQueueType());
     if (not m_timeline_semaphore_up->isTargetReached()) {
         vk::BufferMemoryBarrier2 pre_buffer_barrier;
-        pre_buffer_barrier.setSrcStageMask(stage_mask)
-            .setSrcAccessMask(access_mask)
-            .setDstStageMask(vk::PipelineStageFlagBits2KHR::eAllTransfer)
-            .setDstAccessMask(vk::AccessFlagBits2KHR::eTransferWrite)
+        pre_buffer_barrier.setSrcStageMask(dst_stage)
+            .setSrcAccessMask(dst_access)
+            .setDstStageMask(src_stage)
+            .setDstAccessMask(src_access)
             .setBuffer(this->getHandle())
             .setOffset(0)
             .setSize(VK_WHOLE_SIZE);
@@ -209,10 +169,10 @@ void lcf::render::VulkanBufferObject::copyFromBufferWithBarriers(VulkanCommandBu
         cmd.pipelineBarrier2(pre_dependency);
     }
     vk::BufferMemoryBarrier2 post_barrier;
-    post_barrier.setSrcStageMask(vk::PipelineStageFlagBits2KHR::eAllTransfer)
-        .setSrcAccessMask(vk::AccessFlagBits2KHR::eTransferWrite)
-        .setDstStageMask(stage_mask)
-        .setDstAccessMask(access_mask)
+    post_barrier.setSrcStageMask(src_stage)
+        .setSrcAccessMask(src_access)
+        .setDstStageMask(dst_stage)
+        .setDstAccessMask(dst_access)
         .setBuffer(this->getHandle())
         .setOffset(dst_offset_in_bytes)
         .setSize(data_size_in_bytes);
