@@ -3,11 +3,6 @@
 #include "Entity.h"
 #include "Transform.h"
 #include "signals.h"
-#include <boost/container/vector.hpp>
-#include <boost/pool/pool_alloc.hpp>
-#include <boost/container/flat_map.hpp>
-#include <boost/unordered/unordered_flat_map.hpp>
-#include <bitset>
 
 namespace lcf {
     struct TransformHierarchy;
@@ -15,11 +10,6 @@ namespace lcf {
     class TransformSystem
     {
     public:
-        using Set = entt::basic_sparse_set<entt::entity>;
-        using FrequentLargeList = std::vector<EntityHandle>;
-        static constexpr uint32_t s_frequent_level_count = 4;
-        using FrequentLevelMap = std::array<FrequentLargeList, s_frequent_level_count>;
-        using UnfrequentLevelMap = entt::dense_map<uint32_t, FrequentLargeList>;
         TransformSystem(Registry & registry);
         ~TransformSystem();
         void onTransformUpdate(const TransformUpdateSignalInfo & info) noexcept;
@@ -42,10 +32,7 @@ namespace lcf {
         void addChild(EntityHandle child) { m_children.emplace_back(child); }
         void removeChild(EntityHandle child);
         const ChildrenList & getChildren() const noexcept { return m_children; }
-
         EntityHandle m_parent;
         ChildrenList m_children;
     };
-
-
 }
