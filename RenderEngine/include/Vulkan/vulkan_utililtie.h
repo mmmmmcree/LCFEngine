@@ -2,43 +2,24 @@
 
 #include <vulkan/vulkan.hpp>
 #include <functional>
+#include "common/enum_types.h"
 #include "VulkanContext.h"
 #include "VulkanCommandBufferObject.h"
 
 namespace lcf::render::vkutils {
-    class ImageLayoutTransitionAssistant : public vk::ImageMemoryBarrier2
-    {
-    public:
-        ImageLayoutTransitionAssistant();
-        void setImage(vk::Image image, vk::ImageLayout current_layout = vk::ImageLayout::eUndefined);
-        void transitTo(vk::CommandBuffer cmd, vk::ImageLayout new_layout);
-    private:
-        vk::Image m_image = nullptr;
-    };
-
-    class CopyAssistant
-    {
-    public:
-        CopyAssistant(vk::CommandBuffer cmd);
-        void copy(vk::Image src, vk::Image dst, vk::Extent2D src_size, vk::Extent2D dst_size, vk::Filter filter = vk::Filter::eNearest);
-    private:
-        vk::CommandBuffer m_cmd = nullptr;
-    };
-
     using TransitionDependency = std::tuple<vk::PipelineStageFlags2, vk::AccessFlags2, vk::PipelineStageFlags2, vk::AccessFlags2>;
 
-    constexpr TransitionDependency get_transfer_transition_dependency(
-        vk::ImageLayout current_layout, 
-        vk::ImageLayout new_layout)
+    template <vk::QueueFlagBits queue_type>
+    constexpr  TransitionDependency get_image_layout_transition_dependency(vk::ImageLayout current_layout, vk::ImageLayout new_layout);
+
+    template <>
+    constexpr TransitionDependency get_image_layout_transition_dependency<vk::QueueFlagBits::eTransfer>(
+        vk::ImageLayout current_layout, vk::ImageLayout new_layout)
     {
         vk::PipelineStageFlags2 src_stage, dst_stage;
         vk::AccessFlags2 src_access, dst_access;
         
         switch (current_layout) {
-            case vk::ImageLayout::eUndefined: {
-                src_stage = vk::PipelineStageFlagBits2::eTopOfPipe;
-                src_access = vk::AccessFlagBits2::eNone;
-            } break;
             case vk::ImageLayout::eTransferSrcOptimal: {
                 src_stage = vk::PipelineStageFlagBits2::eTransfer;
                 src_access = vk::AccessFlagBits2::eTransferRead;
@@ -56,7 +37,6 @@ namespace lcf::render::vkutils {
                 src_access = vk::AccessFlagBits2::eNone;
             } break;
         }
-        
         switch (new_layout) {
             case vk::ImageLayout::eTransferSrcOptimal: {
                 dst_stage = vk::PipelineStageFlagBits2::eTransfer;
@@ -78,7 +58,9 @@ namespace lcf::render::vkutils {
         return std::make_tuple(src_stage, src_access, dst_stage, dst_access);
     }
 
-    constexpr TransitionDependency get_graphic_transition_dependency(vk::ImageLayout current_layout, vk::ImageLayout new_layout)
+    template <>
+    constexpr TransitionDependency get_image_layout_transition_dependency<vk::QueueFlagBits::eGraphics>(
+        vk::ImageLayout current_layout, vk::ImageLayout new_layout)
     {
         vk::PipelineStageFlags2 src_stage, dst_stage;
         vk::AccessFlags2 src_access, dst_access;
@@ -141,15 +123,80 @@ namespace lcf::render::vkutils {
         return std::make_tuple(src_stage, src_access, dst_stage, dst_access);
     }
 
-    constexpr TransitionDependency get_transition_dependency(vk::ImageLayout current_layout, vk::ImageLayout new_layout, vk::QueueFlagBits queue_type)
+    constexpr TransitionDependency get_image_layout_transition_dependency(vk::ImageLayout current_layout, vk::ImageLayout new_layout, vk::QueueFlagBits queue_type)
     {
         TransitionDependency dependency;
         switch (queue_type) {
             case vk::QueueFlagBits::eGraphics: {
-                dependency = get_graphic_transition_dependency(current_layout, new_layout);
+                dependency = get_image_layout_transition_dependency<vk::QueueFlagBits::eGraphics>(current_layout, new_layout);
             } break;
             case vk::QueueFlagBits::eTransfer: {
-                dependency = get_transfer_transition_dependency(current_layout, new_layout);
+                dependency = get_image_layout_transition_dependency<vk::QueueFlagBits::eTransfer>(current_layout, new_layout);
+            } break;
+        }
+        return dependency;
+    }
+
+    template <vk::QueueFlagBits queue_type>
+    constexpr TransitionDependency get_buffer_copy_dependency(GPUBufferUsage buffer_usage);
+
+    template <>
+    constexpr TransitionDependency get_buffer_copy_dependency<vk::QueueFlagBits::eTransfer>(GPUBufferUsage buffer_usage)
+    {
+        return std::make_tuple(
+            vk::PipelineStageFlagBits2KHR::eAllTransfer,
+            vk::AccessFlagBits2KHR::eTransferRead,
+            vk::PipelineStageFlagBits2KHR::eAllTransfer,
+            vk::AccessFlagBits2KHR::eTransferWrite);
+    }
+
+    template <>
+    constexpr TransitionDependency get_buffer_copy_dependency<vk::QueueFlagBits::eGraphics>(GPUBufferUsage buffer_usage)
+    {
+        vk::PipelineStageFlags2 dst_stage;
+        vk::AccessFlags2 access_flags;
+        switch (buffer_usage) {
+            case GPUBufferUsage::eVertex : {
+                dst_stage = vk::PipelineStageFlagBits2::eVertexInput;
+                access_flags = vk::AccessFlagBits2::eVertexAttributeRead;
+            } break;
+            case GPUBufferUsage::eIndex : {
+                dst_stage = vk::PipelineStageFlagBits2::eVertexInput;
+                access_flags = vk::AccessFlagBits2::eIndexRead;
+            } break;
+            case GPUBufferUsage::eUniform : {
+                dst_stage = vk::PipelineStageFlagBits2::eVertexShader | vk::PipelineStageFlagBits2::eFragmentShader;
+                access_flags = vk::AccessFlagBits2::eShaderRead;
+            } break;
+            case GPUBufferUsage::eShaderStorage : {
+                dst_stage = vk::PipelineStageFlagBits2::eVertexShader;
+                access_flags = vk::AccessFlagBits2::eShaderRead;
+            } break;
+            case GPUBufferUsage::eIndirect : {
+                dst_stage = vk::PipelineStageFlagBits2::eDrawIndirect;
+                access_flags = vk::AccessFlagBits2::eIndirectCommandRead;
+            } break;
+            case GPUBufferUsage::eStaging : {
+                dst_stage = vk::PipelineStageFlagBits2KHR::eAllGraphics;
+                access_flags = vk::AccessFlagBits2KHR::eMemoryRead;
+            } break;
+        }
+        return std::make_tuple(
+            vk::PipelineStageFlagBits2KHR::eAllTransfer,
+            vk::AccessFlagBits2KHR::eTransferWrite,
+            dst_stage,
+            access_flags);
+    }
+
+    constexpr TransitionDependency get_buffer_copy_dependency(GPUBufferUsage buffer_usage, vk::QueueFlagBits queue_type)
+    {
+        TransitionDependency dependency;
+        switch (queue_type) {
+            case vk::QueueFlagBits::eGraphics: {
+                dependency = get_buffer_copy_dependency<vk::QueueFlagBits::eGraphics>(buffer_usage);
+            } break;
+            case vk::QueueFlagBits::eTransfer: {
+                dependency = get_buffer_copy_dependency<vk::QueueFlagBits::eTransfer>(buffer_usage);
             } break;
         }
         return dependency;
