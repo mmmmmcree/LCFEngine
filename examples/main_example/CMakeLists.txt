@@ -7,6 +7,7 @@ target_link_libraries(main_example
         RenderEngine 
         Modules
         Systems
+        profiling 
 )
 
 add_custom_command(TARGET main_example POST_BUILD

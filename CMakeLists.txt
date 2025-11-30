@@ -6,11 +6,13 @@ set(CONFIG_MODULES
     global_config
     graphic_api_config
     window_config
+    profiling_config
 )
 foreach(module ${CONFIG_MODULES})
     include(${module})
 endforeach()
 
+add_subdirectory(profiling) 
 add_subdirectory(input)
 add_subdirectory(GUI) 
 add_subdirectory(math)  
@@ -19,6 +21,6 @@ add_subdirectory(RenderEngine)
 add_subdirectory(examples)  
 add_subdirectory(core)  
 add_subdirectory(Modules) 
-add_subdirectory(Systems)    
+add_subdirectory(Systems)   
   
     
