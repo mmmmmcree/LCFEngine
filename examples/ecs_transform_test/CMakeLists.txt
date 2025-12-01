@@ -14,7 +14,7 @@ target_link_libraries(${PROJECT_NAME}
         core
         utilities
         math
-        Tracy::TracyClient
+        profiling
 )
 
 set_target_properties(${PROJECT_NAME} PROPERTIES

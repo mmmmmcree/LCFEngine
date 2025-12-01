@@ -3,10 +3,14 @@
 #include "Vulkan/VulkanContext.h"
 #include "Vulkan/VulkanRenderer.h"
 #include "Timer.h"
+#include "tasks/TaskScheduler.h"
 #include "Transform.h"
 #include "TransformSystem.h"
 #include "CameraControllers/TrackballController.h"
 #include "log.h"
+#include "tracy_profiling.h"
+
+using namespace std::chrono_literals;
 
 int main(int argc, char *argv[])
 {
@@ -23,7 +27,6 @@ int main(int argc, char *argv[])
     window_up->create(window_info); //- create window before register to context
     window_up->show(); //- show after create
 
-
     context.registerWindow(window_up->getEntity())
         .create();
 
@@ -37,23 +40,38 @@ int main(int argc, char *argv[])
 
     lcf::InputReader input_reader;
     lcf::modules::TrackballController trackball_controller;
-    trackball_controller.setInputReader(input_reader);
+    trackball_controller.setSensitivity(0.2f)
+        .setMoveSpeed(50.0f)
+        .setZoomSpeed(400.0f)
+        .setInputReader(input_reader);
 
     auto render_loop = [&] {
+        static auto last_time = std::chrono::high_resolution_clock::now();
+        auto now = std::chrono::high_resolution_clock::now();
+        auto delta_time = std::chrono::duration_cast<std::chrono::duration<float>>(now - last_time).count();
+        last_time = now;
+
         input_reader.update(window_up->getComponent<lcf::InputCollector>().getSnapshot());
-        trackball_controller.update(camera_entity); //todo upadate multiple camera entity
+        trackball_controller.update(camera_entity, delta_time); //todo upadate multiple camera entity
         transform_system.update();
         renderer.render(camera_entity, window_up->getEntity()); //todo make a data pack
     };
         
-    lcf::ThreadTimer timer;
-    timer.setCallback(render_loop)
-        .setInterval(std::chrono::milliseconds(1))
+    lcf::ThreadIOContext::SharedPointer thread_io_context_sp = lcf::ThreadIOContext::makeShared();
+    thread_io_context_sp->run();
+    lcf::Timer engine_timer(thread_io_context_sp);
+    engine_timer.setCallback(std::move(render_loop))
+        .setInterval(1ms)
         .start();
 
-    while (true) {
+    lcf::TaskScheduler scheduler;
+    auto periodic_task = [&] {
+        TRACY_SCOPE_BEGIN_NC("PollEvents", tracy::Color::Red2);
         window_up->pollEvents();
-        if (window_up->getState() == lcf::gui::WindowState::eAboutToClose) { break; }
-    }
+        TRACY_SCOPE_END();
+    };
+    auto continue_condition = [&] { return window_up->getState() != lcf::gui::WindowState::eAboutToClose; };
+    scheduler.registerPeriodicTask(5ms, std::move(periodic_task), std::move(continue_condition));
+    scheduler.run();
     return 0;
 }
