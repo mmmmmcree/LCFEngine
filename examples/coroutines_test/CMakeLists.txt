@@ -1,6 +1,9 @@
-project(ecs_transform_test)
+project(coroutines_test)
 
 file(GLOB_RECURSE SOURCES "src/*.cpp")
+
+find_package(Boost REQUIRED COMPONENTS beast)
+find_package(OpenSSL REQUIRED)
 
 include_directories(  
   ${CMAKE_CURRENT_SOURCE_DIR}/include 
@@ -11,8 +14,9 @@ target_link_libraries(${PROJECT_NAME}
     PRIVATE 
         core
         utilities
-        math
         profiling
+        Boost::beast
+        OpenSSL::SSL OpenSSL::Crypto
 )
 
 set_target_properties(${PROJECT_NAME} PROPERTIES
