@@ -4,6 +4,9 @@
 #ifndef NDEBUG
 #include "spdlog/sinks/stdout_color_sinks.h"
 #include "spdlog/sinks/basic_file_sink.h"
+#if defined(_WIN32)
+#include "spdlog/sinks/msvc_sink.h"
+#endif
 #include <filesystem>
 #endif
 
@@ -37,11 +40,20 @@ namespace lcf {
             );
             std::filesystem::create_directories("logs");
             auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("logs/debug.log", true);
-            file_sink->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%s:%# %!()] [%l] \n%v");
+            file_sink->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%s: line %#] %!() [thread id: %t] [%l]\n%v");
+            #if defined(_WIN32)
+            auto msvc_sink = std::make_shared<spdlog::sinks::msvc_sink_mt>();
+            msvc_sink->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%s: line %#] %!() [thread id: %t] [%l]\n%v");
+            auto logger = std::make_shared<spdlog::logger>(
+                "multi_sink",
+                spdlog::sinks_init_list{console_sink, file_sink, msvc_sink}
+            );
+            #else
             auto logger = std::make_shared<spdlog::logger>(
                 "multi_sink",
                 spdlog::sinks_init_list{console_sink, file_sink}
             );
+            #endif
             logger->set_level(spdlog::level::trace);
             logger->flush_on(spdlog::level::debug);
             spdlog::set_default_logger(logger);
