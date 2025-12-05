@@ -2,8 +2,10 @@
 #include "tasks/TaskScheduler.h"
 
 #include <boost/asio/ssl.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <boost/beast.hpp>
 #include <boost/beast/ssl.hpp>
+#include <CLI/CLI.hpp>
 
 namespace asio = boost::asio;
 namespace beast = boost::beast;
@@ -24,7 +26,12 @@ static asio::awaitable<beast::multi_buffer> download_image_pipeline(asio::io_con
     std::string target = std::string(req.target());
 
     ssl::context ssl_ctx(ssl::context::tls_client);
+#ifdef _WIN32
+    ssl_ctx.load_verify_file("cacert.pem");
+#else
     ssl_ctx.set_default_verify_paths();
+#endif // _WIN32
+
 
     // 解析、连接、握手、发送请求（协程串行）
     tcp::resolver resolver(io);
@@ -56,6 +63,123 @@ static asio::awaitable<beast::multi_buffer> download_image_pipeline(asio::io_con
     }
 
     co_return res.body();
+}
+
+
+#ifdef _WIN32
+#include <boost/asio/windows/stream_handle.hpp>
+#include <boost/asio/windows/object_handle.hpp>
+
+#include <iostream>
+namespace win32 {
+    bool manipulate_console_input(std::string & input_buffer, HANDLE std_in_handle)
+    {
+        INPUT_RECORD record;
+        DWORD read;
+        if (not ::ReadConsoleInputW(std_in_handle, &record, 1, &read)) { return false; }
+        if (record.EventType != KEY_EVENT or not record.Event.KeyEvent.bKeyDown) { return false; }
+        bool input_available = false;
+        switch (record.Event.KeyEvent.wVirtualKeyCode) {
+            case VK_RETURN: {
+                std::cout << std::endl;
+                input_available = true;
+            } break;
+            case VK_BACK: {
+                if (not input_buffer.empty()) {
+                    input_buffer.pop_back();
+                    std::cout << "\b \b" << std::flush;
+                }
+            } break;
+            default: {
+                char ch = static_cast<char>(record.Event.KeyEvent.uChar.AsciiChar);
+                input_buffer += ch;
+                std::cout << ch << std::flush;
+            } break;
+        }
+        return input_available;
+    }
+
+    bool read_line_from_pipe(std::string & input_buffer, HANDLE std_in_handle)
+    {
+        DWORD word_count = 0;
+        if (not ::PeekNamedPipe(std_in_handle, nullptr, 0, nullptr, &word_count, nullptr) or word_count == 0) {
+            return false;
+        }
+        input_buffer.resize(word_count);
+        DWORD n = 0;
+        if (not ::ReadFile(std_in_handle, input_buffer.data(), word_count, &n, nullptr)) { return false; }
+        if (not input_buffer.empty() and input_buffer.back() == '\n') { input_buffer.pop_back(); }
+        if (not input_buffer.empty() and input_buffer.back() == '\r') { input_buffer.pop_back(); }
+        return true;
+    }
+}
+
+#else
+#include <boost/asio/posix/stream_descriptor.hpp>
+#include <unistd.h>
+#endif // _WIN32
+
+asio::awaitable<void> command_loop(asio::io_context & io_context)
+{
+    CLI::App main_cmd;
+
+    auto parse_command_str = [&main_cmd](const std::string & command_str)
+    {
+        try {
+            main_cmd.parse(command_str);
+        } catch (const CLI::ParseError & e) {
+            lcf_log_error("{}", e.what());
+        }
+    };
+
+    auto quit_cmd = main_cmd.add_subcommand("quit", "quit the program");
+    bool quit_flag = false;
+    quit_cmd->callback([&quit_flag]() {
+        lcf_log_info("quit command received");
+        quit_flag = true;
+    });
+
+    auto download_cmd = main_cmd.add_subcommand("download", "download an image");
+    std::string url;
+    download_cmd->add_option("--url", url, "the URL of the image to download")->required();
+    download_cmd->callback([&url]() {
+        lcf_log_info("download command received for URL {}", url);
+    });
+
+#ifdef _WIN32
+    HANDLE std_in_handle = ::GetStdHandle(STD_INPUT_HANDLE);
+    DWORD std_in_type = ::GetFileType(std_in_handle);
+    if (std_in_type == FILE_TYPE_PIPE or std_in_type == FILE_TYPE_DISK) {
+        asio::steady_timer timer {io_context, 500ms};
+        std::array<char, 256> buffer;
+        std::string command_str;
+        while (true) {
+            if (not win32::read_line_from_pipe(command_str, std_in_handle)) {
+                co_await timer.async_wait(asio::use_awaitable);
+                continue;
+            }
+            if (command_str.empty()) { continue; }
+            
+            parse_command_str(command_str);
+            if (quit_flag) { break; }
+        }
+    } else {
+        boost::asio::windows::object_handle input_handle{io_context, std_in_handle};
+        std::string command_str;
+        while (true) {
+            co_await input_handle.async_wait(asio::use_awaitable);
+            bool command_available = win32::manipulate_console_input(command_str, std_in_handle);
+            if (not command_available) { continue; }
+            if (command_str.empty()) { continue; }
+
+            parse_command_str(command_str);
+            command_str.clear();
+            if (quit_flag) { break; }
+        }
+    }
+#else
+#endif // _WIN32
+    co_return;
 }
 
 using Taskflow = tf::Taskflow;
@@ -110,6 +234,7 @@ int main()
 
     scheduler.registerAsyncTask(std::move(async_task_getter), std::move(taskflow_getter));
 
+    asio::co_spawn(scheduler.getIOContext(), command_loop(scheduler.getIOContext()), asio::detached);
     lcf_log_info("Scheduler started");
     scheduler.run();
     lcf_log_info("Done");
