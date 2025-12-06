@@ -8,7 +8,7 @@
 namespace asio = boost::asio;
 
 namespace lcf {
-class TaskScheduler
+    class TaskScheduler
     {
     public:
         using IOContext = asio::io_context;
@@ -16,17 +16,13 @@ class TaskScheduler
         using Interval = typename ClockTimer::clock_type::duration;
         using ExceptionHandler = std::function<void(std::exception_ptr)>;
         using Taskflow = tf::Taskflow;
-
         explicit TaskScheduler(size_t executor_threads = std::thread::hardware_concurrency()) :
             m_executor(executor_threads)
         {
-
         }
         IOContext & getIOContext() noexcept { return m_io_context; }
         const IOContext & getIOContext() const noexcept { return m_io_context; }
-
         void run() { m_io_context.run(); }
-
         template <crt_invocable_c<void> Task, crt_invocable_c<bool> ContinueCondition>
         void registerPeriodicTask(
             Interval interval,
@@ -38,13 +34,15 @@ class TaskScheduler
                 interval,
                 std::forward<Task>(task),
                 std::forward<ContinueCondition>(continue_condition));
-            
             auto callback = [error_handler_opt = std::move(error_handler_opt)] (std::exception_ptr e) {
                 handle_exception(e, error_handler_opt);
             };
             asio::co_spawn(m_io_context, std::move(awaitable_task), std::move(callback));
         }
-
+        void registerAsyncTask(asio::awaitable<void> awaitable)
+        {
+            asio::co_spawn(m_io_context, std::move(awaitable), asio::detached);
+        }
         template <typename AsyncTaskGetter,
                 typename TaskflowGetter,
                 typename T = typename std::invoke_result_t<AsyncTaskGetter>::value_type> requires
@@ -67,10 +65,22 @@ class TaskScheduler
             };
             asio::co_spawn(m_io_context, std::move(awaitable), std::move(callback));
         }
+        template <typename T, crt_invocable_c<Taskflow, T> TaskflowGetter>
+        void registerAsyncTask(
+            asio::awaitable<T> async_task,
+            TaskflowGetter taskflow_getter,
+            std::optional<ExceptionHandler> error_handler_opt = std::nullopt)
+        {
+            asio::co_spawn(m_io_context, [](auto self, asio::awaitable<T> task, TaskflowGetter getter) -> asio::awaitable<void> {
+                T result = co_await std::move(task);
+                auto executor = co_await asio::this_coro::executor;
+                co_await self->wrapTaskflowAsync( getter(std::move(result)), std::move(executor));
+                }(this, std::move(async_task), std::move(taskflow_getter)),
+                [error_handler_opt](std::exception_ptr e) { handle_exception(e, error_handler_opt); }
+            );
+        }
     private:
         static void handle_exception(std::exception_ptr exception_p, std::optional<ExceptionHandler> error_handler_opt);
-
-
         template <crt_invocable_c<void> Task, crt_invocable_c<bool> ContinueCondition>
         asio::awaitable<void> wrapPeriodicTask(
             Interval interval,
@@ -85,7 +95,6 @@ class TaskScheduler
             }
             co_return;
         }
-
         asio::awaitable<void> wrapTaskflowAsync(Taskflow taskflow, asio::any_io_executor io_executor)
         {
             auto taskflow_sp = std::make_shared<Taskflow>(std::move(taskflow));
@@ -104,7 +113,6 @@ class TaskScheduler
             };
             return asio::async_initiate<void()>(std::move(async_task), asio::use_awaitable);
         }
-
     private:
         IOContext m_io_context;
         tf::Executor m_executor;
