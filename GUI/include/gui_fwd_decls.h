@@ -13,9 +13,9 @@ namespace lcf::gui {
     class SDLWindow;
     class SDLWindowSystem;
 
-    #define WINDOW_IMPL_DECLARE SDL_Window
-    #define WINDOW_DECLARE SDLWindow
-    #define WINDOW_SYSTEM_DECLARE SDLWindowSystem
+    #define WINDOW_IMPL_DECL SDL_Window
+    #define WINDOW_DECL SDLWindow
+    #define WINDOW_SYSTEM_DECL SDLWindowSystem
 }
 
 // specific graphics api related
