@@ -1,47 +1,46 @@
 #include "log.h"
+
 #include "tasks/TaskScheduler.h"
 #include "download_and_save.h"
 #include "UserCommandContext.h"
-#include <boost/url.hpp>
 
-namespace asio = boost::asio;
-using namespace std::chrono_literals;
+using namespace lcf;
 
-using Taskflow = tf::Taskflow;
+asio::awaitable<void> async_task()
+{
+    boost::urls::url url {"https://dummyimage.com/800x600/FF0000/FFFFFF.jpg?text=Async"};
+    auto body = co_await download_image_pipeline(url);
+
+    tf::Executor executor {1};
+    tf::Taskflow taskflow;
+    taskflow.emplace(
+        [&body]() {
+            lcf_log_info("begin taskflow save");
+            save_to(body, std::filesystem::path{"async.jpg"});
+            std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+            lcf_log_info("end taskflow save");
+        }
+    );
+    auto io_executor = co_await asio::this_coro::executor;
+    co_await make_awaitable(io_executor, executor, std::move(taskflow));
+}
 
 int main()
 {
     lcf::Logger::init();
-    lcf::TaskScheduler scheduler;
-    lcf::UserCommandContext user_command_context {scheduler.getIOContext()};
-    // download --url https://dummyimage.com/800x600/FF0000/FFFFFF.jpg?text=Async --output-path downloaded_image.jpg
-
-    uint32_t heartbeat_count = 0;
-    scheduler.registerPeriodicTask(
-        500ms,
-        [&heartbeat_count]() { lcf_log_info("heartbeat {}", heartbeat_count++); },
-        [&heartbeat_count]() { return heartbeat_count < 20; }
-    );
-
-    auto taskflow_getter = [](beast::multi_buffer body) -> Taskflow
-    {
-        Taskflow tf;
-        tf.emplace(
-            [body_sp = std::make_shared<beast::multi_buffer>(std::move(body))]() {
-                lcf_log_info("Processing {} bytes", body_sp->size());
-                save_to(*body_sp, "downloaded_image.jpg");
-                std::this_thread::sleep_for(3s);
-                lcf_log_info("image saved");
-            }
-        );
-        return tf;
+    int heartbeat = 0;
+    lcf::PeriodicTask periodic_task {
+        std::chrono::milliseconds(1000),
+        [&]() { lcf_log_info("heartbeat {}", heartbeat++); },
+        [&]() { return heartbeat < 10; },
+        []() { lcf_log_info("Periodic task finished"); }
     };
-    
-    boost::urls::url url {"https://dummyimage.com/800x600/FF0000/FFFFFF.jpg?text=Async"};
-    scheduler.registerAsyncTask(download_image_pipeline(url), std::move(taskflow_getter));
-    scheduler.registerAsyncTask(user_command_context.loop());
-    lcf_log_info("Scheduler started");
-    scheduler.run();
-    lcf_log_info("Done");
+    lcf::TaskScheduler scheduler;
+    lcf::UserCommandContext user_cmd_context {scheduler.getIOContext()};
+    // download --url https://dummyimage.com/800x600/FF0000/FFFFFF.jpg?text=Async --output-path downloaded_image.jpg
+    scheduler.registerPeriodicTask(std::move(periodic_task))
+        .registerAwaitable(async_task())
+        .registerAwaitable(user_cmd_context.loop())
+        .run();
     return 0;
 }

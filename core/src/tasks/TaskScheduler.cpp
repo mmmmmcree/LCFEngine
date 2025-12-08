@@ -1,15 +1,13 @@
 #include "tasks/TaskScheduler.h"
 #include "log.h"
 
-void lcf::TaskScheduler::handle_exception(std::exception_ptr exception_p, std::optional<ExceptionHandler> error_handler_opt)
+void lcf::TaskScheduler::rethrow_exception(std::exception_ptr execption_p)
 {
-    if (not exception_p) { return; }
-    if (error_handler_opt) {
-        (*error_handler_opt)(exception_p);
-    } else {
-        try { std::rethrow_exception(exception_p); }
-        catch (const std::exception& ex) {
-            lcf_log_error("Exception in async task: {}", ex.what());
-        }
+    if (not execption_p) { return; }
+    try {
+        std::rethrow_exception(execption_p);
+    } catch (const std::exception & e) {
+        lcf_log_error(e.what());
+        throw e;
     }
 }

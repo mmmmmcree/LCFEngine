@@ -65,13 +65,16 @@ int main(int argc, char *argv[])
         .start();
 
     lcf::TaskScheduler scheduler;
-    auto periodic_task = [&] {
-        TRACY_SCOPE_BEGIN_NC("PollEvents", tracy::Color::Red2);
-        window_up->pollEvents();
-        TRACY_SCOPE_END();
-    };
-    auto continue_condition = [&] { return window_up->getState() != lcf::gui::WindowState::eAboutToClose; };
-    scheduler.registerPeriodicTask(5ms, std::move(periodic_task), std::move(continue_condition));
-    scheduler.run();
+    lcf::PeriodicTask periodic_task(
+        5ms,
+        [&] {
+            TRACY_SCOPE_BEGIN_NC("PollEvents", tracy::Color::Red2);
+            window_up->pollEvents();
+            TRACY_SCOPE_END();
+        },
+        [&] { return window_up->getState() != lcf::gui::WindowState::eAboutToClose; }
+    );
+    scheduler.registerPeriodicTask(std::move(periodic_task))
+        .run();
     return 0;
 }
