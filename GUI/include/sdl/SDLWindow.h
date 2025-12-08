@@ -2,7 +2,7 @@
 
 #include "PointerDefs.h"
 #include "Entity.h"
-#include "gui_forward_declares.h"
+#include "gui_fwd_decls.h"
 #include "gui_enums.h"
 #include <SDL3/SDL.h>
 #include "InputState.h"

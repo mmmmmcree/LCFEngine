@@ -1,6 +1,6 @@
-#include "VulkanShader.h"
-#include "VulkanContext.h"
-#include "ShaderCompiler.h"
+#include "Vulkan/VulkanShader.h"
+#include "Vulkan/VulkanContext.h"
+#include "ShaderCore/ShaderCompiler.h"
 #include "log.h"
 
 

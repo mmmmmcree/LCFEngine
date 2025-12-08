@@ -1,4 +1,4 @@
-#include "ShaderProgram.h"
+#include "ShaderCore/ShaderProgram.h"
 
 lcf::Shader *lcf::ShaderProgram::getShader(ShaderTypeFlagBits stage) const
 {

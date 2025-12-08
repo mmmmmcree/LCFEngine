@@ -1,4 +1,4 @@
-#include "ShaderResource.h"
+#include "ShaderCore/ShaderResource.h"
 #include <format>
 #include <sstream>
 

@@ -1,4 +1,4 @@
-#include "convert_from_color_to_gray.h"
+#include "Image/details/convert_from_color_to_gray.h"
 
 void lcf::details::convert_from_color_to_gray(Image::ImageVariant &src_image_var, Image::Format src_format, Image::Format dst_format)
 {

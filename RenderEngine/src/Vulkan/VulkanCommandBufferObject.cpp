@@ -1,5 +1,5 @@
-#include "VulkanCommandBufferObject.h"
-#include "VulkanContext.h"
+#include "Vulkan/VulkanCommandBufferObject.h"
+#include "Vulkan/VulkanContext.h"
 
 bool lcf::render::VulkanCommandBufferObject::create(VulkanContext * context_p, vk::QueueFlagBits queue_type)
 {

@@ -1,10 +1,10 @@
-#include "Image.h"
-#include "ImageView.h"
-#include "ConstImageView.h"
-#include "details/convert_from_gray_to_gray.h"
-#include "details/convert_from_color_to_color.h"
-#include "details/convert_from_gray_to_color.h"
-#include "details/convert_from_color_to_gray.h"
+#include "Image/Image.h"
+#include "Image/ImageView.h"
+#include "Image/ConstImageView.h"
+#include "Image/details/convert_from_gray_to_gray.h"
+#include "Image/details/convert_from_color_to_color.h"
+#include "Image/details/convert_from_gray_to_color.h"
+#include "Image/details/convert_from_color_to_gray.h"
 #include <unordered_map>
 #include <boost/gil/extension/io/png.hpp>
 #include <boost/gil/extension/io/jpeg.hpp>

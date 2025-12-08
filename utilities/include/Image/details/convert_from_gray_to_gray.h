@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Image.h"
+#include "Image/Image.h"
 
 namespace lcf::details {
     void convert_from_gray_to_gray(Image::ImageVariant & src_image_var, Image::Format src_format, Image::Format dst_format);

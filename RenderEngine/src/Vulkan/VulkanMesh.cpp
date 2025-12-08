@@ -1,6 +1,6 @@
-#include "VulkanMesh.h"
-#include "VulkanContext.h"
-#include "glsl_alignment_traits.h"
+#include "Vulkan/VulkanMesh.h"
+#include "Vulkan/VulkanContext.h"
+#include "common/glsl_alignment_traits.h"
 
 bool lcf::render::VulkanMesh::create(VulkanContext *context_p, VulkanCommandBufferObject &cmd, const Mesh &mesh)
 {

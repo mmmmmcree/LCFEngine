@@ -1,4 +1,4 @@
-#include "TrackballController.h"
+#include "CameraControllers/TrackballController.h"
 #include "InputReader.h"
 #include "Transform.h"
 #include "signals.h"

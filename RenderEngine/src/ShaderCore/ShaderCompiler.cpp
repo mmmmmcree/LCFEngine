@@ -1,5 +1,5 @@
-#include "ShaderCompiler.h"
-#include "ShaderIncluder.h"
+#include "ShaderCore/ShaderCompiler.h"
+#include "ShaderCore/ShaderIncluder.h"
 #include "log.h"
 #include <filesystem>
 #include <fstream>

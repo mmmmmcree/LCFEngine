@@ -1,6 +1,6 @@
 #pragma once
 
-#include "gui_forward_declares.h"
+#include "gui_fwd_decls.h"
 #include "sdl/SDLWindow.h"
 #include <vector>
 #include <string>

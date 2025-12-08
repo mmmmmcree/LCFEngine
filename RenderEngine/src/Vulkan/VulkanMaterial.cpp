@@ -1,6 +1,6 @@
-#include "VulkanMaterial.h"
-#include "VulkanContext.h"
-#include "VulkanDescriptorWriter.h"
+#include "Vulkan/VulkanMaterial.h"
+#include "Vulkan/VulkanContext.h"
+#include "Vulkan/VulkanDescriptorWriter.h"
 
 using namespace lcf::render;
 

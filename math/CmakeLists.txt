@@ -17,15 +17,7 @@ endif()
 
 find_package(glm REQUIRED)
 
-file(GLOB_RECURSE INCLUDE_DIRS CONFIGURE_DEPENDS LIST_DIRECTORIES true "${CMAKE_CURRENT_SOURCE_DIR}/include/*")
-set(DIRS_ONLY "")
-foreach(ITEM ${INCLUDE_DIRS})
-  if(IS_DIRECTORY ${ITEM})
-    list(APPEND DIRS_ONLY ${ITEM})
-  endif() 
-endforeach()
 include_directories(
-  ${CMAKE_CURRENT_SOURCE_DIR}/include 
   ${DIRS_ONLY}
 )
  

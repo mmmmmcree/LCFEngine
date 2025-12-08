@@ -1,5 +1,5 @@
-#include "VulkanDescriptorSetPrototype.h"
-#include "VulkanContext.h"
+#include "Vulkan/VulkanDescriptorSetPrototype.h"
+#include "Vulkan/VulkanContext.h"
 
 void lcf::render::VulkanDescriptorSetPrototype::create(VulkanContext * context_p)
 {

@@ -1,4 +1,4 @@
-#include "ConstImageView.h"
+#include "Image/ConstImageView.h"
 #include <boost/gil/extension/io/png.hpp>
 #include <boost/gil/extension/io/jpeg.hpp>
 #define STB_IMAGE_WRITE_IMPLEMENTATION

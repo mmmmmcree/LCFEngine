@@ -1,5 +1,5 @@
-#include "ImageView.h"
-#include "ConstImageView.h"
+#include "Image/ImageView.h"
+#include "Image/ConstImageView.h"
 
 using namespace boost;
 

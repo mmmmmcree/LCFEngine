@@ -1,5 +1,5 @@
-#include "VulkanMemoryAllocator.h"
-#include "VulkanContext.h"
+#include "Vulkan/VulkanMemoryAllocator.h"
+#include "Vulkan/VulkanContext.h"
 #define VMA_IMPLEMENTATION
 #include <vma/vk_mem_alloc.h>
 #include "log.h"
