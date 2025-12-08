@@ -9,6 +9,7 @@
 #include "CameraControllers/TrackballController.h"
 #include "log.h"
 #include "tracy_profiling.h"
+#include "UserCommandContext.h"
 
 using namespace std::chrono_literals;
 
@@ -65,6 +66,7 @@ int main(int argc, char *argv[])
         .start();
 
     lcf::TaskScheduler scheduler;
+    lcf::UserCommandContext user_cmd_context {scheduler.getIOContext()};
     lcf::PeriodicTask periodic_task(
         5ms,
         [&] {
@@ -75,6 +77,7 @@ int main(int argc, char *argv[])
         [&] { return window_up->getState() != lcf::gui::WindowState::eAboutToClose; }
     );
     scheduler.registerPeriodicTask(std::move(periodic_task))
+        // .registerAwaitable(user_cmd_context.loop()) //! need a cancelable awaitable, cancel it when window close
         .run();
     return 0;
 }

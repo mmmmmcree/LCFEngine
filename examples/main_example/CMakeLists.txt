@@ -1,6 +1,11 @@
 project(main_example)
 
-add_executable(main_example main.cpp)
+file(GLOB_RECURSE SOURCES "src/*.cpp")
+
+include_directories(  
+  ${CMAKE_CURRENT_SOURCE_DIR}/include 
+)
+add_executable(${PROJECT_NAME} ${SOURCES}) 
 
 target_link_libraries(main_example
     PRIVATE
@@ -23,4 +28,4 @@ add_custom_command(TARGET main_example POST_BUILD
 
 set_target_properties(main_example PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
-)
+) 
