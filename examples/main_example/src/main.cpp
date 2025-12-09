@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
     );
     lcf::UserCommandContext user_cmd_context {scheduler.getIOContext()};
     scheduler.registerPeriodicTask(std::move(periodic_task))
-        .registerAwaitable(user_cmd_context.loop()) //! need a cancelable awaitable, cancel it when window close
+        .registerAwaitable(user_cmd_context.loop())
         .run();
     return 0;
 }
