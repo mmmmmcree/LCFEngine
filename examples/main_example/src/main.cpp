@@ -66,18 +66,19 @@ int main(int argc, char *argv[])
         .start();
 
     lcf::TaskScheduler scheduler;
-    lcf::UserCommandContext user_cmd_context {scheduler.getIOContext()};
     lcf::PeriodicTask periodic_task(
         5ms,
         [&] {
-            TRACY_SCOPE_BEGIN_NC("PollEvents", tracy::Color::Red2);
+            // TRACY_SCOPE_BEGIN_NC("PollEvents", tracy::Color::Red2);
             window_up->pollEvents();
-            TRACY_SCOPE_END();
+            // TRACY_SCOPE_END();
         },
-        [&] { return window_up->getState() != lcf::gui::WindowState::eAboutToClose; }
+        [&] { return window_up->getState() != lcf::gui::WindowState::eAboutToClose; },
+        [&] { scheduler.stop(); }
     );
+    lcf::UserCommandContext user_cmd_context {scheduler.getIOContext()};
     scheduler.registerPeriodicTask(std::move(periodic_task))
-        // .registerAwaitable(user_cmd_context.loop()) //! need a cancelable awaitable, cancel it when window close
+        .registerAwaitable(user_cmd_context.loop()) //! need a cancelable awaitable, cancel it when window close
         .run();
     return 0;
 }

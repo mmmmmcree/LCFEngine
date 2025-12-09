@@ -20,6 +20,7 @@ namespace lcf {
         TaskScheduler & operator=(const TaskScheduler &) = delete;
         TaskScheduler & operator=(TaskScheduler &&) = default;
         void run() { m_io_context.run(); }
+        void stop() { m_io_context.stop(); }
         IOContext & getIOContext() noexcept { return m_io_context; }
         const IOContext & getIOContext() const noexcept { return m_io_context; }
         template <typename Invocable, crt_invocable_c<bool> ContinuePredicate, typename... Args>
