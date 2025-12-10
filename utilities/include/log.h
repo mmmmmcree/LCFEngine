@@ -29,21 +29,16 @@ namespace lcf {
     #ifndef NDEBUG
         static void initDebug()
         {
+            const std::string pattern = "[%Y-%m-%d %H:%M:%S.%e] [%l] [%s:line %#] %!() [thread id: %t]\n%v";
             auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
             console_sink->set_color_mode(spdlog::color_mode::always);
-            console_sink->set_pattern(
-                "\033[35m[%Y-%m-%d\033[0m \033[95m%H:%M:%S.%e]\033[0m "
-                "\033[93m[%s\033[0m: \033[96mline %#]\033[0m "
-                "\033[94m%!()\033[0m "
-                "\033[32m[thread id: %t]\033[0m "
-                "%^[%l]\n%v%$"
-            );
+            console_sink->set_pattern(std::format("%^{}%$", pattern));
             std::filesystem::create_directories("logs");
             auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("logs/debug.log", true);
-            file_sink->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%s: line %#] %!() [thread id: %t] [%l]\n%v");
+            file_sink->set_pattern(pattern);
             #if defined(_WIN32)
             auto msvc_sink = std::make_shared<spdlog::sinks::msvc_sink_mt>();
-            msvc_sink->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%s: line %#] %!() [thread id: %t] [%l]\n%v");
+            msvc_sink->set_pattern(pattern);
             auto logger = std::make_shared<spdlog::logger>(
                 "multi_sink",
                 spdlog::sinks_init_list{console_sink, file_sink, msvc_sink}
@@ -61,8 +56,9 @@ namespace lcf {
     #else
         static void initRelease()
         {
+            const std::string pattern = "[%H:%M:%S] [%l]\n%v";
             auto logger = spdlog::default_logger();
-            logger->set_pattern("[%H:%M:%S] %^[%l]%$ \n%v");
+            logger->set_pattern(std::format("%^{}%$", pattern));
         }
     #endif
     };
