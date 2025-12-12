@@ -14,7 +14,6 @@ namespace lcf::render {
     {
         using Self = VulkanPipeline;
     public:
-        using DescriptorSetLayoutList = VulkanShaderProgram::DescriptorSetLayoutList;
         using DescriptorSetLayoutBindings = std::span<const vk::DescriptorSetLayoutBinding>;
         VulkanPipeline() = default;
         VulkanPipeline(const Self &) = delete;

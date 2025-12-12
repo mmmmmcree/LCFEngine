@@ -18,7 +18,6 @@ namespace lcf::render {
         using ShaderStageInfoList = std::vector<vk::PipelineShaderStageCreateInfo>;
         using DescriptorSetLayoutBindingList = std::vector<vk::DescriptorSetLayoutBinding>;
         using DescriptorSetLayoutBindingTable = std::vector<DescriptorSetLayoutBindingList>; // [set][binding]
-        using DescriptorSetLayoutList = std::vector<vk::DescriptorSetLayout>;
         using DescriptorSetPrototypeList = std::vector<VulkanDescriptorSetPrototype>;
         using PushConstantMap = std::unordered_map<uint32_t, VulkanPushConstant>; // [stage]
         VulkanShaderProgram(VulkanContext * context);
