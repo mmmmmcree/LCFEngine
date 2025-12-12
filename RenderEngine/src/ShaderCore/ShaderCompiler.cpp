@@ -91,6 +91,7 @@ lcf::ShaderResources lcf::ShaderCompiler::analyzeSpvCode(const SpvCode &spv_code
 lcf::ShaderResource lcf::ShaderCompiler::parseBufferResource(const spirv_cross::Compiler &spv_compiler, const spirv_cross::Resource &resource)
 {
     auto result = this->parseResource(spv_compiler, resource);
+    result.setName(spv_compiler.get_name(resource.base_type_id));
     auto &members = result.getMembers();
     auto buffer_ranges = spv_compiler.get_active_buffer_ranges(resource.id);
     for (const auto &buffer_range : buffer_ranges) {
@@ -104,10 +105,10 @@ lcf::ShaderResource lcf::ShaderCompiler::parseResource(const spirv_cross::Compil
 {
     ShaderResource result;
     //! parse buffer like resource; for stage inputs and outputs, the parsing process is different
-    result.setName(spv_compiler.get_name(resource.base_type_id))
-        .setBinding(spv_compiler.get_decoration(resource.id, spv::DecorationBinding))
+    result.setBinding(spv_compiler.get_decoration(resource.id, spv::DecorationBinding))
         .setSet(spv_compiler.get_decoration(resource.id, spv::DecorationDescriptorSet));
     this->parseResourceMembers(result, spv_compiler, resource.type_id);
+    result.setName(spv_compiler.get_name(resource.id));
     return result;
 }
 
@@ -128,7 +129,8 @@ void lcf::ShaderCompiler::parseResourceMembers(ShaderResourceMember &resource, c
     for (int i = 0; i < type.member_types.size(); ++i) {
         const auto &member_type = spv_compiler.get_type(type.member_types[i]);
         ShaderResourceMember member;
-        member.setOffset(spv_compiler.type_struct_member_offset(type, i))
+        member.setName(spv_compiler.get_member_name(type.self, i))
+            .setOffset(spv_compiler.type_struct_member_offset(type, i))
             .setSizeInBytes(spv_compiler.get_declared_struct_member_size(type, i));
         this->parseResourceMembers(member, spv_compiler, type.member_types[i]);
         resource.addMember(member);
@@ -138,10 +140,10 @@ void lcf::ShaderCompiler::parseResourceMembers(ShaderResourceMember &resource, c
 lcf::ShaderResource lcf::ShaderCompiler::parseInputResource(const spirv_cross::Compiler &spv_compiler, const spirv_cross::Resource &resource)
 {
     ShaderResource result;
-    result.setName(spv_compiler.get_name(resource.base_type_id))
-        .setLocation(spv_compiler.get_decoration(resource.id, spv::DecorationLocation))
+    result.setLocation(spv_compiler.get_decoration(resource.id, spv::DecorationLocation))
         .setBinding(spv_compiler.get_decoration(resource.id, spv::DecorationBinding));
     this->parseInputResourceMembers(result, spv_compiler, resource.type_id);
+    result.setName(spv_compiler.get_name(resource.base_type_id));
     return result;
 }
 
@@ -157,7 +159,8 @@ void lcf::ShaderCompiler::parseInputResourceMembers(ShaderResourceMember &resour
     for (int i = 0; i < type.member_types.size(); ++i) {
         ShaderResource member;
         this->parseInputResourceMembers(member, spv_compiler, type.member_types[i]);
-        member.setOffset(size);
+        member.setName(spv_compiler.get_member_name(type.self, i))
+            .setOffset(size);
         resource.addMember(member);
         size += member.getSizeInBytes();
     }
