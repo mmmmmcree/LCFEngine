@@ -18,7 +18,7 @@ namespace lcf {
         Self & setVecSize(uint32_t vecsize) { m_vecsize = vecsize; return *this; }
         Self & setColumns(uint32_t columns) { m_columns = columns; return *this; }
         Self & setOffset(uint32_t offset) { m_offset = offset; return *this; }
-        Self & setArraySize(uint32_t array_size) { m_array_size = std::max(1u, array_size); return *this; }
+        Self & setArraySize(uint32_t array_size) { m_array_size = array_size; return *this; }
         Self & addMember(const ShaderResourceMember &member) { m_members.emplace_back(member); return *this; }
         Self & setSizeInBytes(uint32_t size) { m_size = size; return *this; }
         ShaderDataType getBaseDataType() const { return m_base_type; }
@@ -48,11 +48,9 @@ namespace lcf {
         using Self = ShaderResource;
     public:
         ShaderResource() = default;
-        // Self & setName(std::string_view name) { m_name = name; return *this; }
         Self & setLocation(uint32_t location) { m_location = location; return *this; }
         Self & setBinding(uint32_t binding) { m_binding = binding; return *this; }
         Self & setSet(uint32_t set) { m_set = set; return *this; }
-        // const std::string &getName() const { return m_name; }
         bool hasLocation() const { return m_location != -1; }
         bool hasBinding() const { return m_binding != -1; }
         bool hasSet() const { return m_set != -1; }
@@ -60,7 +58,6 @@ namespace lcf {
         uint32_t getBinding() const { return m_binding; }
         uint32_t getSet() const { return m_set; }
     private:
-        // std::string m_name;
         uint32_t m_location = 0;
         uint32_t m_binding = 0;
         uint32_t m_set = 0;
