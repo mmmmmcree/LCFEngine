@@ -1,12 +1,13 @@
 #pragma once
 
 #include "common/enum_types.h"
+#include "enum_cast.h"
 #include <vulkan/vulkan.hpp>
 
 namespace lcf::render::vkconstants {
     static constexpr vk::DescriptorSetLayoutBinding per_view_bindings[] = {
         {
-            static_cast<uint32_t>(PerViewBindingPoints::eCamera),
+            to_integral(PerViewBindingPoints::eCamera),
             vk::DescriptorType::eUniformBufferDynamic,
             1u,
             vk::ShaderStageFlagBits::eVertex
@@ -15,22 +16,28 @@ namespace lcf::render::vkconstants {
 
     static constexpr vk::DescriptorSetLayoutBinding per_renderable_bindings[] = {
         {
-            static_cast<uint32_t>(PerRenderableBindingPoints::eVertexBuffer),
+            to_integral(PerRenderableBindingPoints::eVertexBuffer),
             vk::DescriptorType::eStorageBuffer,
             1u,
             vk::ShaderStageFlagBits::eVertex
         },
         {
-            static_cast<uint32_t>(PerRenderableBindingPoints::eIndexBuffer),
+            to_integral(PerRenderableBindingPoints::eIndexBuffer),
             vk::DescriptorType::eStorageBuffer,
             1u,
             vk::ShaderStageFlagBits::eVertex
         },
         {
-            static_cast<uint32_t>(PerRenderableBindingPoints::eTransform),
+            to_integral(PerRenderableBindingPoints::eTransform),
             vk::DescriptorType::eStorageBuffer,
             1u,
             vk::ShaderStageFlagBits::eVertex
         },
+        {
+            to_integral(PerRenderableBindingPoints::eMaterialIndexing),
+            vk::DescriptorType::eStorageBuffer,
+            1u,
+            vk::ShaderStageFlagBits::eVertex
+        }
     };
 }
