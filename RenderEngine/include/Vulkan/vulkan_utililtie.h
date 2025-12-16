@@ -2,7 +2,7 @@
 
 #include <vulkan/vulkan.hpp>
 #include <functional>
-#include "common/enum_types.h"
+#include "common/render_enums.h"
 #include "VulkanContext.h"
 #include "VulkanCommandBufferObject.h"
 
