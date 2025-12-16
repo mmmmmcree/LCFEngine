@@ -2,7 +2,6 @@
 
 #include "VulkanContext.h"
 #include "VulkanSwapchain.h"
-#include "VulkanDescriptorManager.h"
 #include "VulkanPipeline.h"
 #include "VulkanImage.h"
 #include "VulkanFramebufferObject.h"
@@ -12,6 +11,7 @@
 #include "VulkanMesh.h"
 #include "VulkanSampler.h"
 #include "VulkanMaterial.h"
+#include "VulkanDescriptorSet.h"
 
 namespace lcf {
     using namespace lcf::render;
@@ -24,7 +24,6 @@ namespace lcf {
         VulkanRenderer& operator=(const VulkanRenderer&) = delete;
         ~VulkanRenderer();
         void create(VulkanContext * context_p, const std::pair<uint32_t, uint32_t> & max_extent);
-        // void render(const Entity & camera, RenderTarget::WeakPointer render_target_wp);
         void render(const Entity & camera, const Entity & render_target);
     private:
         VulkanContext * m_context_p;
@@ -32,7 +31,6 @@ namespace lcf {
         {
             FrameResources() = default;
             VulkanCommandBufferObject command_buffer;
-            VulkanDescriptorManager descriptor_manager;
             // temporary
             VulkanFramebufferObject fbo;
         };
@@ -40,8 +38,10 @@ namespace lcf {
         uint32_t m_current_frame_index = 0;
 
         //! temporary
-        vk::DescriptorSet m_per_view_descriptor_set;
-        vk::DescriptorSet m_per_renderable_descriptor_set;
+        // vk::DescriptorSet m_per_view_descriptor_set;
+        // vk::DescriptorSet m_per_renderable_descriptor_set;
+        VulkanDescriptorSet m_per_view_descriptor_set;
+        VulkanDescriptorSet m_per_renderable_descriptor_set;
 
         VulkanPipeline m_compute_pipeline;
         VulkanPipeline m_graphics_pipeline;
@@ -51,9 +51,10 @@ namespace lcf {
 
         VulkanBufferObject m_indirect_call_buffer;
         
-        VulkanBufferObject m_per_renderable_vertex_buffer;
-        VulkanBufferObject m_per_renderable_index_buffer;
-        VulkanBufferObject m_per_renderable_transform_buffer;
+        VulkanBufferObject m_per_renderable_vertex_buffer_ssbo;
+        VulkanBufferObject m_per_renderable_index_buffer_ssbo;
+        VulkanBufferObject m_per_renderable_transform_ssbo;
+        VulkanBufferObject m_per_renderable_material_indexing_ssbo;
 
         VulkanMesh m_mesh;
         VulkanMaterial m_material;

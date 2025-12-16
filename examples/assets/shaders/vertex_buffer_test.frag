@@ -4,16 +4,26 @@ layout(location = 0) out vec4 frag_color;
 layout(location = 0) in VS_OUT {
     vec3 color;
     vec2 uv;
+    flat uint material_id;
 } fs_in;
 
-// layout(set = 2, binding = 1) uniform sampler2D tex;
-layout(set = 2, binding = 1) uniform texture2D textures[2];
-layout(set = 2, binding = 2) uniform sampler _sampler;
+#extension GL_EXT_nonuniform_qualifier : require
+struct MaterialParams {
+    vec4 base_color;
+    vec4 emissive_color;
+};
 
+layout(set = 2, binding = 0) readonly buffer material_params_ssbo {
+    MaterialParams material_params[];
+};
+layout(set = 2, binding = 1) uniform sampler samplers[2];
+layout(set = 2, binding = 2) uniform texture2D textures[65536]; // descriptor indexing, must be the last binding, here use a literal for cpu-side array size
 
 void main()
 {
-    vec4 texture1 = texture(sampler2D(textures[0], _sampler), fs_in.uv);
-    vec4 texture2 = texture(sampler2D(textures[1], _sampler), fs_in.uv);
-    frag_color = mix(texture1, texture2, 0.5);
+    uint material_id = fs_in.material_id;
+    vec4 texture0_color = texture(sampler2D(textures[nonuniformEXT(material_id)], samplers[0]), fs_in.uv);
+    vec4 texture1_color = texture(sampler2D(textures[nonuniformEXT(material_id + 1)], samplers[0]), fs_in.uv);
+
+    frag_color = mix(texture0_color, texture1_color, 0.5);
 }
