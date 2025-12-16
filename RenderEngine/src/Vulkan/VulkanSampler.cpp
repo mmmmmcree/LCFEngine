@@ -16,7 +16,7 @@ bool VulkanSampler::create(VulkanContext * context_p, const vk::SamplerCreateInf
     m_sampler = device.createSamplerUnique(sampler_info);
     return this->isCreated();
 }
-    
+
 lcf::render::VulkanSamplerParams::VulkanSamplerParams(
     vk::Filter min_filter,
     vk::Filter mag_filter,
@@ -78,6 +78,28 @@ bool lcf::render::VulkanSamplerParams::operator==(const Self &other) const noexc
 bool lcf::render::VulkanSamplerParams::operator!=(const Self &other) const noexcept
 {
     return not (*this == other);
+}
+
+vk::SamplerCreateInfo lcf::render::VulkanSamplerParams::toCreateInfo() const noexcept
+{
+    return {
+        {},
+        m_min_filter,
+        m_mag_filter,
+        m_mipmap_mode,
+        m_address_mode_u,
+        m_address_mode_v,
+        m_address_mode_w,
+        m_mip_lod_bias,
+        m_anisotropy_enable,
+        m_max_anisotropy,
+        m_compare_enable,
+        m_compare_op,
+        m_min_lod,
+        m_max_lod,
+        m_border_color,
+        m_unnormalized_coordinates
+    };
 }
 
 uint64_t lcf::render::VulkanSamplerParams::Hasher::operator()(const Self & params) const noexcept
