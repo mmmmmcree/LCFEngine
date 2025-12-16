@@ -2,6 +2,7 @@
 #include "log.h"
 #include <boost/asio/steady_timer.hpp>
 #include <boost/asio/use_awaitable.hpp>
+#include <array>
 
 using namespace lcf;
 namespace asio = boost::asio;
