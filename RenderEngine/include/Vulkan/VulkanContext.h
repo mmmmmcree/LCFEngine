@@ -5,7 +5,8 @@
 #include "VulkanSwapchain.h"
 #include "VulkanMemoryAllocator.h"
 #include "VulkanCommandBufferObject.h"
-#include "VulkanDescriptorManager.h"
+#include "VulkanSamplerManager.h"
+#include "VulkanDescriptorSetAllocator.h"
 #include <vulkan/vulkan.hpp>
 #include <vector>
 #include <unordered_map>
@@ -36,7 +37,8 @@ namespace lcf::render {
         std::span<const vk::Queue> getSubQueues(vk::QueueFlagBits type) const noexcept;
         const vk::CommandPool & getCommandPool(vk::QueueFlagBits queue_type) const noexcept;
         const VulkanMemoryAllocator & getMemoryAllocator() const noexcept { return m_memory_allocator; }
-        VulkanDescriptorManager & getDescriptorManager() noexcept { return m_descriptor_manager; }
+        const VulkanDescriptorSetAllocator & getDescriptorSetAllocator() const noexcept { return m_descriptor_set_allocator; }
+        const VulkanSamplerManager & getSamplerManager() const noexcept { return m_sampler_manager; }
     private:
         void setupVulkanInstance();
         void pickPhysicalDevice();
@@ -56,6 +58,7 @@ namespace lcf::render {
         QueueListMap m_queue_lists;
         CommandBufferPoolMap m_command_pools;
         VulkanMemoryAllocator m_memory_allocator;
-        VulkanDescriptorManager m_descriptor_manager; //todo single descriptor set freeable
+        VulkanDescriptorSetAllocator m_descriptor_set_allocator;
+        VulkanSamplerManager m_sampler_manager;
     };
 }

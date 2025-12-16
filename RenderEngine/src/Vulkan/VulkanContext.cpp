@@ -36,7 +36,8 @@ void lcf::render::VulkanContext::create()
     this->createLogicalDevice();
     this->createCommandPools();
     m_memory_allocator.create(this);
-    m_descriptor_manager.create(this);
+    m_descriptor_set_allocator.create(this);
+    m_sampler_manager.create(this);
     for (auto &render_target : m_surface_render_targets) {
         render_target->create(this);
     }
@@ -263,7 +264,13 @@ void lcf::render::VulkanContext::createLogicalDevice()
     device_info.get<vk::PhysicalDeviceVulkan13Features>().setSynchronization2(true)
         .setDynamicRendering(true);
     device_info.get<vk::PhysicalDeviceVulkan12Features>().setBufferDeviceAddress(true)
-        .setDescriptorIndexing(true)
+        .setDescriptorIndexing(true) 
+        .setDescriptorBindingVariableDescriptorCount(true)
+        .setDescriptorBindingPartiallyBound(true)
+        .setDescriptorBindingUpdateUnusedWhilePending(true)
+        .setDescriptorBindingSampledImageUpdateAfterBind(true)
+        .setRuntimeDescriptorArray(true)
+        .setShaderSampledImageArrayNonUniformIndexing(true)
         .setDrawIndirectCount(true)
         .setTimelineSemaphore(true);
     device_info.get<vk::PhysicalDeviceVulkan11Features>().setShaderDrawParameters(true)

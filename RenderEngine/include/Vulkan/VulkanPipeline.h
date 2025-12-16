@@ -2,6 +2,7 @@
 
 #include <vulkan/vulkan.hpp>
 #include "VulkanShaderProgram.h"
+#include "VulkanCommandBufferObject.h"
 #include "PointerDefs.h"
 
 namespace lcf::render {
@@ -22,11 +23,17 @@ namespace lcf::render {
         bool create(VulkanContext * context, const GraphicPipelineCreateInfo & create_info);
         operator bool() const { return this->isValid(); }
         bool isValid() const { return m_pipeline.get(); } 
+        void bind(VulkanCommandBufferObject & cmd) const noexcept;
+        void bindDescriptorSet(VulkanCommandBufferObject & cmd, const VulkanDescriptorSet & descriptor_set) const noexcept;
+        void bindDescriptorSet(
+            VulkanCommandBufferObject & cmd,
+            const VulkanDescriptorSet & descriptor_set,
+            uint32_t & dynamic_offset) const noexcept;
         Self & setShaderProgram(const VulkanShaderProgram::SharedPointer &shader_program) { m_shader_program = shader_program; return *this; }
         VulkanShaderProgram * getShaderProgram() const { return m_shader_program.get(); }
         vk::PipelineLayout getPipelineLayout() const { return m_shader_program->getPipelineLayout(); }
         vk::Pipeline getHandle() const { return m_pipeline.get(); }
-        const VulkanDescriptorSetPrototype & getDescriptorSetPrototype(uint32_t set) const { return m_shader_program->getDescriptorSetPrototype(set); }
+        const VulkanDescriptorSetLayout::SharedPointer & getDescriptorSetLayoutSharedPtr(uint32_t set_index) const { return m_shader_program->getDescriptorSetLayoutSharedPtr(set_index); }
         vk::PipelineBindPoint getType() const { return m_type; }
     private:
         VulkanContext * m_context_p = nullptr;

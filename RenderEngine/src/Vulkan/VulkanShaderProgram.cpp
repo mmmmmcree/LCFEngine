@@ -30,7 +30,7 @@ bool lcf::render::VulkanShaderProgram::link()
     if (not this->isLinked()) { return false; }
     this->createShaderStageInfoList();
     this->createDescriptorSetLayoutBindingTable();
-    this->createDescriptorSetPrototypes();
+    this->createDescriptorSetLayouts();
     this->createPipelineLayout();
     return m_is_linked;
 }
@@ -130,12 +130,15 @@ void lcf::render::VulkanShaderProgram::createDescriptorSetLayoutBindingTable()
 
 }
 
-void lcf::render::VulkanShaderProgram::createDescriptorSetPrototypes()
+void VulkanShaderProgram::createDescriptorSetLayouts()
 {
     for (uint32_t set = 0; set < m_descriptor_set_layout_binding_table.size(); ++set) {
-        const auto &descriptor_set_layout_bindings = m_descriptor_set_layout_binding_table[set];
-        auto & ds_prototype = m_descriptor_set_prototype_list.emplace_back(descriptor_set_layout_bindings, set);
-        ds_prototype.create(m_context_p);
+        const auto & bindings = m_descriptor_set_layout_binding_table[set];
+        auto layout_sp = VulkanDescriptorSetLayout::makeShared();
+        layout_sp->setBindings(bindings)
+            .setIndex(set)
+            .create(m_context_p);
+        m_descriptor_set_layout_sp_list.emplace_back(std::move(layout_sp));
     }
 }
 
@@ -189,8 +192,8 @@ void lcf::render::VulkanShaderProgram::createPipelineLayout()
     auto device = m_context_p->getDevice();
     vk::PipelineLayoutCreateInfo pipeline_layout_info;
     std::vector<vk::DescriptorSetLayout> descriptor_set_layout_list;
-    for (const auto & ds_prototype : m_descriptor_set_prototype_list) {
-        descriptor_set_layout_list.emplace_back(ds_prototype.getLayout());
+    for (const auto & layout_sp : m_descriptor_set_layout_sp_list) {
+        descriptor_set_layout_list.emplace_back(layout_sp->getHandle());
     }
     pipeline_layout_info.setSetLayouts(descriptor_set_layout_list)
         .setPushConstantRanges(push_constant_range_list);

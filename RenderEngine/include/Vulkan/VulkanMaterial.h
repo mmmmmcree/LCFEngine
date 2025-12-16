@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
+#include "VulkanDescriptorSet.h"
 #include "VulkanImage.h"
 #include "VulkanSampler.h"
 #include <bitset>
@@ -23,16 +24,13 @@ namespace lcf::render {
         using DirtyBindingMap = std::bitset<s_max_binding_count>;
         VulkanMaterial() = default;
         ~VulkanMaterial() = default;
-        bool create(VulkanContext * context_p, BindingViewList bindings); //todo create with MaterialCreateInfo, which has param like PBR or Phong ...
-        const vk::DescriptorSet & getDescriptorSet() const noexcept { return m_descriptor_set.get(); }
+        bool create(const VulkanDescriptorSet::SharedPointer & descriptor_set_sp); //todo create with MaterialCreateInfo, which has param like PBR or Phong ...
+        const VulkanDescriptorSet & getDescriptorSet() const noexcept { return *m_descriptor_set_sp; }
         Self & setTexture(uint32_t binding, uint32_t index, const VulkanImage::SharedPointer & texture);
         Self & setSampler(uint32_t binding, uint32_t index, const VulkanSampler::SharedPointer & sampler);
         void commitUpdate();
     private:
-        VulkanContext* m_context_p;
-        BindingList m_bindings;
-        vk::UniqueDescriptorSetLayout m_descriptor_set_layout;
-        vk::UniqueDescriptorSet m_descriptor_set;
+        VulkanDescriptorSet::SharedPointer m_descriptor_set_sp;
         DirtyBindingMap m_dirty_bindings;
         BindingTextureMap m_texture_map;
         BindingSamplerMap m_sampler_map;
