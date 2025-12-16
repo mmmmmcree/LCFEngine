@@ -38,7 +38,9 @@ namespace lcf::render {
         Self & operator=(Self &&) = default;
         void create(VulkanContext * context_p);
         const VulkanSampler & get(const VulkanSamplerParams & params) const;
+        const VulkanSampler & get(SamplerPreset preset) const;
         const VulkanSampler::SharedPointer & getShared(const VulkanSamplerParams & params) const;
+        const VulkanSampler::SharedPointer & getShared(SamplerPreset preset) const;
         bool contains(const VulkanSamplerParams & params) const noexcept;
     private:
         VulkanContext * m_context_p = nullptr;
