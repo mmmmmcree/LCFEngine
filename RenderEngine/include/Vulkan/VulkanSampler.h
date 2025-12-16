@@ -41,6 +41,7 @@ namespace lcf::render {
         Self & operator=(Self && other) = default;
         bool operator==(const Self & other) const noexcept;
         bool operator!=(const Self & other) const noexcept;
+        vk::SamplerCreateInfo toCreateInfo() const noexcept;
         Self & setMinFilter(vk::Filter filter) noexcept { m_min_filter = filter; return *this; }
         Self & setMagFilter(vk::Filter filter) noexcept { m_mag_filter = filter; return *this; }
         Self & setMipmapMode(vk::SamplerMipmapMode mode) noexcept { m_mipmap_mode = mode; return *this; }
