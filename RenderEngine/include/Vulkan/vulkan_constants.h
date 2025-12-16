@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common/enum_types.h"
+#include "common/render_enums.h"
 #include "enum_cast.h"
 #include <vulkan/vulkan.hpp>
 
