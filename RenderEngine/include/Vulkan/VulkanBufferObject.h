@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common/enum_types.h"
+#include "common/render_enums.h"
 #include "common/GPUResource.h"
 #include "VulkanMemoryAllocator.h"
 #include "VulkanTimelineSemaphore.h"
