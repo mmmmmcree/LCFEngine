@@ -49,10 +49,10 @@ namespace lcf {
         size_t getBytesPerChannel() const noexcept;
         size_t getSizeInBytes() const noexcept;
         ConstImageView getSubView(size_t top_left_x, size_t top_left_y, size_t width, size_t height) const noexcept;
-        bool saveToFile(const std::filesystem::path & path) const;
+        bool saveToFile(const std::filesystem::path & path) const noexcept;
     private:
-        bool saveToPNG(const std::filesystem::path & path) const;
-        bool saveToJPG(const std::filesystem::path & path) const;
+        bool saveToPNG(const std::filesystem::path & path) const noexcept;
+        bool saveToJPG(const std::filesystem::path & path) const noexcept;
     private:
         ConstImageViewVariant m_image_view = NullView{};
     };   

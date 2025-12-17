@@ -56,7 +56,7 @@ lcf::ConstImageView lcf::ConstImageView::getSubView(size_t top_left_x, size_t to
     }, m_image_view);
 }
 
-bool lcf::ConstImageView::saveToFile(const std::filesystem::path &path) const
+bool lcf::ConstImageView::saveToFile(const std::filesystem::path &path) const noexcept
 {
     switch (Image::deduce_file_type(path)) {
         case Image::FileType::eJPG: { return this->saveToJPG(path); };
@@ -66,7 +66,7 @@ bool lcf::ConstImageView::saveToFile(const std::filesystem::path &path) const
 }
 
 
-bool lcf::ConstImageView::saveToPNG(const std::filesystem::path &path) const
+bool lcf::ConstImageView::saveToPNG(const std::filesystem::path &path) const noexcept
 {
     bool successful = variant2::visit([&path](auto&& img_view) -> bool {
         using PixelType = typename std::decay_t<decltype(img_view)>::value_type;
@@ -79,7 +79,7 @@ bool lcf::ConstImageView::saveToPNG(const std::filesystem::path &path) const
     return successful;
 }
 
-bool lcf::ConstImageView::saveToJPG(const std::filesystem::path &path) const
+bool lcf::ConstImageView::saveToJPG(const std::filesystem::path &path) const noexcept
 {
     bool successful = variant2::visit([&path](auto&& img_view) -> bool {
         using PixelType = typename std::decay_t<decltype(img_view)>::value_type;

@@ -59,10 +59,10 @@ namespace lcf {
             boost::gil::cmyk32f_image_t>;
         enum DataType : uint8_t // 5 bits for type size, 3 bits for enum index
         {
-            eUint8   = 0 << 5 | 1,  // 0x01
-            eUint16  = 1 << 5 | 2,  // 0x22
-            eFloat16 = 2 << 5 | 4,  // 0x44
-            eFloat32 = 3 << 5 | 8,  // 0x68
+            eUint8   = 0 << 5 | 1,
+            eUint16  = 1 << 5 | 2,
+            eFloat16 = 2 << 5 | 2,
+            eFloat32 = 3 << 5 | 4,
         };
         enum class FileType : uint8_t
         {
@@ -129,15 +129,16 @@ namespace lcf {
         ConstImageView getImageView() const noexcept;
         std::span<std::byte> getInterleavedDataSpan() noexcept;
         std::span<const std::byte> getInterleavedDataSpan() const noexcept;
-        bool loadFromFile(const std::filesystem::path & path);
-        bool loadFromFile(const std::filesystem::path & path, Format format);
-        bool loadFromMemory(std::span<const std::byte> data, Format format, size_t width);
-        bool saveToFile(const std::filesystem::path & path) const;
+        bool loadFromFile(const std::filesystem::path & path) noexcept;
+        bool loadFromFile(const std::filesystem::path & path, Format format) noexcept;
+        bool loadFromMemory(std::span<const std::byte> data, Format format, size_t width) noexcept;
+        bool saveToFile(const std::filesystem::path & path) const noexcept;
         Self & recreate(size_t width, size_t height, size_t alignment = 0);
         Self & convertTo(Format format);
         Self & flipUpDown();
         Self & flipLeftRight();
     private:
+        static Format get_format(ColorSpace color_space, DataType data_type) { return static_cast<Format>((to_integral(data_type) << 16) | to_integral(color_space)); }
         static ColorSpace get_color_space(Format format) { return static_cast<ColorSpace>(to_integral(format) & 0xFFFF); }
         static DataType get_data_type(Format format) { return static_cast<DataType>((to_integral(format) >> 16) & 0xFF); }
         static size_t get_channel_count(Format format) { return to_integral(get_color_space(format)) & 0xFF; }
@@ -145,11 +146,12 @@ namespace lcf {
         static std::filesystem::path get_extension(FileType type);
         static FileType deduce_file_type(const std::filesystem::path & path);
     private:
-        bool loadFromFileFast(const std::filesystem::path &path, Format format);
-        bool loadFromPNG(const std::filesystem::path & path);
-        bool loadFromPNG(const std::filesystem::path & path, Format format);
-        bool loadFromJPG(const std::filesystem::path & path);
-        bool loadFromJPG(const std::filesystem::path & path, Format format);
+        bool loadFromFileSTB(const std::filesystem::path &path) noexcept;
+        bool loadFromFileSTB(const std::filesystem::path &path, Format format) noexcept;
+        bool loadFromPNG(const std::filesystem::path & path) noexcept;
+        bool loadFromPNG(const std::filesystem::path & path, Format format) noexcept;
+        bool loadFromJPG(const std::filesystem::path & path) noexcept;
+        bool loadFromJPG(const std::filesystem::path & path, Format format) noexcept;
         void updateFormat();
     private:
         Format m_format = Format::eInvalid;

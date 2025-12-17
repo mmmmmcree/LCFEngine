@@ -53,7 +53,7 @@ std::span<const std::byte> lcf::Image::getInterleavedDataSpan() const noexcept
     }, gil::const_view(m_image));
 }
 
-bool lcf::Image::loadFromFile(const std::filesystem::path &path)
+bool lcf::Image::loadFromFile(const std::filesystem::path &path) noexcept
 {
     if (not std::filesystem::exists(path)) { return false; }
     bool successful = false;
@@ -65,7 +65,7 @@ bool lcf::Image::loadFromFile(const std::filesystem::path &path)
     return successful;
 }
 
-bool lcf::Image::loadFromFile(const std::filesystem::path &path, Format format)
+bool lcf::Image::loadFromFile(const std::filesystem::path &path, Format format) noexcept
 {
     if (not std::filesystem::exists(path)) { return false; }
     bool successful = false;
@@ -77,7 +77,7 @@ bool lcf::Image::loadFromFile(const std::filesystem::path &path, Format format)
     return successful and m_format != Format::eInvalid;
 }
 
-bool lcf::Image::loadFromMemory(std::span<const std::byte> data, Format format, size_t width)
+bool lcf::Image::loadFromMemory(std::span<const std::byte> data, Format format, size_t width) noexcept
 {
     size_t row_size_in_bytes = get_channel_count(format) * get_bytes_per_channel(format) * width;
     if (data.size() % row_size_in_bytes != 0) { return false; }
@@ -105,7 +105,7 @@ bool lcf::Image::loadFromMemory(std::span<const std::byte> data, Format format, 
     return true;
 }
 
-bool lcf::Image::saveToFile(const std::filesystem::path &path) const
+bool lcf::Image::saveToFile(const std::filesystem::path &path) const noexcept
 {
     return this->getImageView().saveToFile(path);
 }
@@ -185,31 +185,63 @@ Image::FileType lcf::Image::deduce_file_type(const std::filesystem::path & path)
     return file_type_map.at(ext);
 }
 
-bool lcf::Image::loadFromFileFast(const std::filesystem::path &path, Format format)
+bool lcf::Image::loadFromFileSTB(const std::filesystem::path &path) noexcept
+{
+    int width, height, channels;
+    stbi_info(path.string().c_str(), &width, &height, &channels);
+    bool is_hdr = stbi_is_hdr(path.string().c_str());
+    bool is_16bit = stbi_is_16_bit(path.string().c_str());
+    DataType data_type;
+    if (is_hdr) {
+        data_type = DataType::eFloat32;
+    } else if (is_16bit) {
+        data_type = DataType::eUint16;
+    } else {
+        data_type = DataType::eUint8;
+    }
+    ColorSpace color_space;
+    switch (channels) {
+        case 1: { color_space = ColorSpace::eGray; } break;
+        case 2: { color_space = ColorSpace::eRGBA; } break; //! Gray + Alpha is not supported
+        case 3: { color_space = ColorSpace::eRGB; } break;
+        case 4: { color_space = ColorSpace::eRGBA; } break;
+        default: { return false; }
+    }
+    return this->loadFromFileSTB(path, get_format(color_space, data_type));
+}
+
+bool lcf::Image::loadFromFileSTB(const std::filesystem::path &path, Format format) noexcept
 {
     int width, height, channels;
     int requested_channels = get_channel_count(format);
-    void * data = nullptr;
     size_t bytes_per_channel = get_bytes_per_channel(format);
-    switch (bytes_per_channel) {
-        case 1: { data = stbi_load(path.string().c_str(), &width, &height, &channels, requested_channels); } break;
-        case 2: { data = stbi_load_16(path.string().c_str(), &width, &height, &channels, requested_channels); } break;
+    DataType data_type = get_data_type(format);
+    void * data_p = nullptr;
+    switch (data_type) {
+        case DataType::eUint8: { data_p = stbi_load(path.string().c_str(), &width, &height, &channels, requested_channels); } break;
+        case DataType::eUint16: 
+        case DataType::eFloat16: { data_p = stbi_load_16(path.string().c_str(), &width, &height, &channels, requested_channels); } break;
+        case DataType::eFloat32: { data_p = stbi_loadf(path.string().c_str(), &width, &height, &channels, requested_channels); } break;
     }
-    if (data == nullptr) { return false; }
+    if (not data_p) { return false; }
     channels = std::max(channels, requested_channels);
-    std::span<std::byte> span(reinterpret_cast<std::byte *>(data), width * height * channels * bytes_per_channel);
+    std::span<std::byte> span(reinterpret_cast<std::byte *>(data_p), width * height * channels * bytes_per_channel);
     this->loadFromMemory(span, format, width);
-    stbi_image_free(data);
+    stbi_image_free(data_p);
     return true;
 }
 
-bool lcf::Image::loadFromPNG(const std::filesystem::path & path)
+bool lcf::Image::loadFromPNG(const std::filesystem::path & path) noexcept
 {
-    gil::read_image(path.string(), m_image, gil::png_tag{});
+    try {
+        gil::read_image(path.string(), m_image, gil::png_tag{});
+    } catch (const std::exception & e) {
+        this->loadFromFileSTB(path);
+    }
     return m_image.width() != 0 and m_image.height() != 0;
 }
 
-bool lcf::Image::loadFromPNG(const std::filesystem::path &path, Format format)
+bool lcf::Image::loadFromPNG(const std::filesystem::path &path, Format format) noexcept
 {
     switch (format) {
         case Format::eGray8Uint:
@@ -218,7 +250,7 @@ bool lcf::Image::loadFromPNG(const std::filesystem::path &path, Format format)
         case Format::eGray16Uint:
         case Format::eRGB16Uint:
         case Format::eRGBA16Uint: {
-            this->loadFromFileFast(path, format);
+            this->loadFromFileSTB(path, format);
         } break;
         case Format::eBGR8Uint: {
             gil::bgr8_image_t image;
@@ -240,19 +272,23 @@ bool lcf::Image::loadFromPNG(const std::filesystem::path &path, Format format)
     return m_image.width() != 0 and m_image.height() != 0;
 }
 
-bool lcf::Image::loadFromJPG(const std::filesystem::path & path)
+bool lcf::Image::loadFromJPG(const std::filesystem::path & path) noexcept
 {
-    gil::read_image(path.string(), m_image, gil::jpeg_tag{});
+    try {
+        gil::read_image(path.string(), m_image, gil::jpeg_tag{});
+    } catch (const std::exception & e) {
+        this->loadFromFileSTB(path);
+    }
     return m_image.width() != 0 and m_image.height() != 0;
 }
 
-bool lcf::Image::loadFromJPG(const std::filesystem::path &path, Format format)
+bool lcf::Image::loadFromJPG(const std::filesystem::path &path, Format format) noexcept
 {
     switch (format) {
         case Format::eGray8Uint: 
         case Format::eRGB8Uint:
         case Format::eRGBA8Uint: {
-            this->loadFromFileFast(path, format);
+            this->loadFromFileSTB(path, format);
         } break;
         case Format::eBGR8Uint: {
             gil::bgr8_image_t image;

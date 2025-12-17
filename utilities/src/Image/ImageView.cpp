@@ -45,7 +45,7 @@ lcf::ImageView lcf::ImageView::getSubView(size_t top_left_x, size_t top_left_y, 
     }, m_image_view);
 }
 
-bool lcf::ImageView::saveToFile(const std::filesystem::path &path) const
+bool lcf::ImageView::saveToFile(const std::filesystem::path &path) const noexcept
 {
     return ConstImageView(*this).saveToFile(path);
 }
