@@ -1,9 +1,6 @@
 #pragma once
 
 #include "glm.h"
-#include <string>
-#include <format>
-
 
 namespace lcf {
     template <number_c T, glm::qualifier qualifier>
@@ -22,7 +19,6 @@ namespace lcf {
         GLMVector2D(const Base &vec) { memcpy(this, &vec, sizeof(Base)); }
         GLMVector2D(const Self & other) : Base(other) {}
         GLMVector2D(Self && other) : Base(std::move(other)) {}
-        GLMVector2D(Base && other) : Base(std::move(other)) {}
         Self & operator=(const Base & vec) noexcept { memcpy(this, &vec, sizeof(Base)); return *this; }
         Self & operator=(const Self & vec) noexcept { memcpy(this, &vec, sizeof(Base)); return *this; }
         Self & operator=(Base && vec) noexcept { return Base::operator=(std::move(vec)); }
@@ -72,7 +68,6 @@ namespace lcf {
         GLMVector3D(const Base &vec) { memcpy(this, &vec, sizeof(Base)); }
         GLMVector3D(const Self & other) : Base(other) {}
         GLMVector3D(Self && other) : Base(std::move(other)) {}
-        GLMVector3D(Base && other) : Base(std::move(other)) {}
         Self & operator=(const Base & vec) noexcept { memcpy(this, &vec, sizeof(Base)); return *this; }
         Self & operator=(const Self & vec) noexcept { memcpy(this, &vec, sizeof(Base)); return *this; }
         Self & operator=(Base && vec) noexcept { Base::operator=(std::move(vec)); return *this; }
@@ -115,8 +110,7 @@ namespace lcf {
         constexpr GLMVector4D(T x, T y, T z, T w) noexcept : Base(x, y, z, w) {}
         GLMVector4D(const Vec2::Base &vec, T z = static_cast<T>(0), T w = static_cast<T>(1)) : Base(vec.x, vec.y, z, w) {}
         GLMVector4D(const Vec3::Base &vec, T w = static_cast<T>(1)) : Base(vec.x, vec.y, vec.z, w) {}
-        GLMVector4D(const Base &vec) noexcept { memcpy(this, &vec, sizeof(Base)); }
-        GLMVector4D(Base && vec) noexcept : Base(std::move(vec)) {}
+        GLMVector4D(const Base &vec) { memcpy(this, &vec, sizeof(Base)); }
         GLMVector4D(const Self & other) : Base(other) {}
         GLMVector4D(Self && other) : Base(std::move(other)) {}
         Self & operator=(const Base & vec) noexcept { memcpy(this, &vec, sizeof(Base)); return *this; }
@@ -150,23 +144,41 @@ namespace lcf {
         bool isNull() const noexcept { return glm::dot(*this, *this) <= glm::epsilon<T>(); }
     };
 
-    template <number_c T, glm::qualifier qualifier = glm::defaultp>
-    std::string to_string(const GLMVector2D<T, qualifier> &vec)
-    {
-        return std::format("GLMVector2D({}, {})", vec.getX(), vec.getY());
-    }
+    template<size_t I, number_c T, glm::qualifier qualifier>
+    constexpr decltype(auto) get(GLMVector2D<T, qualifier> & vec) noexcept
+    { return vec[I]; }
 
-    template <number_c T, glm::qualifier qualifier = glm::defaultp>
-    std::string to_string(const GLMVector3D<T, qualifier> &vec)
-    {
-        return std::format("GLMVector3D({}, {}, {})", vec.getX(), vec.getY(), vec.getZ());
-    }
+    template<size_t I, number_c T, glm::qualifier qualifier>
+    constexpr decltype(auto) get(const GLMVector2D<T, qualifier> & vec) noexcept
+    { return vec[I]; }
 
-    template <number_c T, glm::qualifier qualifier = glm::defaultp>
-    std::string to_string(const GLMVector4D<T, qualifier> &vec)
-    {
-        return std::format("GLMVector4D({}, {}, {}, {})", vec.getX(), vec.getY(), vec.getZ(), vec.getW());
-    }
+    template<size_t I, number_c T, glm::qualifier qualifier>
+    constexpr decltype(auto) get(GLMVector2D<T, qualifier> && vec) noexcept
+    { return std::move(vec[I]); }
+
+    template<size_t I, number_c T, glm::qualifier qualifier>
+    constexpr decltype(auto) get(GLMVector3D<T, qualifier> & vec) noexcept
+    { return vec[I]; }
+
+    template<size_t I, number_c T, glm::qualifier qualifier>
+    constexpr decltype(auto) get(const GLMVector3D<T, qualifier> & vec) noexcept
+    { return vec[I]; }
+
+    template<size_t I, number_c T, glm::qualifier qualifier>
+    constexpr decltype(auto) get(GLMVector3D<T, qualifier> && vec) noexcept
+    { return std::move(vec[I]); }
+
+    template<size_t I, number_c T, glm::qualifier qualifier>
+    constexpr decltype(auto) get(GLMVector4D<T, qualifier> & vec) noexcept
+    { return vec[I]; }
+
+    template<size_t I, number_c T, glm::qualifier qualifier>
+    constexpr decltype(auto) get(const GLMVector4D<T, qualifier> & vec) noexcept
+    { return vec[I]; }
+
+    template<size_t I, number_c T, glm::qualifier qualifier>
+    constexpr decltype(auto) get(GLMVector4D<T, qualifier> && vec) noexcept
+    { return std::move(vec[I]); }
 }
 
 namespace std {
@@ -175,35 +187,16 @@ namespace std {
 
     template<size_t I, lcf::number_c T, glm::qualifier qualifier>
     struct tuple_element<I, lcf::GLMVector2D<T, qualifier>> { using type = T; };
-    
-    template<size_t I, lcf::number_c T, glm::qualifier qualifier>
-    constexpr auto get(lcf::GLMVector2D<T, qualifier>&& vec) noexcept
-    {
-        return std::forward<decltype(vec)>(vec)[I];
-    }
 
     template <lcf::number_c T, glm::qualifier qualifier>
     struct tuple_size<lcf::GLMVector3D<T, qualifier>> : integral_constant<size_t, 3> {};
 
     template<size_t I, lcf::number_c T, glm::qualifier qualifier>
     struct tuple_element<I, lcf::GLMVector3D<T, qualifier>> { using type = T; };
-    
-    template<size_t I, lcf::number_c T, glm::qualifier qualifier>
-    constexpr auto get(lcf::GLMVector3D<T, qualifier>&& vec) noexcept
-    {
-        return std::forward<decltype(vec)>(vec)[I];
-    }
 
     template <lcf::number_c T, glm::qualifier qualifier>
     struct tuple_size<lcf::GLMVector4D<T, qualifier>> : integral_constant<size_t, 4> {};
 
     template<size_t I, lcf::number_c T, glm::qualifier qualifier>
     struct tuple_element<I, lcf::GLMVector4D<T, qualifier>> { using type = T; };
-    
-    template<size_t I, lcf::number_c T, glm::qualifier qualifier>
-    constexpr auto get(lcf::GLMVector4D<T, qualifier>&& vec) noexcept
-    {
-        return std::forward<decltype(vec)>(vec)[I];
-    }
 }
-
