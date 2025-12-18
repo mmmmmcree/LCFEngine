@@ -6,16 +6,16 @@ namespace lcf::render {
     class VulkanContext;
     class VulkanMemoryAllocator;
 
-    class VulkanBufferResource : public GPUResource, public STDPointerDefs<VulkanBufferResource>
+    class VulkanBuffer : public GPUResource, public STDPointerDefs<VulkanBuffer>
     {
     public:
-        IMPORT_POINTER_DEFS(STDPointerDefs<VulkanBufferResource>);
-        VulkanBufferResource() = default;
-        virtual ~VulkanBufferResource() = default;
-        VulkanBufferResource(const VulkanBufferResource &) = delete;
-        VulkanBufferResource(VulkanBufferResource && other) : m_buffer_up(std::move(other.m_buffer_up)) {}
-        VulkanBufferResource & operator=(const VulkanBufferResource &) = delete;
-        VulkanBufferResource & operator=(VulkanBufferResource && other) { m_buffer_up = std::move(other.m_buffer_up); return *this; }
+        IMPORT_POINTER_DEFS(STDPointerDefs<VulkanBuffer>);
+        VulkanBuffer() = default;
+        virtual ~VulkanBuffer() = default;
+        VulkanBuffer(const VulkanBuffer &) = delete;
+        VulkanBuffer(VulkanBuffer && other) : m_buffer_up(std::move(other.m_buffer_up)) {}
+        VulkanBuffer & operator=(const VulkanBuffer &) = delete;
+        VulkanBuffer & operator=(VulkanBuffer && other) { m_buffer_up = std::move(other.m_buffer_up); return *this; }
         bool create(const VulkanMemoryAllocator & allocator,
             const vk::BufferCreateInfo &buffer_info,
             const MemoryAllocationCreateInfo &memory_allocation_info);
