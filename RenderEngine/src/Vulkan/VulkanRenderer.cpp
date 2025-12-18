@@ -9,7 +9,7 @@
 #include "Entity.h"
 #include "Transform.h"
 #include <boost/container/small_vector.hpp>
-#include "as_bytes.h"
+#include "bytes.h"
 #include "ModelLoader.h"
 
 lcf::VulkanRenderer::~VulkanRenderer()
