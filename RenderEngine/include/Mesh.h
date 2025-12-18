@@ -4,7 +4,7 @@
 #include "enum_flags.h"
 #include "enum_cast.h"
 #include "PointerDefs.h"
-#include "as_bytes.h"
+#include "bytes.h"
 #include "StructureLayout.h"
 #include "BufferWriteSegment.h"
 #include <magic_enum/magic_enum.hpp>
@@ -33,8 +33,8 @@ namespace lcf {
         using Self = Mesh;
     public:
         using ByteList = std::vector<std::byte>;
-        using IndexBuffer = std::vector<uint16_t>;
-        using Face = std::pair<uint16_t, uint16_t>; // <index of IndexBuffer, index count>
+        using IndexBuffer = std::vector<uint32_t>;
+        using Face = std::pair<uint32_t, uint32_t>; // <index of IndexBuffer, index count>
         using FaceList = std::vector<Face>;
         Mesh() = default;
         bool isCreated() const noexcept { return m_vertex_count > 0; }
