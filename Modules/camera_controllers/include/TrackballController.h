@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Entity.h"
-#include "input_fwd_decls.h"
+#include "input_forward_declares.h"
 #include "Vector.h"
 
 namespace lcf::modules {
