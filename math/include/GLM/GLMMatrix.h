@@ -102,15 +102,16 @@ namespace lcf {
 }
 
 template <lcf::number_c T, glm::qualifier qualifier>
-inline lcf::GLMMatrix4x4<T, qualifier>::GLMMatrix4x4(T m11, T m12, T m13,T m14,
+inline lcf::GLMMatrix4x4<T, qualifier>::GLMMatrix4x4(
+    T m11, T m12, T m13,T m14,
     T m21, T m22, T m23, T m24,
     T m31, T m32, T m33, T m34,
     T m41, T m42, T m43, T m44)
 {
-    *this[0] = Vec4(m11, m21, m31, m41);
-    *this[1] = Vec4(m12, m22, m32, m42);
-    *this[2] = Vec4(m13, m23, m33, m43);
-    *this[3] = Vec4(m14, m24, m34, m44);
+    this->operator[](0) = Vec4(m11, m21, m31, m41);
+    this->operator[](1) = Vec4(m12, m22, m32, m42);
+    this->operator[](2) = Vec4(m13, m23, m33, m43);
+    this->operator[](3) = Vec4(m14, m24, m34, m44);
 }
 
 template <lcf::number_c T, glm::qualifier qualifier>
