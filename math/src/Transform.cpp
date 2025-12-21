@@ -29,17 +29,12 @@ lcf::Transform & lcf::Transform::operator=(Transform &&other) noexcept
     return *this;
 }
 
-void lcf::Transform::setLocalMatrix(const Matrix4x4 &matrix) noexcept
+void lcf::Transform::setLocalMatrix(Matrix4x4 matrix) noexcept
 {
-    m_local_matrix = matrix;
+    m_local_matrix = std::move(matrix);
 }
 
-void lcf::Transform::setWorldMatrix(const Matrix4x4 & world_matrix) noexcept
-{
-    m_world_matrix = world_matrix;
-}
-
-void lcf::Transform::setWorldMatrix(Matrix4x4 &&world_matrix) noexcept
+void lcf::Transform::setWorldMatrix(Matrix4x4 world_matrix) noexcept
 {
     m_world_matrix = std::move(world_matrix);
 }

@@ -16,15 +16,14 @@ namespace lcf {
         Transform(Transform && other) noexcept;
         Transform & operator=(const Transform &other);
         Transform & operator=(Transform && other) noexcept;
-        void setLocalMatrix(const Matrix4x4 & matrix) noexcept;
+        void setLocalMatrix(Matrix4x4 matrix) noexcept;
         void setParent(Self & parent) noexcept { m_parent = &parent; }
         void setNullParent() noexcept { m_parent = nullptr; }
         Self * getParentPtr() const noexcept { return m_parent; }
         void markDirty() noexcept { m_is_dirty = true; }
         void cleanDirty() noexcept { m_is_dirty = false; }
         bool isDirty() const noexcept { return m_is_dirty; }
-        void setWorldMatrix(const Matrix4x4 & world_matrix) noexcept;
-        void setWorldMatrix(Matrix4x4 && world_matrix) noexcept;
+        void setWorldMatrix(Matrix4x4 world_matrix) noexcept;
         const Matrix4x4 & getWorldMatrix() const noexcept;
         const Matrix4x4 & getLocalMatrix() const noexcept { return m_local_matrix; }
         void translateWorld(float x, float y, float z) noexcept;
