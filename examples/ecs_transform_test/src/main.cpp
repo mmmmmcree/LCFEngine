@@ -60,7 +60,7 @@ void performance_test(int num_nodes, float update_ratio, float attach_probabilit
         int parent_index = std::uniform_int_distribution<>(0, i - 1)(gen);
         if (parent_index == i) { continue; }
         // lcf_log_error("parent_index: {}, cur_index: {}", parent_index, i);
-        entities_dfs[i].emitSignal<lcf::TransformHierarchyAttachSignalInfo>(entities_dfs[parent_index].getHandle());
+        entities_dfs[i].emitSignal<lcf::TransformAttachSignal>(entities_dfs[parent_index].getHandle());
         oop_transforms[i]->attachTo(oop_transforms[parent_index]);
 
         auto & child = entities_oop[i].getComponent<lcf::OOPTransform>();
@@ -86,7 +86,7 @@ void performance_test(int num_nodes, float update_ratio, float attach_probabilit
         lcf::Vector3D<float> offset(0.1, 0.2, 0.3);
         auto & entity_dfs = entities_dfs[update_index];
         entity_dfs.getComponent<lcf::ENTTTransform>().translateLocal(offset);
-        entity_dfs.emitSignal<lcf::TransformUpdateSignalInfo>({}); 
+        entity_dfs.emitSignal<lcf::TransformUpdateSignal>({}); 
         oop_transforms[update_index]->translateLocal(offset);
 
         auto & entity_oop = entities_oop[update_index];

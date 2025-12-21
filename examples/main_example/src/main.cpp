@@ -6,7 +6,7 @@
 #include "tasks/TaskScheduler.h"
 #include "Transform.h"
 #include "TransformSystem.h"
-#include "CameraControllers/TrackballController.h"
+#include "TrackballController.h"
 #include "log.h"
 #include "tracy_profiling.h"
 #include "UserCommandContext.h"

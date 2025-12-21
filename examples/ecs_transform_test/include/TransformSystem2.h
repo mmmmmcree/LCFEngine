@@ -5,11 +5,11 @@
 #include "OOPTransform.h"
 
 namespace lcf {
-    struct OOPTransform2UpdateSignalInfo : public EntitySignalInfoBase
+    struct OOPTransform2UpdateSignalInfo : public EntitySignalBase
     {
 
     };
-    struct OOPTransform2AttachSignalInfo : public EntitySignalInfoBase
+    struct OOPTransform2AttachSignalInfo : public EntitySignalBase
     {
         OOPTransform2AttachSignalInfo(EntityHandle parent) : m_parent(parent) {}
         EntityHandle m_parent;

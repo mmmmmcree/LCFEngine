@@ -25,7 +25,7 @@ bool lcf::gui::SDLWindow::create(const WindowCreateInfo &info)
     if (this->isCreated()) { return false; }
     auto registry_p = info.getRegistryPtr();
     if (not registry_p) { return false; }
-    m_entity.setRegistry(*registry_p);
+    m_entity.create(*registry_p);
     SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN; //todo temp
     switch (info.getSurfaceType()) {
         case SurfaceType::eVulkan: { flags |= SDL_WINDOW_VULKAN; } break;

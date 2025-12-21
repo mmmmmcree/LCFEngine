@@ -11,5 +11,5 @@ namespace lcf {
 
     struct TransformUpdateSignal : EntitySignalBase { };
 
-    struct TransformHierarchyDetachSignalInfo : EntitySignalBase { };
+    struct TransformDetachSignal : EntitySignalBase { };
 }

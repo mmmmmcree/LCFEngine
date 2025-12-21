@@ -12,30 +12,30 @@ lcf::TransformSystem::TransformSystem(Registry & registry) :
     m_registry_p(&registry)
 {
     auto & dispatcher = m_registry_p->ctx().get<Dispatcher>();
-    dispatcher.sink<lcf::TransformHierarchyAttachSignalInfo>().connect<&lcf::TransformSystem::onTransformHierarchyAttach>(*this);
-    dispatcher.sink<lcf::TransformHierarchyDetachSignalInfo>().connect<&lcf::TransformSystem::onTransformHierarchyDetach>(*this);
-    dispatcher.sink<lcf::TransformUpdateSignalInfo>().connect<&lcf::TransformSystem::onTransformUpdate>(*this);
+    dispatcher.sink<lcf::TransformAttachSignal>().connect<&lcf::TransformSystem::onTransformHierarchyAttach>(*this);
+    dispatcher.sink<lcf::TransformDetachSignal>().connect<&lcf::TransformSystem::onTransformHierarchyDetach>(*this);
+    dispatcher.sink<lcf::TransformUpdateSignal>().connect<&lcf::TransformSystem::onTransformUpdate>(*this);
 }
 
 lcf::TransformSystem::~TransformSystem()
 {
     auto & dispatcher = m_registry_p->ctx().get<Dispatcher>();
-    dispatcher.sink<lcf::TransformHierarchyAttachSignalInfo>().disconnect(this);
-    dispatcher.sink<lcf::TransformHierarchyDetachSignalInfo>().disconnect(this);
-    dispatcher.sink<lcf::TransformUpdateSignalInfo>().disconnect(this);
+    dispatcher.sink<lcf::TransformAttachSignal>().disconnect(this);
+    dispatcher.sink<lcf::TransformDetachSignal>().disconnect(this);
+    dispatcher.sink<lcf::TransformUpdateSignal>().disconnect(this);
 }
 
-void lcf::TransformSystem::onTransformUpdate(const TransformUpdateSignalInfo &info)
+void lcf::TransformSystem::onTransformUpdate(const TransformUpdateSignal &info)
 {
     this->markDirty(info.m_sender);
 }
 
-void lcf::TransformSystem::onTransformHierarchyAttach(const TransformHierarchyAttachSignalInfo &info)
+void lcf::TransformSystem::onTransformHierarchyAttach(const TransformAttachSignal&info)
 {
     this->attach(info.m_parent, info.m_sender);    
 }
 
-void lcf::TransformSystem::onTransformHierarchyDetach(const TransformHierarchyDetachSignalInfo &info)
+void lcf::TransformSystem::onTransformHierarchyDetach(const TransformDetachSignal &info)
 {
     this->detach(info.m_sender);
 }
