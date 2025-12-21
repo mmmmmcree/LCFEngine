@@ -10,7 +10,8 @@ add_executable(${PROJECT_NAME} ${SOURCES})
 target_link_libraries(main_example
     PRIVATE
         RenderEngine 
-        Modules
+        camera_controllers 
+        render_assets
         Systems
         profiling 
 )

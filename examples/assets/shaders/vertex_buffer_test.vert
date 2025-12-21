@@ -20,7 +20,7 @@ layout(buffer_reference, std430) readonly buffer VertexBuffer
 
 layout(buffer_reference, std430) readonly buffer IndexBuffer
 { 
-	uint16_t indices[];
+	uint indices[];
 };
 
 layout(std430, set = 1, binding = 0) readonly buffer vertex_buffers_ssbo {
@@ -52,7 +52,7 @@ void main()
     VertexBuffer vertex_buffer = vertex_buffers[object_id];
     IndexBuffer index_buffer = index_buffers[object_id];
 
-    uint vertex_id = uint(index_buffer.indices[gl_VertexIndex]);
+    uint vertex_id = index_buffer.indices[gl_VertexIndex];
     Vertex vertex = vertex_buffer.vertices[vertex_id];
 
     gl_Position = projection_view * transform_matrices[instance_id] * vec4(vertex.position, 1.0);

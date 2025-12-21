@@ -4,7 +4,7 @@
 #include "common/GPUResource.h"
 #include "VulkanMemoryAllocator.h"
 #include "VulkanTimelineSemaphore.h"
-#include "VulkanBufferResource.h"
+#include "VulkanBuffer.h"
 #include "VulkanCommandBufferObject.h"
 #include "PointerDefs.h"
 #include "BufferWriteSegment.h"
@@ -54,7 +54,7 @@ namespace lcf::render {
     private:
         VulkanContext * m_context_p = nullptr;
         VulkanTimelineSemaphore::UniquePointer m_timeline_semaphore_up; // up to GPUBufferUsage
-        VulkanBufferResource::SharedPointer m_buffer_sp;
+        VulkanBuffer::SharedPointer m_buffer_sp;
         ExecuteWriteSequenceMethod m_execute_write_sequence_method = nullptr; // up to GPUBufferPattern
         vk::DeviceAddress m_device_address = 0u;
         uint32_t m_size = 0;

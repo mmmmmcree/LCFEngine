@@ -94,7 +94,7 @@ void lcf::render::VulkanBufferObject::recreate(uint32_t size_in_bytes)
     m_size = boost::alignment::align_up(size_in_bytes, 4u);
     vk::BufferCreateInfo buffer_info = {{}, m_size, usage_flags, vk::SharingMode::eExclusive};
     auto & memory_allocator = m_context_p->getMemoryAllocator();
-    m_buffer_sp = VulkanBufferResource::makeShared();
+    m_buffer_sp = VulkanBuffer::makeShared();
     m_buffer_sp->create(memory_allocator, buffer_info, {memory_flags});
     if (usage_flags & vk::BufferUsageFlagBits::eShaderDeviceAddress) {
         m_device_address = m_context_p->getDevice().getBufferAddress(m_buffer_sp->getHandle());
