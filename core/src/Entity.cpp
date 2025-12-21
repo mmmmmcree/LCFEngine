@@ -26,7 +26,7 @@ lcf::Entity::~Entity()
     this->destroy();
 }
 
-void lcf::Entity::setRegistry(Registry & registry)
+void lcf::Entity::create(Registry & registry)
 {
     this->destroy();
     m_registry_p = &registry;

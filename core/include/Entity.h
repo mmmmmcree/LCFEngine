@@ -19,7 +19,7 @@ namespace lcf {
         Entity & operator=(const Entity & other) = delete;
         Entity & operator=(Entity && other) noexcept;
         ~Entity();
-        void setRegistry(Registry & registry);
+        void create(Registry & registry);
         EntityHandle getHandle() const noexcept { return m_entity; }
         template <typename Component, typename... Args>
         Component & emplaceComponent(Args &&... args) const;
@@ -40,15 +40,15 @@ namespace lcf {
         EntityHandle m_entity = entt::null;
     };
 
-    struct EntitySignalInfoBase
+    struct EntitySignalBase
     {
-        EntitySignalInfoBase() = default;
-        EntitySignalInfoBase(EntityHandle entity) : m_sender(entity) {}
+        EntitySignalBase() = default;
+        EntitySignalBase(EntityHandle entity) : m_sender(entity) {}
         EntityHandle m_sender = entt::null;
     };
 
     template <typename SignalInfo>
-    concept entity_eignal_info_c = std::derived_from<SignalInfo, EntitySignalInfoBase>;
+    concept entity_eignal_info_c = std::derived_from<SignalInfo, EntitySignalBase>;
 }
 
 template <typename Component, typename... Args>

@@ -3,13 +3,13 @@
 #include "Entity.h"
 
 namespace lcf {
-    struct TransformHierarchyAttachSignalInfo : EntitySignalInfoBase
+    struct TransformAttachSignal : EntitySignalBase
     {
-        TransformHierarchyAttachSignalInfo(EntityHandle parent) : m_parent(parent) {}
+        TransformAttachSignal(EntityHandle parent) : m_parent(parent) {}
         EntityHandle m_parent;
     };
 
-    struct TransformUpdateSignalInfo : EntitySignalInfoBase { };
+    struct TransformUpdateSignal : EntitySignalBase { };
 
-    struct TransformHierarchyDetachSignalInfo : EntitySignalInfoBase { };
+    struct TransformHierarchyDetachSignalInfo : EntitySignalBase { };
 }
