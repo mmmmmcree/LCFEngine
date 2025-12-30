@@ -2,10 +2,9 @@
 
 #include <entt/entt.hpp>
 #include "Registry.h"
+#include "tasks/TaskScheduler.h"
 
 namespace lcf {
-    class Registry;
-    using Dispatcher = entt::dispatcher;
     using EntityHandle = entt::entity;
     constexpr EntityHandle null_entity = entt::null;
 
@@ -82,7 +81,11 @@ inline void lcf::Entity::emitSignal(const SignalInfo &signal_info) const
         SignalInfo & info = const_cast<SignalInfo &>(signal_info);
         info.m_sender = m_entity;
     }
-    m_registry_p->ctx().get<Dispatcher>().trigger(signal_info);
+    auto & task_scheduler = m_registry_p->ctx().get<TaskScheduler>();
+    auto & dispatcher = m_registry_p->ctx().get<Dispatcher>();
+    task_scheduler.post([&dispatcher, &signal_info]() {
+        dispatcher.trigger(signal_info);
+    });
 }
 
 template <typename SignalInfo>

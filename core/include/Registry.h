@@ -10,5 +10,6 @@ namespace lcf {
         using Base = entt::registry;
     public:
         Registry();
+        using Base::Base;
     };
 }
