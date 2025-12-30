@@ -82,8 +82,8 @@ inline void lcf::Entity::emitSignal(const SignalInfo &signal_info) const
         info.m_sender = m_entity;
     }
     auto & task_scheduler = m_registry_p->ctx().get<TaskScheduler>();
-    auto & dispatcher = m_registry_p->ctx().get<Dispatcher>();
-    task_scheduler.post([&dispatcher, &signal_info]() {
+    task_scheduler.post([this, signal_info]() {
+        auto & dispatcher = m_registry_p->ctx().get<Dispatcher>();
         dispatcher.trigger(signal_info);
     });
 }
