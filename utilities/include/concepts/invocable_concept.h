@@ -10,4 +10,10 @@ namespace lcf {
     template <typename Invocable, typename T, typename... Args>
     concept crt_invocable_c = std::invocable<Invocable, Args...> &&
         std::same_as<std::invoke_result_t<Invocable, Args...>, T>;
+        
+    //- no constrait
+    template<typename T>
+    concept callable_c = requires {
+        &T::operator();
+    } || std::is_function_v<std::remove_pointer_t<T>>;
 }
