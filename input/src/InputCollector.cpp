@@ -2,14 +2,13 @@
 
 using namespace lcf;
 
-void InputCollector::collect(const InputState & input_state) noexcept
+void InputCollector::collect(const InputState &input_state) noexcept
 {
-    std::scoped_lock lock(m_mutex);
-    m_input_state = input_state;
+    m_input_state.write(input_state);
 }
 
-InputState InputCollector::getSnapshot() const noexcept
+const InputState & InputCollector::getSnapshot() const noexcept
 {
-    std::scoped_lock lock(m_mutex);
-    return m_input_state;
+    m_input_state.read(m_cached_input_state);
+    return m_cached_input_state;
 }
