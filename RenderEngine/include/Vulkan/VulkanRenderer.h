@@ -33,6 +33,7 @@ namespace lcf {
         {
             FrameResources() = default;
             VulkanCommandBufferObject command_buffer;
+            VulkanCommandBufferObject data_transfer_command_buffer; // dependency of command_buffer
             // temporary
             VulkanFramebufferObject fbo;
         };

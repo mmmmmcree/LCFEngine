@@ -18,12 +18,12 @@ namespace lcf::render {
         VulkanCommandBufferObject() = default;
         bool create(VulkanContext * context_p, vk::QueueFlagBits queue_type);
         vk::QueueFlagBits getQueueType() const noexcept { return m_queue_type; }
-        void prepareForRecording();
+        void waitUntilAvailable();
         void begin(const vk::CommandBufferBeginInfo & begin_info);
         void end();
         Self & addWaitSubmitInfo(const vk::SemaphoreSubmitInfo & wait_info) { m_wait_infos.emplace_back(wait_info); return *this; }
         Self & addSignalSubmitInfo(const vk::SemaphoreSubmitInfo & signal_info) { m_signal_infos.emplace_back(signal_info); return *this; }
-        void submit();
+        vk::SemaphoreSubmitInfo submit();
         const VulkanTimelineSemaphore::SharedPointer & getTimelineSemaphore() const noexcept { return m_timeline_semaphore_sp; }
         void acquireResource(const GPUResource::SharedPointer & resource_sp);
     private:

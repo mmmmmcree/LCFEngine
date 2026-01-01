@@ -46,6 +46,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
 
     for (auto &resources : m_frame_resources) {
         resources.command_buffer.create(m_context_p, vk::QueueFlagBits::eGraphics);
+        resources.data_transfer_command_buffer.create(m_context_p, vk::QueueFlagBits::eGraphics);
 
         VulkanFramebufferObjectCreateInfo fbo_info;
         fbo_info.setMaxExtent({static_cast<uint32_t>(max_width), static_cast<uint32_t>(max_height)})
@@ -264,7 +265,7 @@ void lcf::VulkanRenderer::render(const Entity & camera, const Entity & render_ta
     auto &current_frame_resources = m_frame_resources[m_current_frame_index];
 
     VulkanCommandBufferObject & cmd = current_frame_resources.command_buffer; 
-    cmd.prepareForRecording();
+    cmd.waitUntilAvailable();
 
     auto render_target_wp = render_target.getComponent<VulkanSwapchain::WeakPointer>();
     if (render_target_wp.expired()) { return; }
@@ -273,7 +274,7 @@ void lcf::VulkanRenderer::render(const Entity & camera, const Entity & render_ta
 
     auto [width, height] = render_target_sp->getExtent();
     vk::Viewport viewport;
-    viewport.setX(0.0f).setY(height)
+    viewport. setX(0.0f).setY(height)
         .setWidth(static_cast<float>(width))
         .setHeight(-static_cast<float>(height))
         .setMinDepth(0.0f).setMaxDepth(1.0f);
@@ -332,18 +333,21 @@ void lcf::VulkanRenderer::render(const Entity & camera, const Entity & render_ta
         instance_count += indirect_call.instanceCount;
     }
 
+    auto & data_transfer_cmd = current_frame_resources.data_transfer_command_buffer;
 
-    uint32_t indirect_call_count = 1;
+    uint32_t indirect_call_count = static_cast<uint32_t>(indirect_calls.size());
     m_indirect_call_buffer.addWriteSegment({as_bytes_from_value(indirect_call_count), 0})
-        .addWriteSegment({as_bytes(indirect_calls), size_of_v<vk::DrawIndirectCommand>})
-        .commitWriteSegments(cmd);
+        .addWriteSegment({as_bytes(indirect_calls), size_of_v<vk::DrawIndirectCommand>});
 
-    // delay commit
-    m_per_view_uniform_buffer.commitWriteSegments(cmd);
-    m_per_renderable_ssbo_group.commitAll(cmd);
+    m_per_material_params_ssbo_sp->addWriteSegment({as_bytes_from_value(m_material_params.getDeviceAddress()), 0u});
 
-    m_per_material_params_ssbo_sp->addWriteSegment({as_bytes_from_value(m_material_params.getDeviceAddress()), 0u})
-        .commitWriteSegments(cmd);
+    data_transfer_cmd.begin({}); //- no need to wait
+    m_indirect_call_buffer.commitWriteSegments(data_transfer_cmd);
+    m_per_view_uniform_buffer.commitWriteSegments(data_transfer_cmd);
+    m_per_renderable_ssbo_group.commitAll(data_transfer_cmd);
+    m_per_material_params_ssbo_sp->commitWriteSegments(data_transfer_cmd);
+    data_transfer_cmd.end();
+    auto data_transfer_complete_info =  data_transfer_cmd.submit();
 
     current_framebuffer.beginRendering(cmd);
 
@@ -355,7 +359,7 @@ void lcf::VulkanRenderer::render(const Entity & camera, const Entity & render_ta
     
     cmd.drawIndirectCount(m_indirect_call_buffer.getHandle(), sizeof(vk::DrawIndirectCommand),
         m_indirect_call_buffer.getHandle(), 0,
-        1, sizeof(vk::DrawIndirectCommand));
+        indirect_call_count, sizeof(vk::DrawIndirectCommand));
     
     m_skybox_pipeline.bind(cmd);
 
@@ -384,6 +388,7 @@ void lcf::VulkanRenderer::render(const Entity & camera, const Entity & render_ta
     wait_info.setSemaphore(render_target_resources.getTargetAvailableSemaphore())
         .setStageMask(vk::PipelineStageFlagBits2::eColorAttachmentOutput);
     cmd.addWaitSubmitInfo(wait_info)
+        .addWaitSubmitInfo(data_transfer_complete_info)
         .addSignalSubmitInfo(render_target_resources.getPresentReadySemaphore());
     cmd.submit();
 
