@@ -37,7 +37,6 @@ namespace lcf::render {
         eVertexBuffer = 0,
         eIndexBuffer = 1,
         eTransform = 2,
-        eMaterialIndexing = 3,
     };
 
     enum class PerMaterialBindingPoints : uint8_t

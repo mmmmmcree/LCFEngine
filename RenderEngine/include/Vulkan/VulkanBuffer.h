@@ -1,3 +1,5 @@
+#pragma once
+
 #include "common/GPUResource.h"
 #include "VulkanMemoryAllocator.h"
 #include <vulkan/vulkan.hpp>
@@ -23,7 +25,7 @@ namespace lcf::render {
         vk::Buffer getHandle() const noexcept { return m_buffer_up ? m_buffer_up->getHandle() : nullptr; }
         std::byte * getMappedMemoryPtr() const noexcept { return m_buffer_up->getMappedMemoryPtr(); }
         vk::Result flush(uint32_t offset_in_bytes, uint32_t size_in_bytes) { return m_buffer_up->flush(offset_in_bytes, size_in_bytes); }
-        vk::DeviceSize getSize() const noexcept { return m_buffer_up->getSize(); }
+        vk::DeviceSize getSizeInBytes() const noexcept { return m_buffer_up->getSize(); }
     private:
         VMABuffer::UniquePointer m_buffer_up;
     };

@@ -33,11 +33,5 @@ namespace lcf::render::vkconstants {
             1u,
             vk::ShaderStageFlagBits::eVertex
         },
-        {
-            to_integral(PerRenderableBindingPoints::eMaterialIndexing),
-            vk::DescriptorType::eStorageBuffer,
-            1u,
-            vk::ShaderStageFlagBits::eVertex
-        }
     };
 }

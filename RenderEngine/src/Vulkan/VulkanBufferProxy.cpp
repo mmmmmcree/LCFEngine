@@ -1,16 +1,54 @@
 #include "Vulkan/VulkanBufferProxy.h"
 #include "Vulkan/VulkanContext.h"
 #include "log.h"
+#include <boost/align.hpp>
 
 using namespace lcf::render;
 
-bool VulkanBufferProxy::create(
-    VulkanContext *context_p,
-    const vk::BufferCreateInfo & buffer_info,
-    const MemoryAllocationCreateInfo & memory_info)
+bool VulkanBufferProxy::create(VulkanContext *context_p, uint64_t size_in_bytes)
 {
-    auto device = context_p->getDevice();
-    auto & memory_allocator = context_p->getMemoryAllocator();
+    m_context_p = context_p;
+    vk::BufferUsageFlags usage_flags;
+    vk::MemoryPropertyFlags memory_flags;
+    switch (this->getUsage()) {
+        case GPUBufferUsage::eVertex : {
+            usage_flags = vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst;
+        } break;
+        case GPUBufferUsage::eIndex : {
+            usage_flags = vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst;
+        } break;
+        case GPUBufferUsage::eUniform : {
+            usage_flags = vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eTransferDst;
+        } break;
+        case GPUBufferUsage::eShaderStorage : {
+            usage_flags = vk::BufferUsageFlagBits::eStorageBuffer |
+                vk::BufferUsageFlagBits::eTransferDst |
+                vk::BufferUsageFlagBits::eShaderDeviceAddress;
+        } break;
+        case GPUBufferUsage::eIndirect : {
+            usage_flags = vk::BufferUsageFlagBits::eStorageBuffer |
+                vk::BufferUsageFlagBits::eTransferSrc |
+                vk::BufferUsageFlagBits::eTransferDst |
+                vk::BufferUsageFlagBits::eShaderDeviceAddress |
+                vk::BufferUsageFlagBits::eIndirectBuffer;
+        } break;
+        case GPUBufferUsage::eStaging : {
+            usage_flags = vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eTransferDst;
+        } break;
+    }
+    switch (this->getPattern()) {
+        case GPUBufferPattern::eDynamic : {
+            memory_flags = vk::MemoryPropertyFlagBits::eHostVisible;
+        } break;
+        case GPUBufferPattern::eStatic : {
+            memory_flags = vk::MemoryPropertyFlagBits::eDeviceLocal;
+        } break;
+    }
+    size_in_bytes = boost::alignment::align_up(size_in_bytes, 4u);
+    vk::BufferCreateInfo buffer_info {{}, size_in_bytes, usage_flags, vk::SharingMode::eExclusive};
+    MemoryAllocationCreateInfo memory_info {memory_flags};
+    auto device = m_context_p->getDevice();
+    auto & memory_allocator = m_context_p->getMemoryAllocator();
     m_buffer_sp = VulkanBuffer::makeShared();
     if (not m_buffer_sp->create(memory_allocator, buffer_info, memory_info)) {
         lcf_log_error("Failed to create buffer");
@@ -20,4 +58,25 @@ bool VulkanBufferProxy::create(
         m_device_address = device.getBufferAddress(m_buffer_sp->getHandle());
     }
     return true;
+}
+
+bool VulkanBufferProxy::recreate(uint64_t size_in_bytes)
+{
+    return this->create(m_context_p, size_in_bytes);
+}
+
+void VulkanBufferProxy::writeSegmentsDirectly(
+    const BufferWriteSegments & segments,
+    uint64_t dst_offset_in_bytes) noexcept
+{
+    for (const auto & write_segment : segments) {
+        memcpy(this->getMappedMemoryPtr() + write_segment.getBeginOffsetInBytes() + dst_offset_in_bytes,
+            write_segment.getData(), write_segment.getSizeInBytes());
+    }
+    m_buffer_sp->flush(segments.getLowerBoundInBytes() + dst_offset_in_bytes, segments.getValidSizeInBytes());
+}
+
+vk::DescriptorBufferInfo lcf::render::VulkanBufferProxy::generateBufferInfo() const noexcept
+{
+    return {this->getHandle(), 0u, vk::WholeSize};
 }

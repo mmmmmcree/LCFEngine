@@ -8,6 +8,8 @@
 #include "Entity.h"
 #include "VulkanCommandBufferObject.h"
 #include "VulkanBufferObject.h"
+#include "VulkanBufferObject2.h"
+#include "VulkanBufferObjectGroup.h"
 #include "VulkanMesh.h"
 #include "VulkanSampler.h"
 #include "VulkanMaterial.h"
@@ -38,8 +40,6 @@ namespace lcf {
         uint32_t m_current_frame_index = 0;
 
         //! temporary
-        // vk::DescriptorSet m_per_view_descriptor_set;
-        // vk::DescriptorSet m_per_renderable_descriptor_set;
         VulkanDescriptorSet m_per_view_descriptor_set;
         VulkanDescriptorSet m_per_renderable_descriptor_set;
 
@@ -51,13 +51,12 @@ namespace lcf {
 
         VulkanBufferObject m_indirect_call_buffer;
         
-        VulkanBufferObject m_per_renderable_vertex_buffer_ssbo;
-        VulkanBufferObject m_per_renderable_index_buffer_ssbo;
-        VulkanBufferObject m_per_renderable_transform_ssbo;
-        VulkanBufferObject m_per_renderable_material_indexing_ssbo;
-
+        VulkanBufferObjectGroup m_per_renderable_ssbo_group;
+        
         VulkanMesh m_mesh;
         VulkanMaterial m_material;
+        VulkanBufferObject::SharedPointer m_per_material_params_ssbo_sp; //- ssbo that store params_buffer's address
+        VulkanBufferObject m_material_params; //- params with real data
         VulkanMaterial m_skybox_material;
     };
 }

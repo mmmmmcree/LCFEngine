@@ -70,7 +70,9 @@ void lcf::render::VulkanBufferObject::recreate(uint32_t size_in_bytes)
             usage_flags = vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eTransferDst;
         } break;
         case GPUBufferUsage::eShaderStorage : {
-            usage_flags = vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eShaderDeviceAddress;
+            usage_flags = vk::BufferUsageFlagBits::eStorageBuffer |
+                vk::BufferUsageFlagBits::eTransferDst |
+                vk::BufferUsageFlagBits::eShaderDeviceAddress;
         } break;
         case GPUBufferUsage::eIndirect : {
             usage_flags = vk::BufferUsageFlagBits::eStorageBuffer |
@@ -119,7 +121,7 @@ VulkanBufferObject & VulkanBufferObject::setPattern(GPUBufferPattern pattern) no
     return *this;
 }
 
-VulkanBufferObject &VulkanBufferObject::resize(uint32_t size_in_bytes, VulkanCommandBufferObject & cmd)
+VulkanBufferObject & VulkanBufferObject::resize(uint32_t size_in_bytes, VulkanCommandBufferObject & cmd)
 {
     auto old_buffer_up = std::move(m_buffer_sp);
     uint32_t old_size = m_size;

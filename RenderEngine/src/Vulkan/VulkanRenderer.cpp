@@ -60,22 +60,17 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     m_per_view_uniform_buffer.setUsage(GPUBufferUsage::eUniform)
         .setSize(sizeof(Matrix4x4) * 3) // projection, view, projection_view
         .create(m_context_p);
+
+    m_per_renderable_ssbo_group.create(m_context_p, GPUBufferPattern::eDynamic);
+    m_per_renderable_ssbo_group.emplace(size_of_v<vk::DeviceAddress>, GPUBufferUsage::eShaderStorage); // vertex buffer
+    m_per_renderable_ssbo_group.emplace(size_of_v<vk::DeviceAddress>, GPUBufferUsage::eShaderStorage); // index buffer
+    m_per_renderable_ssbo_group.emplace(2 * size_of_v<Matrix4x4>, GPUBufferUsage::eShaderStorage); // transform
+
+    m_per_material_params_ssbo_sp = VulkanBufferObject::makeShared();
+    m_per_material_params_ssbo_sp->setUsage(GPUBufferUsage::eShaderStorage)
+        .setSize(size_of_v<vk::DeviceAddress>)
+        .create(m_context_p);
     
-    m_per_renderable_transform_ssbo.setUsage(GPUBufferUsage::eShaderStorage)
-        .setSize(2 * size_of_v<Matrix4x4>)
-        .create(m_context_p);
-
-    m_per_renderable_vertex_buffer_ssbo.setUsage(GPUBufferUsage::eShaderStorage)
-        .setSize(size_of_v<vk::DeviceAddress>)
-        .create(m_context_p);
-
-    m_per_renderable_index_buffer_ssbo.setUsage(GPUBufferUsage::eShaderStorage)
-        .setSize(size_of_v<vk::DeviceAddress>)
-        .create(m_context_p);
-
-    m_per_renderable_material_indexing_ssbo.setUsage(GPUBufferUsage::eShaderStorage)
-        .setSize(100 * size_of_v<uint32_t>)
-        .create(m_context_p);
 
     m_indirect_call_buffer.setUsage(GPUBufferUsage::eIndirect)
         .setSize(size_of_v<vk::DrawIndirectCommand> + 1 * size_of_v<vk::DrawIndirectCommand>) // uint32_t(for IndirectDrawCount) + padding | vk::DrawIndirectCommand ... 
@@ -100,16 +95,10 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     ds_updater.add(to_integral(PerViewBindingPoints::eCamera), per_view_buffer_info)
         .update();
 
-    vk::DescriptorBufferInfo per_renderable_vertex_buffer_info(m_per_renderable_vertex_buffer_ssbo.getHandle(), 0, vk::WholeSize);
-    vk::DescriptorBufferInfo per_renderable_index_buffer_info(m_per_renderable_index_buffer_ssbo.getHandle(), 0, vk::WholeSize);
-    vk::DescriptorBufferInfo per_renderable_transform_buffer_info(m_per_renderable_transform_ssbo.getHandle(), 0, vk::WholeSize);
-    vk::DescriptorBufferInfo per_renderable_material_index_buffer_info(m_per_renderable_material_indexing_ssbo.getHandle(), 0, vk::WholeSize);
-    
     ds_updater = m_per_renderable_descriptor_set.generateUpdater();
-    ds_updater.add(to_integral(PerRenderableBindingPoints::eVertexBuffer), per_renderable_vertex_buffer_info)
-        .add(to_integral(PerRenderableBindingPoints::eIndexBuffer), per_renderable_index_buffer_info)
-        .add(to_integral(PerRenderableBindingPoints::eTransform), per_renderable_transform_buffer_info)
-        .add(to_integral(PerRenderableBindingPoints::eMaterialIndexing), per_renderable_material_index_buffer_info)
+    ds_updater.add(to_integral(PerRenderableBindingPoints::eVertexBuffer), m_per_renderable_ssbo_group[0].generateBufferInfo())
+        .add(to_integral(PerRenderableBindingPoints::eIndexBuffer), m_per_renderable_ssbo_group[1].generateBufferInfo())
+        .add(to_integral(PerRenderableBindingPoints::eTransform), m_per_renderable_ssbo_group[2].generateBufferInfo())
         .update();
 
     auto mesh_sp = Mesh::makeShared();
@@ -130,8 +119,28 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     Model cube_model = ModelLoader().load("./assets/models/dinosaur/source/Rampaging T-Rex.glb");
     cube_model.addMaterial(material_sp);
 
+    struct PBRMaterialParams
+    {
+        uint32_t m_base_color_texture_id = 0;
+        uint32_t m_roughness_texture_id = 1;
+        uint32_t m_metallic_texture_id = 2;
+        uint32_t m_reflectance_texture_id = 3;
+        uint32_t m_ambient_occlusion_texture_id = 4;
+        uint32_t m_clearcoat_texture_id = 5;
+        uint32_t m_clearcoat_roughness_texture_id = 6;
+        uint32_t m_anisotropy_texture_id = 7;
+        Vector4D<float> m_base_color = {1.0f, 1.0f, 1.0f, 1.0f};
+        Vector4D<float> m_emissive_color = {1.0f, 1.0f, 1.0f, 1.0f};
+    };
+    PBRMaterialParams material_params;
+    m_material_params.setUsage(GPUBufferUsage::eShaderStorage)
+        .setPattern(GPUBufferPattern::eStatic)
+        .setSize(size_of_v<PBRMaterialParams>)
+        .create(context_p);
+    m_material_params.addWriteSegment({as_bytes_from_value(material_params)});
     vkutils::immediate_submit(m_context_p, vk::QueueFlagBits::eTransfer, [this, &cube_model](VulkanCommandBufferObject & cmd) {
         m_mesh.create(m_context_p, cmd, cube_model.getMesh(0));
+        m_material_params.commitWriteSegments(cmd);
     });
 
     VulkanImage::SharedPointer cube_map_sp;
@@ -245,6 +254,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         .setTexture(2, 0, texture2_sp)
         .setSampler(1, 0, m_context_p->getSamplerManager().getShared(SamplerPreset::eColorMap))
         .setSampler(1, 1, m_context_p->getSamplerManager().getShared(SamplerPreset::eColorMap))
+        .setParamsSSBO(0, m_per_material_params_ssbo_sp)
         .commitUpdate();
 }
 
@@ -289,17 +299,22 @@ void lcf::VulkanRenderer::render(const Entity & camera, const Entity & render_ta
         .addWriteSegment({as_bytes_from_value(camera_view.getMatrix()), sizeof(Matrix4x4)})
         .addWriteSegment({as_bytes_from_value(projection_view), 2 * sizeof(Matrix4x4)});
     
+    static uint64_t frame_count = 0;
+    ++frame_count;
     std::vector<Matrix4x4> model_matrices(2);
     model_matrices[0].scale(0.5f);
-    static float angle = 0.0f;
-    angle += 0.1f;
+    float angle = 0.1f * frame_count;
     model_matrices[1].scale(0.5f);
     model_matrices[1].translateLocal({ 6.0f, 0.2f, 0.2f });
     model_matrices[1].rotateAroundSelf(Quaternion::fromAxisAndAngle({1.0f, 1.0f, 0.0f}, angle));
 
-    m_per_renderable_vertex_buffer_ssbo.addWriteSegment({as_bytes_from_value(m_mesh.getVertexBufferAddress()), 0u});
-    m_per_renderable_index_buffer_ssbo.addWriteSegment({as_bytes_from_value(m_mesh.getIndexBufferAddress()), 0u});
-    m_per_renderable_transform_ssbo.addWriteSegment({as_bytes(model_matrices), 0u});
+    auto & per_renderable_vertex_buffer_ssbo = m_per_renderable_ssbo_group[0];
+    auto & per_renderable_index_buffer_ssbo = m_per_renderable_ssbo_group[1];
+    auto & per_renderable_transform_ssbo = m_per_renderable_ssbo_group[2];
+
+    per_renderable_vertex_buffer_ssbo.addWriteSegment({as_bytes_from_value(m_mesh.getVertexBufferAddress()), 0u});
+    per_renderable_index_buffer_ssbo.addWriteSegment({as_bytes_from_value(m_mesh.getIndexBufferAddress()), 0u});
+    per_renderable_transform_ssbo.addWriteSegment({as_bytes(model_matrices), 0u});
 
     uint32_t instance_count = 0;
     std::vector<vk::DrawIndirectCommand> indirect_calls(1);
@@ -317,8 +332,6 @@ void lcf::VulkanRenderer::render(const Entity & camera, const Entity & render_ta
         instance_count += indirect_call.instanceCount;
     }
 
-    std::vector<uint32_t> texture_indices = {0};
-    m_per_renderable_material_indexing_ssbo.addWriteSegment({as_bytes(texture_indices), 0u});
 
     uint32_t indirect_call_count = 1;
     m_indirect_call_buffer.addWriteSegment({as_bytes_from_value(indirect_call_count), 0})
@@ -327,10 +340,10 @@ void lcf::VulkanRenderer::render(const Entity & camera, const Entity & render_ta
 
     // delay commit
     m_per_view_uniform_buffer.commitWriteSegments(cmd);
-    m_per_renderable_vertex_buffer_ssbo.commitWriteSegments(cmd);
-    m_per_renderable_index_buffer_ssbo.commitWriteSegments(cmd);
-    m_per_renderable_transform_ssbo.commitWriteSegments(cmd);
-    m_per_renderable_material_indexing_ssbo.commitWriteSegments(cmd);
+    m_per_renderable_ssbo_group.commitAll(cmd);
+
+    m_per_material_params_ssbo_sp->addWriteSegment({as_bytes_from_value(m_material_params.getDeviceAddress()), 0u})
+        .commitWriteSegments(cmd);
 
     current_framebuffer.beginRendering(cmd);
 
