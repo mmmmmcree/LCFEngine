@@ -35,10 +35,6 @@ layout(std430, set = 1, binding = 2) readonly buffer transform_ssbo {
     mat4 transform_matrices[];
 };
 
-layout(std140, set = 1, binding = 3) readonly buffer material_index_ssbo {
-    uint material_indices[];
-};
-
 layout(location = 0) out VS_OUT {
     vec3 color;
     vec2 uv;
@@ -59,9 +55,9 @@ void main()
 
     vs_out.color = normalize(vertex.position);
     vs_out.uv = vertex.uv;
-    vs_out.material_id = material_indices[object_id];
+    vs_out.material_id = object_id;
     // if (vertex_id == 0) {
-    //     // debugPrintfEXT("Position = %v4f\n", gl_Position);
+        // debugPrintfEXT("Position = %v4f\n", gl_Position);
     //     debugPrintfEXT("gl_DrawID = %u\n", gl_DrawID);
     //     debugPrintfEXT("texture_id = %u\n", vs_out.texture_id);
     // }

@@ -52,6 +52,12 @@ VulkanMaterial & VulkanMaterial::setSampler(uint32_t binding, uint32_t index, co
     return *this;
 }
 
+VulkanMaterial & VulkanMaterial::setParamsSSBO(uint32_t binding, const VulkanBufferObject::SharedPointer &params_ssbo)
+{
+    m_dirty_bindings[binding] = true;
+    m_binding_params_ssbo = std::make_pair(binding, params_ssbo);
+    return *this;
+}
 void VulkanMaterial::commitUpdate()
 {
     auto updater = m_descriptor_set_sp->generateUpdater();
@@ -81,6 +87,13 @@ void VulkanMaterial::commitUpdate()
                 .setImageView(texture_sp->getDefaultView());
             updater.add(binding, index, image_info);
         }
+    }
+    // i
+    // auto
+    const auto & [params_binding, ssbo_sp] = m_binding_params_ssbo;
+    if (params_binding < s_max_binding_count and m_dirty_bindings[params_binding] and ssbo_sp) {
+        vk::DescriptorBufferInfo per_renderable_vertex_buffer_info(ssbo_sp->getHandle(), 0, vk::WholeSize);
+        updater.add(params_binding, per_renderable_vertex_buffer_info);
     }
     m_dirty_bindings.reset();
     updater.update();
