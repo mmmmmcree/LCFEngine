@@ -11,7 +11,6 @@ target_link_libraries(main_example
     PRIVATE
         RenderEngine 
         camera_controllers 
-        render_assets
         Systems
         profiling 
 )

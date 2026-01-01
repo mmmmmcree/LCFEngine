@@ -35,7 +35,7 @@ int main()
         [&]() { return heartbeat < 10; },
         []() { lcf_log_info("Periodic task finished"); }
     };
-    lcf::TaskScheduler scheduler;
+    lcf::TaskScheduler scheduler {lcf::TaskScheduler::RunMode::eThisThread };
     lcf::UserCommandContext user_cmd_context {scheduler.getIOContext()};
     // download --url https://dummyimage.com/800x600/FF0000/FFFFFF.jpg?text=Async --output-path downloaded_image.jpg
     scheduler.registerPeriodicTask(std::move(periodic_task))

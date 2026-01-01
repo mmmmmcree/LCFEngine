@@ -2,7 +2,6 @@
 #include "input_types.h"
 #include "Vulkan/VulkanContext.h"
 #include "Vulkan/VulkanRenderer.h"
-#include "Timer.h"
 #include "tasks/TaskScheduler.h"
 #include "Transform.h"
 #include "TransformSystem.h"
@@ -54,18 +53,24 @@ int main(int argc, char *argv[])
 
         input_reader.update(window_up->getComponent<lcf::InputCollector>().getSnapshot());
         trackball_controller.update(camera_entity, delta_time); //todo upadate multiple camera entity
+
+        registry.ctx().get<lcf::Dispatcher>().update();
+
         transform_system.update();
         renderer.render(camera_entity, window_up->getEntity()); //todo make a data pack
     };
         
-    lcf::ThreadIOContext::SharedPointer thread_io_context_sp = lcf::ThreadIOContext::makeShared();
-    thread_io_context_sp->run();
-    lcf::Timer engine_timer(thread_io_context_sp);
-    engine_timer.setCallback(std::move(render_loop))
-        .setInterval(1ms)
-        .start();
+    std::atomic<bool> running {true};
+    lcf::PeriodicTask engine_periodic_task {
+        1ms,
+        std::move(render_loop),
+        [&] { return running.load(std::memory_order_relaxed); },
+    };
+    auto & engine_scheduler = registry.ctx().get<lcf::TaskScheduler>();
+    engine_scheduler.registerPeriodicTask(std::move(engine_periodic_task))
+        .run();
 
-    lcf::TaskScheduler scheduler;
+    lcf::TaskScheduler window_scheduler {lcf::TaskScheduler::RunMode::eThisThread};
     lcf::PeriodicTask periodic_task(
         5ms,
         [&] {
@@ -74,10 +79,13 @@ int main(int argc, char *argv[])
             // TRACY_SCOPE_END();
         },
         [&] { return window_up->getState() != lcf::gui::WindowState::eAboutToClose; },
-        [&] { scheduler.stop(); }
+        [&] {
+            window_scheduler.stop();
+            running.store(false, std::memory_order_relaxed);
+        }
     );
-    lcf::UserCommandContext user_cmd_context {scheduler.getIOContext()};
-    scheduler.registerPeriodicTask(std::move(periodic_task))
+    lcf::UserCommandContext user_cmd_context {window_scheduler.getIOContext()};
+    window_scheduler.registerPeriodicTask(std::move(periodic_task))
         .registerAwaitable(user_cmd_context.loop())
         .run();
     return 0;
