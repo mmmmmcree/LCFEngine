@@ -167,7 +167,9 @@ void lcf::render::VulkanContext::setupVulkanInstance()
     if (pfnVkCreateDebugUtilsMessengerEXT and pfnVkDestroyDebugUtilsMessengerEXT and not is_renderdoc_env) {
         vk::DebugUtilsMessengerCreateInfoEXT debug_messenger_info;
         debug_messenger_info.setMessageSeverity(vk::FlagTraits<vk::DebugUtilsMessageSeverityFlagBitsEXT>::allFlags)
-            .setMessageType(vk::FlagTraits<vk::DebugUtilsMessageTypeFlagBitsEXT>::allFlags)
+            .setMessageType(vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral |
+                vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation |
+                vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance)
             .setPfnUserCallback(&debug_callback);
         m_debug_messenger = m_instance->createDebugUtilsMessengerEXTUnique(debug_messenger_info);
     }
@@ -260,7 +262,9 @@ void lcf::render::VulkanContext::createLogicalDevice()
         vk::PhysicalDeviceFeatures2,
         vk::PhysicalDeviceVulkan11Features,
         vk::PhysicalDeviceVulkan12Features,
-        vk::PhysicalDeviceVulkan13Features> device_info;
+        vk::PhysicalDeviceVulkan13Features,
+        vk::PhysicalDeviceSwapchainMaintenance1FeaturesEXT> device_info;
+    device_info.get<vk::PhysicalDeviceSwapchainMaintenance1FeaturesEXT>().setSwapchainMaintenance1(true);
     device_info.get<vk::PhysicalDeviceVulkan13Features>().setSynchronization2(true)
         .setDynamicRendering(true);
     device_info.get<vk::PhysicalDeviceVulkan12Features>().setBufferDeviceAddress(true)

@@ -20,7 +20,7 @@ namespace lcf::render {
         bool create(VulkanContext * context_p, size_t size_in_bytes);
         bool isCreated() const noexcept { return m_buffer_proxy.isCreated(); }
         Self & setUsage(GPUBufferUsage usage) noexcept { m_buffer_proxy.setUsage(usage); return *this; }
-        Self & setPattern(GPUBufferPattern pattern) noexcept { m_buffer_proxy.setPattern(pattern); return *this; }
+        Self & setPattern(GPUBufferPattern pattern) noexcept;
         Self & resize(uint64_t size_in_bytes);
         Self & addWriteSegment(const BufferWriteSegment &segment) noexcept; // overwrite if overlaps
         Self & addWriteSegmentIfAbsent(const BufferWriteSegment &segment) noexcept; // don't overwrite if overlaps

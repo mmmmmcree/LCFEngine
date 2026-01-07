@@ -23,7 +23,7 @@ void lcf::render::VulkanTimelineSemaphore::waitFor(uint64_t value) const
     vk::SemaphoreWaitInfo wait_info;
     wait_info.setSemaphores(m_semaphore.get())
         .setPValues(&value);
-    auto result = device.waitSemaphores(wait_info, UINT64_MAX);
+    auto result = device.waitSemaphores(wait_info, std::numeric_limits<uint64_t>::max());
     if (result != vk::Result::eSuccess) {
         std::runtime_error error(std::format("Failed to wait for timeline semaphore Error code: {}", magic_enum::enum_name(result)));
         lcf_log_error(error.what());

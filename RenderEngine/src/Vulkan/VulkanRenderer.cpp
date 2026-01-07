@@ -59,8 +59,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     // ! temporary
 
     m_per_view_uniform_buffer.setUsage(GPUBufferUsage::eUniform)
-        .setSize(sizeof(Matrix4x4) * 3) // projection, view, projection_view
-        .create(m_context_p);
+        .create(m_context_p, size_of_v<Matrix4x4> * 3); // projection, view, projection_view
 
     m_per_renderable_ssbo_group.create(m_context_p, GPUBufferPattern::eDynamic);
     m_per_renderable_ssbo_group.emplace(size_of_v<vk::DeviceAddress>, GPUBufferUsage::eShaderStorage); // vertex buffer
@@ -74,8 +73,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     
 
     m_indirect_call_buffer.setUsage(GPUBufferUsage::eIndirect)
-        .setSize(size_of_v<vk::DrawIndirectCommand> + 1 * size_of_v<vk::DrawIndirectCommand>) // uint32_t(for IndirectDrawCount) + padding | vk::DrawIndirectCommand ... 
-        .create(m_context_p);
+        .create(m_context_p, size_of_v<vk::DrawIndirectCommand> + 1 * size_of_v<vk::DrawIndirectCommand>); // uint32_t(for IndirectDrawCount) + padding | vk::DrawIndirectCommand ...
 
     auto per_view_descriptor_set_layout_sp = VulkanDescriptorSetLayout::makeShared();
     per_view_descriptor_set_layout_sp->setBindings(vkconstants::per_view_bindings)
@@ -91,7 +89,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     vk::DescriptorBufferInfo per_view_buffer_info;
     per_view_buffer_info.setBuffer(m_per_view_uniform_buffer.getHandle())
         .setOffset(0)
-        .setRange(m_per_view_uniform_buffer.getSize());
+        .setRange(m_per_view_uniform_buffer.getSizeInBytes());
     auto ds_updater = m_per_view_descriptor_set.generateUpdater();
     ds_updater.add(to_integral(PerViewBindingPoints::eCamera), per_view_buffer_info)
         .update();
@@ -133,15 +131,14 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         Vector4D<float> m_base_color = {1.0f, 1.0f, 1.0f, 1.0f};
         Vector4D<float> m_emissive_color = {1.0f, 1.0f, 1.0f, 1.0f};
     };
-    PBRMaterialParams material_params;
+    PBRMaterialParams material_params; 
     m_material_params.setUsage(GPUBufferUsage::eShaderStorage)
         .setPattern(GPUBufferPattern::eStatic)
-        .setSize(size_of_v<PBRMaterialParams>)
-        .create(context_p);
+        .create(context_p, size_of_v<PBRMaterialParams>);
     m_material_params.addWriteSegment({as_bytes_from_value(material_params)});
     vkutils::immediate_submit(m_context_p, vk::QueueFlagBits::eTransfer, [this, &cube_model](VulkanCommandBufferObject & cmd) {
         m_mesh.create(m_context_p, cmd, cube_model.getMesh(0));
-        m_material_params.commitWriteSegments(cmd);
+        m_material_params.commit(cmd);
     });
 
     VulkanImage::SharedPointer cube_map_sp;
@@ -342,8 +339,8 @@ void lcf::VulkanRenderer::render(const Entity & camera, const Entity & render_ta
     m_per_material_params_ssbo_sp->addWriteSegment({as_bytes_from_value(m_material_params.getDeviceAddress()), 0u});
 
     data_transfer_cmd.begin({}); //- no need to wait
-    m_indirect_call_buffer.commitWriteSegments(data_transfer_cmd);
-    m_per_view_uniform_buffer.commitWriteSegments(data_transfer_cmd);
+    m_indirect_call_buffer.commit(data_transfer_cmd);
+    m_per_view_uniform_buffer.commit(data_transfer_cmd);
     m_per_renderable_ssbo_group.commitAll(data_transfer_cmd);
     m_per_material_params_ssbo_sp->commitWriteSegments(data_transfer_cmd);
     data_transfer_cmd.end();

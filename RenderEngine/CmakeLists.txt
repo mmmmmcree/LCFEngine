@@ -8,12 +8,10 @@ add_library(${PROJECT_NAME} STATIC
     ${SOURCES} 
 )
      
-find_package(Vulkan REQUIRED)
 find_package(unofficial-shaderc CONFIG REQUIRED)
 find_package(spirv_cross_core CONFIG REQUIRED)
 find_package(spirv_cross_glsl CONFIG REQUIRED)
 find_package(spirv_cross_cpp CONFIG REQUIRED)
-find_package(VulkanMemoryAllocator CONFIG REQUIRED)
 find_package(Boost CONFIG REQUIRED)
 find_package(assimp CONFIG REQUIRED)
      
@@ -26,23 +24,30 @@ target_include_directories(${PROJECT_NAME}
         $<INSTALL_INTERFACE:include>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     PRIVATE 
-        $<TARGET_PROPERTY:Vulkan::Vulkan,INTERFACE_INCLUDE_DIRECTORIES>  # Vulkan 库的头文件由 find_package 自动处理
-        ${VulkanMemoryAllocator_INCLUDE_DIRS}
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )          
-link_directories(${Vulkan_LIBRARY})
+
 target_link_libraries(${PROJECT_NAME}
     PUBLIC   
         graphic_api_config
+        containers
         math
         utilities 
         GUI 
         core 
         Boost::headers   
     PRIVATE 
-        Vulkan::Vulkan
         unofficial::shaderc::shaderc
         spirv-cross-core spirv-cross-glsl spirv-cross-cpp
-        GPUOpen::VulkanMemoryAllocator 
         assimp::assimp
 )  
+
+if(USE_VULKAN)
+    find_package(Vulkan REQUIRED)
+    find_package(VulkanMemoryAllocator CONFIG REQUIRED)
+    target_link_libraries(${PROJECT_NAME}
+        PRIVATE
+            Vulkan::Vulkan
+            GPUOpen::VulkanMemoryAllocator 
+    )
+endif()

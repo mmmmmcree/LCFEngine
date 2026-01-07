@@ -9,6 +9,13 @@ bool VulkanBufferObject2::create(VulkanContext *context_p, size_t size_in_bytes)
     return m_buffer_proxy.create(context_p, size_in_bytes) and m_writer.create(context_p);
 }
 
+VulkanBufferObject2 & VulkanBufferObject2::setPattern(GPUBufferPattern pattern) noexcept
+{
+    m_writer.setPattern(pattern);
+    m_buffer_proxy.setPattern(pattern);
+    return *this;
+}
+
 VulkanBufferObject2 & VulkanBufferObject2::resize(uint64_t size_in_bytes)
 {
     if (size_in_bytes <= m_required_size) { return *this; }
