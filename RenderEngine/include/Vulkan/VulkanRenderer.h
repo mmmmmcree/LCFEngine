@@ -8,7 +8,6 @@
 #include "Entity.h"
 #include "VulkanCommandBufferObject.h"
 #include "VulkanBufferObject.h"
-#include "VulkanBufferObject2.h"
 #include "VulkanBufferObjectGroup.h"
 #include "VulkanMesh.h"
 #include "VulkanSampler.h"
@@ -48,16 +47,16 @@ namespace lcf {
         VulkanPipeline m_graphics_pipeline;
         VulkanPipeline m_skybox_pipeline;
 
-        VulkanBufferObject2 m_per_view_uniform_buffer;
+        VulkanBufferObject m_per_view_uniform_buffer;
 
-        VulkanBufferObject2 m_indirect_call_buffer;
+        VulkanBufferObject m_indirect_call_buffer;
         
         VulkanBufferObjectGroup m_per_renderable_ssbo_group;
         
         VulkanMesh m_mesh;
         VulkanMaterial m_material;
         VulkanBufferObject::SharedPointer m_per_material_params_ssbo_sp; //- ssbo that store params_buffer's address
-        VulkanBufferObject2 m_material_params; //- params with real data
+        VulkanBufferObject m_material_params; //- params with real data
         VulkanMaterial m_skybox_material;
     };
 }

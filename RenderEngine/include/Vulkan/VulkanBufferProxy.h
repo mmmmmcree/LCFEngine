@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common/render_enums.h"
-#include "VulkanBuffer.h"
+#include "vulkan_memory_resources.h"
 #include "BufferWriteSegment.h"
 
 namespace lcf::render {
@@ -20,9 +20,10 @@ namespace lcf::render {
     public:
         bool create(VulkanContext * context_p, uint64_t size_in_bytes);
         bool recreate(uint64_t size_in_bytes);
-        bool isCreated() const noexcept { m_buffer_sp and this->getHandle(); }
+        bool isCreated() const noexcept { return m_buffer_sp and this->getHandle(); }
+        void writeSegmentDirectly(const BufferWriteSegment &segment, uint64_t dst_offset_in_bytes = 0u) noexcept;
         void writeSegmentsDirectly(const BufferWriteSegments &segments, uint64_t dst_offset_in_bytes = 0u) noexcept;
-        uint64_t getSizeInBytes() const noexcept { return m_buffer_sp->getSizeInBytes(); }
+        uint64_t getSizeInBytes() const noexcept { return m_buffer_sp->getSize(); }
         vk::Buffer getHandle() const noexcept { return m_buffer_sp->getHandle(); }
         std::byte * getMappedMemoryPtr() const noexcept { return m_buffer_sp->getMappedMemoryPtr(); }
         const vk::DeviceAddress & getDeviceAddress() const noexcept { return m_device_address; }

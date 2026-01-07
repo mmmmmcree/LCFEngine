@@ -1,10 +1,9 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
-#include "VulkanMemoryAllocator.h"
+#include "vulkan_memory_resources.h"
 #include "Image/Image.h"
 #include "PointerDefs.h"
-#include "VulkanCommandBufferObject.h"
 #include <variant>
 #include <unordered_map>
 #include <boost/icl/interval_map.hpp>
@@ -14,6 +13,8 @@ namespace lcf::render {
     class VulkanContext;
 
     class VulkanAttachment;
+
+    class VulkanCommandBufferObject;
 
     //todo temporary
     template <typename T>
@@ -61,7 +62,7 @@ namespace lcf::render {
                 return std::hash<uint64_t>{}(packed);
             }
         };
-        using ImageVariant = std::variant<vk::Image, VMAImage::SharedPointer>;
+        using ImageVariant = std::variant<vk::Image, VulkanImage::SharedPointer>;
         using ImageViewMap = std::unordered_map<ImageViewKey, vk::UniqueImageView, ImageViewKeyHash>;
         using WrappedImageLayout = DefaultIntervalWrapper<vk::ImageLayout>;
         using LayoutMap = boost::icl::interval_map<uint16_t, WrappedImageLayout>;

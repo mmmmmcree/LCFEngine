@@ -5,16 +5,17 @@
 #include <boost/container/vector.hpp>
 #include <queue>
 #include "VulkanTimelineSemaphore.h"
-#include "common/GPUResource.h"
+#include "VulkanSharableResource.h"
 
 namespace lcf::render {
     class VulkanContext;
+
     class VulkanCommandBufferObject : public vk::CommandBuffer
     {
         using Self = VulkanCommandBufferObject;
     public:
         using SemaphoreSubmitInfoList = boost::container::vector<vk::SemaphoreSubmitInfo>;
-        using GPUResourceList =  boost::container::vector<GPUResource::SharedPointer>;
+        using ResourceList =  boost::container::vector<VulkanSharableResource>;
         VulkanCommandBufferObject() = default;
         bool create(VulkanContext * context_p, vk::QueueFlagBits queue_type);
         vk::QueueFlagBits getQueueType() const noexcept { return m_queue_type; }
@@ -25,13 +26,13 @@ namespace lcf::render {
         Self & addSignalSubmitInfo(const vk::SemaphoreSubmitInfo & signal_info) { m_signal_infos.emplace_back(signal_info); return *this; }
         vk::SemaphoreSubmitInfo submit();
         const VulkanTimelineSemaphore::SharedPointer & getTimelineSemaphore() const noexcept { return m_timeline_semaphore_sp; }
-        void acquireResource(const GPUResource::SharedPointer & resource_sp);
+        void acquireResource(VulkanSharableResource resource);
     private:
         VulkanContext * m_context_p = nullptr;
         vk::QueueFlagBits m_queue_type;
         VulkanTimelineSemaphore::SharedPointer m_timeline_semaphore_sp;
         SemaphoreSubmitInfoList m_wait_infos;
         SemaphoreSubmitInfoList m_signal_infos;
-        GPUResourceList m_resources;
+        ResourceList m_resources;
     };
 }

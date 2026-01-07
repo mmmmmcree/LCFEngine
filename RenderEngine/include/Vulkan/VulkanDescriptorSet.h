@@ -3,7 +3,6 @@
 #include <vulkan/vulkan.hpp>
 #include "VulkanDescriptorSetLayout.h"
 #include "VulkanDescriptorSetUpdater.h"
-#include "common/GPUResource.h"
 #include "PointerDefs.h"
 #include <optional>
 #include <span>
@@ -13,7 +12,7 @@ namespace lcf::render {
 
     class VulkanDescriptorSetAllocator;
 
-    class VulkanDescriptorSet : public GPUResource, public STDPointerDefs<VulkanDescriptorSet>
+    class VulkanDescriptorSet : public STDPointerDefs<VulkanDescriptorSet>
     {
         friend class VulkanDescriptorSetAllocator;
         using Self = VulkanDescriptorSet;

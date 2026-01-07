@@ -3,8 +3,7 @@
 #include "common/Context.h"
 #include "Entity.h"
 #include "VulkanSwapchain.h"
-#include "VulkanMemoryAllocator.h"
-#include "VulkanCommandBufferObject.h"
+#include "vulkan_memory_resources.h"
 #include "VulkanSamplerManager.h"
 #include "VulkanDescriptorSetAllocator.h"
 #include <vulkan/vulkan.hpp>

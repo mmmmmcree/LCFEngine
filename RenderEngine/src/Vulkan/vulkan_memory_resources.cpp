@@ -1,4 +1,4 @@
-#include "Vulkan/VulkanMemoryAllocator.h"
+#include "Vulkan/vulkan_memory_resources.h"
 #include "Vulkan/VulkanContext.h"
 #define VMA_IMPLEMENTATION
 #include <vma/vk_mem_alloc.h>
@@ -28,7 +28,7 @@ bool VulkanMemoryAllocator::create(VulkanContext * context)
     return vmaCreateAllocator(&allocator_info, &m_allocator) == VK_SUCCESS;
 }
 
-VMAImage::UniquePointer VulkanMemoryAllocator::createImage(
+VulkanImage::UniquePointer VulkanMemoryAllocator::createImage(
     const vk::ImageCreateInfo &image_info,
     const MemoryAllocationCreateInfo &mem_alloc_info) const
 {
@@ -54,10 +54,10 @@ VMAImage::UniquePointer VulkanMemoryAllocator::createImage(
         lcf_log_error(error.what());
         throw error;
     }
-    return VMAImage::makeUnique(m_allocator, allocation, image, allocation_info.size, allocation_info.pMappedData);
+    return VulkanImage::makeUnique(m_allocator, allocation, image, allocation_info.size, allocation_info.pMappedData);
 }
 
-VMABuffer::UniquePointer VulkanMemoryAllocator::createBuffer(
+VulkanBuffer::UniquePointer VulkanMemoryAllocator::createBuffer(
     const vk::BufferCreateInfo &buffer_info,
     const MemoryAllocationCreateInfo &mem_alloc_info) const
 {
@@ -83,10 +83,10 @@ VMABuffer::UniquePointer VulkanMemoryAllocator::createBuffer(
         lcf_log_error(error.what());
         throw error;
     }
-    return VMABuffer::makeUnique(m_allocator, allocation, buffer, allocation_info.size, allocation_info.pMappedData);
+    return VulkanBuffer::makeUnique(m_allocator, allocation, buffer, allocation_info.size, allocation_info.pMappedData);
 }
 
-VMABuffer::VMABuffer(VmaAllocator allocator, VmaAllocation allocation, vk::Buffer buffer, vk::DeviceSize size, void *mapped_data_p) :
+VulkanBuffer::VulkanBuffer(VmaAllocator allocator, VmaAllocation allocation, vk::Buffer buffer, vk::DeviceSize size, void *mapped_data_p) :
     m_allocator(allocator),
     m_allocation(allocation),
     m_buffer(buffer),
@@ -95,17 +95,17 @@ VMABuffer::VMABuffer(VmaAllocator allocator, VmaAllocation allocation, vk::Buffe
 {
 }
 
-VMABuffer::~VMABuffer()
+VulkanBuffer::~VulkanBuffer()
 {
     vmaDestroyBuffer(m_allocator, m_buffer, m_allocation);
 }
 
-vk::Result VMABuffer::flush(VkDeviceSize offset, VkDeviceSize size)
+vk::Result VulkanBuffer::flush(VkDeviceSize offset, VkDeviceSize size)
 {
     return static_cast<vk::Result>(vmaFlushAllocation(m_allocator, m_allocation, offset, size));
 }
 
-VMAImage::VMAImage(VmaAllocator allocator, VmaAllocation allocation, vk::Image image, vk::DeviceSize size, void * mapped_data_p) :
+VulkanImage::VulkanImage(VmaAllocator allocator, VmaAllocation allocation, vk::Image image, vk::DeviceSize size, void * mapped_data_p) :
     m_allocator(allocator),
     m_allocation(allocation),
     m_image(image),
@@ -114,12 +114,12 @@ VMAImage::VMAImage(VmaAllocator allocator, VmaAllocation allocation, vk::Image i
 {
 }
 
-VMAImage::~VMAImage()
+VulkanImage::~VulkanImage()
 {
     vmaDestroyImage(m_allocator, m_image, m_allocation);
 }
 
-vk::Result VMAImage::flush(VkDeviceSize offset, VkDeviceSize size)
+vk::Result VulkanImage::flush(VkDeviceSize offset, VkDeviceSize size)
 {
     return static_cast<vk::Result>(vmaFlushAllocation(m_allocator, m_allocation, offset, size));
 }

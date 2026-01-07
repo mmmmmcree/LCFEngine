@@ -1,6 +1,5 @@
 #include "Vulkan/VulkanBufferProxy.h"
 #include "Vulkan/VulkanContext.h"
-#include "log.h"
 #include <boost/align.hpp>
 
 using namespace lcf::render;
@@ -49,11 +48,8 @@ bool VulkanBufferProxy::create(VulkanContext *context_p, uint64_t size_in_bytes)
     MemoryAllocationCreateInfo memory_info {memory_flags};
     auto device = m_context_p->getDevice();
     auto & memory_allocator = m_context_p->getMemoryAllocator();
-    m_buffer_sp = VulkanBuffer::makeShared();
-    if (not m_buffer_sp->create(memory_allocator, buffer_info, memory_info)) {
-        lcf_log_error("Failed to create buffer");
-        return false;
-    }
+    m_buffer_sp = memory_allocator.createBuffer(buffer_info, memory_info);
+    if (not m_buffer_sp) { return false; }
     if (buffer_info.usage & vk::BufferUsageFlagBits::eShaderDeviceAddress) {
         m_device_address = device.getBufferAddress(m_buffer_sp->getHandle());
     }
@@ -63,6 +59,15 @@ bool VulkanBufferProxy::create(VulkanContext *context_p, uint64_t size_in_bytes)
 bool VulkanBufferProxy::recreate(uint64_t size_in_bytes)
 {
     return this->create(m_context_p, size_in_bytes);
+}
+
+void VulkanBufferProxy::writeSegmentDirectly(
+    const BufferWriteSegment & segment,
+    uint64_t dst_offset_in_bytes) noexcept
+{
+    memcpy(this->getMappedMemoryPtr() + segment.getBeginOffsetInBytes() + dst_offset_in_bytes,
+        segment.getData(), segment.getSizeInBytes());
+    m_buffer_sp->flush(segment.getBeginOffsetInBytes() + dst_offset_in_bytes, segment.getSizeInBytes());
 }
 
 void VulkanBufferProxy::writeSegmentsDirectly(

@@ -2,10 +2,11 @@
 
 #include "Mesh.h"
 #include "VulkanBufferObject.h"
-#include "VulkanCommandBufferObject.h"
 
 namespace lcf::render {
     class VulkanContext;
+
+    class VulkanCommandBufferObject;
 
     class VulkanMesh
     {

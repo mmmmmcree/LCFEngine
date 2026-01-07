@@ -10,11 +10,11 @@ namespace lcf::render {
 
     class VulkanCommandBufferObject;
 
-    class VulkanBufferObject2;
+    class VulkanBufferObject;
 
     class VulkanBufferWriter
     {
-        friend class VulkanBufferObject2;
+        friend class VulkanBufferObject;
         using Self = VulkanBufferWriter;
         using WriteBufferRequest = std::pair<VulkanBufferProxy *, const BufferWriteSegments *>;
         using WriteBufferRequestList = std::vector<WriteBufferRequest>;

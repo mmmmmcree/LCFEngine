@@ -68,8 +68,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
 
     m_per_material_params_ssbo_sp = VulkanBufferObject::makeShared();
     m_per_material_params_ssbo_sp->setUsage(GPUBufferUsage::eShaderStorage)
-        .setSize(size_of_v<vk::DeviceAddress>)
-        .create(m_context_p);
+        .create(m_context_p, size_of_v<vk::DeviceAddress>);
     
 
     m_indirect_call_buffer.setUsage(GPUBufferUsage::eIndirect)
@@ -342,7 +341,7 @@ void lcf::VulkanRenderer::render(const Entity & camera, const Entity & render_ta
     m_indirect_call_buffer.commit(data_transfer_cmd);
     m_per_view_uniform_buffer.commit(data_transfer_cmd);
     m_per_renderable_ssbo_group.commitAll(data_transfer_cmd);
-    m_per_material_params_ssbo_sp->commitWriteSegments(data_transfer_cmd);
+    m_per_material_params_ssbo_sp->commit(data_transfer_cmd);
     data_transfer_cmd.end();
     auto data_transfer_complete_info =  data_transfer_cmd.submit();
 

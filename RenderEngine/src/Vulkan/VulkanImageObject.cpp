@@ -1,5 +1,6 @@
 #include "Vulkan/VulkanImageObject.h"
 #include "Vulkan/VulkanContext.h"
+#include "Vulkan/VulkanCommandBufferObject.h"
 #include "Vulkan/VulkanBufferObject.h"
 #include "Vulkan/vulkan_utililtie.h"
 #include "log.h"
@@ -22,12 +23,11 @@ bool VulkanImageObject::create(VulkanContext *context_p, vk::Image external_imag
 
 void VulkanImageObject::setData(VulkanCommandBufferObject &cmd, std::span<const std::byte> data, uint32_t layer)
 {
-    VulkanBufferObject staging_buffer;
+    VulkanBufferProxy staging_buffer;
     staging_buffer.setUsage(GPUBufferUsage::eStaging)
-        .setSize(data.size_bytes())
-        .create(m_context_p);
-    staging_buffer.addWriteSegment({data})
-        .commitWriteSegments(cmd);
+        .create(m_context_p, data.size_bytes());
+    staging_buffer.writeSegmentDirectly(data);
+    cmd.acquireResource(staging_buffer.getResource());
     vk::BufferImageCopy region;
     region.setImageSubresource({ this->getAspectFlags(), 0, 0, 1 })
         .setImageOffset({ 0, 0, 0 })
@@ -44,11 +44,10 @@ lcf::Image VulkanImageObject::readData()
     region.setImageSubresource({ this->getAspectFlags(), 0, 0, 1 })
         .setImageOffset({ 0, 0, 0 })
         .setImageExtent(m_extent);
-    VulkanBufferObject staging_buffer;
+    VulkanBufferProxy staging_buffer;
     auto [width, height, depth] = m_extent;
     staging_buffer.setUsage(GPUBufferUsage::eStaging)
-        .setSize(width * height * 4)
-        .create(m_context_p);
+        .create(m_context_p, width * height * 4);
     vkutils::immediate_submit(m_context_p, vk::QueueFlagBits::eGraphics, [&](VulkanCommandBufferObject & cmd) {
         auto old_layout = *this->getLayout();
         this->transitLayout(cmd, vk::ImageLayout::eTransferSrcOptimal);
@@ -56,7 +55,7 @@ lcf::Image VulkanImageObject::readData()
         this->transitLayout(cmd, old_layout);
     });
     Image image;
-    image.loadFromMemory({staging_buffer.getMappedMemoryPtr(), staging_buffer.getSize()}, Image::Format::eRGBA8Uint, width);
+    image.loadFromMemory({staging_buffer.getMappedMemoryPtr(), staging_buffer.getSizeInBytes()}, Image::Format::eRGBA8Uint, width);
     return image;
 }
 

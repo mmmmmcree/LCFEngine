@@ -51,10 +51,9 @@ vk::SemaphoreSubmitInfo VulkanCommandBufferObject::submit()
         .setCommandBufferInfos(command_submit_info);
     m_context_p->getQueue(m_queue_type).submit2(submit_info);
     return submission_complete_info;
-    // return 
 }
 
-void VulkanCommandBufferObject::acquireResource(const GPUResource::SharedPointer &resource_sp)
+void VulkanCommandBufferObject::acquireResource(VulkanSharableResource resource)
 {
-    m_resources.emplace_back(resource_sp);
+    m_resources.emplace_back(std::move(resource));
 }

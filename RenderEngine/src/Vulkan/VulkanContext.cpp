@@ -7,18 +7,18 @@
 
 using namespace lcf::render;
 
-lcf::render::VulkanContext::VulkanContext()
+VulkanContext::VulkanContext()
 {
     this->setupVulkanInstance();
 }
 
-lcf::render::VulkanContext::~VulkanContext()
+VulkanContext::~VulkanContext()
 {
     m_surface_render_targets.clear();
     m_device->waitIdle();
 }
 
-VulkanContext & lcf::render::VulkanContext::registerWindow(Entity &window_entity)
+VulkanContext & VulkanContext::registerWindow(Entity &window_entity)
 {
     auto & bridge_sp = window_entity.getComponent<gui::VulkanSurfaceBridge::SharedPointer>();
     bridge_sp->createBackend(this->getInstance());
@@ -28,7 +28,7 @@ VulkanContext & lcf::render::VulkanContext::registerWindow(Entity &window_entity
     return *this;
 }
 
-void lcf::render::VulkanContext::create()
+void VulkanContext::create()
 {
     if (this->isCreated()) { return; }
     this->pickPhysicalDevice();
@@ -43,22 +43,22 @@ void lcf::render::VulkanContext::create()
     }
 }
 
-uint32_t lcf::render::VulkanContext::getQueueFamilyIndex(vk::QueueFlagBits type) const noexcept
+uint32_t VulkanContext::getQueueFamilyIndex(vk::QueueFlagBits type) const noexcept
 {
     return m_queue_family_indices.at(type);
 }
 
-const vk::Queue & lcf::render::VulkanContext::getQueue(vk::QueueFlagBits type) const noexcept
+const vk::Queue & VulkanContext::getQueue(vk::QueueFlagBits type) const noexcept
 {
     return m_queue_lists.at(type).front();
 }
 
-std::span<const vk::Queue> lcf::render::VulkanContext::getSubQueues(vk::QueueFlagBits type) const noexcept
+std::span<const vk::Queue> VulkanContext::getSubQueues(vk::QueueFlagBits type) const noexcept
 { 
     return std::span(m_queue_lists.at(type)).subspan(1);
 }
 
-const vk::CommandPool &lcf::render::VulkanContext::getCommandPool(vk::QueueFlagBits queue_type) const noexcept
+const vk::CommandPool &VulkanContext::getCommandPool(vk::QueueFlagBits queue_type) const noexcept
 {
     return m_command_pools.at(queue_type).get();
 }
@@ -91,7 +91,7 @@ VKAPI_ATTR vk::Bool32 VKAPI_CALL debug_callback(
     void * user_data);
 #endif
 
-void lcf::render::VulkanContext::setupVulkanInstance()
+void VulkanContext::setupVulkanInstance()
 {
 #if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC
     static bool s_vulkan_loaded = []() -> bool {
@@ -176,7 +176,7 @@ void lcf::render::VulkanContext::setupVulkanInstance()
 #endif
 }
 
-void lcf::render::VulkanContext::pickPhysicalDevice()
+void VulkanContext::pickPhysicalDevice()
 {
     auto devices = m_instance->enumeratePhysicalDevices();
     if (devices.empty()) {
@@ -190,7 +190,7 @@ void lcf::render::VulkanContext::pickPhysicalDevice()
     m_physical_device = devices.front();
 }
 
-int lcf::render::VulkanContext::calculatePhysicalDeviceScore(const vk::PhysicalDevice &device)
+int VulkanContext::calculatePhysicalDeviceScore(const vk::PhysicalDevice &device)
 {
     vk::PhysicalDeviceProperties properties = device.getProperties();
     vk::PhysicalDeviceFeatures features = device.getFeatures();
@@ -201,7 +201,7 @@ int lcf::render::VulkanContext::calculatePhysicalDeviceScore(const vk::PhysicalD
     return score;
 }
 
-void lcf::render::VulkanContext::findQueueFamilies()
+void VulkanContext::findQueueFamilies()
 {
     auto queue_family_properties = m_physical_device.getQueueFamilyProperties();
     auto get_queue_family_index = [this, &queue_family_properties](vk::QueueFlags desired_flags, vk::QueueFlags undesired_flags) -> std::optional<uint32_t>
@@ -234,7 +234,7 @@ void lcf::render::VulkanContext::findQueueFamilies()
     }
 }
 
-void lcf::render::VulkanContext::createLogicalDevice()
+void VulkanContext::createLogicalDevice()
 {
     std::vector<const char *> required_extensions = {
         VK_KHR_MAINTENANCE1_EXTENSION_NAME,
@@ -323,7 +323,7 @@ void lcf::render::VulkanContext::createLogicalDevice()
     }
 }
 
-void lcf::render::VulkanContext::createCommandPools()
+void VulkanContext::createCommandPools()
 {
     for (auto [queue_type, queue_index] : m_queue_family_indices) {
         vk::CommandPoolCreateInfo command_pool_info;

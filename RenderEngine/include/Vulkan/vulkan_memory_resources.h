@@ -15,15 +15,15 @@ namespace lcf::render {
         vk::MemoryPropertyFlags memory_flags;
     };
 
-    class VMAImage : public STDPointerDefs<VMAImage>
+    class VulkanImage : public STDPointerDefs<VulkanImage>
     {
     public:
-        VMAImage(VmaAllocator allocator,
+        VulkanImage(VmaAllocator allocator,
             VmaAllocation allocation,
             vk::Image image,
             vk::DeviceSize size,
             void * mapped_data_p = nullptr);
-        ~VMAImage();
+        ~VulkanImage();
         vk::Image getHandle() const noexcept { return m_image; }
         std::byte * getMappedMemoryPtr() const noexcept { return m_mapped_data_p; }
         vk::DeviceSize getSize() const noexcept { return m_size; }
@@ -36,15 +36,15 @@ namespace lcf::render {
         vk::DeviceSize m_size = 0;
     };
 
-    class VMABuffer : public STDPointerDefs<VMABuffer>
+    class VulkanBuffer : public STDPointerDefs<VulkanBuffer>
     {
     public:
-        VMABuffer(VmaAllocator allocator,
+        VulkanBuffer(VmaAllocator allocator,
             VmaAllocation allocation,
             vk::Buffer buffer,
             vk::DeviceSize size,
             void * mapped_data_p = nullptr);
-        ~VMABuffer();
+        ~VulkanBuffer();
         vk::Buffer getHandle() const noexcept { return m_buffer; }
         std::byte * getMappedMemoryPtr() const noexcept { return m_mapped_data_p; }
         vk::DeviceSize getSize() const noexcept { return m_size; }
@@ -65,8 +65,8 @@ namespace lcf::render {
         VulkanMemoryAllocator & operator=(const VulkanMemoryAllocator &) = delete;
         ~VulkanMemoryAllocator();
         bool create(VulkanContext * context);
-        VMAImage::UniquePointer createImage(const vk::ImageCreateInfo & image_info, const MemoryAllocationCreateInfo & mem_alloc_info) const;
-        VMABuffer::UniquePointer createBuffer(const vk::BufferCreateInfo & buffer_info, const MemoryAllocationCreateInfo & mem_alloc_info) const;
+        VulkanImage::UniquePointer createImage(const vk::ImageCreateInfo & image_info, const MemoryAllocationCreateInfo & mem_alloc_info) const;
+        VulkanBuffer::UniquePointer createBuffer(const vk::BufferCreateInfo & buffer_info, const MemoryAllocationCreateInfo & mem_alloc_info) const;
     private:
         VmaAllocator m_allocator = nullptr;
     };
