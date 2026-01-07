@@ -30,9 +30,9 @@ namespace lcf::render {
         std::optional<T> m_value;
     };
 
-    class VulkanImage : public STDPointerDefs<VulkanImage>
+    class VulkanImageObject : public STDPointerDefs<VulkanImageObject>
     {
-        using Self = VulkanImage;
+        using Self = VulkanImageObject;
         struct ImageViewKey
         {
             ImageViewKey(const vk::ImageSubresourceRange & range, const vk::ComponentMapping & components = {}) :
@@ -61,7 +61,7 @@ namespace lcf::render {
                 return std::hash<uint64_t>{}(packed);
             }
         };
-        using ImageVariant = std::variant<vk::Image, VMAImage::UniquePointer>;
+        using ImageVariant = std::variant<vk::Image, VMAImage::SharedPointer>;
         using ImageViewMap = std::unordered_map<ImageViewKey, vk::UniqueImageView, ImageViewKeyHash>;
         using WrappedImageLayout = DefaultIntervalWrapper<vk::ImageLayout>;
         using LayoutMap = boost::icl::interval_map<uint16_t, WrappedImageLayout>;
@@ -69,9 +69,12 @@ namespace lcf::render {
         using LayoutMapIntervalType = typename LayoutMapInterval::type;
         friend class VulkanAttachment;
     public:
-        VulkanImage() = default;
-        VulkanImage(const VulkanImage & other) = delete;
-        VulkanImage & operator=(const VulkanImage & other) = delete;
+        VulkanImageObject() = default;
+        ~VulkanImageObject() = default;
+        VulkanImageObject(const VulkanImageObject & other) = delete;
+        VulkanImageObject & operator=(const VulkanImageObject & other) = delete;
+        VulkanImageObject(VulkanImageObject && other) noexcept = default;
+        VulkanImageObject & operator=(VulkanImageObject && other) noexcept = default;
         bool create(VulkanContext * context_p);
         bool create(VulkanContext * context_p, vk::Image external_image);
         void setData(VulkanCommandBufferObject & cmd, std::span<const std::byte> data, uint32_t layer = 0);
@@ -112,14 +115,14 @@ namespace lcf::render {
         void blitTo(VulkanCommandBufferObject & cmd,
             const vk::ImageSubresourceLayers & src_subresource,
             const std::pair<vk::Offset3D, vk::Offset3D> & src_offsets,
-            VulkanImage & dst,
+            VulkanImageObject & dst,
             const vk::ImageSubresourceLayers & dst_subresource,
             const std::pair<vk::Offset3D, vk::Offset3D> & dst_offsets,
             vk::Filter filter);
         void copyTo(VulkanCommandBufferObject & cmd,
             const vk::ImageSubresourceLayers & src_subresource,
             const vk::Offset3D & src_offset,
-            VulkanImage & dst,
+            VulkanImageObject & dst,
             const vk::ImageSubresourceLayers & dst_subresource,
             const vk::Offset3D & dst_offset,
             const vk::Extent3D & extent);
@@ -142,8 +145,8 @@ namespace lcf::render {
         using Self = VulkanAttachment;
     public:
         using Offset3DPair = std::pair<vk::Offset3D, vk::Offset3D>;
-        VulkanAttachment(const VulkanImage::SharedPointer & image_sp);
-        VulkanAttachment(const VulkanImage::SharedPointer & image_sp, uint32_t mip_level, uint32_t layer, uint32_t layer_count);
+        VulkanAttachment(const VulkanImageObject::SharedPointer & image_sp);
+        VulkanAttachment(const VulkanImageObject::SharedPointer & image_sp, uint32_t mip_level, uint32_t layer, uint32_t layer_count);
         VulkanAttachment(const VulkanAttachment & other) = default;
         bool isValid() const noexcept { return m_image_sp and m_image_sp->isCreated(); }
         void blitTo(VulkanCommandBufferObject & cmd,
@@ -157,7 +160,7 @@ namespace lcf::render {
             const vk::Offset3D & src_offset,
             const vk::Offset3D & dst_offset,
             const vk::Extent3D & extent);
-        const VulkanImage::SharedPointer & getImageSharedPointer() const noexcept { return m_image_sp; }
+        const VulkanImageObject::SharedPointer & getImageSharedPointer() const noexcept { return m_image_sp; }
         vk::ImageSubresourceRange getSubresourceRange() const noexcept;
         vk::ImageView getImageView() const noexcept;
         uint32_t getMipLevel() const noexcept { return m_mip_level; }
@@ -167,7 +170,7 @@ namespace lcf::render {
         vk::Extent3D getExtent() const noexcept;
         std::optional<vk::ImageLayout> getLayout() const noexcept { return m_image_sp->getLayout(m_layer, m_layer_count, m_mip_level, 1); }
     private:
-        VulkanImage::SharedPointer m_image_sp;
+        VulkanImageObject::SharedPointer m_image_sp;
         uint32_t m_mip_level;
         uint32_t m_layer;
         uint32_t m_layer_count;

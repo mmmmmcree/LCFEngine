@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
-#include "VulkanImage.h"
+#include "VulkanImageObject.h"
 #include "VulkanCommandBufferObject.h"
 #include <optional>
 

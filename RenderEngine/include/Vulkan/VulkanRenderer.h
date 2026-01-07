@@ -3,7 +3,7 @@
 #include "VulkanContext.h"
 #include "VulkanSwapchain.h"
 #include "VulkanPipeline.h"
-#include "VulkanImage.h"
+#include "VulkanImageObject.h"
 #include "VulkanFramebufferObject.h"
 #include "Entity.h"
 #include "VulkanCommandBufferObject.h"

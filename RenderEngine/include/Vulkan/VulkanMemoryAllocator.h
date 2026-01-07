@@ -8,7 +8,12 @@
 namespace lcf::render {
     class VulkanContext;
 
-    struct MemoryAllocationCreateInfo;
+    struct MemoryAllocationCreateInfo
+    {
+        MemoryAllocationCreateInfo(vk::MemoryPropertyFlags _memory_flags) :
+            memory_flags(_memory_flags) {}
+        vk::MemoryPropertyFlags memory_flags;
+    };
 
     class VMAImage : public STDPointerDefs<VMAImage>
     {
@@ -65,12 +70,4 @@ namespace lcf::render {
     private:
         VmaAllocator m_allocator = nullptr;
     };
-
-    struct MemoryAllocationCreateInfo
-    {
-        MemoryAllocationCreateInfo(vk::MemoryPropertyFlags _memory_flags) :
-            memory_flags(_memory_flags) {}
-        vk::MemoryPropertyFlags memory_flags;
-    };
-
 }

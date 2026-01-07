@@ -19,7 +19,7 @@ bool VulkanFramebufferObject::create(VulkanContext *context_p, const VulkanFrame
         color_attachment_usage |= vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eSampled;
     }
     for (auto color_format : create_info.getColorFormats()) {
-        auto image_sp = VulkanImage::makeShared();
+        auto image_sp = VulkanImageObject::makeShared();
         image_sp->setUsage(color_attachment_usage)
             .setExtent({m_max_extent.width, m_max_extent.height, 1u})
             .setSamples(create_info.getSampleCount())
@@ -28,7 +28,7 @@ bool VulkanFramebufferObject::create(VulkanContext *context_p, const VulkanFrame
         m_color_attachments.emplace_back(image_sp);
     }
     if (m_color_attachments.empty()) {
-        auto image_sp = VulkanImage::makeShared();
+        auto image_sp = VulkanImageObject::makeShared();
         image_sp->setUsage(vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst)
             .setExtent({m_max_extent.width, m_max_extent.height, 1u})
             .setSamples(vk::SampleCountFlagBits::e1)
@@ -40,7 +40,7 @@ bool VulkanFramebufferObject::create(VulkanContext *context_p, const VulkanFrame
         m_layer_count = std::min(m_layer_count, color_attachment.getLayerCount());
     }
     if (create_info.hasDepthStencilFormat()) {
-        auto image_sp = VulkanImage::makeShared();
+        auto image_sp = VulkanImageObject::makeShared();
         image_sp->setUsage(vk::ImageUsageFlagBits::eDepthStencilAttachment)
             .setExtent({m_extent.width, m_extent.height, 1})
             .setSamples(m_color_attachments.front().getImageSharedPointer()->getSamples())
@@ -50,7 +50,7 @@ bool VulkanFramebufferObject::create(VulkanContext *context_p, const VulkanFrame
         m_depth_stencil_attachment->setClearDepthStencilValue({1.0f, 0});
     }
     if (create_info.isEnableMSAA()) {
-        auto image_sp = VulkanImage::makeShared();
+        auto image_sp = VulkanImageObject::makeShared();
         image_sp->setUsage(vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eColorAttachment)
             .setFormat(m_color_attachments.front().getImageSharedPointer()->getFormat())
             .setExtent({m_extent.width, m_extent.height, 1})

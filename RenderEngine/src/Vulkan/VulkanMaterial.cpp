@@ -24,7 +24,7 @@ bool lcf::render::VulkanMaterial::create(const VulkanDescriptorSet::SharedPointe
     return this->getDescriptorSet().getHandle();
 }
 
-VulkanMaterial & VulkanMaterial::setTexture(uint32_t binding, uint32_t index, const VulkanImage::SharedPointer &texture)
+VulkanMaterial & VulkanMaterial::setTexture(uint32_t binding, uint32_t index, const VulkanImageObject::SharedPointer &texture)
 {
     auto bindings = m_descriptor_set_sp->getLayout().getBindings();
     if (binding >= bindings.size()) { return *this; }

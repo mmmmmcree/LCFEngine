@@ -2,7 +2,7 @@
 
 #include <vulkan/vulkan.hpp>
 #include "VulkanDescriptorSet.h"
-#include "VulkanImage.h"
+#include "VulkanImageObject.h"
 #include "VulkanSampler.h"
 #include "VulkanBufferObject.h"
 #include <bitset>
@@ -17,7 +17,7 @@ namespace lcf::render {
     public:
         using BindingViewList = std::span<const vk::DescriptorSetLayoutBinding>;
         using BindingList = std::vector<vk::DescriptorSetLayoutBinding>;
-        using TextureList = std::vector<VulkanImage::SharedPointer>;
+        using TextureList = std::vector<VulkanImageObject::SharedPointer>;
         using SamplerList = std::vector<VulkanSampler::SharedPointer>;
         inline static constexpr uint32_t s_max_binding_count = 8;
         using BindingTextureMap = std::array<TextureList, s_max_binding_count>;
@@ -28,7 +28,7 @@ namespace lcf::render {
         ~VulkanMaterial() = default;
         bool create(const VulkanDescriptorSet::SharedPointer & descriptor_set_sp); //todo create with MaterialCreateInfo, which has param like PBR or Phong ...
         const VulkanDescriptorSet & getDescriptorSet() const noexcept { return *m_descriptor_set_sp; }
-        Self & setTexture(uint32_t binding, uint32_t index, const VulkanImage::SharedPointer & texture);
+        Self & setTexture(uint32_t binding, uint32_t index, const VulkanImageObject::SharedPointer & texture);
         Self & setSampler(uint32_t binding, uint32_t index, const VulkanSampler::SharedPointer & sampler);
         Self & setParamsSSBO(uint32_t binding, const VulkanBufferObject::SharedPointer & params_ssbo);
         void commitUpdate();

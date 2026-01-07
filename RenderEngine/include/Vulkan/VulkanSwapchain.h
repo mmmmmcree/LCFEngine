@@ -3,7 +3,7 @@
 #include "common/RenderTarget.h"
 #include "SurfaceBridge.h"
 #include <vulkan/vulkan.hpp>
-#include "VulkanImage.h"
+#include "VulkanImageObject.h"
 #include <optional>
 #include <queue>
 #include <functional>
@@ -50,13 +50,13 @@ namespace lcf::render {
             FrameResources & operator=(const FrameResources & other) = delete;
             FrameResources(FrameResources && other) noexcept;
             FrameResources & operator=(FrameResources && other) noexcept;
-            void setImage(const VulkanImage::SharedPointer & image_sp) noexcept { m_image_sp = image_sp; }
+            void setImage(const VulkanImageObject::SharedPointer & image_sp) noexcept { m_image_sp = image_sp; }
             void setTargetAvailableSemaphore(vk::UniqueSemaphore && semaphore) noexcept { m_target_available = std::move(semaphore); }
             void setPresentReadySemaphore(vk::UniqueSemaphore && semaphore) noexcept { m_present_ready = std::move(semaphore); }
-            const VulkanImage::SharedPointer getImageSharedPointer() const noexcept { return m_image_sp; }
+            const VulkanImageObject::SharedPointer getImageSharedPointer() const noexcept { return m_image_sp; }
             const vk::Semaphore & getTargetAvailableSemaphore() const noexcept { return m_target_available.get(); }
             const vk::Semaphore & getPresentReadySemaphore() const noexcept { return m_present_ready.get(); }
-            VulkanImage::SharedPointer m_image_sp;
+            VulkanImageObject::SharedPointer m_image_sp;
             vk::UniqueSemaphore m_target_available;
             vk::UniqueSemaphore m_present_ready;
         };
@@ -69,11 +69,11 @@ namespace lcf::render {
             PendingRecycleResources & operator=(PendingRecycleResources && other) noexcept;
             void setPresentFence(vk::UniqueFence && fence) noexcept { m_present_fence = std::move(fence); }
             void collect(FrameResources && resources) noexcept;
-            void collect(VulkanImage::SharedPointer && image_sp) noexcept { m_images.emplace_back(std::move(image_sp)); }
+            void collect(VulkanImageObject::SharedPointer && image_sp) noexcept { m_images.emplace_back(std::move(image_sp)); }
             void collect(vk::UniqueSwapchainKHR && swapchain) noexcept { m_swapchains.emplace_back(std::move(swapchain)); }
             vk::UniqueFence m_present_fence;
             std::vector<vk::UniqueSemaphore> m_semaphores;
-            std::vector<VulkanImage::SharedPointer> m_images;
+            std::vector<VulkanImageObject::SharedPointer> m_images;
             std::vector<vk::UniqueSwapchainKHR> m_swapchains;
         };
     private:
@@ -84,7 +84,7 @@ namespace lcf::render {
         vk::SurfaceFormatKHR m_surface_format;
         vk::PresentModeKHR  m_present_mode;
         vk::SurfaceCapabilitiesKHR m_surface_capabilities;
-        std::array<VulkanImage::SharedPointer, SWAPCHAIN_BUFFER_COUNT> m_swapchain_images;
+        std::array<VulkanImageObject::SharedPointer, SWAPCHAIN_BUFFER_COUNT> m_swapchain_images;
         uint32_t m_image_index = 0; // assigned by vkAcquireNextImageKHR
         OptionalFrameResources m_current_frame_resources;
         PendingRecycleResources m_current_pending_resources;

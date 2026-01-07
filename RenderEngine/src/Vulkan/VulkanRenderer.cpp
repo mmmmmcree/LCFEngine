@@ -141,13 +141,13 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         m_material_params.commit(cmd);
     });
 
-    VulkanImage::SharedPointer cube_map_sp;
-    VulkanImage::SharedPointer texture1_sp;
-    VulkanImage::SharedPointer texture2_sp;
+    VulkanImageObject::SharedPointer cube_map_sp;
+    VulkanImageObject::SharedPointer texture1_sp;
+    VulkanImageObject::SharedPointer texture2_sp;
     VulkanSampler::SharedPointer sampler_sp;
 
     const Image & image = material_sp->getImage(0);
-    texture1_sp = VulkanImage::makeShared();
+    texture1_sp = VulkanImageObject::makeShared();
     texture1_sp->setFormat(vk::Format::eR8G8B8A8Unorm)
         .setUsage(vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst)
         .setMipmapped(true)
@@ -155,7 +155,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         .create(m_context_p);
 
     const Image & image2 = material_sp->getImage(1);
-    texture2_sp = VulkanImage::makeShared();
+    texture2_sp = VulkanImageObject::makeShared();
     texture2_sp->setFormat(vk::Format::eR8G8B8A8Unorm)
         .setUsage(vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst)
         .setMipmapped(true)
@@ -163,7 +163,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         .create(m_context_p);
 
     uint32_t cube_width = 1024;
-    cube_map_sp = VulkanImage::makeShared();
+    cube_map_sp = VulkanImageObject::makeShared();
     cube_map_sp->addImageFlags(vk::ImageCreateFlagBits::eCubeCompatible)
         .setUsage(vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst  | vk::ImageUsageFlagBits::eColorAttachment)
         .setFormat(vk::Format::eR8G8B8A8Unorm)

@@ -117,7 +117,7 @@ bool VulkanSwapchain::recreate()
     for (int i = 0; i < m_swapchain_images.size(); ++i) {
         auto & swapchain_image = m_swapchain_images[i];
         m_current_pending_resources.collect(std::move(swapchain_image));
-        swapchain_image = VulkanImage::makeShared();
+        swapchain_image = VulkanImageObject::makeShared();
         m_swapchain_images[i]->setExtent(vk::Extent3D{ this->getWidth(), this->getHeight(), 1 })
             .setArrayLayers(swapchain_info.imageArrayLayers)
             .setUsage(swapchain_info.imageUsage)
