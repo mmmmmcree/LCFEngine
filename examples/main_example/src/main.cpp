@@ -40,7 +40,7 @@ int main(int argc, char *argv[])
 
     lcf::InputReader input_reader;
     lcf::modules::TrackballController trackball_controller;
-    trackball_controller.setSensitivity(0.2f)
+    trackball_controller.setSensitivity(80.0f)
         .setMoveSpeed(50.0f)
         .setZoomSpeed(400.0f)
         .setInputReader(input_reader);

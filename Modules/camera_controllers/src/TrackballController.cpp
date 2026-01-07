@@ -10,7 +10,7 @@ void lcf::modules::TrackballController::update(Entity & camera, float delta_time
     const auto & current_input_state = m_input_reader->getCurrentState();
     const auto & prev_input_state = m_input_reader->getPreviousState();
 
-    auto [dx, dy] = current_input_state.getMousePosition() - prev_input_state.getMousePosition();
+    auto [dx, dy] = (current_input_state.getMousePosition() - prev_input_state.getMousePosition()) * delta_time;
     auto delta_wheel_offset = current_input_state.getWheelOffset() - prev_input_state.getWheelOffset();
     delta_front = (delta_wheel_offset.y) * m_zoom_speed * delta_time;
     
@@ -26,7 +26,7 @@ void lcf::modules::TrackballController::update(Entity & camera, float delta_time
     auto & camera_transform = camera.getComponent<Transform>();
     auto right = camera_transform.getXAxis().normalized();
     auto up = camera_transform.getYAxis().normalized();
-    auto delta_center = (right * delta_right + up * delta_up) * delta_time;
+    auto delta_center = (right * delta_right + up * delta_up);
     m_center += delta_center;
     auto pitch = Quaternion::fromAxisAndAngle(right, delta_pitch);
     auto yaw = Quaternion::fromAxisAndAngle({0.0f, 1.0f, 0.0f}, delta_yaw);

@@ -17,7 +17,7 @@ namespace lcf::modules {
         Self & setZoomSpeed(float zoom_speed) noexcept { m_zoom_speed = zoom_speed; return *this; }
     private:
         const InputReader * m_input_reader = nullptr;
-        float m_sensitivity = 0.2f;
+        float m_sensitivity = 80.0f;
         float m_move_speed = 50.0f;
         float m_zoom_speed = 400.0f;
         Vector3D<float> m_center;
