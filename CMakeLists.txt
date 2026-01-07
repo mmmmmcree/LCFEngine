@@ -13,6 +13,7 @@ foreach(module ${CONFIG_MODULES})
 endforeach()
 
 add_subdirectory(profiling) 
+add_subdirectory(containers) 
 add_subdirectory(input)
 add_subdirectory(GUI) 
 add_subdirectory(math)  
