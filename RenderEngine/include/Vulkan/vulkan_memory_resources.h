@@ -1,13 +1,10 @@
 #pragma once
 
-#include <memory>
 #include <vulkan/vulkan.hpp>
 #include "PointerDefs.h"
 #include <vma/vk_mem_alloc.h>
 
 namespace lcf::render {
-    class VulkanContext;
-
     struct MemoryAllocationCreateInfo
     {
         MemoryAllocationCreateInfo(vk::MemoryPropertyFlags _memory_flags) :
@@ -55,19 +52,5 @@ namespace lcf::render {
         vk::Buffer m_buffer = nullptr;
         std::byte * m_mapped_data_p = nullptr;
         vk::DeviceSize m_size = 0;
-    };
-
-    class VulkanMemoryAllocator
-    {
-    public:
-        VulkanMemoryAllocator() = default;
-        VulkanMemoryAllocator(const VulkanMemoryAllocator &) = delete;
-        VulkanMemoryAllocator & operator=(const VulkanMemoryAllocator &) = delete;
-        ~VulkanMemoryAllocator();
-        bool create(VulkanContext * context);
-        VulkanImage::UniquePointer createImage(const vk::ImageCreateInfo & image_info, const MemoryAllocationCreateInfo & mem_alloc_info) const;
-        VulkanBuffer::UniquePointer createBuffer(const vk::BufferCreateInfo & buffer_info, const MemoryAllocationCreateInfo & mem_alloc_info) const;
-    private:
-        VmaAllocator m_allocator = nullptr;
     };
 }
