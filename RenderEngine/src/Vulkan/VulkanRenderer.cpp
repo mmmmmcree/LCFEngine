@@ -76,11 +76,11 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
 
     auto per_view_descriptor_set_layout_sp = VulkanDescriptorSetLayout::makeShared();
     per_view_descriptor_set_layout_sp->setBindings(vkconstants::per_view_bindings)
-        .setIndex(to_integral(DescriptorSetBindingPoints::ePerView))
+        .setIndex(std::to_underlying(DescriptorSetBindingPoints::ePerView))
         .create(m_context_p);
     auto per_renderable_descriptor_set_layout_sp = VulkanDescriptorSetLayout::makeShared();
     per_renderable_descriptor_set_layout_sp->setBindings(vkconstants::per_renderable_bindings)
-        .setIndex(to_integral(DescriptorSetBindingPoints::ePerRenderable))
+        .setIndex(std::to_underlying(DescriptorSetBindingPoints::ePerRenderable))
         .create(m_context_p);
     m_per_view_descriptor_set.create(per_view_descriptor_set_layout_sp);
     m_per_renderable_descriptor_set.create(per_renderable_descriptor_set_layout_sp);
@@ -90,13 +90,13 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         .setOffset(0)
         .setRange(m_per_view_uniform_buffer.getSizeInBytes());
     auto ds_updater = m_per_view_descriptor_set.generateUpdater();
-    ds_updater.add(to_integral(PerViewBindingPoints::eCamera), per_view_buffer_info)
+    ds_updater.add(std::to_underlying(PerViewBindingPoints::eCamera), per_view_buffer_info)
         .update();
 
     ds_updater = m_per_renderable_descriptor_set.generateUpdater();
-    ds_updater.add(to_integral(PerRenderableBindingPoints::eVertexBuffer), m_per_renderable_ssbo_group[0].generateBufferInfo())
-        .add(to_integral(PerRenderableBindingPoints::eIndexBuffer), m_per_renderable_ssbo_group[1].generateBufferInfo())
-        .add(to_integral(PerRenderableBindingPoints::eTransform), m_per_renderable_ssbo_group[2].generateBufferInfo())
+    ds_updater.add(std::to_underlying(PerRenderableBindingPoints::eVertexBuffer), m_per_renderable_ssbo_group[0].generateBufferInfo())
+        .add(std::to_underlying(PerRenderableBindingPoints::eIndexBuffer), m_per_renderable_ssbo_group[1].generateBufferInfo())
+        .add(std::to_underlying(PerRenderableBindingPoints::eTransform), m_per_renderable_ssbo_group[2].generateBufferInfo())
         .update();
 
     auto mesh_sp = Mesh::makeShared();
@@ -237,13 +237,13 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     m_skybox_pipeline.create(m_context_p, skybox_pipeline_info);
 
     auto skybox_ds_sp = VulkanDescriptorSet::makeShared();
-    skybox_ds_sp->create(m_skybox_pipeline.getDescriptorSetLayoutSharedPtr(to_integral(DescriptorSetBindingPoints::ePerMaterial)));
+    skybox_ds_sp->create(m_skybox_pipeline.getDescriptorSetLayoutSharedPtr(std::to_underlying(DescriptorSetBindingPoints::ePerMaterial)));
     m_skybox_material.create(skybox_ds_sp);
     m_skybox_material.setTexture(1, 0, cube_map_sp)
         .setSampler(1, 0, m_context_p->getSamplerManager().getShared(SamplerPreset::eEnvironmentMap))
         .commitUpdate();
 
-    auto layout_sp = m_graphics_pipeline.getDescriptorSetLayoutSharedPtr(to_integral(DescriptorSetBindingPoints::ePerMaterial));
+    auto layout_sp = m_graphics_pipeline.getDescriptorSetLayoutSharedPtr(std::to_underlying(DescriptorSetBindingPoints::ePerMaterial));
     auto material_ds_sp = VulkanDescriptorSet::makeShared();
     material_ds_sp->create(layout_sp);
     m_material.create(material_ds_sp);

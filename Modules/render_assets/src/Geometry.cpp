@@ -30,7 +30,7 @@ Geometry & Geometry::clearVertexAttributes(VertexSemantic semantic)
 
 Geometry & Geometry::clearVertexAttributes(VertexSemanticFlags semantic_flags)
 {
-    auto semantic_flags_value = to_integral(semantic_flags);
+    auto semantic_flags_value = std::to_underlying(semantic_flags);
     while (semantic_flags_value != 0) {
         size_t attribute_index = std::countr_zero(semantic_flags_value);
         this->clearVertexAttributes(static_cast<VertexSemantic>(attribute_index));
@@ -51,20 +51,20 @@ size_t lcf::Geometry::getAttributeSize(VertexSemantic semantic) const noexcept
 
 void lcf::Geometry::addSemanticFlag(VertexSemantic semantic) noexcept
 {
-    m_vertex_semantic_flags |= static_cast<VertexSemanticFlags>(1 << (to_integral(semantic) + 1));
+    m_vertex_semantic_flags |= static_cast<VertexSemanticFlags>(1 << (std::to_underlying(semantic) + 1));
 }
 
 void lcf::Geometry::removeSemanticFlag(VertexSemantic semantic) noexcept
 {
-    m_vertex_semantic_flags &= ~static_cast<VertexSemanticFlags>(1 << (to_integral(semantic) + 1));
+    m_vertex_semantic_flags &= ~static_cast<VertexSemanticFlags>(1 << (std::to_underlying(semantic) + 1));
 }
 
 Geometry::ByteList &Geometry::getVertexAttributes(VertexSemantic semantic) noexcept
 {
-    return m_vertex_attributes_map[to_integral(semantic)];
+    return m_vertex_attributes_map[std::to_underlying(semantic)];
 }
 
 const Geometry::ByteList & Geometry::getVertexAttributes(VertexSemantic semantic) const noexcept
 {
-    return m_vertex_attributes_map[to_integral(semantic)];
+    return m_vertex_attributes_map[std::to_underlying(semantic)];
 }

@@ -2,8 +2,16 @@
 
 #include "concepts/enum_concept.h"
 #include <tuple>
+#include <utility>
 
 namespace lcf {
+    //cpp23 std::to_underlying
+    // template <enum_c Enum>
+    // constexpr std::underlying_type_t<Enum> to_underlying(Enum e)
+    // {
+    //     return static_cast<std::underlying_type_t<Enum>>(e);
+    // };
+
     template <enum_c Dst, enum_c Src>
     struct enum_category
     {
@@ -36,20 +44,14 @@ namespace lcf {
         using MappingTraits = enum_mapping_traits<Category>;
         using SrcUnderlyingType = std::underlying_type_t<Src>;
         using DstUnderlyingType = std::underlying_type_t<Dst>;
-        SrcUnderlyingType src_underlying = static_cast<SrcUnderlyingType>(src);
+        SrcUnderlyingType src_underlying = std::to_underlying(src);
         DstUnderlyingType dst_underlying = 0;
         for (const auto& mapping : MappingTraits::mappings) {
-            SrcUnderlyingType mask = static_cast<SrcUnderlyingType>(std::get<Src>(mapping));
+            SrcUnderlyingType mask = std::to_underlying(std::get<Src>(mapping));
             if (src_underlying & mask) {
-                dst_underlying |= static_cast<DstUnderlyingType>(std::get<Dst>(mapping));
+                dst_underlying |= std::to_underlying(std::get<Dst>(mapping));
             }
         }
         return static_cast<Dst>(dst_underlying);
     }
-
-    template <enum_c Enum>
-    constexpr std::underlying_type_t<Enum> to_integral(Enum e)
-    {
-        return static_cast<std::underlying_type_t<Enum>>(e);
-    };
 }

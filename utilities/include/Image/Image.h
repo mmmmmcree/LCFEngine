@@ -94,20 +94,20 @@ namespace lcf {
         enum class Format : uint32_t // 8 bits for data type, 16 bits for color space, remains 8 bits for flags
         {
             eInvalid = 0,
-            eGray8Uint   = (eUint8   << 16) | to_integral(ColorSpace::eGray),      // 0x010101
-            eGray16Uint  = (eUint16  << 16) | to_integral(ColorSpace::eGray),      // 0x220101
-            eGray32Float = (eFloat32 << 16) | to_integral(ColorSpace::eGray),      // 0x680101
-            eRGB8Uint    = (eUint8   << 16) | to_integral(ColorSpace::eRGB),       // 0x010303
-            eRGB16Uint   = (eUint16  << 16) | to_integral(ColorSpace::eRGB),       // 0x220303
-            eRGB32Float  = (eFloat32 << 16) | to_integral(ColorSpace::eRGB),       // 0x680303
-            eBGR8Uint    = (eUint8   << 16) | to_integral(ColorSpace::eBGR),       // 0x010403
-            eRGBA8Uint   = (eUint8   << 16) | to_integral(ColorSpace::eRGBA),      // 0x010504
-            eRGBA16Uint  = (eUint16  << 16) | to_integral(ColorSpace::eRGBA),      // 0x220504
-            eRGBA32Float = (eFloat32 << 16) | to_integral(ColorSpace::eRGBA),      // 0x680504
-            eBGRA8Uint   = (eUint8   << 16) | to_integral(ColorSpace::eBGRA),      // 0x010604
-            eARGB8Uint   = (eUint8   << 16) | to_integral(ColorSpace::eARGB),      // 0x010704
-            eCMYK8Uint   = (eUint8   << 16) | to_integral(ColorSpace::eCMYK),      // 0x010804
-            eCMYK32Float = (eFloat32 << 16) | to_integral(ColorSpace::eCMYK),      // 0x680804
+            eGray8Uint   = (eUint8   << 16) | std::to_underlying(ColorSpace::eGray),      // 0x010101
+            eGray16Uint  = (eUint16  << 16) | std::to_underlying(ColorSpace::eGray),      // 0x220101
+            eGray32Float = (eFloat32 << 16) | std::to_underlying(ColorSpace::eGray),      // 0x680101
+            eRGB8Uint    = (eUint8   << 16) | std::to_underlying(ColorSpace::eRGB),       // 0x010303
+            eRGB16Uint   = (eUint16  << 16) | std::to_underlying(ColorSpace::eRGB),       // 0x220303
+            eRGB32Float  = (eFloat32 << 16) | std::to_underlying(ColorSpace::eRGB),       // 0x680303
+            eBGR8Uint    = (eUint8   << 16) | std::to_underlying(ColorSpace::eBGR),       // 0x010403
+            eRGBA8Uint   = (eUint8   << 16) | std::to_underlying(ColorSpace::eRGBA),      // 0x010504
+            eRGBA16Uint  = (eUint16  << 16) | std::to_underlying(ColorSpace::eRGBA),      // 0x220504
+            eRGBA32Float = (eFloat32 << 16) | std::to_underlying(ColorSpace::eRGBA),      // 0x680504
+            eBGRA8Uint   = (eUint8   << 16) | std::to_underlying(ColorSpace::eBGRA),      // 0x010604
+            eARGB8Uint   = (eUint8   << 16) | std::to_underlying(ColorSpace::eARGB),      // 0x010704
+            eCMYK8Uint   = (eUint8   << 16) | std::to_underlying(ColorSpace::eCMYK),      // 0x010804
+            eCMYK32Float = (eFloat32 << 16) | std::to_underlying(ColorSpace::eCMYK),      // 0x680804
         };
     public:
         Image() = default;
@@ -138,10 +138,10 @@ namespace lcf {
         Self & flipUpDown();
         Self & flipLeftRight();
     private:
-        static Format get_format(ColorSpace color_space, DataType data_type) { return static_cast<Format>((to_integral(data_type) << 16) | to_integral(color_space)); }
-        static ColorSpace get_color_space(Format format) { return static_cast<ColorSpace>(to_integral(format) & 0xFFFF); }
-        static DataType get_data_type(Format format) { return static_cast<DataType>((to_integral(format) >> 16) & 0xFF); }
-        static size_t get_channel_count(Format format) { return to_integral(get_color_space(format)) & 0xFF; }
+        static Format get_format(ColorSpace color_space, DataType data_type) { return static_cast<Format>((std::to_underlying(data_type) << 16) | std::to_underlying(color_space)); }
+        static ColorSpace get_color_space(Format format) { return static_cast<ColorSpace>(std::to_underlying(format) & 0xFFFF); }
+        static DataType get_data_type(Format format) { return static_cast<DataType>((std::to_underlying(format) >> 16) & 0xFF); }
+        static size_t get_channel_count(Format format) { return std::to_underlying(get_color_space(format)) & 0xFF; }
         static size_t get_bytes_per_channel(Format format) { return get_data_type(format) & 0x1F; }
         static std::filesystem::path get_extension(FileType type);
         static FileType deduce_file_type(const std::filesystem::path & path);

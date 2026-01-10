@@ -3,17 +3,17 @@
 
 void lcf::InputState::pressKey(KeyboardKey key) noexcept
 {
-    m_pressed_keys.set(to_integral(key));
+    m_pressed_keys.set(std::to_underlying(key));
 }
 
 void lcf::InputState::releaseKey(KeyboardKey key) noexcept
 {
-    m_pressed_keys.reset(to_integral(key));
+    m_pressed_keys.reset(std::to_underlying(key));
 }
 
 bool lcf::InputState::isKeyPressed(KeyboardKey key) const noexcept
 {
-    return m_pressed_keys.test(to_integral(key));
+    return m_pressed_keys.test(std::to_underlying(key));
 }
 
 void lcf::InputState::pressMouseButtons(MouseButtonFlags buttons) noexcept

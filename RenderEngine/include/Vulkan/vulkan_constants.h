@@ -7,7 +7,7 @@
 namespace lcf::render::vkconstants {
     static constexpr vk::DescriptorSetLayoutBinding per_view_bindings[] = {
         {
-            to_integral(PerViewBindingPoints::eCamera),
+            std::to_underlying(PerViewBindingPoints::eCamera),
             vk::DescriptorType::eUniformBufferDynamic,
             1u,
             vk::ShaderStageFlagBits::eVertex
@@ -16,19 +16,19 @@ namespace lcf::render::vkconstants {
 
     static constexpr vk::DescriptorSetLayoutBinding per_renderable_bindings[] = {
         {
-            to_integral(PerRenderableBindingPoints::eVertexBuffer),
+            std::to_underlying(PerRenderableBindingPoints::eVertexBuffer),
             vk::DescriptorType::eStorageBuffer,
             1u,
             vk::ShaderStageFlagBits::eVertex
         },
         {
-            to_integral(PerRenderableBindingPoints::eIndexBuffer),
+            std::to_underlying(PerRenderableBindingPoints::eIndexBuffer),
             vk::DescriptorType::eStorageBuffer,
             1u,
             vk::ShaderStageFlagBits::eVertex
         },
         {
-            to_integral(PerRenderableBindingPoints::eTransform),
+            std::to_underlying(PerRenderableBindingPoints::eTransform),
             vk::DescriptorType::eStorageBuffer,
             1u,
             vk::ShaderStageFlagBits::eVertex

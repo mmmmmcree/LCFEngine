@@ -55,7 +55,7 @@ namespace lcf {
         template <typename ShaderTypeMapping>
         BufferWriteSegments generateInterleavedVertexBufferSegments(VertexSemanticFlags enabled_flags = VertexSemanticFlags::eAll) const noexcept;
     private:
-        size_t getAttributeIndex(VertexSemanticFlags semantic_bit) const noexcept { return std::countr_zero(to_integral(semantic_bit)); }
+        size_t getAttributeIndex(VertexSemanticFlags semantic_bit) const noexcept { return std::countr_zero(std::to_underlying(semantic_bit)); }
     private:
         std::string m_name;
         size_t m_vertex_count = 0;
