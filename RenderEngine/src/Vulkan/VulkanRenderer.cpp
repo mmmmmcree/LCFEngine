@@ -337,13 +337,13 @@ void lcf::VulkanRenderer::render(const Entity & camera, const Entity & render_ta
 
     m_per_material_params_ssbo_sp->addWriteSegment({as_bytes_from_value(m_material_params.getDeviceAddress()), 0u});
 
-    data_transfer_cmd.begin({}); //- no need to wait
-    m_indirect_call_buffer.commit(data_transfer_cmd);
-    m_per_view_uniform_buffer.commit(data_transfer_cmd);
-    m_per_renderable_ssbo_group.commitAll(data_transfer_cmd);
-    m_per_material_params_ssbo_sp->commit(data_transfer_cmd);
-    data_transfer_cmd.end();
-    auto data_transfer_complete_info =  data_transfer_cmd.submit();
+    // data_transfer_cmd.begin({}); //- no need to wait
+    m_indirect_call_buffer.commit(cmd);
+    m_per_view_uniform_buffer.commit(cmd);
+    m_per_renderable_ssbo_group.commitAll(cmd);
+    m_per_material_params_ssbo_sp->commit(cmd);
+    // data_transfer_cmd.end();
+    // auto data_transfer_complete_info =  data_transfer_cmd.submit();
 
     current_framebuffer.beginRendering(cmd);
 
@@ -384,7 +384,7 @@ void lcf::VulkanRenderer::render(const Entity & camera, const Entity & render_ta
     wait_info.setSemaphore(render_target_resources.getTargetAvailableSemaphore())
         .setStageMask(vk::PipelineStageFlagBits2::eColorAttachmentOutput);
     cmd.addWaitSubmitInfo(wait_info)
-        .addWaitSubmitInfo(data_transfer_complete_info)
+        // .addWaitSubmitInfo(data_transfer_complete_info)
         .addSignalSubmitInfo(render_target_resources.getPresentReadySemaphore());
     cmd.submit();
 
