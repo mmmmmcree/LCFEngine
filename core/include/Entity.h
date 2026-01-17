@@ -1,13 +1,10 @@
 #pragma once
 
-#include <entt/entt.hpp>
 #include "Registry.h"
 #include "tasks/TaskScheduler.h"
+#include "signals.h"
 
 namespace lcf {
-    using EntityHandle = entt::entity;
-    constexpr EntityHandle null_entity = entt::null;
-
     class Entity
     {
     public:
@@ -39,15 +36,6 @@ namespace lcf {
         EntityHandle m_entity = entt::null;
     };
 
-    struct EntitySignalBase
-    {
-        EntitySignalBase() = default;
-        EntitySignalBase(EntityHandle entity) : m_sender(entity) {}
-        EntityHandle m_sender = entt::null;
-    };
-
-    template <typename SignalInfo>
-    concept entity_eignal_info_c = std::derived_from<SignalInfo, EntitySignalBase>;
 }
 
 template <typename Component, typename... Args>
@@ -82,8 +70,8 @@ inline void lcf::Entity::emitSignal(const SignalInfo &signal_info) const
         info.m_sender = m_entity;
     }
     auto & task_scheduler = m_registry_p->ctx().get<TaskScheduler>();
-    task_scheduler.post([this, signal_info]() {
-        auto & dispatcher = m_registry_p->ctx().get<Dispatcher>();
+    auto & dispatcher = m_registry_p->ctx().get<Dispatcher>();
+    task_scheduler.post([&dispatcher, &signal_info]() {
         dispatcher.trigger(signal_info);
     });
 }

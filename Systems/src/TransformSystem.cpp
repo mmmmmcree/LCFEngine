@@ -44,10 +44,10 @@ void lcf::TransformSystem::update() noexcept
 
 void lcf::TransformSystem::attach(EntityHandle parent, EntityHandle child)
 {
-    if (child == parent or child == null_entity) { return; }
+    if (child == parent or child == null_entity_handle) { return; }
     auto & child_hierarchy = m_registry_p->get_or_emplace<TransformHierarchy>(child);
     auto & child_transform = m_registry_p->get_or_emplace<Transform>(child);
-    if (parent == null_entity) { return; }
+    if (parent == null_entity_handle) { return; }
     auto & parent_hierarchy = m_registry_p->get_or_emplace<TransformHierarchy>(parent);
     auto & parent_transform = m_registry_p->get_or_emplace<Transform>(parent);
     this->detach(child);

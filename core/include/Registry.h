@@ -1,10 +1,8 @@
 #pragma once
 
-#include <entt/entt.hpp>
+#include "ecs_fwd_decls.h"
 
 namespace lcf {
-    using Dispatcher = entt::dispatcher;
-
     class Registry : public entt::registry
     {
         using Base = entt::registry;
