@@ -40,7 +40,7 @@ namespace lcf {
         eDoubleClicked       = 0x04000000,
         eAllButtons       = 0x07ffffff,
     };
-    MAKE_ENUM_FLAGS(MouseButtonFlags);
+    LCF_MAKE_ENUM_FLAGS(MouseButtonFlags);
 
     enum class KeyboardKey : uint8_t
     {

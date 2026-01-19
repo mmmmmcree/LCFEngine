@@ -26,7 +26,7 @@ namespace lcf {
         eWeights = 1 << 9,
         eAll = std::numeric_limits<std::underlying_type_t<VertexSemanticFlags>>::max()
     };
-    MAKE_ENUM_FLAGS(VertexSemanticFlags);
+    LCF_MAKE_ENUM_FLAGS(VertexSemanticFlags);
 
     class Mesh : public STDPointerDefs<Mesh>
     {

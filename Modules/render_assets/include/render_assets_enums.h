@@ -34,7 +34,7 @@ namespace lcf {
         eWeights = 1 << 9,
         eAll = ePosition | eNormal | eTexCoord0 | eTexCoord1 | eColor0 | eColor1 | eTangent | eBinormal | eJoints | eWeights,
     };
-    MAKE_ENUM_FLAGS(VertexSemanticFlags);
+    LCF_MAKE_ENUM_FLAGS(VertexSemanticFlags);
 
     enum class MaterialType : uint16_t
     {
