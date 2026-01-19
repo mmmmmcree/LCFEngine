@@ -1,6 +1,5 @@
 #pragma once
 
-#include "enum_cast.h"
 #include "PointerDefs.h"
 #include <filesystem>
 #include <span>
