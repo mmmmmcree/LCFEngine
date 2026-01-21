@@ -3,8 +3,8 @@
 #include <shaderc/shaderc.hpp>
 #include <spirv_cross/spirv_cross.hpp>
 #include <vulkan/vulkan.hpp>
-#include "enum_cast.h"
-#include "enum_flags.h"
+#include "enums/enum_cast.h"
+#include "enums/enum_flags.h"
 #include <vector>
 
 namespace lcf {
@@ -21,7 +21,7 @@ namespace lcf {
         eAllGraphics = eVertex | eTessControl | eTessEvaluation | eGeometry | eFragment,
         eAll = eAllGraphics | eCompute,
     };
-    LCF_MAKE_ENUM_FLAGS(ShaderTypeFlagBits);
+    template <> struct is_enum_flags<ShaderTypeFlagBits> : std::true_type {};
 
     LCF_MAKE_ENUM_CATEGORY((ShaderTypeFlagBits, vk::ShaderStageFlagBits, shaderc_shader_kind),
         { ShaderTypeFlagBits::eVertex, vk::ShaderStageFlagBits::eVertex, shaderc_vertex_shader },

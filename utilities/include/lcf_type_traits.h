@@ -25,4 +25,22 @@ namespace lcf {
         static constexpr size_t type_size = size_of_v<type>;
         static constexpr size_t alignment = std::bit_ceil(alignment_v);
     };
+
+    template <typename T>
+    struct is_floating_point : std::is_floating_point<T> {};
+
+    template <typename T>
+    inline constexpr bool is_floating_point_v = is_floating_point<T>::value;
+
+    template <typename T>
+    struct is_integral : std::is_integral<T> {};
+
+    template <typename T>
+    inline constexpr bool is_integral_v = is_integral<T>::value;
+
+    template <typename T>
+    struct is_arithmetic : std::bool_constant<is_floating_point_v<T> || is_integral_v<T>> {};
+
+    template <typename T>
+    inline constexpr bool is_arithmetic_v = is_arithmetic<T>::value;
 }

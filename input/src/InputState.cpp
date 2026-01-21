@@ -1,5 +1,5 @@
 #include "InputState.h"
-#include "enum_cast.h"
+#include "enums/enum_cast.h"
 
 void lcf::InputState::pressKey(KeyboardKey key) noexcept
 {

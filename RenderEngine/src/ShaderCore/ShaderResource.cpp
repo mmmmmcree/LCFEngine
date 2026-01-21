@@ -1,5 +1,5 @@
 #include "ShaderCore/ShaderResource.h"
-#include "enum_name.h"
+#include "enums/enum_name.h"
 
 using namespace lcf;
 

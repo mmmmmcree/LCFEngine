@@ -1,8 +1,8 @@
 #pragma once
 
 #include "InterleavedBuffer.h"
-#include "enum_flags.h"
-#include "enum_cast.h"
+#include "enums/enum_flags.h"
+#include "enums/enum_cast.h"
 #include "PointerDefs.h"
 #include "bytes.h"
 #include "StructureLayout.h"
@@ -26,7 +26,7 @@ namespace lcf {
         eWeights = 1 << 9,
         eAll = std::numeric_limits<std::underlying_type_t<VertexSemanticFlags>>::max()
     };
-    LCF_MAKE_ENUM_FLAGS(VertexSemanticFlags);
+    template <> struct is_enum_flags<VertexSemanticFlags> : std::true_type {};
 
     class Mesh : public STDPointerDefs<Mesh>
     {

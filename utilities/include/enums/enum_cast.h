@@ -39,6 +39,20 @@ namespace lcf {
         }
         return dst;
     }
+
+    template <enum_flags_c Dst, enum_c Src>
+    requires is_enum_family_v<Dst, Src>
+    constexpr Dst enum_family_cast(Src src) noexcept
+    {
+        return static_cast<Dst>(1 << std::to_underlying(src));
+    }
+
+    template <enum_c Dst, enum_flags_c Src>
+    requires is_enum_family_v<Dst, Src>
+    constexpr Dst enum_family_cast(Src src) noexcept
+    {
+        return static_cast<Dst>(std::countr_zero(static_cast<uint64_t>(std::to_underlying(src))));
+    }
 }
 
 #include <boost/preprocessor.hpp>

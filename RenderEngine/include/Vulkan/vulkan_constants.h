@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common/render_enums.h"
-#include "enum_cast.h"
+#include "enums/enum_cast.h"
 #include <vulkan/vulkan.hpp>
 
 namespace lcf::render::vkconstants {

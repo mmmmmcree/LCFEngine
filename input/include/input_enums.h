@@ -1,6 +1,6 @@
 #pragma once
 
-#include "enum_flags.h"
+#include "enums/enum_flags.h"
 
 namespace lcf {
     enum class MouseButtonFlags : uint32_t
@@ -40,7 +40,7 @@ namespace lcf {
         eDoubleClicked       = 0x04000000,
         eAllButtons       = 0x07ffffff,
     };
-    LCF_MAKE_ENUM_FLAGS(MouseButtonFlags);
+    template <> struct is_enum_flags<MouseButtonFlags> : std::true_type {};
 
     enum class KeyboardKey : uint8_t
     {

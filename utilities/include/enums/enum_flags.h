@@ -47,6 +47,3 @@ namespace lcf {
     template <enum_flags_c EnumFlags>
     constexpr bool contains_flags(const EnumFlags & flags, const EnumFlags & mask) noexcept { return (flags & mask) == mask; }
 }
-
-#define LCF_MAKE_ENUM_FLAGS(EnumFlags) \
-    template <> struct lcf::enum_flags_traits<EnumFlags> : lcf::enum_flags_true_type<EnumFlags> {}
