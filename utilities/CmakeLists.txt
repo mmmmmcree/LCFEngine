@@ -23,6 +23,7 @@ find_package(nlohmann_json CONFIG REQUIRED)
 find_package(PNG REQUIRED)    
 find_package(JPEG REQUIRED)
 find_package(spdlog REQUIRED)
+find_path(HALF_INCLUDE_DIRS "half.hpp")
 
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/include 
@@ -35,6 +36,7 @@ target_include_directories(${PROJECT_NAME}
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${Stb_INCLUDE_DIR} 
+        ${HALF_INCLUDE_DIRS}
 )
 
 target_link_libraries(${PROJECT_NAME} 

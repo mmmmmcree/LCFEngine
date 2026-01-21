@@ -1,8 +1,8 @@
 #pragma once
 
-#include <type_traits>
+#include "lcf_type_traits.h"
 
 namespace lcf {
     template <typename T>
-    concept number_c = std::is_arithmetic_v<T>;
+    concept number_c = is_arithmetic_v<T>;
 }
