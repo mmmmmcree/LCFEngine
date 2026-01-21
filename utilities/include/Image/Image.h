@@ -82,34 +82,35 @@ namespace lcf {
         };
         enum class ColorSpace : uint16_t // 8 bits for enum index, 8 bits for channel count
         {
-            eGray      = 1 << 8 | 1,  // 0x0101 - 灰度
-            eRGB       = 3 << 8 | 3,  // 0x0303 - RGB
-            eBGR       = 4 << 8 | 3,  // 0x0403 - BGR
-            eRGBA      = 5 << 8 | 4,  // 0x0504 - RGBA
-            eBGRA      = 6 << 8 | 4,  // 0x0604 - BGRA
-            eARGB      = 7 << 8 | 4,  // 0x0704 - ARGB
-            eCMYK      = 8 << 8 | 4,  // 0x0804 - CMYK
+            eGray      = 1 << 8 | 1,  
+            eRGB       = 3 << 8 | 3,  
+            eBGR       = 4 << 8 | 3,  
+            eRGBA      = 5 << 8 | 4,  
+            eBGRA      = 6 << 8 | 4,  
+            eARGB      = 7 << 8 | 4,  
+            eCMYK      = 8 << 8 | 4,  
         };
         enum class Format : uint32_t // 8 bits for data type, 16 bits for color space, remains 8 bits for flags
         {
             eInvalid = 0,
-            eGray8Uint   = (eUint8   << 16) | std::to_underlying(ColorSpace::eGray),      // 0x010101
-            eGray16Uint  = (eUint16  << 16) | std::to_underlying(ColorSpace::eGray),      // 0x220101
-            eGray32Float = (eFloat32 << 16) | std::to_underlying(ColorSpace::eGray),      // 0x680101
-            eRGB8Uint    = (eUint8   << 16) | std::to_underlying(ColorSpace::eRGB),       // 0x010303
-            eRGB16Uint   = (eUint16  << 16) | std::to_underlying(ColorSpace::eRGB),       // 0x220303
-            eRGB32Float  = (eFloat32 << 16) | std::to_underlying(ColorSpace::eRGB),       // 0x680303
-            eBGR8Uint    = (eUint8   << 16) | std::to_underlying(ColorSpace::eBGR),       // 0x010403
-            eRGBA8Uint   = (eUint8   << 16) | std::to_underlying(ColorSpace::eRGBA),      // 0x010504
-            eRGBA16Uint  = (eUint16  << 16) | std::to_underlying(ColorSpace::eRGBA),      // 0x220504
-            eRGBA32Float = (eFloat32 << 16) | std::to_underlying(ColorSpace::eRGBA),      // 0x680504
-            eBGRA8Uint   = (eUint8   << 16) | std::to_underlying(ColorSpace::eBGRA),      // 0x010604
-            eARGB8Uint   = (eUint8   << 16) | std::to_underlying(ColorSpace::eARGB),      // 0x010704
-            eCMYK8Uint   = (eUint8   << 16) | std::to_underlying(ColorSpace::eCMYK),      // 0x010804
-            eCMYK32Float = (eFloat32 << 16) | std::to_underlying(ColorSpace::eCMYK),      // 0x680804
+            eGray8Uint   = (eUint8   << 16) | std::to_underlying(ColorSpace::eGray),
+            eGray16Uint  = (eUint16  << 16) | std::to_underlying(ColorSpace::eGray),
+            eGray32Float = (eFloat32 << 16) | std::to_underlying(ColorSpace::eGray),
+            eRGB8Uint    = (eUint8   << 16) | std::to_underlying(ColorSpace::eRGB), 
+            eRGB16Uint   = (eUint16  << 16) | std::to_underlying(ColorSpace::eRGB), 
+            eRGB32Float  = (eFloat32 << 16) | std::to_underlying(ColorSpace::eRGB), 
+            eBGR8Uint    = (eUint8   << 16) | std::to_underlying(ColorSpace::eBGR), 
+            eRGBA8Uint   = (eUint8   << 16) | std::to_underlying(ColorSpace::eRGBA),
+            eRGBA16Uint  = (eUint16  << 16) | std::to_underlying(ColorSpace::eRGBA),
+            eRGBA32Float = (eFloat32 << 16) | std::to_underlying(ColorSpace::eRGBA),
+            eBGRA8Uint   = (eUint8   << 16) | std::to_underlying(ColorSpace::eBGRA),
+            eARGB8Uint   = (eUint8   << 16) | std::to_underlying(ColorSpace::eARGB),
+            eCMYK8Uint   = (eUint8   << 16) | std::to_underlying(ColorSpace::eCMYK),
+            eCMYK32Float = (eFloat32 << 16) | std::to_underlying(ColorSpace::eCMYK),
         };
     public:
         Image() = default;
+        Image(uint32_t width, uint32_t height, Format format);
         Image(const Image & other) = default;
         Image(Image && other) = default;
         Image & operator=(const Image & other) = default;

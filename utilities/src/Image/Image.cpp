@@ -15,6 +15,12 @@
 using namespace lcf;
 using namespace boost;
 
+Image::Image(uint32_t width, uint32_t height, Format format)
+{
+    this->convertTo(format);
+    this->recreate(width, height, 1);
+}
+
 uint32_t lcf::Image::getWidth() const noexcept
 {
     return m_image.width();
@@ -302,10 +308,6 @@ bool lcf::Image::loadFromJPG(const std::filesystem::path &path, Format format) n
 
 void lcf::Image::updateFormat()
 {
-    if (m_image.width() == 0 or m_image.height() == 0) {
-        m_format = Format::eInvalid;
-        return;
-    }
     variant2::visit([this](auto && img_view) {
         using PixelType = typename std::remove_cvref_t<decltype(img_view)>::value_type;
         if constexpr (std::is_same_v<PixelType, NullImage::value_type>) { m_format = Format::eInvalid; }
