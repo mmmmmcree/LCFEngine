@@ -181,6 +181,8 @@ namespace lcf {
     { return std::move(vec[I]); }
 }
 
+#include <tuple>
+
 namespace std {
     template <lcf::number_c T, glm::qualifier qualifier>
     struct tuple_size<lcf::GLMVector2D<T, qualifier>> : integral_constant<size_t, 2> {};
