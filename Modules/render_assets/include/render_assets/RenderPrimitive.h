@@ -2,7 +2,6 @@
 
 #include "Geometry.h"
 #include "Material.h"
-#include "Matrix.h"
 #include <vector>
 
 namespace lcf {
@@ -17,8 +16,10 @@ namespace lcf {
         RenderPrimitive(Self &&) = default;
         Self & operator=(Self &&) = default;
     public:
-        Self & setGeometrySharedPtr(const Geometry::SharedPointer & geometry_sp) noexcept { m_geometry_sp = geometry_sp; return *this; }
-        Self & setMaterialSharedPtr(const Material::SharedPointer & material_sp) noexcept { m_material_sp = material_sp; return *this; }
+        Self & setGeometryResource(const Geometry::SharedPointer & geometry_sp) noexcept { m_geometry_sp = geometry_sp; return *this; }
+        Self & setMaterialResource(const Material::SharedPointer & material_sp) noexcept { m_material_sp = material_sp; return *this; }
+        const Geometry::SharedPointer & getGeometryResource() const noexcept { return m_geometry_sp; }
+        const Material::SharedPointer & getMaterialResource() const noexcept { return m_material_sp; }
         const Geometry & getGeometry() const noexcept { return *m_geometry_sp; }
         const Material & getMaterial() const noexcept { return *m_material_sp; }
     private:

@@ -49,7 +49,11 @@ namespace lcf::impl {
         bool isValid() const noexcept { return m_write_segment_lower_bound < m_write_segment_upper_bound; }
         Self & add(const BufferWriteSegment& segment) noexcept
         {
-            m_segments.emplace_back(segment);
+            return this->add(segment.getDataView(), segment.getBeginOffsetInBytes());
+        }
+        Self & add(ByteView bytes, size_t offset_in_bytes) noexcept
+        {
+            const auto & segment = m_segments.emplace_back(bytes, offset_in_bytes);
             m_write_segment_lower_bound = std::min(m_write_segment_lower_bound, segment.getBeginOffsetInBytes());
             m_write_segment_upper_bound = std::max(m_write_segment_upper_bound, segment.getEndOffsetInBytes());
             return *this;

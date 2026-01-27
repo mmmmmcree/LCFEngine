@@ -1,0 +1,88 @@
+#pragma once
+
+#include "render_assets_enums.h"
+#include "enums/enum_value_type.h"
+#include "DefaultAssetProvider.h"
+#include "BufferWriteSegment.h"
+#include "bytes.h"
+#include "StructureLayout.h"
+#include "Image/Image.h"
+#include "PointerDefs.h"
+#include "Vector.h"
+#include "ranges/take_from.h"
+#include <tsl/robin_map.h>
+#include <variant>
+
+namespace lcf {
+    class Material : public STDPointerDefs<Material>
+    {
+        using Self = Material;
+        using Param = std::variant<float, Vector2D<float>, Vector3D<float>, Vector4D<float>>;
+        using ParamMap = tsl::robin_map<MaterialProperty, Param>;
+        using TextureReourceMap = tsl::robin_map<MaterialProperty, Image::SharedPointer>;
+    public:
+        Material() noexcept = default;
+        ~Material() noexcept = default;
+        Material(const Self &) = default;
+        Self & operator=(const Self &) = default;
+        Material(Self &&) noexcept = default;
+        Self & operator=(Self &&) noexcept = default;
+    public:
+        template <MaterialProperty property>
+        Self & setParam(const enum_value_t<property> & value)
+        {
+            m_params[property] = value;
+            return *this;
+        }
+        template <MaterialProperty property>
+        const enum_value_t<property> & getParam() noexcept
+        {
+            return std::get<enum_value_t<property>>(this->getMaterialParam(property));
+        }
+        const Image::SharedPointer & getTextureResource(MaterialProperty property) const
+        {
+            if (m_texture_resources.contains(property)) {
+                return m_texture_resources.at(property);
+            }
+            return DefaultAssetProvider::getInstance().getTextureResource(property);
+        }
+        template <typename Mapping = enum_value_type_mapping_traits<VectorType>::type>
+        BufferWriteSegments generateInterleavedSegments(ShadingModel shading_model) const noexcept
+        {
+            const auto & material_properties = enum_values_v<MaterialProperty>;
+            auto property_indices = std::ranges::views::iota(0u, material_properties.size()) |
+                std::views::filter([&](auto index) {
+                    return contains_flags(enum_decode::get_shading_model(material_properties[index]), shading_model);
+                }) |
+                std::ranges::to<std::vector<uint32_t>>();
+            StructureLayout layout;
+            for (auto property : material_properties | views::take_from(property_indices)) {
+                switch (enum_decode::get_vector_type(property)) {
+                    case VectorType::e1Float32: { layout.addField<enum_value_t<VectorType::e1Float32, Mapping>>(); } break;
+                    case VectorType::e2Float32: { layout.addField<enum_value_t<VectorType::e2Float32, Mapping>>(); } break;
+                    case VectorType::e3Float32: { layout.addField<enum_value_t<VectorType::e3Float32, Mapping>>(); } break;
+                    case VectorType::e4Float32: { layout.addField<enum_value_t<VectorType::e4Float32, Mapping>>(); } break;
+                    default: break;
+                }
+            }
+            layout.create();
+            BufferWriteSegments segments;
+            size_t field_index = 0;
+            for (auto property : material_properties | views::take_from(property_indices)) {
+                auto property_bytes = as_bytes_from_variant(this->getMaterialParam(property));
+                segments.add(property_bytes, layout.getFieldOffset(field_index++));
+            }
+            return segments;
+        }
+    private:
+        const MaterialParam & getMaterialParam(MaterialProperty property) const noexcept
+        {
+            auto it = m_params.find(property);
+            if (it != m_params.end()) { return it->second; }
+            return DefaultAssetProvider::getInstance().getMaterialParam(property);
+        };
+    private:
+        ParamMap m_params;
+        TextureReourceMap m_texture_resources;
+    };
+}
