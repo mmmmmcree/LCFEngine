@@ -6,6 +6,5 @@
 namespace lcf {
     using float16_t = half_float::half;
 
-    template <>
-    struct is_floating_point<float16_t> : std::true_type {};
+    template <> inline constexpr bool is_floating_point_v<float16_t> = true;
 }
