@@ -40,7 +40,7 @@ namespace lcf {
         eDoubleClicked       = 0x04000000,
         eAllButtons       = 0x07ffffff,
     };
-    template <> struct is_enum_flags<MouseButtonFlags> : std::true_type {};
+    template <> inline constexpr bool is_enum_flags_v<MouseButtonFlags> = true;
 
     enum class KeyboardKey : uint8_t
     {

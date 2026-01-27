@@ -21,7 +21,7 @@ namespace lcf {
         eAllGraphics = eVertex | eTessControl | eTessEvaluation | eGeometry | eFragment,
         eAll = eAllGraphics | eCompute,
     };
-    template <> struct is_enum_flags<ShaderTypeFlagBits> : std::true_type {};
+    template <> inline constexpr bool is_enum_flags_v<ShaderTypeFlagBits> = true;
 
     LCF_MAKE_ENUM_CATEGORY((ShaderTypeFlagBits, vk::ShaderStageFlagBits, shaderc_shader_kind),
         { ShaderTypeFlagBits::eVertex, vk::ShaderStageFlagBits::eVertex, shaderc_vertex_shader },

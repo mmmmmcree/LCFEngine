@@ -24,12 +24,12 @@ namespace glsl::std430 {
 
 namespace lcf {
     //- GLSL std140 alignment traits
-    template <> struct size_of<typename glsl::std140::Vector2D> : std::integral_constant<size_t, 8> {};
-    template <> struct alignment_of<typename glsl::std140::Vector2D> : std::integral_constant<size_t, 8> {};
+    template <> inline constexpr size_t size_of_v<typename glsl::std140::Vector2D> = 8;
+    template <> inline constexpr size_t alignment_of_v<typename glsl::std140::Vector2D> = 8;
+    template <> inline constexpr size_t size_of_v<typename glsl::std140::Vector3D> = 12;
+    template <> inline constexpr size_t alignment_of_v<typename glsl::std140::Vector3D> = 16;
+    template <> inline constexpr size_t size_of_v<typename glsl::std140::Vector4D> = 16;
+    template <> inline constexpr size_t alignment_of_v<typename glsl::std140::Vector4D> = 16;
 
-    template <> struct size_of<typename glsl::std140::Vector3D> : std::integral_constant<size_t, 12> {};
-    template <> struct alignment_of<typename glsl::std140::Vector3D> : std::integral_constant<size_t, 16> {};
 
-    template <> struct size_of<typename glsl::std140::Vector4D> : std::integral_constant<size_t, 16> {};
-    template <> struct alignment_of<typename glsl::std140::Vector4D> : std::integral_constant<size_t, 16> {};
 }

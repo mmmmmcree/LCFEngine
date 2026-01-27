@@ -26,7 +26,7 @@ namespace lcf {
         eWeights = 1 << 9,
         eAll = std::numeric_limits<std::underlying_type_t<VertexSemanticFlags>>::max()
     };
-    template <> struct is_enum_flags<VertexSemanticFlags> : std::true_type {};
+    template <> inline constexpr bool is_enum_flags_v<VertexSemanticFlags> = true;
 
     class Mesh : public STDPointerDefs<Mesh>
     {
