@@ -55,3 +55,17 @@ namespace lcf {
         return std::span<T>(reinterpret_cast<T *>(bytes.data()), bytes.size() / sizeof(T));
     }
 }
+
+#include <variant>
+
+namespace lcf {
+    template <typename... Args>
+    std::span<const std::byte> as_bytes_from_variant(const std::variant<Args...> & variant)
+    {
+        return std::visit([](const auto &arg) -> std::span<const std::byte> {
+            using T = std::decay_t<decltype(arg)>;
+            const std::byte* byte_ptr = reinterpret_cast<const std::byte*>(std::addressof(arg));
+            return std::span<const std::byte>{byte_ptr, sizeof(T)};
+        }, variant);
+    }
+}
