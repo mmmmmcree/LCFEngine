@@ -1,6 +1,6 @@
 #pragma once
 
-#include "type_traits/enum_traits.h"
+#include "lcf_type_traits.h"
 
 namespace lcf {
     template <typename T>

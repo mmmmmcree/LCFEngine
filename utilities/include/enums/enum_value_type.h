@@ -28,6 +28,14 @@ namespace lcf::detail {
     requires enum_c<decltype(enum_value)>
     struct enum_value_type_finder;
 
+    template <auto enum_value_lhs, auto enum_value_rhs>
+    requires enum_c<decltype(enum_value_lhs)> && enum_c<decltype(enum_value_rhs)>
+    inline constexpr bool is_same_enum_value_v = false;
+
+    template <auto enum_value_lhs, auto enum_value_rhs>
+    requires enum_c<decltype(enum_value_lhs)> && enum_c<decltype(enum_value_rhs)> && std::same_as<decltype(enum_value_lhs), decltype(enum_value_rhs)>
+    inline constexpr bool is_same_enum_value_v<enum_value_lhs, enum_value_rhs> = enum_value_lhs == enum_value_rhs;
+
     template <auto enum_value, 
         template<enum_value_to_type_c...> typename Mapping,
         enum_value_to_type_c First, 
@@ -36,7 +44,7 @@ namespace lcf::detail {
     struct enum_value_type_finder<enum_value, Mapping<First, Rest...>>
     {
         using type = std::conditional_t<
-            First::value == enum_value,
+            is_same_enum_value_v<First::value, enum_value>,
             typename First::type,
             typename enum_value_type_finder<enum_value, Mapping<Rest...>>::type
         >;
