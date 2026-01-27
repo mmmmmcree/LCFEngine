@@ -1,7 +1,7 @@
 #pragma once
 
 #include "StrideIterator.h"
-#include "concepts/alignment_concept.h"
+#include "lcf_type_traits.h"
 #include <vector>
 #include <ranges>
 #include <bit>
@@ -21,10 +21,11 @@ namespace lcf {
         using Self = StructureLayout;
     public:
         StructureLayout() = default;
+        ~StructureLayout() noexcept = default;
         StructureLayout(const Self &) = default;
-        StructureLayout(Self &&) = default;
+        StructureLayout(Self &&) noexcept = default;
         StructureLayout & operator=(const Self &) = default;
-        StructureLayout & operator=(Self &&) = default;
+        StructureLayout & operator=(Self &&) noexcept = default;
         bool isCreated() const noexcept { return m_structural_alignment > 1u; }
         Self & addField(size_t size_in_bytes, size_t alignment)
         {
@@ -34,11 +35,11 @@ namespace lcf {
             m_offsets.emplace_back(size_in_bytes);
             return *this;
         }
-        template <alignment_c TypeAlignmentInfo>
-        Self & addField() { return this->addField(TypeAlignmentInfo::type_size, TypeAlignmentInfo::alignment); }
+        template <typename T>
+        Self & addField() { return this->addField(size_of_v<T>, alignment_of_v<T>); }
         void create()
         {
-            if (this->isCreated()) { return; }
+            if (this->isCreated() or m_offsets.empty()) { return; }
             size_t n = m_offsets.size() / 2;
             std::vector<size_t> offsets(1, 0);
             offsets.reserve(n + 1);

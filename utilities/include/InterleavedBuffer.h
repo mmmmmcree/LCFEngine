@@ -23,8 +23,8 @@ namespace lcf::impl {
             m_layout.addField(size_in_bytes, alignment);
             return *this;
         }
-        template <alignment_c TypeAlignmentInfo>
-        Self & addField() { return this->addField(TypeAlignmentInfo::type_size, TypeAlignmentInfo::alignment); }
+        template <typename T>
+        Self & addField() { return this->addField(size_of_v<T>, alignment_of_v<T>); }
         void create(size_t size)
         {
             if (this->isCreated()) { return; }

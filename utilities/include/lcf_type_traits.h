@@ -18,14 +18,6 @@ namespace lcf {
     template <typename T>
     struct alignment_of : std::integral_constant<size_t, alignment_of_v<T>> {};
 
-    template <typename T, size_t alignment_v = alignment_of_v<T>>
-    struct alignment_traits
-    {
-        using type = std::remove_cvref_t<T>;
-        static constexpr size_t type_size = size_of_v<type>;
-        static constexpr size_t alignment = std::bit_ceil(alignment_v);
-    };
-
     template <typename T>
     inline constexpr bool is_floating_point_v = std::is_floating_point_v<T>;
 

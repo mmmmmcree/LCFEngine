@@ -81,16 +81,16 @@ namespace lcf {
     {
         static const std::array<std::function<void(StructureLayout &)>, std::tuple_size_v<decltype(m_vertex_data)>> s_add_field_methods
         {
-            [](StructureLayout & layout) { layout.addField<alignment_traits<typename ShaderTypeMapping::vec3_t>>(); }, // ePosition
-            [](StructureLayout & layout) { layout.addField<alignment_traits<typename ShaderTypeMapping::vec3_t>>(); }, // eNormal
-            [](StructureLayout & layout) { layout.addField<alignment_traits<typename ShaderTypeMapping::vec2_t>>(); }, // eTexCoord0
-            [](StructureLayout & layout) { layout.addField<alignment_traits<typename ShaderTypeMapping::vec2_t>>(); }, // eTexCoord1
-            [](StructureLayout & layout) { layout.addField<alignment_traits<typename ShaderTypeMapping::vec4_t>>(); }, // eColor0
-            [](StructureLayout & layout) { layout.addField<alignment_traits<typename ShaderTypeMapping::vec4_t>>(); }, // eColor1
-            [](StructureLayout & layout) { layout.addField<alignment_traits<typename ShaderTypeMapping::vec3_t>>(); }, // eTangent
-            [](StructureLayout & layout) { layout.addField<alignment_traits<typename ShaderTypeMapping::vec3_t>>(); }, // eBinormal
-            [](StructureLayout & layout) { layout.addField<alignment_traits<typename ShaderTypeMapping::vec4_t>>(); }, // eJoints
-            [](StructureLayout & layout) { layout.addField<alignment_traits<typename ShaderTypeMapping::vec4_t>>(); }, // eWeights
+            [](StructureLayout & layout) { layout.addField<typename ShaderTypeMapping::vec3_t>(); }, // ePosition
+            [](StructureLayout & layout) { layout.addField<typename ShaderTypeMapping::vec3_t>(); }, // eNormal
+            [](StructureLayout & layout) { layout.addField<typename ShaderTypeMapping::vec2_t>(); }, // eTexCoord0
+            [](StructureLayout & layout) { layout.addField<typename ShaderTypeMapping::vec2_t>(); }, // eTexCoord1
+            [](StructureLayout & layout) { layout.addField<typename ShaderTypeMapping::vec4_t>(); }, // eColor0
+            [](StructureLayout & layout) { layout.addField<typename ShaderTypeMapping::vec4_t>(); }, // eColor1
+            [](StructureLayout & layout) { layout.addField<typename ShaderTypeMapping::vec3_t>(); }, // eTangent
+            [](StructureLayout & layout) { layout.addField<typename ShaderTypeMapping::vec3_t>(); }, // eBinormal
+            [](StructureLayout & layout) { layout.addField<typename ShaderTypeMapping::vec4_t>(); }, // eJoints
+            [](StructureLayout & layout) { layout.addField<typename ShaderTypeMapping::vec4_t>(); }, // eWeights
         };
         auto is_index_skipped = [&](size_t i) -> bool
         {
