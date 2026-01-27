@@ -78,7 +78,7 @@ void lcf::TransformSystem::detach(EntityHandle entity)
 {
     auto & transform = m_registry_p->get<Transform>(entity);
     auto & hierarchy = m_registry_p->get<TransformHierarchy>(entity);
-    hierarchy.setParent(null_entity);
+    hierarchy.setParent(null_entity_handle);
     auto & parent_hierarchy = m_registry_p->get<TransformHierarchy>(hierarchy.getParent());
     auto to_remove_it = std::ranges::find(parent_hierarchy.m_children, entity);
     if (to_remove_it != parent_hierarchy.m_children.end()) {
