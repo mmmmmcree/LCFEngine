@@ -23,14 +23,6 @@ namespace lcf {
     };
     template <> inline constexpr bool is_enum_flags_v<ShaderTypeFlagBits> = true;
 
-    // LCF_MAKE_ENUM_CATEGORY((ShaderTypeFlagBits, vk::ShaderStageFlagBits, shaderc_shader_kind),
-    //     { ShaderTypeFlagBits::eVertex, vk::ShaderStageFlagBits::eVertex, shaderc_vertex_shader },
-    //     { ShaderTypeFlagBits::eTessControl, vk::ShaderStageFlagBits::eTessellationControl, shaderc_tess_control_shader },
-    //     { ShaderTypeFlagBits::eTessEvaluation, vk::ShaderStageFlagBits::eTessellationEvaluation, shaderc_tess_evaluation_shader },
-    //     { ShaderTypeFlagBits::eGeometry, vk::ShaderStageFlagBits::eGeometry, shaderc_geometry_shader },
-    //     { ShaderTypeFlagBits::eFragment, vk::ShaderStageFlagBits::eFragment, shaderc_fragment_shader },
-    //     { ShaderTypeFlagBits::eCompute, vk::ShaderStageFlagBits::eCompute, shaderc_compute_shader },
-    // );
     template <>
     struct enum_mapping_traits <ShaderTypeFlagBits, vk::ShaderStageFlagBits>
     {
@@ -121,68 +113,6 @@ namespace lcf {
 		Char
     };
 
-    // LCF_MAKE_ENUM_CATEGORY((ShaderDataType, spirv_cross::SPIRType::BaseType, vk::Format),
-    //     { ShaderDataType::Unknown, spirv_cross::SPIRType::Unknown, vk::Format::eUndefined },
-    //     { ShaderDataType::Void, spirv_cross::SPIRType::Void, vk::Format::eUndefined },
-    //     { ShaderDataType::Boolean, spirv_cross::SPIRType::Boolean, vk::Format::eR8Unorm },
-    //     { ShaderDataType::BooleanVec2, spirv_cross::SPIRType::Boolean, vk::Format::eR8G8Unorm },
-    //     { ShaderDataType::BooleanVec3, spirv_cross::SPIRType::Boolean, vk::Format::eR8G8B8Unorm },
-    //     { ShaderDataType::BooleanVec4, spirv_cross::SPIRType::Boolean, vk::Format::eR8G8B8A8Unorm },
-    //     { ShaderDataType::SByte, spirv_cross::SPIRType::SByte, vk::Format::eR8Snorm },
-    //     { ShaderDataType::SByteVec2, spirv_cross::SPIRType::SByte, vk::Format::eR8G8Snorm },
-    //     { ShaderDataType::SByteVec3, spirv_cross::SPIRType::SByte, vk::Format::eR8G8B8Snorm },
-    //     { ShaderDataType::SByteVec4, spirv_cross::SPIRType::SByte, vk::Format::eR8G8B8A8Snorm },
-    //     { ShaderDataType::UByte, spirv_cross::SPIRType::UByte, vk::Format::eR8Uint },
-    //     { ShaderDataType::UByteVec2, spirv_cross::SPIRType::UByte, vk::Format::eR8G8Uint },
-    //     { ShaderDataType::UByteVec3, spirv_cross::SPIRType::UByte, vk::Format::eR8G8B8Uint },
-    //     { ShaderDataType::UByteVec4, spirv_cross::SPIRType::UByte, vk::Format::eR8G8B8A8Uint },
-    //     { ShaderDataType::Short, spirv_cross::SPIRType::Short, vk::Format::eR16Snorm },
-    //     { ShaderDataType::ShortVec2, spirv_cross::SPIRType::Short, vk::Format::eR16G16Snorm },
-    //     { ShaderDataType::ShortVec3, spirv_cross::SPIRType::Short, vk::Format::eR16G16B16Snorm },
-    //     { ShaderDataType::ShortVec4, spirv_cross::SPIRType::Short, vk::Format::eR16G16B16A16Snorm },
-    //     { ShaderDataType::UShort, spirv_cross::SPIRType::UShort, vk::Format::eR16Uint },
-    //     { ShaderDataType::UShortVec2, spirv_cross::SPIRType::UShort, vk::Format::eR16G16Uint },
-    //     { ShaderDataType::UShortVec3, spirv_cross::SPIRType::UShort, vk::Format::eR16G16B16Uint },
-    //     { ShaderDataType::UShortVec4, spirv_cross::SPIRType::UShort, vk::Format::eR16G16B16A16Uint },
-    //     { ShaderDataType::Int, spirv_cross::SPIRType::Int, vk::Format::eR32Sint },
-    //     { ShaderDataType::IntVec2, spirv_cross::SPIRType::Int, vk::Format::eR32G32Sint },
-    //     { ShaderDataType::IntVec3, spirv_cross::SPIRType::Int, vk::Format::eR32G32B32Sint },
-    //     { ShaderDataType::IntVec4, spirv_cross::SPIRType::Int, vk::Format::eR32G32B32A32Sint },
-    //     { ShaderDataType::UInt, spirv_cross::SPIRType::UInt, vk::Format::eR32Uint },
-    //     { ShaderDataType::UIntVec2, spirv_cross::SPIRType::UInt, vk::Format::eR32G32Uint },
-    //     { ShaderDataType::UIntVec3, spirv_cross::SPIRType::UInt, vk::Format::eR32G32B32Uint },
-    //     { ShaderDataType::UIntVec4, spirv_cross::SPIRType::UInt, vk::Format::eR32G32B32A32Uint },
-    //     { ShaderDataType::Int64, spirv_cross::SPIRType::Int64, vk::Format::eR64Sint },
-    //     { ShaderDataType::Int64Vec2, spirv_cross::SPIRType::Int64, vk::Format::eR64G64Sint },
-    //     { ShaderDataType::Int64Vec3, spirv_cross::SPIRType::Int64, vk::Format::eR64G64B64Sint },
-    //     { ShaderDataType::Int64Vec4, spirv_cross::SPIRType::Int64, vk::Format::eR64G64B64A64Sint },
-    //     { ShaderDataType::UInt64, spirv_cross::SPIRType::UInt64, vk::Format::eR64Uint },
-    //     { ShaderDataType::UInt64Vec2, spirv_cross::SPIRType::UInt64, vk::Format::eR64G64Uint },
-    //     { ShaderDataType::UInt64Vec3, spirv_cross::SPIRType::UInt64, vk::Format::eR64G64B64Uint },
-    //     { ShaderDataType::UInt64Vec4, spirv_cross::SPIRType::UInt64, vk::Format::eR64G64B64A64Uint },
-    //     { ShaderDataType::AtomicCounter, spirv_cross::SPIRType::AtomicCounter, vk::Format::eUndefined },
-    //     { ShaderDataType::Half, spirv_cross::SPIRType::Half, vk::Format::eR16Sfloat },
-    //     { ShaderDataType::HalfVec2, spirv_cross::SPIRType::Half, vk::Format::eR16G16Sfloat },
-    //     { ShaderDataType::HalfVec3, spirv_cross::SPIRType::Half, vk::Format::eR16G16B16Sfloat },
-    //     { ShaderDataType::HalfVec4, spirv_cross::SPIRType::Half, vk::Format::eR16G16B16A16Sfloat },
-    //     { ShaderDataType::Float, spirv_cross::SPIRType::Float, vk::Format::eR32Sfloat },
-    //     { ShaderDataType::FloatVec2, spirv_cross::SPIRType::Float, vk::Format::eR32G32Sfloat },
-    //     { ShaderDataType::FloatVec3, spirv_cross::SPIRType::Float, vk::Format::eR32G32B32Sfloat },
-    //     { ShaderDataType::FloatVec4, spirv_cross::SPIRType::Float, vk::Format::eR32G32B32A32Sfloat },
-    //     { ShaderDataType::Double, spirv_cross::SPIRType::Double, vk::Format::eR64Sfloat },
-    //     { ShaderDataType::DoubleVec2, spirv_cross::SPIRType::Double, vk::Format::eR64G64Sfloat },
-    //     { ShaderDataType::DoubleVec3, spirv_cross::SPIRType::Double, vk::Format::eR64G64B64Sfloat },
-    //     { ShaderDataType::DoubleVec4, spirv_cross::SPIRType::Double, vk::Format::eR64G64B64A64Sfloat },
-    //     { ShaderDataType::Struct, spirv_cross::SPIRType::Struct, vk::Format::eUndefined },
-    //     { ShaderDataType::Image, spirv_cross::SPIRType::Image, vk::Format::eUndefined },
-    //     { ShaderDataType::SampledImage, spirv_cross::SPIRType::SampledImage, vk::Format::eUndefined },
-    //     { ShaderDataType::Sampler, spirv_cross::SPIRType::Sampler, vk::Format::eUndefined },
-    //     { ShaderDataType::AccelerationStructure, spirv_cross::SPIRType::AccelerationStructure, vk::Format::eUndefined },
-    //     { ShaderDataType::RayQuery, spirv_cross::SPIRType::RayQuery, vk::Format::eUndefined },
-    //     { ShaderDataType::ControlPointArray, spirv_cross::SPIRType::ControlPointArray, vk::Format::eUndefined },
-    //     { ShaderDataType::Interpolant, spirv_cross::SPIRType::Interpolant, vk::Format::eUndefined },
-    //     { ShaderDataType::Char, spirv_cross::SPIRType::Char, vk::Format::eR8Snorm }
-    // );
     template <>
     struct enum_mapping_traits <ShaderDataType, spirv_cross::SPIRType::BaseType>
     {
