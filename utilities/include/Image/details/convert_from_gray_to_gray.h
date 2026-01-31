@@ -3,7 +3,7 @@
 #include "Image/Image.h"
 
 namespace lcf::details {
-    void convert_from_gray_to_gray(Image::ImageVariant & src_image_var, Image::Format src_format, Image::Format dst_format);
+    void convert_from_gray_to_gray(Image::ImageVariant & src_image_var, ImageFormat src_format, ImageFormat dst_format);
 
     template <typename DstImageType>
     Image::ImageVariant convert_from_gray_to_gray(Image::GrayImageVariant & src_image_var);

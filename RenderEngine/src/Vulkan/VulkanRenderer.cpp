@@ -108,9 +108,9 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
 
     auto material_sp = Material::makeShared();
     auto image1_sp = Image::makeShared();
-    image1_sp->loadFromFile("assets/images/bk.jpg", Image::Format::eRGBA8Uint);
+    image1_sp->loadFromFile("assets/images/bk.jpg", ImageFormat::eRGBA8Uint);
     auto image2_sp = Image::makeShared();
-    image2_sp->loadFromFile("assets/images/qt256.png", Image::Format::eRGBA8Uint);
+    image2_sp->loadFromFile("assets/images/qt256.png", ImageFormat::eRGBA8Uint);
     material_sp->addImage(image1_sp)
         .addImage(image2_sp);
 

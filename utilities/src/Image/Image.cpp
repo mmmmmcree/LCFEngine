@@ -15,7 +15,7 @@
 using namespace lcf;
 using namespace boost;
 
-Image::Image(uint32_t width, uint32_t height, Format format)
+Image::Image(uint32_t width, uint32_t height, ImageFormat format)
 {
     this->convertTo(format);
     this->recreate(width, height, 1);
@@ -64,48 +64,48 @@ bool lcf::Image::loadFromFile(const std::filesystem::path &path) noexcept
     if (not std::filesystem::exists(path)) { return false; }
     bool successful = false;
     switch (Image::deduce_file_type(path)) {
-        case Image::FileType::eJPG: { successful = this->loadFromJPG(path); } break;
-        case Image::FileType::ePNG: { successful = this->loadFromPNG(path); } break;
+        case ImageFileType::eJPG: { successful = this->loadFromJPG(path); } break;
+        case ImageFileType::ePNG: { successful = this->loadFromPNG(path); } break;
     }
     this->updateFormat();
     return successful;
 }
 
-bool lcf::Image::loadFromFile(const std::filesystem::path &path, Format format) noexcept
+bool lcf::Image::loadFromFile(const std::filesystem::path &path, ImageFormat format) noexcept
 {
     if (not std::filesystem::exists(path)) { return false; }
     bool successful = false;
     switch (Image::deduce_file_type(path)) {
-        case Image::FileType::eJPG: { successful = this->loadFromJPG(path, format); } break;
-        case Image::FileType::ePNG: { successful = this->loadFromPNG(path, format); } break;
+        case ImageFileType::eJPG: { successful = this->loadFromJPG(path, format); } break;
+        case ImageFileType::ePNG: { successful = this->loadFromPNG(path, format); } break;
     }
     this->updateFormat();
-    return successful and m_format != Format::eInvalid;
+    return successful and m_format != ImageFormat::eInvalid;
 }
 
-bool lcf::Image::loadFromMemory(std::span<const std::byte> data, Format format, size_t width) noexcept
+bool lcf::Image::loadFromMemory(std::span<const std::byte> data, ImageFormat format, size_t width) noexcept
 {
-    size_t row_size_in_bytes = get_channel_count(format) * get_bytes_per_channel(format) * width;
+    size_t row_size_in_bytes = enum_decode::get_channel_count(format) * enum_decode::get_bytes_per_channel(format) * width;
     if (data.size() % row_size_in_bytes != 0) { return false; }
     size_t height = data.size() / row_size_in_bytes;
     switch (format) {
-        case Format::eGray8Uint: { m_image = gil::gray8_image_t(width, height); } break;
-        case Format::eGray16Uint: { m_image = gil::gray16_image_t(width, height); } break;
-        case Format::eGray32Float: { m_image = gil::gray32f_image_t(width, height); } break;
-        case Format::eRGB8Uint: { m_image = gil::rgb8_image_t(width, height); } break;
-        case Format::eRGB16Uint: { m_image = gil::rgb16_image_t(width, height); } break;
-        case Format::eRGB32Float: { m_image = gil::rgb32f_image_t(width, height); } break;
-        case Format::eBGR8Uint: { m_image = gil::bgr8_image_t(width, height); } break;
-        case Format::eRGBA8Uint: { m_image = gil::rgba8_image_t(width, height); } break;
-        case Format::eRGBA16Uint: { m_image = gil::rgba16_image_t(width, height); } break;
-        case Format::eRGBA32Float: { m_image = gil::rgba32f_image_t(width, height); } break;
-        case Format::eBGRA8Uint: { m_image = gil::bgra8_image_t(width, height); } break;
-        case Format::eARGB8Uint: { m_image = gil::argb8_image_t(width, height); } break;
-        case Format::eCMYK8Uint: { m_image = gil::cmyk8_image_t(width, height); } break;
-        case Format::eCMYK32Float: { m_image = gil::cmyk32f_image_t(width, height); } break;
+        case ImageFormat::eGray8Uint: { m_image = gil::gray8_image_t(width, height); } break;
+        case ImageFormat::eGray16Uint: { m_image = gil::gray16_image_t(width, height); } break;
+        case ImageFormat::eGray32Float: { m_image = gil::gray32f_image_t(width, height); } break;
+        case ImageFormat::eRGB8Uint: { m_image = gil::rgb8_image_t(width, height); } break;
+        case ImageFormat::eRGB16Uint: { m_image = gil::rgb16_image_t(width, height); } break;
+        case ImageFormat::eRGB32Float: { m_image = gil::rgb32f_image_t(width, height); } break;
+        case ImageFormat::eBGR8Uint: { m_image = gil::bgr8_image_t(width, height); } break;
+        case ImageFormat::eRGBA8Uint: { m_image = gil::rgba8_image_t(width, height); } break;
+        case ImageFormat::eRGBA16Uint: { m_image = gil::rgba16_image_t(width, height); } break;
+        case ImageFormat::eRGBA32Float: { m_image = gil::rgba32f_image_t(width, height); } break;
+        case ImageFormat::eBGRA8Uint: { m_image = gil::bgra8_image_t(width, height); } break;
+        case ImageFormat::eARGB8Uint: { m_image = gil::argb8_image_t(width, height); } break;
+        case ImageFormat::eCMYK8Uint: { m_image = gil::cmyk8_image_t(width, height); } break;
+        case ImageFormat::eCMYK32Float: { m_image = gil::cmyk32f_image_t(width, height); } break;
     }
     m_format = format;
-    if (m_format != Format::eInvalid) {
+    if (m_format != ImageFormat::eInvalid) {
         std::memcpy(this->getInterleavedDataSpan().data(), data.data(), data.size());
     }
     return true;
@@ -122,15 +122,17 @@ Image & lcf::Image::recreate(size_t width, size_t height, size_t alignment)
     return *this;
 }
 
-Image & lcf::Image::convertTo(Format format)
+Image & lcf::Image::convertTo(ImageFormat format)
 {
     if (m_format == format) { return *this; }
 
-    if (get_color_space(m_format) == ColorSpace::eGray and get_color_space(format) == ColorSpace::eGray) {
+    ColorSpace old_color_space = enum_decode::get_color_space(m_format);
+    ColorSpace new_color_space = enum_decode::get_color_space(format);
+    if (old_color_space == ColorSpace::eGray and new_color_space == ColorSpace::eGray) {
         details::convert_from_gray_to_gray(m_image, m_format, format);
-    } else if (get_color_space(m_format) == ColorSpace::eGray) {
+    } else if (old_color_space == ColorSpace::eGray) {
         details::convert_from_gray_to_color(m_image, m_format, format);
-    } else if (get_color_space(format) == ColorSpace::eGray) {
+    } else if (new_color_space == ColorSpace::eGray) {
         details::convert_from_color_to_gray(m_image, m_format, format);
     } else {
         details::convert_from_color_to_color(m_image, m_format, format);
@@ -165,29 +167,29 @@ Image & lcf::Image::flipLeftRight()
     return *this;
 }
 
-std::filesystem::path lcf::Image::get_extension(FileType type)
+std::filesystem::path lcf::Image::get_extension(ImageFileType type)
 {
     std::filesystem::path ext;
     switch (type)
     {
-        case FileType::ePNG: { ext = ".png"; } break; 
-        case FileType::eJPG: { ext = ".jpg"; } break;
-        case FileType::eHDR: { ext = ".hdr"; } break;
+        case ImageFileType::ePNG: { ext = ".png"; } break; 
+        case ImageFileType::eJPG: { ext = ".jpg"; } break;
+        case ImageFileType::eHDR: { ext = ".hdr"; } break;
     }
     return ext;
 }
 
-Image::FileType lcf::Image::deduce_file_type(const std::filesystem::path & path)
+ImageFileType lcf::Image::deduce_file_type(const std::filesystem::path & path)
 {
-    static std::unordered_map<std::filesystem::path, FileType> file_type_map
+    static std::unordered_map<std::filesystem::path, ImageFileType> file_type_map
     {
-        {".png", FileType::ePNG},
-        {".jpg", FileType::eJPG},
-        {".jpeg", FileType::eJPG},
-        {".hdr", FileType::eHDR},
+        {".png", ImageFileType::ePNG},
+        {".jpg", ImageFileType::eJPG},
+        {".jpeg", ImageFileType::eJPG},
+        {".hdr", ImageFileType::eHDR},
     };
     auto ext = path.extension();
-    if (not path.has_extension() or not file_type_map.contains(ext)) { return FileType::eInvalid; }
+    if (not path.has_extension() or not file_type_map.contains(ext)) { return ImageFileType::eInvalid; }
     return file_type_map.at(ext);
 }
 
@@ -197,13 +199,13 @@ bool lcf::Image::loadFromFileSTB(const std::filesystem::path &path) noexcept
     stbi_info(path.string().c_str(), &width, &height, &channels);
     bool is_hdr = stbi_is_hdr(path.string().c_str());
     bool is_16bit = stbi_is_16_bit(path.string().c_str());
-    DataType data_type;
+    PixelDataType data_type;
     if (is_hdr) {
-        data_type = DataType::eFloat32;
+        data_type = PixelDataType::eFloat32;
     } else if (is_16bit) {
-        data_type = DataType::eUint16;
+        data_type = PixelDataType::eUint16;
     } else {
-        data_type = DataType::eUint8;
+        data_type = PixelDataType::eUint8;
     }
     ColorSpace color_space;
     switch (channels) {
@@ -213,21 +215,21 @@ bool lcf::Image::loadFromFileSTB(const std::filesystem::path &path) noexcept
         case 4: { color_space = ColorSpace::eRGBA; } break;
         default: { return false; }
     }
-    return this->loadFromFileSTB(path, get_format(color_space, data_type));
+    return this->loadFromFileSTB(path, enum_decode::get_image_format(color_space, data_type));
 }
 
-bool lcf::Image::loadFromFileSTB(const std::filesystem::path &path, Format format) noexcept
+bool lcf::Image::loadFromFileSTB(const std::filesystem::path &path, ImageFormat format) noexcept
 {
     int width, height, channels;
-    int requested_channels = get_channel_count(format);
-    size_t bytes_per_channel = get_bytes_per_channel(format);
-    DataType data_type = get_data_type(format);
+    int requested_channels = enum_decode::get_channel_count(format);
+    size_t bytes_per_channel = enum_decode::get_bytes_per_channel(format);
+    PixelDataType data_type = enum_decode::get_pixel_data_type(format);
     void * data_p = nullptr;
     switch (data_type) {
-        case DataType::eUint8: { data_p = stbi_load(path.string().c_str(), &width, &height, &channels, requested_channels); } break;
-        case DataType::eUint16: 
-        case DataType::eFloat16: { data_p = stbi_load_16(path.string().c_str(), &width, &height, &channels, requested_channels); } break;
-        case DataType::eFloat32: { data_p = stbi_loadf(path.string().c_str(), &width, &height, &channels, requested_channels); } break;
+        case PixelDataType::eUint8: { data_p = stbi_load(path.string().c_str(), &width, &height, &channels, requested_channels); } break;
+        case PixelDataType::eUint16: 
+        case PixelDataType::eFloat16: { data_p = stbi_load_16(path.string().c_str(), &width, &height, &channels, requested_channels); } break;
+        case PixelDataType::eFloat32: { data_p = stbi_loadf(path.string().c_str(), &width, &height, &channels, requested_channels); } break;
     }
     if (not data_p) { return false; }
     channels = std::max(channels, requested_channels);
@@ -247,28 +249,28 @@ bool lcf::Image::loadFromPNG(const std::filesystem::path & path) noexcept
     return m_image.width() != 0 and m_image.height() != 0;
 }
 
-bool lcf::Image::loadFromPNG(const std::filesystem::path &path, Format format) noexcept
+bool lcf::Image::loadFromPNG(const std::filesystem::path &path, ImageFormat format) noexcept
 {
     switch (format) {
-        case Format::eGray8Uint:
-        case Format::eRGB8Uint:
-        case Format::eRGBA8Uint:
-        case Format::eGray16Uint:
-        case Format::eRGB16Uint:
-        case Format::eRGBA16Uint: {
+        case ImageFormat::eGray8Uint:
+        case ImageFormat::eRGB8Uint:
+        case ImageFormat::eRGBA8Uint:
+        case ImageFormat::eGray16Uint:
+        case ImageFormat::eRGB16Uint:
+        case ImageFormat::eRGBA16Uint: {
             this->loadFromFileSTB(path, format);
         } break;
-        case Format::eBGR8Uint: {
+        case ImageFormat::eBGR8Uint: {
             gil::bgr8_image_t image;
             gil::read_image(path.string(), image, gil::png_tag{});
             m_image = std::move(image);
         } break;
-        case Format::eBGRA8Uint: {
+        case ImageFormat::eBGRA8Uint: {
             gil::bgra8_image_t image;
             gil::read_image(path.string(), image, gil::png_tag{});
             m_image = std::move(image);
         } break;
-        case Format::eARGB8Uint: {
+        case ImageFormat::eARGB8Uint: {
             gil::argb8_image_t image;
             gil::read_image(path.string(), image, gil::png_tag{});
             m_image = std::move(image);
@@ -288,15 +290,15 @@ bool lcf::Image::loadFromJPG(const std::filesystem::path & path) noexcept
     return m_image.width() != 0 and m_image.height() != 0;
 }
 
-bool lcf::Image::loadFromJPG(const std::filesystem::path &path, Format format) noexcept
+bool lcf::Image::loadFromJPG(const std::filesystem::path &path, ImageFormat format) noexcept
 {
     switch (format) {
-        case Format::eGray8Uint: 
-        case Format::eRGB8Uint:
-        case Format::eRGBA8Uint: {
+        case ImageFormat::eGray8Uint: 
+        case ImageFormat::eRGB8Uint:
+        case ImageFormat::eRGBA8Uint: {
             this->loadFromFileSTB(path, format);
         } break;
-        case Format::eBGR8Uint: {
+        case ImageFormat::eBGR8Uint: {
             gil::bgr8_image_t image;
             gil::read_image(path.string(), image, gil::jpeg_tag{});
             m_image = std::move(image);
@@ -310,21 +312,21 @@ void lcf::Image::updateFormat()
 {
     variant2::visit([this](auto && img_view) {
         using PixelType = typename std::remove_cvref_t<decltype(img_view)>::value_type;
-        if constexpr (std::is_same_v<PixelType, NullImage::value_type>) { m_format = Format::eInvalid; }
-        else if constexpr (std::is_same_v<PixelType, gil::gray8_pixel_t>) { m_format = Format::eGray8Uint; }
-        else if constexpr (std::is_same_v<PixelType, gil::gray16_pixel_t>) { m_format = Format::eGray16Uint; }
-        else if constexpr (std::is_same_v<PixelType, gil::gray32f_pixel_t>) { m_format = Format::eGray32Float; }
-        else if constexpr (std::is_same_v<PixelType, gil::rgb8_pixel_t>) { m_format = Format::eRGB8Uint; }
-        else if constexpr (std::is_same_v<PixelType, gil::rgb16_pixel_t>) { m_format = Format::eRGB16Uint; }
-        else if constexpr (std::is_same_v<PixelType, gil::rgb32f_pixel_t>) { m_format = Format::eRGB32Float; }
-        else if constexpr (std::is_same_v<PixelType, gil::bgr8_pixel_t>) { m_format = Format::eBGR8Uint; }
-        else if constexpr (std::is_same_v<PixelType, gil::rgba8_pixel_t>) { m_format = Format::eRGBA8Uint; }
-        else if constexpr (std::is_same_v<PixelType, gil::rgba16_pixel_t>) { m_format = Format::eRGBA16Uint; }
-        else if constexpr (std::is_same_v<PixelType, gil::rgba32f_pixel_t>) { m_format = Format::eRGBA32Float; }
-        else if constexpr (std::is_same_v<PixelType, gil::bgra8_pixel_t>) { m_format = Format::eBGRA8Uint; }
-        else if constexpr (std::is_same_v<PixelType, gil::argb8_pixel_t>) { m_format = Format::eARGB8Uint; }
-        else if constexpr (std::is_same_v<PixelType, gil::cmyk8_pixel_t>) { m_format = Format::eCMYK8Uint; }
-        else if constexpr (std::is_same_v<PixelType, gil::cmyk32f_pixel_t>) { m_format = Format::eCMYK32Float; }
-        else { m_format = Format::eInvalid; }
+        if constexpr (std::is_same_v<PixelType, NullImage::value_type>) { m_format = ImageFormat::eInvalid; }
+        else if constexpr (std::is_same_v<PixelType, gil::gray8_pixel_t>) { m_format = ImageFormat::eGray8Uint; }
+        else if constexpr (std::is_same_v<PixelType, gil::gray16_pixel_t>) { m_format = ImageFormat::eGray16Uint; }
+        else if constexpr (std::is_same_v<PixelType, gil::gray32f_pixel_t>) { m_format = ImageFormat::eGray32Float; }
+        else if constexpr (std::is_same_v<PixelType, gil::rgb8_pixel_t>) { m_format = ImageFormat::eRGB8Uint; }
+        else if constexpr (std::is_same_v<PixelType, gil::rgb16_pixel_t>) { m_format = ImageFormat::eRGB16Uint; }
+        else if constexpr (std::is_same_v<PixelType, gil::rgb32f_pixel_t>) { m_format = ImageFormat::eRGB32Float; }
+        else if constexpr (std::is_same_v<PixelType, gil::bgr8_pixel_t>) { m_format = ImageFormat::eBGR8Uint; }
+        else if constexpr (std::is_same_v<PixelType, gil::rgba8_pixel_t>) { m_format = ImageFormat::eRGBA8Uint; }
+        else if constexpr (std::is_same_v<PixelType, gil::rgba16_pixel_t>) { m_format = ImageFormat::eRGBA16Uint; }
+        else if constexpr (std::is_same_v<PixelType, gil::rgba32f_pixel_t>) { m_format = ImageFormat::eRGBA32Float; }
+        else if constexpr (std::is_same_v<PixelType, gil::bgra8_pixel_t>) { m_format = ImageFormat::eBGRA8Uint; }
+        else if constexpr (std::is_same_v<PixelType, gil::argb8_pixel_t>) { m_format = ImageFormat::eARGB8Uint; }
+        else if constexpr (std::is_same_v<PixelType, gil::cmyk8_pixel_t>) { m_format = ImageFormat::eCMYK8Uint; }
+        else if constexpr (std::is_same_v<PixelType, gil::cmyk32f_pixel_t>) { m_format = ImageFormat::eCMYK32Float; }
+        else { m_format = ImageFormat::eInvalid; }
     }, gil::view(m_image));
 }
