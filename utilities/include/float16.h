@@ -1,7 +1,7 @@
 #pragma once
 
 #include "half.hpp"
-#include "lcf_type_traits.h"
+#include "type_traits/lcf_type_traits.h"
 
 namespace lcf {
     using float16_t = half_float::half;

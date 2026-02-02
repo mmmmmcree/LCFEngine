@@ -1,7 +1,7 @@
 #pragma once
 #include "GLM/GLMVector.h"
 #include "concepts/number_concept.h"
-#include "lcf_type_traits.h"
+#include "type_traits/lcf_type_traits.h"
 
 namespace lcf {
     template<number_c T>

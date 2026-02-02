@@ -1,7 +1,7 @@
 #pragma once
 
 #include "StrideIterator.h"
-#include "lcf_type_traits.h"
+#include "type_traits/lcf_type_traits.h"
 #include <vector>
 #include <ranges>
 #include <bit>

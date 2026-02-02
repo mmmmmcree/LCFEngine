@@ -1,6 +1,6 @@
 #pragma once
 
-#include "lcf_type_traits.h"
+#include "type_traits/lcf_type_traits.h"
 
 namespace glsl::std140 {
     class Vector2D {};

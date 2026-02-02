@@ -1,7 +1,7 @@
 #pragma once
 
 #include "StructureLayout.h"
-#include "lcf_type_traits.h"
+#include "type_traits/lcf_type_traits.h"
 #include "log.h"
 
 namespace lcf::impl {

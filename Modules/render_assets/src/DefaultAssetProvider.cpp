@@ -1,5 +1,5 @@
 #include "render_assets/DefaultAssetProvider.h"
-#include "math_enum_value_types.h"
+#include "vector_enum_value_types.h"
 #include "Vector.h"
 #include "bytes.h"
 #include <vector>
@@ -19,7 +19,7 @@ DefaultAssetProvider::DefaultAssetProvider()
     };
     for (const auto & [type, color] : color_map) {
         auto & image_resource = m_texture2d_resources[type] = Image::makeShared();
-        image_resource->loadFromMemory(as_bytes_from_value(color), Image::Format::eRGBA8Uint, 1);
+        image_resource->loadFromMemory(as_bytes_from_value(color), ImageFormat::eRGBA8Uint, 1);
     }
     //todo Texture2D checkerboard
 
@@ -52,9 +52,12 @@ DefaultAssetProvider::DefaultAssetProvider()
         {MaterialProperty::eSpecularColorFactor, enum_value_t<enum_decode::get_vector_type(MaterialProperty::eSpecularColorFactor)> {1.0f, 1.0f, 1.0f}}, 
         {MaterialProperty::eShadowStrength, enum_value_t<enum_decode::get_vector_type(MaterialProperty::eShadowStrength)> {1.0f}}, 
     };
+
+    m_default_geometry_sp = Geometry::makeShared();
+    m_default_material_sp = Material::makeShared();
 }
 
-DefaultAssetProvider & DefaultAssetProvider::getInstance() noexcept
+const DefaultAssetProvider & DefaultAssetProvider::getInstance() noexcept
 {
     static DefaultAssetProvider s_instance;
     return s_instance;
@@ -65,18 +68,27 @@ const MaterialParam & DefaultAssetProvider::getMaterialParam(MaterialProperty pr
     return m_material_params.at(property);
 }
 
-const Image::SharedPointer DefaultAssetProvider::getTextureResource(DefaultTexture2DType type) const noexcept
+const Image::SharedPointer & DefaultAssetProvider::getTextureResource(DefaultTexture2DType type) const noexcept
 {
     return m_texture2d_resources.at(type);
 }
 
-const Image::SharedPointer lcf::DefaultAssetProvider::getTextureResource(MaterialProperty property) const noexcept
+const Image::SharedPointer & DefaultAssetProvider::getTextureResource(TextureSemantic semantic) const noexcept
 {
-    auto resource = this->getTextureResource(DefaultTexture2DType::eBlack);
-    switch (property) {
-        case MaterialProperty::eBaseColor: { resource = this->getTextureResource(DefaultTexture2DType::eWhite); } break;
-        case MaterialProperty::eNormal: { resource = this->getTextureResource(DefaultTexture2DType::eBlue); } break;
+    switch (semantic) {
+        case TextureSemantic::eBaseColor: { return this->getTextureResource(DefaultTexture2DType::eWhite); }
+        case TextureSemantic::eNormal: { return this->getTextureResource(DefaultTexture2DType::eBlue); }
         default: break;
     }
-    return resource;
+    return this->getTextureResource(DefaultTexture2DType::eBlack);
+}
+
+const Geometry::SharedPointer DefaultAssetProvider::getGeometryResource() const noexcept
+{
+    return m_default_geometry_sp;
+}
+
+const Material::SharedPointer DefaultAssetProvider::getMaterialResource() const noexcept
+{
+    return m_default_material_sp;
 }

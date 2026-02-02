@@ -1,59 +1,7 @@
 #pragma once
 
-#include <stdint.h>
-#include <utility>
-#include <bit>
+#include "basic_data_enums.h"
 
-
-//- BasicDataType begin
-namespace lcf {
-    enum BasicDataTypeCategory : uint8_t // 2 bits used
-    {
-        eByte,
-        eInt,
-        eUint,
-        eFloat
-    };
-
-namespace internal {
-    inline constexpr uint8_t encode_basic_data_type(BasicDataTypeCategory type, uint8_t size_in_bytes)
-    {
-        return std::countr_zero(size_in_bytes) << 2 | type;
-    };
-}
-
-    enum class BasicDataType : uint8_t // 2 bits size | 2 bits category, 4 bits used
-    {
-        eByte = internal::encode_basic_data_type(BasicDataTypeCategory::eByte, 1),
-        eInt8 = internal::encode_basic_data_type(BasicDataTypeCategory::eInt, 1),
-        eInt16 = internal::encode_basic_data_type(BasicDataTypeCategory::eInt, 2),
-        eInt32 = internal::encode_basic_data_type(BasicDataTypeCategory::eInt, 4),
-        eInt64 = internal::encode_basic_data_type(BasicDataTypeCategory::eInt, 8),
-        eUint8 = internal::encode_basic_data_type(BasicDataTypeCategory::eUint, 1),
-        eUint16 = internal::encode_basic_data_type(BasicDataTypeCategory::eUint, 2),
-        eUint32 = internal::encode_basic_data_type(BasicDataTypeCategory::eUint, 4),
-        eUint64 = internal::encode_basic_data_type(BasicDataTypeCategory::eUint, 8),
-        eFloat16 = internal::encode_basic_data_type(BasicDataTypeCategory::eFloat, 2),
-        eFloat32 = internal::encode_basic_data_type(BasicDataTypeCategory::eFloat, 4),
-        eFloat64 = internal::encode_basic_data_type(BasicDataTypeCategory::eFloat, 8)
-    };
-}
-
-namespace lcf::enum_decode {
-    inline constexpr BasicDataTypeCategory get_category(BasicDataType encoded)
-    {
-        return static_cast<BasicDataTypeCategory>(std::to_underlying(encoded) & 0b11);
-    }
-
-    inline constexpr uint32_t get_size_in_bytes(BasicDataType encoded)
-    {
-        return 1 << (std::to_underlying(encoded) >> 2);
-    }
-}
-
-//- BasicDataType end
-
-//- VectorType begin
 namespace lcf::internal {
     inline constexpr uint8_t encode_vector_type(BasicDataType type, uint8_t vec_dimension) noexcept
     {
@@ -124,4 +72,3 @@ namespace lcf::enum_decode {
         return get_size_in_bytes(get_basic_data_type(encoded)) * get_vector_dimension(encoded);
     }
 }
-//- VectorType end
