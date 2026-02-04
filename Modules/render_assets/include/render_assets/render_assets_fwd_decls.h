@@ -10,7 +10,7 @@ namespace lcf {
 
     class Mesh;
 
-    class RenderableModel;
+    class Model;
 
-    class RenderableModelLoader;
+    class ModelLoader;
 }

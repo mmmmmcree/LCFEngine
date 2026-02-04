@@ -7,12 +7,12 @@
 #include "Entity.h"
 
 namespace lcf {
-    class RenderableModelLoader;
+    class ModelLoader;
 
-    class RenderableModel
+    class Model
     {
-        friend class RenderableModelLoader;
-        using Self = RenderableModel;
+        friend class ModelLoader;
+        using Self = Model;
     public:
         struct HierarchyNode
         {
@@ -28,12 +28,12 @@ namespace lcf {
         };
         using HierarchyNodeList = std::vector<HierarchyNode>;
     public:
-        RenderableModel() = default;
-        ~RenderableModel() = default;
-        RenderableModel(const RenderableModel &) = delete;
-        RenderableModel &operator=(const RenderableModel &) = delete;
-        RenderableModel(RenderableModel &&) = default;
-        RenderableModel &operator=(RenderableModel &&) = default;
+        Model() = default;
+        ~Model() = default;
+        Model(const Model &) = delete;
+        Model &operator=(const Model &) = delete;
+        Model(Model &&) = default;
+        Model &operator=(Model &&) = default;
     public:
         std::vector<Entity> generateEntities(Registry & registry) const noexcept;
         Entity generateEntity(Registry & registry) const noexcept;

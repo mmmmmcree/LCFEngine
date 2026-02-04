@@ -3,7 +3,7 @@
 #include "enums/enum_flags.h"
 #include "enums/enum_values.h"
 #include "enums/enum_name.h"
-#include "math_enums.h"
+#include "vector_enums.h"
 #include <utility>
 #include <limits>
 #include <array>
@@ -31,7 +31,7 @@ namespace lcf::internal {
 
     inline constexpr uint16_t encode_flag_bit(VertexAttribute attribute) noexcept
     {
-        return 1 << std::to_underlying(attribute);
+        return 1 << static_cast<uint16_t>(attribute);
     }
 
     inline constexpr uint16_t encode(VertexAttribute attribute, VectorType type) noexcept
@@ -132,20 +132,8 @@ namespace lcf::enum_decode {
     }
 }
 
-namespace lcf {
-    enum class ShadingModel : uint8_t // 4 bits used, 4 bits reserved, 8 bits used
-    {
-        eUnlit = 1 << 0, //!< no lighting applied, emissive possible
-        eLit = 1 << 1, //!< default, standard lighting
-        eSubsurface = 1 << 2, //!< subsurface lighting model
-        eCloth = 1 << 3, //!< cloth lighting model
-        eAll = eUnlit | eLit | eSubsurface | eCloth
-    };
-    template <> inline constexpr bool is_enum_flags_v<ShadingModel> = true;
-}
-
 namespace lcf::internal {
-    enum class MaterialProperty : uint8_t // 5 bits used
+    enum class MaterialProperty : uint8_t
     {
         eBaseColor,
         eRoughness,
@@ -176,44 +164,48 @@ namespace lcf::internal {
         eShadowStrength,
     };
 
-    inline constexpr uint32_t encode(MaterialProperty property, ShadingModel shading_model, VectorType type) noexcept
+    inline constexpr uint32_t encode_flag_bit(MaterialProperty property) noexcept
     {
-        return static_cast<uint32_t>(property) << 24 | static_cast<uint32_t>(shading_model) << 8 | std::to_underlying(type);
+        return 1 << static_cast<uint32_t>(property);
+    }
+
+    inline constexpr uint16_t encode(MaterialProperty property, VectorType vector_type) noexcept
+    {
+        return (static_cast<uint16_t>(property) << 8) | std::to_underlying(vector_type);
     }
 }
 
 namespace lcf {
-    enum class MaterialProperty : uint32_t // 5 bits for MaterialProperty | 8 bits for ShadingModel | 6 bits for VectorType, 19 bits used
-    { 
-        eBaseColor = internal::encode(internal::MaterialProperty::eBaseColor, ShadingModel::eAll, VectorType::e4Float32), //!< float4, all shading models
-        eRoughness = internal::encode(internal::MaterialProperty::eRoughness, ShadingModel::eLit, VectorType::e1Float32), //!< float,  lit shading models only
-        eMetallic = internal::encode(internal::MaterialProperty::eMetallic, ShadingModel::eAll &~ ShadingModel::eUnlit &~ ShadingModel::eCloth, VectorType::e1Float32), //!< float,  all shading models, except unlit and cloth
-        eReflectance = internal::encode(internal::MaterialProperty::eReflectance, ShadingModel::eAll &~ ShadingModel::eUnlit &~ ShadingModel::eCloth, VectorType::e1Float32), //!< float,  all shading models, except unlit and cloth
-        eAmbientOcclusion = internal::encode(internal::MaterialProperty::eAmbientOcclusion, ShadingModel::eLit, VectorType::e1Float32), //!< float,  lit shading models only, except subsurface and cloth
-        eClearCoat = internal::encode(internal::MaterialProperty::eClearCoat, ShadingModel::eLit, VectorType::e1Float32), //!< float,  lit shading models only, except subsurface and cloth
-        eClearCoatRoughness = internal::encode(internal::MaterialProperty::eClearCoatRoughness, ShadingModel::eLit, VectorType::e1Float32), //!< float,  lit shading models only, except subsurface and cloth
-        eClearCoatNormal = internal::encode(internal::MaterialProperty::eClearCoatNormal, ShadingModel::eLit, VectorType::e1Float32), //!< float,  lit shading models only, except subsurface and cloth
-        eAnisotropy = internal::encode(internal::MaterialProperty::eAnisotropy, ShadingModel::eLit, VectorType::e1Float32), //!< float,  lit shading models only, except subsurface and cloth
-        eAnisotropyDirection = internal::encode(internal::MaterialProperty::eAnisotropyDirection, ShadingModel::eLit, VectorType::e3Float32), //!< float3, lit shading models only, except subsurface and cloth
-        eThickness = internal::encode(internal::MaterialProperty::eThickness, ShadingModel::eSubsurface, VectorType::e1Float32), //!< float,  subsurface shading model only
-        eSubsurfacePower = internal::encode(internal::MaterialProperty::eSubsurfacePower, ShadingModel::eSubsurface, VectorType::e1Float32), //!< float,  subsurface shading model only
-        eSubsurfaceColor = internal::encode(internal::MaterialProperty::eSubsurfaceColor, ShadingModel::eSubsurface, VectorType::e3Float32), //!< float3, subsurface and cloth shading models only
-        eSheenColor = internal::encode(internal::MaterialProperty::eSheenColor, ShadingModel::eLit, VectorType::e3Float32), //!< float3, lit shading models only, except subsurface
-        eSheenRoughness = internal::encode(internal::MaterialProperty::eSheenRoughness, ShadingModel::eLit, VectorType::e3Float32), //!< float3, lit shading models only, except subsurface and cloth
-        eEmissive = internal::encode(internal::MaterialProperty::eEmissive, ShadingModel::eAll, VectorType::e4Float32), //!< float4, all shading models
-        eNormal = internal::encode(internal::MaterialProperty::eNormal, ShadingModel::eAll &~ ShadingModel::eUnlit, VectorType::e3Float32), //!< float3, all shading models only, except unlit
-        ePostLightingColor = internal::encode(internal::MaterialProperty::ePostLightingColor, ShadingModel::eAll, VectorType::e4Float32), //!< float4, all shading models
-        ePostLightingMixFactor = internal::encode(internal::MaterialProperty::ePostLightingMixFactor, ShadingModel::eAll, VectorType::e1Float32), //!< float, all shading models
-        eAbsorption = internal::encode(internal::MaterialProperty::eAbsorption, ShadingModel::eLit, VectorType::e3Float32), //!< float3, how much light is absorbed by the material
-        eTransmission = internal::encode(internal::MaterialProperty::eTransmission, ShadingModel::eLit, VectorType::e1Float32), //!< float,  how much light is refracted through the material
-        eIOR = internal::encode(internal::MaterialProperty::eIOR, ShadingModel::eLit, VectorType::e1Float32), //!< float,  material's index of refraction
-        eMicroThickness = internal::encode(internal::MaterialProperty::eMicroThickness, ShadingModel::eLit, VectorType::e1Float32), //!< float, thickness of the thin layer
-        eBentNormal = internal::encode(internal::MaterialProperty::eBentNormal, ShadingModel::eAll &~ ShadingModel::eUnlit, VectorType::e3Float32), //!< float3, all shading models only, except unlit
-        eSpecularFactor = internal::encode(internal::MaterialProperty::eSpecularFactor, ShadingModel::eLit, VectorType::e1Float32), //!< float, lit shading models only, except subsurface and cloth
-        eSpecularColorFactor = internal::encode(internal::MaterialProperty::eSpecularColorFactor, ShadingModel::eLit, VectorType::e3Float32), //!< float3, lit shading models only, except subsurface and cloth
-        eShadowStrength = internal::encode(internal::MaterialProperty::eShadowStrength, ShadingModel::eLit, VectorType::e1Float32), //!< float, [0, 1] strength of shadows received by this material
+    enum class MaterialProperty : uint16_t
+    {
+        eBaseColor = internal::encode(internal::MaterialProperty::eBaseColor, VectorType::e4Float32),
+        eRoughness = internal::encode(internal::MaterialProperty::eRoughness, VectorType::e1Float32),
+        eMetallic = internal::encode(internal::MaterialProperty::eMetallic, VectorType::e1Float32),
+        eReflectance = internal::encode(internal::MaterialProperty::eReflectance, VectorType::e1Float32),
+        eAmbientOcclusion = internal::encode(internal::MaterialProperty::eAmbientOcclusion, VectorType::e1Float32),
+        eClearCoat = internal::encode(internal::MaterialProperty::eClearCoat, VectorType::e1Float32),
+        eClearCoatRoughness = internal::encode(internal::MaterialProperty::eClearCoatRoughness, VectorType::e1Float32),
+        eClearCoatNormal = internal::encode(internal::MaterialProperty::eClearCoatNormal, VectorType::e1Float32),
+        eAnisotropy = internal::encode(internal::MaterialProperty::eAnisotropy, VectorType::e1Float32),
+        eAnisotropyDirection = internal::encode(internal::MaterialProperty::eAnisotropyDirection, VectorType::e3Float32),
+        eThickness = internal::encode(internal::MaterialProperty::eThickness, VectorType::e1Float32),
+        eSubsurfacePower = internal::encode(internal::MaterialProperty::eSubsurfacePower, VectorType::e1Float32),
+        eSubsurfaceColor = internal::encode(internal::MaterialProperty::eSubsurfaceColor, VectorType::e3Float32),
+        eSheenColor = internal::encode(internal::MaterialProperty::eSheenColor, VectorType::e3Float32),
+        eSheenRoughness = internal::encode(internal::MaterialProperty::eSheenRoughness, VectorType::e3Float32),
+        eEmissive = internal::encode(internal::MaterialProperty::eEmissive, VectorType::e4Float32),
+        eNormal = internal::encode(internal::MaterialProperty::eNormal, VectorType::e3Float32),
+        ePostLightingColor = internal::encode(internal::MaterialProperty::ePostLightingColor, VectorType::e4Float32),
+        ePostLightingMixFactor = internal::encode(internal::MaterialProperty::ePostLightingMixFactor, VectorType::e1Float32),
+        eAbsorption = internal::encode(internal::MaterialProperty::eAbsorption, VectorType::e3Float32),
+        eTransmission = internal::encode(internal::MaterialProperty::eTransmission, VectorType::e1Float32), 
+        eIOR = internal::encode(internal::MaterialProperty::eIOR, VectorType::e1Float32),
+        eMicroThickness = internal::encode(internal::MaterialProperty::eMicroThickness, VectorType::e1Float32),
+        eBentNormal = internal::encode(internal::MaterialProperty::eBentNormal, VectorType::e3Float32),
+        eSpecularFactor = internal::encode(internal::MaterialProperty::eSpecularFactor, VectorType::e1Float32),
+        eSpecularColorFactor = internal::encode(internal::MaterialProperty::eSpecularColorFactor, VectorType::e3Float32),
+        eShadowStrength = internal::encode(internal::MaterialProperty::eShadowStrength, VectorType::e1Float32)
     };
-
 
     template <> inline constexpr std::array<MaterialProperty, enum_count_v<internal::MaterialProperty>> enum_values_v<MaterialProperty>
     {
@@ -245,92 +237,115 @@ namespace lcf {
         MaterialProperty::eSpecularColorFactor,
         MaterialProperty::eShadowStrength,
     };
+
+    enum class MaterialPropertyFlags : uint32_t
+    {
+        eBaseColor = internal::encode_flag_bit(internal::MaterialProperty::eBaseColor),
+        eRoughness = internal::encode_flag_bit(internal::MaterialProperty::eRoughness),
+        eMetallic = internal::encode_flag_bit(internal::MaterialProperty::eMetallic),
+        eReflectance = internal::encode_flag_bit(internal::MaterialProperty::eReflectance),
+        eAmbientOcclusion = internal::encode_flag_bit(internal::MaterialProperty::eAmbientOcclusion),
+        eClearCoat = internal::encode_flag_bit(internal::MaterialProperty::eClearCoat),
+        eClearCoatRoughness = internal::encode_flag_bit(internal::MaterialProperty::eClearCoatRoughness),
+        eClearCoatNormal = internal::encode_flag_bit(internal::MaterialProperty::eClearCoatNormal),
+        eAnisotropy = internal::encode_flag_bit(internal::MaterialProperty::eAnisotropy),
+        eAnisotropyDirection = internal::encode_flag_bit(internal::MaterialProperty::eAnisotropyDirection),
+        eThickness = internal::encode_flag_bit(internal::MaterialProperty::eThickness),
+        eSubsurfacePower = internal::encode_flag_bit(internal::MaterialProperty::eSubsurfacePower),
+        eSubsurfaceColor = internal::encode_flag_bit(internal::MaterialProperty::eSubsurfaceColor),
+        eSheenColor = internal::encode_flag_bit(internal::MaterialProperty::eSheenColor),
+        eSheenRoughness = internal::encode_flag_bit(internal::MaterialProperty::eSheenRoughness),
+        eEmissive = internal::encode_flag_bit(internal::MaterialProperty::eEmissive),
+        eNormal = internal::encode_flag_bit(internal::MaterialProperty::eNormal),
+        ePostLightingColor = internal::encode_flag_bit(internal::MaterialProperty::ePostLightingColor),
+        ePostLightingMixFactor = internal::encode_flag_bit(internal::MaterialProperty::ePostLightingMixFactor),
+        eAbsorption = internal::encode_flag_bit(internal::MaterialProperty::eAbsorption),
+        eTransmission = internal::encode_flag_bit(internal::MaterialProperty::eTransmission),
+        eIOR = internal::encode_flag_bit(internal::MaterialProperty::eIOR),
+        eMicroThickness = internal::encode_flag_bit(internal::MaterialProperty::eMicroThickness),
+        eBentNormal = internal::encode_flag_bit(internal::MaterialProperty::eBentNormal),
+        eSpecularFactor = internal::encode_flag_bit(internal::MaterialProperty::eSpecularFactor),
+        eSpecularColorFactor = internal::encode_flag_bit(internal::MaterialProperty::eSpecularColorFactor),
+        eShadowStrength = internal::encode_flag_bit(internal::MaterialProperty::eShadowStrength),
+    };
+    template <> inline constexpr bool is_enum_flags_v<MaterialPropertyFlags> = true;
+
+    enum class ShadingModel : uint32_t
+    {
+        eStandard = MaterialPropertyFlags::eBaseColor |
+            MaterialPropertyFlags::eRoughness |
+            MaterialPropertyFlags::eMetallic |
+            MaterialPropertyFlags::eReflectance |
+            MaterialPropertyFlags::eAmbientOcclusion |
+            MaterialPropertyFlags::eEmissive |
+            MaterialPropertyFlags::eNormal, 
+        eClearCoat = static_cast<MaterialPropertyFlags>(eStandard) |
+            MaterialPropertyFlags::eClearCoat |
+            MaterialPropertyFlags::eClearCoatRoughness |
+            MaterialPropertyFlags::eClearCoatNormal, //- layout: 4 | 1, 1, 1, 1 | 4 | 3 , 1 | 1, 1 ; 20 bytes
+        eSheen = static_cast<MaterialPropertyFlags>(eStandard) |
+            MaterialPropertyFlags::eSheenColor |
+            MaterialPropertyFlags::eSheenRoughness,
+        eTransmission = static_cast<MaterialPropertyFlags>(eStandard) |
+            MaterialPropertyFlags::eTransmission |
+            MaterialPropertyFlags::eIOR |
+            MaterialPropertyFlags::eThickness |
+            MaterialPropertyFlags::eAbsorption,
+        eAnisotropic = static_cast<MaterialPropertyFlags>(eStandard) |
+            MaterialPropertyFlags::eAnisotropy |
+            MaterialPropertyFlags::eAnisotropyDirection,
+        eClearCoatAnisotropic = static_cast<MaterialPropertyFlags>(eClearCoat) |
+            static_cast<MaterialPropertyFlags>(eAnisotropic),
+        eUnlit = MaterialPropertyFlags::eBaseColor |
+            MaterialPropertyFlags::eEmissive |
+            MaterialPropertyFlags::ePostLightingColor,
+        eSubsurface = MaterialPropertyFlags::eThickness |
+            MaterialPropertyFlags::eSubsurfaceColor |
+            MaterialPropertyFlags::eSubsurfacePower, 
+        eSubsurfaceTransmission = static_cast<MaterialPropertyFlags>(eSubsurface) |
+            MaterialPropertyFlags::eTransmission |
+            MaterialPropertyFlags::eIOR,
+        eCloth = MaterialPropertyFlags::eSheenColor |
+            MaterialPropertyFlags::eSubsurfaceColor,
+    };
 }
 
 namespace lcf::enum_decode {
-    inline constexpr ShadingModel get_shading_model(MaterialProperty property) noexcept
+    inline constexpr MaterialPropertyFlags to_flag_bit(MaterialProperty property) noexcept
     {
-        return static_cast<ShadingModel>((std::to_underlying(property) >> 8) & 0xFF);
+        return static_cast<MaterialPropertyFlags>(1 << (std::to_underlying(property) >> 8));
     }
 
     inline constexpr VectorType get_vector_type(MaterialProperty property) noexcept
     {
         return static_cast<VectorType>(std::to_underlying(property) & 0x3F);
     }
-}
 
-namespace lcf::internal {
-    enum class TextureSemantic : uint8_t
+    inline constexpr MaterialPropertyFlags get_material_property_flags(ShadingModel shading_model) noexcept
     {
-        eBaseColor,
-        eDiffuse,
-        eNormal,
-        eMetallicRoughness,
-        eSpecular,
-        eEmissive,
-        eAmbientOcclusion,
-        eHeight,
-        eOpacity,
-        eCustomSlot0,
-        eCustomSlot1,
-        eCustomSlot2,
-        eCustomSlot3,
-        eCustomSlot4,
-        eCustomSlot5,
-        eCustomSlot6,
-        eCustomSlot7,
-        eCustomSlot8,
-        eCustomSlot9,
-        eCustomSlot10,
-        eCustomSlot11,
-        eCustomSlot12,
-        eCustomSlot13,
-        eCustomSlot14,
-        eCustomSlot15,
-    };
-
-    inline constexpr uint16_t encode(TextureSemantic semantic, uint8_t slot_index) noexcept
-    {
-        return static_cast<uint16_t>(semantic) << 8 | slot_index;
+        return static_cast<MaterialPropertyFlags>(shading_model);
     }
 }
 
 namespace lcf {
-    enum class TextureSemantic : uint16_t // 8 bits for TextureSemantic | 8 bits for slot index, 16 bits used
+    enum class TextureSemantic : uint8_t
     {
-        eBaseColor = internal::encode(internal::TextureSemantic::eBaseColor, 0),
-        eDiffuse = internal::encode(internal::TextureSemantic::eDiffuse, 1),
-        eNormal = internal::encode(internal::TextureSemantic::eNormal, 2),
-        eMetallicRoughness = internal::encode(internal::TextureSemantic::eMetallicRoughness, 3),
-        eSpecular = internal::encode(internal::TextureSemantic::eSpecular, 4),
-        eEmissive = internal::encode(internal::TextureSemantic::eEmissive, 5),
-        eAmbientOcclusion = internal::encode(internal::TextureSemantic::eAmbientOcclusion, 6),
-        eHeight = internal::encode(internal::TextureSemantic::eHeight, 7),
-        eOpacity = internal::encode(internal::TextureSemantic::eOpacity, 8),
-        eCustomSlot0 = internal::encode(internal::TextureSemantic::eCustomSlot0, 0),
-        eCustomSlot1 = internal::encode(internal::TextureSemantic::eCustomSlot1, 1),
-        eCustomSlot2 = internal::encode(internal::TextureSemantic::eCustomSlot2, 2),
-        eCustomSlot3 = internal::encode(internal::TextureSemantic::eCustomSlot3, 3),
-        eCustomSlot4 = internal::encode(internal::TextureSemantic::eCustomSlot4, 4),
-        eCustomSlot5 = internal::encode(internal::TextureSemantic::eCustomSlot5, 5),
-        eCustomSlot6 = internal::encode(internal::TextureSemantic::eCustomSlot6, 6),
-        eCustomSlot7 = internal::encode(internal::TextureSemantic::eCustomSlot7, 7),
-        eCustomSlot8 = internal::encode(internal::TextureSemantic::eCustomSlot8, 8),
-        eCustomSlot9 = internal::encode(internal::TextureSemantic::eCustomSlot9, 9),
-        eCustomSlot10 = internal::encode(internal::TextureSemantic::eCustomSlot10, 10),
-        eCustomSlot11 = internal::encode(internal::TextureSemantic::eCustomSlot11, 11),
-        eCustomSlot12 = internal::encode(internal::TextureSemantic::eCustomSlot12, 12),
-        eCustomSlot13 = internal::encode(internal::TextureSemantic::eCustomSlot13, 13),
-        eCustomSlot14 = internal::encode(internal::TextureSemantic::eCustomSlot14, 14),
-        eCustomSlot15 = internal::encode(internal::TextureSemantic::eCustomSlot15, 15),
+        eBaseColor,
+        eMetallicRoughness,
+        eNormal,
+        eOcclusion,
+        eEmissive,
+        eHeight,
+        eClearCoat,
+        eClearCoatRoughness,
+        eClearCoatNormal,
+        eSheenColor,
+        eSheenRoughness,
+        eVolumeThickness,
+        eTransmission,
+        eSpecularColor,
+        eSpecular
     };
-}
-
-namespace lcf::enum_decode {
-    inline constexpr uint32_t get_slot_index(TextureSemantic semantic) noexcept
-    {
-        return std::to_underlying(semantic) & 0xFF;
-    }
 }
 
 namespace lcf {

@@ -1,8 +1,9 @@
 #pragma once
 
 #include "render_assets_enums.h"
+#include "MaterialParam.h"
 #include "enums/enum_value_type.h"
-#include "DefaultAssetProvider.h"
+#include "vector_enum_value_types.h"
 #include "BufferWriteSegment.h"
 #include "bytes.h"
 #include "StructureLayout.h"
@@ -19,7 +20,7 @@ namespace lcf {
         using Self = Material;
         using Param = std::variant<float, Vector2D<float>, Vector3D<float>, Vector4D<float>>;
         using ParamMap = tsl::robin_map<MaterialProperty, Param>;
-        using TextureReourceMap = tsl::robin_map<MaterialProperty, Image::SharedPointer>;
+        using TextureReourceMap = tsl::robin_map<TextureSemantic, Image::SharedPointer>;
     public:
         Material() noexcept = default;
         ~Material() noexcept = default;
@@ -39,22 +40,19 @@ namespace lcf {
         {
             return std::get<enum_value_t<property>>(this->getMaterialParam(property));
         }
-        const Image::SharedPointer & getTextureResource(MaterialProperty property) const
-        {
-            if (m_texture_resources.contains(property)) {
-                return m_texture_resources.at(property);
-            }
-            return DefaultAssetProvider::getInstance().getTextureResource(property);
-        }
-        template <typename Mapping = enum_value_type_mapping_traits<VectorType>::type>
+        Self & setTextureResource(TextureSemantic semantic, const Image::SharedPointer & texture_resource);
+        const Image::SharedPointer & getTextureResource(TextureSemantic semantic) const noexcept;
+        template <typename Mapping = typename enum_value_type_mapping_traits<VectorType>::type>
         BufferWriteSegments generateInterleavedSegments(ShadingModel shading_model) const noexcept
         {
             const auto & material_properties = enum_values_v<MaterialProperty>;
             auto property_indices = std::ranges::views::iota(0u, material_properties.size()) |
                 std::views::filter([&](auto index) {
-                    return contains_flags(enum_decode::get_shading_model(material_properties[index]), shading_model);
-                }) |
-                std::ranges::to<std::vector<uint32_t>>();
+                    return contains_flags(
+                        enum_decode::get_material_property_flags(shading_model),
+                        enum_decode::to_flag_bit(material_properties[index])
+                    );
+                }) | std::ranges::to<std::vector<uint32_t>>();
             StructureLayout layout;
             for (auto property : material_properties | views::take_from(property_indices)) {
                 switch (enum_decode::get_vector_type(property)) {
@@ -75,12 +73,7 @@ namespace lcf {
             return segments;
         }
     private:
-        const MaterialParam & getMaterialParam(MaterialProperty property) const noexcept
-        {
-            auto it = m_params.find(property);
-            if (it != m_params.end()) { return it->second; }
-            return DefaultAssetProvider::getInstance().getMaterialParam(property);
-        };
+        const MaterialParam & getMaterialParam(MaterialProperty property) const noexcept;
     private:
         ParamMap m_params;
         TextureReourceMap m_texture_resources;

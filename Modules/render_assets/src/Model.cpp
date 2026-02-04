@@ -1,4 +1,4 @@
-#include "render_assets/RenderableModel.h"
+#include "render_assets/Model.h"
 #include "Transform.h"
 #include "signals.h"
 #include <ranges>
@@ -6,7 +6,7 @@
 namespace stdv = std::views;
 using namespace lcf;
 
-std::vector<Entity> RenderableModel::generateEntities(Registry &registry) const noexcept
+std::vector<Entity> Model::generateEntities(Registry &registry) const noexcept
 {
     if (m_hierarchy_node_list.empty()) { return {}; }
     std::vector<Entity> entities(m_hierarchy_node_list.size());
@@ -31,7 +31,7 @@ std::vector<Entity> RenderableModel::generateEntities(Registry &registry) const 
     return entities;
 }
 
-Entity RenderableModel::generateEntity(Registry &registry) const noexcept
+Entity Model::generateEntity(Registry &registry) const noexcept
 {
     Entity entity {registry};
     auto & transform = entity.requireComponent<Transform>();

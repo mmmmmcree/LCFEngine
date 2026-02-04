@@ -2,10 +2,10 @@
 
 #include "render_assets_enums.h"
 #include "enums/enum_count.h"
-#include "math_enum_value_types.h"
+#include "vector_enum_value_types.h"
 #include "span_cast.h"
 #include "bytes.h"
-#include "lcf_type_traits.h"
+#include "type_traits/lcf_type_traits.h"
 #include "BufferWriteSegment.h"
 #include "StructureLayout.h"
 #include "PointerDefs.h"

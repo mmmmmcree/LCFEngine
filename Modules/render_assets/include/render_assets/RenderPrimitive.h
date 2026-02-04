@@ -9,12 +9,12 @@ namespace lcf {
     {
         using Self = RenderPrimitive;
     public:
-        RenderPrimitive() = default;
-        ~RenderPrimitive() = default;
+        RenderPrimitive(); //todo construct with default geometry and material
+        ~RenderPrimitive() noexcept = default;
         RenderPrimitive(const Self &) = default;
         Self & operator=(const Self &) = default;
-        RenderPrimitive(Self &&) = default;
-        Self & operator=(Self &&) = default;
+        RenderPrimitive(Self &&) noexcept = default;
+        Self & operator=(Self &&) noexcept = default;
     public:
         Self & setGeometryResource(const Geometry::SharedPointer & geometry_sp) noexcept { m_geometry_sp = geometry_sp; return *this; }
         Self & setMaterialResource(const Material::SharedPointer & material_sp) noexcept { m_material_sp = material_sp; return *this; }
