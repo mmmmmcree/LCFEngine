@@ -1,4 +1,5 @@
 #include "image/details/convert.h"
+#include "image/details/utils.h"
 #include "image/details/convert_from_color_to_color.h"
 #include "image/details/convert_from_color_to_gray.h"
 #include "image/details/convert_from_gray_to_color.h"

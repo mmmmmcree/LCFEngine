@@ -1,4 +1,5 @@
 #include "image/Image.h"
+#include "image/details/utils.h"
 #include "image/details/convert.h"
 #include "enums/enum_name.h"
 #include "enums/enum_values.h"
