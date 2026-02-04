@@ -1,0 +1,10 @@
+#include "image/details/convert_from_color_to_gray.h"
+
+void lcf::details::convert_from_color_to_gray(ConstColorImageViewVariant src_view_var, GrayImageViewVariant dst_view_var)
+{
+    boost::variant2::visit([&](auto && src_view) {
+        boost::variant2::visit([&](auto && dst_view) {
+            boost::gil::copy_and_convert_pixels(src_view, dst_view);
+        }, dst_view_var);
+    }, src_view_var);
+}

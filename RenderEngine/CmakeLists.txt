@@ -33,6 +33,7 @@ target_link_libraries(${PROJECT_NAME}
         containers
         math
         utilities 
+        image
         GUI 
         core 
         Boost::headers   

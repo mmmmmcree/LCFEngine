@@ -1,0 +1,335 @@
+#include "image/Image.h"
+#include "image/details/convert.h"
+#include "enums/enum_name.h"
+#include "enums/enum_values.h"
+#include "string_view_hash.h"
+#include <boost/gil/extension/io/png.hpp>
+#include <boost/gil/extension/io/jpeg.hpp>
+#include <boost/algorithm/string.hpp>
+#include "log.h"
+#include "span_cast.h"
+#include <expected>
+#define STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include <stb_image.h>
+#include <stb_image_write.h>
+
+using namespace lcf;
+namespace gil = boost::gil;
+namespace variant2 = boost::variant2;
+using ImageVariant = details::ImageVariant;
+
+//- auxiliary structs begin
+struct ImageInfoData
+{
+    ImageInfoData() = default;
+    ImageInfoData(uint32_t width, uint32_t height, ImageFormat format) :
+        m_width(width),
+        m_height(height),
+        m_format(format)
+    {}
+    ~ImageInfoData() noexcept = default;
+    ImageInfoData(const ImageInfoData &) = default;
+    ImageInfoData(ImageInfoData &&) noexcept = default;
+    ImageInfoData & operator=(const ImageInfoData &) = default;
+    ImageInfoData & operator=(ImageInfoData &&) noexcept = default;
+    uint32_t m_width = 0;
+    uint32_t m_height = 0;
+    ImageFormat m_format = ImageFormat::eInvalid;
+};
+//- auxiliary structs end
+
+//- auxiliary function forward declarations begin
+std::filesystem::path get_extension(ImageFileType type) noexcept;
+
+ImageFileType get_file_type(const std::filesystem::path & path) noexcept;
+
+ImageInfoData read_from_png(const std::filesystem::path & path);
+
+ImageInfoData read_from_jpeg(const std::filesystem::path & path);
+
+ImageVariant generate_image(uint32_t width, uint32_t height, ImageFormat format);
+
+std::expected<ImageVariant, std::error_code> load_from_file_stb(const ImageInfo & info, ImageFormat specific_format);
+
+std::error_code save_to_file_stb(const ImageVariant & image, ImageFormat format, ImageFileType file_type, const std::filesystem::path & path) noexcept;
+//- auxiliary function forward declarations end
+
+ImageInfo::ImageInfo(const std::filesystem::path & path)
+{
+    if (not std::filesystem::exists(path)) {
+        lcf_log_error("Image file not found: {}", path.string());
+        return;
+    }
+    m_file_type = get_file_type(path);
+    if (m_file_type == ImageFileType::eInvalid) {
+        lcf_log_error("Invalid image file type: {}", path.string());
+        return;
+    }
+    ImageInfoData data;
+    switch (m_file_type) {
+        case ImageFileType::ePNG: { data = read_from_png(path); } break;
+        case ImageFileType::eJPEG: { data = read_from_jpeg(path); } break;
+        default: break;
+    }
+    
+    m_width = data.m_width;
+    m_height = data.m_height;
+    m_format = data.m_format;
+    m_path = path;
+}
+
+Image::Image(uint32_t width, uint32_t height, ImageFormat format)
+{
+    this->recreate(width, height, format);
+}
+
+Image::Image(ImageVariant && image) noexcept :
+    m_image(std::move(image))
+{
+}
+
+Image & Image::operator=(ImageVariant && image)
+{
+    m_image = std::move(image);
+    return *this;
+}
+
+std::error_code Image::recreate(size_t width, size_t height, ImageFormat format)
+{
+    format = enum_decode::decode(format);
+    ImageVariant old_image = std::move(m_image);
+    ImageFormat old_format = m_format;
+    m_image = generate_image(width, height, format);
+    m_format = format;
+    if (old_format == ImageFormat::eInvalid) { return {}; }
+    try {
+        details::convert(details::view(old_image), details::view(m_image));
+    } catch (const std::exception & e) {
+        return std::make_error_code(std::errc::invalid_argument);
+    }
+    return {};
+}
+
+std::error_code Image::convertTo(ImageFormat format)
+{
+    if (m_format == format) { return {}; }
+    return this->recreate(this->getWidth(), this->getHeight(), format);
+}
+
+std::error_code Image::loadFromFile(const ImageInfo &info) noexcept
+{
+    return this->loadFromFile(info, info.getEncodeFormat());
+}
+
+std::error_code Image::loadFromFile(const ImageInfo &info, ImageFormat specific_format) noexcept
+{
+    ImageFormat format = enum_decode::decode(specific_format);
+    std::error_code ec;
+    switch(info.getFileType()) {
+        case ImageFileType::eInvalid: { return std::make_error_code(std::errc::invalid_argument); } break;
+        case ImageFileType::ePNG:
+        case ImageFileType::eJPEG: {
+            auto expected = load_from_file_stb(info, specific_format);
+            if (expected) { m_image = std::move(*expected); }
+            else { ec = expected.error(); }
+        } break;
+        default: { lcf_log_error("currently unsupported image file type: {}", enum_name(info.getFileType())); } break;
+    }
+    m_format = format;
+    return ec;
+}
+
+std::error_code lcf::Image::loadFromFileGpuFriendly(const ImageInfo &info) noexcept
+{
+    ImageFormat format = enum_decode::decode(info.getEncodeFormat());
+    PixelDataType pixel_data_type = enum_decode::get_pixel_data_type(format);
+    if (enum_decode::get_channel_count(format) == 3) {
+        format = static_cast<ImageFormat>(internal::encode(ColorSpace::eRGBA, pixel_data_type));
+    }
+    return this->loadFromFile(info, format);
+}
+
+std::error_code Image::loadFromMemory(std::span<const std::byte> data, ImageFormat format, uint32_t width) noexcept
+{
+    format = enum_decode::decode(format);
+    size_t row_size_in_bytes = enum_decode::get_channel_count(format) * enum_decode::get_bytes_per_channel(format) * width;
+    if (data.size() % row_size_in_bytes != 0) { return std::make_error_code(std::errc::invalid_argument); }
+    uint32_t height = static_cast<uint32_t>(data.size() / row_size_in_bytes);
+    m_image = generate_image(width, height, format);
+    m_format = format;
+    std::memcpy(this->getDataSpan().data(), data.data(), data.size());
+    return {};
+}
+
+std::error_code Image::saveToFile(const std::filesystem::path &path) const noexcept
+{
+    std::error_code ec;
+    ImageFileType file_type = get_file_type(path);
+    switch(file_type) {
+        case ImageFileType::ePNG: 
+        case ImageFileType::eJPEG:
+        case ImageFileType::eBMP: 
+        case ImageFileType::eTGA: 
+        case ImageFileType::eHDR: { ec = save_to_file_stb(m_image, m_format, file_type, path); } break;
+        //-other file types requires additional save functions, stbi not supported yet
+        default: { ec = std::make_error_code(std::errc::invalid_argument); } break;
+    }
+    return ec;
+}
+
+std::span<std::byte> lcf::Image::getDataSpan() noexcept
+{
+    return details::view_as_bytes(m_image);
+}
+
+std::span<const std::byte> lcf::Image::getDataSpan() const noexcept
+{
+    return details::view_as_bytes(m_image);
+}
+
+//- auxiliary function implementations begin
+
+std::filesystem::path get_extension(ImageFileType type) noexcept
+{
+    return std::filesystem::path{}.replace_extension(boost::to_lower_copy(std::string{enum_name(type).substr(1)}));
+}
+
+ImageFileType get_file_type(const std::filesystem::path & path) noexcept
+{
+    ImageFileType result = ImageFileType::eInvalid;
+    auto ext_str = boost::to_lower_copy(path.extension().string());
+    if (ext_str == ".jpg") { return ImageFileType::eJPEG; } //- special case for jpeg
+    auto hash_value = hash(ext_str);
+    for (auto type : enum_values_v<ImageFileType>) {
+        if (hash(get_extension(type).string()) != hash_value) { continue; }
+        result = type;
+        break;
+    }
+    return result;
+}
+
+ImageInfoData read_from_png(const std::filesystem::path & path)
+{
+    auto info = gil::read_image_info(path.string(), gil::png_tag {})._info;
+    ColorSpace color_space = ColorSpace::eInvalid;
+    switch (info._color_type) {
+        case PNG_COLOR_TYPE_GRAY: { color_space = ColorSpace::eGray; } break;
+        case PNG_COLOR_TYPE_GA: { color_space = ColorSpace::eGrayAlpha; } break;
+        case PNG_COLOR_TYPE_RGB: { color_space = ColorSpace::eRGB; } break;
+        case PNG_COLOR_TYPE_RGBA: { color_space = ColorSpace::eRGBA; } break;
+        default: break;
+    }
+    return {
+        info._width,
+        info._height, 
+        enum_decode::get_image_format(color_space, info._bit_depth == 16 ? PixelDataType::eUint16 : PixelDataType::eUint8)
+    };
+}
+
+ImageInfoData read_from_jpeg(const std::filesystem::path &path)
+{
+    auto info = gil::read_image_info(path.string(), gil::jpeg_tag {})._info;
+    ColorSpace color_space = ColorSpace::eInvalid;
+    switch (info._color_space) {
+        case JCS_GRAYSCALE: { color_space = ColorSpace::eGray; } break;
+        case JCS_EXT_RGB:
+        case JCS_RGB: { color_space = ColorSpace::eRGB; } break;
+        case JCS_YCbCr: { color_space = ColorSpace::eYCbCr; } break;
+        case JCS_CMYK: { color_space = ColorSpace::eCMYK; } break;
+        case JCS_YCCK: { color_space = ColorSpace::eYCCK; } break;
+        case JCS_EXT_RGBX:
+        case JCS_EXT_RGBA: { color_space = ColorSpace::eRGBA; } break;
+        case JCS_EXT_BGR: { color_space = ColorSpace::eBGR; } break;
+        case JCS_EXT_BGRX:
+        case JCS_EXT_BGRA: { color_space = ColorSpace::eBGRA; } break;
+        case JCS_EXT_XBGR:
+        case JCS_EXT_ABGR: { color_space = ColorSpace::eABGR; } break;
+        case JCS_EXT_XRGB:
+        case JCS_EXT_ARGB: { color_space = ColorSpace::eARGB; } break;
+        default: break;
+    }
+    return {
+        info._width,
+        info._height,
+        enum_decode::get_image_format(color_space, PixelDataType::eUint8), 
+    };
+}
+
+ImageVariant generate_image(uint32_t width, uint32_t height, ImageFormat format)
+{
+    switch (format) {
+        case ImageFormat::eGray8Uint: { return gil::gray8_image_t(width, height); }
+        case ImageFormat::eGray16Uint: { return gil::gray16_image_t(width, height); }
+        case ImageFormat::eGray16Float: { return gil::gray16f_image_t(width, height); }
+        case ImageFormat::eGray32Float: { return gil::gray32f_image_t(width, height); }
+        case ImageFormat::eGrayAlpha8Uint: { return gil::gray_alpha8_image_t(width, height); }
+        case ImageFormat::eGrayAlpha16Uint: { return gil::gray_alpha16_image_t(width, height); }
+        case ImageFormat::eGrayAlpha16Float: { return gil::gray_alpha16f_image_t(width, height); }
+        case ImageFormat::eGrayAlpha32Float: { return gil::gray_alpha32f_image_t(width, height); }
+        case ImageFormat::eRGB8Uint: { return gil::rgb8_image_t(width, height); }
+        case ImageFormat::eRGB16Uint: { return gil::rgb16_image_t(width, height); }
+        case ImageFormat::eRGB16Float: { return gil::rgb16f_image_t(width, height); }
+        case ImageFormat::eRGB32Float: { return gil::rgb32f_image_t(width, height); }
+        case ImageFormat::eRGBA8Uint: { return gil::rgba8_image_t(width, height); }    
+        case ImageFormat::eRGBA16Uint: { return gil::rgba16_image_t(width, height); }
+        case ImageFormat::eRGBA16Float: { return gil::rgba16f_image_t(width, height); }
+        case ImageFormat::eRGBA32Float: { return gil::rgba32f_image_t(width, height); }
+        default: break;
+    }
+    return {};
+}
+
+std::expected<ImageVariant, std::error_code> load_from_file_stb(const ImageInfo &info, ImageFormat specific_format)
+{
+    std::string path_str = info.getPath().string();
+    auto image = generate_image(info.getWidth(), info.getHeight(), specific_format);
+    auto data_span = details::view_as_bytes(image);
+    int width, height, channels;
+    int requested_channels = enum_decode::get_channel_count(specific_format);
+    void * src_data_p = nullptr;
+    PixelDataType pixel_data_type = enum_decode::get_pixel_data_type(specific_format);
+    switch(pixel_data_type) {
+        case PixelDataType::eUint8: {
+            src_data_p = stbi_load(path_str.c_str(), &width, &height, &channels, requested_channels);
+        } break;
+        case PixelDataType::eUint16: {
+            src_data_p = stbi_load_16(path_str.c_str(), &width, &height, &channels, requested_channels);
+        } break;
+        case PixelDataType::eFloat16:
+        case PixelDataType::eFloat32: {
+            src_data_p = stbi_loadf(path_str.c_str(), &width, &height, &channels, requested_channels);
+        }
+        default: break;
+    }
+    if (pixel_data_type == PixelDataType::eFloat16) {
+        auto f16_data_span = span_cast<lcf::float16_t>(data_span);
+        auto src_data_span = std::span(static_cast<const float *>(src_data_p), data_span.size() / sizeof(float));
+        std::ranges::copy(src_data_span, f16_data_span.begin());
+    } else {
+        memcpy(data_span.data(), src_data_p, data_span.size());
+    }
+    stbi_image_free(src_data_p);
+    return image;
+}
+
+std::error_code save_to_file_stb(const ImageVariant &image, ImageFormat format, ImageFileType file_type, const std::filesystem::path &path) noexcept
+{
+    auto bytes = details::view_as_bytes(image);
+    auto path_str = path.string();
+    bool success = false;
+    int width = image.width();
+    int height = image.height();
+    int channels = enum_decode::get_channel_count(format);
+    switch (file_type) {
+        case ImageFileType::ePNG: { success = stbi_write_png(path_str.c_str(), width, height, channels, bytes.data(), 0); } break;
+        case ImageFileType::eJPEG: { success = stbi_write_jpg(path_str.c_str(), width, height, channels, bytes.data(), 100); } break;
+        case ImageFileType::eBMP: { success = stbi_write_bmp(path_str.c_str(), width, height, channels, bytes.data()); } break;
+        case ImageFileType::eTGA: { success = stbi_write_tga(path_str.c_str(), width, height, channels, bytes.data()); } break;
+        case ImageFileType::eHDR: { success = stbi_write_hdr(path_str.c_str(), width, height, channels, (const float *)(bytes.data())); } break;
+        default: break;
+    }
+    if (success) { return {}; }
+    return std::make_error_code(std::errc::io_error);
+}
+// - auxiliary function implementations end

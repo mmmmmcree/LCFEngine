@@ -5,7 +5,7 @@
 #include "Matrix.h"
 #include "common/geometry_data.h"
 #include "Quaternion.h"
-#include "Image/Image.h"
+#include "image/Image.h"
 #include "Entity.h"
 #include "Transform.h"
 #include <boost/container/small_vector.hpp>
@@ -108,9 +108,9 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
 
     auto material_sp = Material::makeShared();
     auto image1_sp = Image::makeShared();
-    image1_sp->loadFromFile("assets/images/bk.jpg", ImageFormat::eRGBA8Uint);
+    image1_sp->loadFromFileGpuFriendly({"assets/images/bk.jpg"});
     auto image2_sp = Image::makeShared();
-    image2_sp->loadFromFile("assets/images/qt256.png", ImageFormat::eRGBA8Uint);
+    image2_sp->loadFromFileGpuFriendly({"assets/images/qt256.png"});
     material_sp->addImage(image1_sp)
         .addImage(image2_sp);
 
@@ -188,7 +188,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     auto sphere_sampler = device.createSamplerUnique(sphere_sampler_info);
 
     vkutils::immediate_submit(m_context_p, vk::QueueFlagBits::eGraphics, [&](VulkanCommandBufferObject & cmd) {
-        texture1_sp->setData(cmd, image.getInterleavedDataSpan());
+        texture1_sp->setData(cmd, image.getDataSpan());
         texture1_sp->generateMipmaps(cmd);
 
         vk::DescriptorImageInfo image_info;
@@ -217,7 +217,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         fbo.endRendering(cmd);
         cube_map_sp->transitLayout(cmd, vk::ImageLayout::eShaderReadOnlyOptimal);
 
-        texture2_sp->setData(cmd, image2.getInterleavedDataSpan());
+        texture2_sp->setData(cmd, image2.getDataSpan());
         texture2_sp->generateMipmaps(cmd);
     });
 

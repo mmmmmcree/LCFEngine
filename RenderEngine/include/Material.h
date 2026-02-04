@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Image/Image.h"
+#include "image/Image.h"
 #include "PointerDefs.h"
 #include <vector>
 

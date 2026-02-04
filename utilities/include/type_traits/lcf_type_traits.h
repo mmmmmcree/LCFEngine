@@ -51,6 +51,9 @@ namespace lcf {
     template <typename Src, typename Dst>
     inline constexpr bool is_pointer_type_convertible_v = false;
 
+    template <typename Dst>
+    inline constexpr bool is_pointer_type_convertible_v<std::byte, Dst> = true;
+
     template <typename Src, typename Dst>
     struct is_pointer_type_convertible : std::bool_constant<is_pointer_type_convertible_v<Src, Dst>> {};
 }   

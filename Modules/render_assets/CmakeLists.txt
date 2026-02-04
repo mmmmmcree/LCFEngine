@@ -24,9 +24,10 @@ find_package(assimp CONFIG REQUIRED)
 
 target_link_libraries(${PROJECT_NAME}
     PUBLIC  
+        core
         math
         utilities 
-        core
+        image
     PRIVATE
         assimp::assimp
 )

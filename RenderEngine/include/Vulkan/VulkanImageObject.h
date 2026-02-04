@@ -2,7 +2,7 @@
 
 #include <vulkan/vulkan.hpp>
 #include "vulkan_memory_resources.h"
-#include "Image/Image.h"
+#include "image/Image.h"
 #include "PointerDefs.h"
 #include <variant>
 #include <unordered_map>

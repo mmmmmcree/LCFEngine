@@ -2,9 +2,9 @@
 
 //- reference: http://www.opengl.org/registry/doc/glspec45.core.pdf#page=159
 
-#include "lcf_type_traits.h"
+#include "type_traits/lcf_type_traits.h"
 #include "enums/enum_value_type.h"
-#include "math_enums.h"
+#include "vector_enums.h"
 
 namespace glsl::std140 {
     //- basic types -//
