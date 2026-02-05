@@ -22,19 +22,28 @@ namespace lcf {
     struct STDSelfSharedPointerDefs : STDPointerDefs<T>, std::enable_shared_from_this<T>
     {
     };
-
-    /**
-     * @brief Macro used when both Base and Derived classes have PointerDefs specializations.
-     * struct Base : PointerDefs<Base> {... };
-     * struct Derived : Base, PointerDefs<Derived>
-     * {
-     *      IMPORT_POINTER_DEFS(Derived);
-     * };
-     */
-    #define IMPORT_POINTER_DEFS(PointerDefs) \
-        using typename PointerDefs::SharedPointer; \
-        using typename PointerDefs::UniquePointer; \
-        using typename PointerDefs::WeakPointer; \
-        using PointerDefs::makeShared; \
-        using PointerDefs::makeUnique
 }
+
+/**
+ * @brief Macro used when both Base and Derived classes have PointerDefs specializations.
+ * struct Base : PointerDefs<Base> {... };
+ * struct Derived : Base, PointerDefs<Derived>
+ * {
+ *      IMPORT_POINTER_DEFS(Derived);
+ * };
+ */
+#define IMPORT_POINTER_DEFS(PointerDefs) \
+    using typename PointerDefs::SharedPointer; \
+    using typename PointerDefs::UniquePointer; \
+    using typename PointerDefs::WeakPointer; \
+    using PointerDefs::makeShared; \
+    using PointerDefs::makeUnique
+
+#define LCF_DECLARE_POINTER_DEFS(Type, Trait)  \
+  using Type##PointerDefs = Trait<Type>; \
+  using Type##SharedPtr = typename Type##PointerDefs::SharedPointer; \
+  using Type##SharedConstPtr = typename Type##PointerDefs::SharedConstPointer; \
+  using Type##UniquePtr = typename Type##PointerDefs::UniquePointer; \
+  using Type##UniqueConstPtr = typename Type##PointerDefs::UniqueConstPointer; \
+  using Type##WeakPtr = typename Type##PointerDefs::WeakPointer; \
+  using Type##WeakConstPtr = typename Type##PointerDefs::WeakConstPointer
