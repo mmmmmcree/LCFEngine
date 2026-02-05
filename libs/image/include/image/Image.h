@@ -34,6 +34,7 @@ namespace lcf {
 
     class Image : public STDPointerDefs<Image>
     {
+        using Self = Image;
         using ImageVariant = details::ImageVariant;
     public:
         Image() = default;
@@ -46,8 +47,8 @@ namespace lcf {
         Image(ImageVariant && image) noexcept;
         Image & operator=(ImageVariant && image);
     public:
-        std::error_code recreate(size_t width, size_t height, ImageFormat format);
-        std::error_code convertTo(ImageFormat format);
+        std::error_code convertTo(ImageFormat format) noexcept;
+        Self & resize(uint32_t width, uint32_t height, ImageSampler sampler) noexcept;
         std::error_code loadFromFile(const ImageInfo & info) noexcept;
         std::error_code loadFromFile(const ImageInfo & info, ImageFormat specific_format) noexcept;
         std::error_code loadFromFileGpuFriendly(const ImageInfo & info) noexcept; //- RGB -> RGBA

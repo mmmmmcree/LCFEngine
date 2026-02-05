@@ -24,6 +24,12 @@ namespace lcf {
         eBMP,
     };
 
+    enum class ImageSampler : uint8_t
+    {
+        eNearest,
+        eLinear,
+    };
+
     enum class ImageFlags : uint8_t
     {
         eNone= 0,

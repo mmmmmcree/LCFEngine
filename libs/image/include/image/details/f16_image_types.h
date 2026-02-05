@@ -70,7 +70,7 @@ namespace boost::gil {
     template <typename DstChannel>
     struct channel_converter<float16_t, DstChannel>
     {
-        DstChannel operator()(const float16_t& src) const { return channel_convert<DstChannel>(src); }
+        DstChannel operator()(const float16_t& src) const { return channel_convert<DstChannel>(static_cast<float>(lcf::float16_t(src))); }
     };
 
     template <>
@@ -78,6 +78,37 @@ namespace boost::gil {
     {
         float16_t operator()(const float16_t& src) const { return src; }
     };
+
+    inline float operator*(const float16_t & src, float w)
+    {
+        return static_cast<float>(lcf::float16_t(src)) * w;
+    }
+
+    inline double operator*(const float16_t & src, double w)
+    {
+        return static_cast<double>(static_cast<float>(lcf::float16_t(src))) * w;
+    }
+
+    inline float operator*(float w, const float16_t & src) { return src * w; }
+
+    inline double operator*(double w, const float16_t & src) { return src * w; }
+
+namespace detail {
+    struct cast_channel_convert_fn
+    {
+        template <typename SrcChannel, typename DstChannel>
+        void operator()(const SrcChannel& src, DstChannel& dst) const
+        {
+            dst = channel_convert<typename channel_traits<DstChannel>::value_type>(src);
+        }
+    };
+}
+
+    template <typename SrcPixel, typename Layout>
+    void cast_pixel(const SrcPixel& src, pixel<float16_t, Layout>& dst)
+    {
+        static_for_each(src, dst, detail::cast_channel_convert_fn{});
+    }
 
     BOOST_GIL_DEFINE_BASE_TYPEDEFS(16f, float16_t, gray)
     BOOST_GIL_DEFINE_ALL_TYPEDEFS(16f, float16_t, gray_alpha)

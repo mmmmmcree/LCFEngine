@@ -6,6 +6,8 @@
 #include "string_view_hash.h"
 #include <boost/gil/extension/io/png.hpp>
 #include <boost/gil/extension/io/jpeg.hpp>
+#include <boost/gil/extension/numeric/sampler.hpp>
+#include <boost/gil/extension/numeric/resample.hpp>
 #include <boost/algorithm/string.hpp>
 #include "log.h"
 #include "span_cast.h"
@@ -82,7 +84,8 @@ ImageInfo::ImageInfo(const std::filesystem::path & path)
 
 Image::Image(uint32_t width, uint32_t height, ImageFormat format)
 {
-    this->recreate(width, height, format);
+    m_format = enum_decode::decode(format);
+    m_image = generate_image(width, height, m_format);
 }
 
 Image::Image(ImageVariant && image) noexcept :
@@ -96,26 +99,37 @@ Image & Image::operator=(ImageVariant && image)
     return *this;
 }
 
-std::error_code Image::recreate(size_t width, size_t height, ImageFormat format)
+std::error_code Image::convertTo(ImageFormat format) noexcept
 {
     format = enum_decode::decode(format);
-    ImageVariant old_image = std::move(m_image);
-    ImageFormat old_format = m_format;
-    m_image = generate_image(width, height, format);
-    m_format = format;
-    if (old_format == ImageFormat::eInvalid) { return {}; }
+    if (m_format == format) { return {}; }
+    auto new_image = generate_image(this->getWidth(), this->getHeight(), format);
     try {
-        details::convert(details::view(old_image), details::view(m_image));
+        details::convert(details::view(m_image), details::view(new_image));
     } catch (const std::exception & e) {
         return std::make_error_code(std::errc::invalid_argument);
     }
+    m_image = std::move(new_image);
+    m_format = format;
     return {};
 }
 
-std::error_code Image::convertTo(ImageFormat format)
+Image & Image::resize(uint32_t width, uint32_t height, ImageSampler sampler) noexcept
 {
-    if (m_format == format) { return {}; }
-    return this->recreate(this->getWidth(), this->getHeight(), format);
+    if (width == this->getWidth() and height == this->getHeight()) { return *this; }
+    variant2::visit([width, height, sampler](auto && image) {
+        using image_t = std::decay_t<decltype(image)>;
+        image_t new_image {width, height};
+        auto image_const_view = gil::const_view(image);
+        auto new_image_view = gil::view(new_image);
+        switch (sampler) {
+            case ImageSampler::eNearest: { gil::resize_view(image_const_view, new_image_view, gil::nearest_neighbor_sampler{}); } break;
+            case ImageSampler::eLinear: { gil::resize_view(image_const_view, new_image_view, gil::bilinear_sampler{}); } break;
+            default: break;
+        }
+        image = std::move(new_image);
+    }, m_image);
+    return *this;
 }
 
 std::error_code Image::loadFromFile(const ImageInfo &info) noexcept
@@ -131,7 +145,7 @@ std::error_code Image::loadFromFile(const ImageInfo &info, ImageFormat specific_
         case ImageFileType::eInvalid: { return std::make_error_code(std::errc::invalid_argument); } break;
         case ImageFileType::ePNG:
         case ImageFileType::eJPEG: {
-            auto expected = load_from_file_stb(info, specific_format);
+            auto expected = load_from_file_stb(info, format);
             if (expected) { m_image = std::move(*expected); }
             else { ec = expected.error(); }
         } break;
@@ -141,7 +155,7 @@ std::error_code Image::loadFromFile(const ImageInfo &info, ImageFormat specific_
     return ec;
 }
 
-std::error_code lcf::Image::loadFromFileGpuFriendly(const ImageInfo &info) noexcept
+std::error_code Image::loadFromFileGpuFriendly(const ImageInfo &info) noexcept
 {
     ImageFormat format = enum_decode::decode(info.getEncodeFormat());
     PixelDataType pixel_data_type = enum_decode::get_pixel_data_type(format);
@@ -179,12 +193,12 @@ std::error_code Image::saveToFile(const std::filesystem::path &path) const noexc
     return ec;
 }
 
-std::span<std::byte> lcf::Image::getDataSpan() noexcept
+std::span<std::byte> Image::getDataSpan() noexcept
 {
     return details::view_as_bytes(m_image);
 }
 
-std::span<const std::byte> lcf::Image::getDataSpan() const noexcept
+std::span<const std::byte> Image::getDataSpan() const noexcept
 {
     return details::view_as_bytes(m_image);
 }
@@ -304,7 +318,7 @@ std::expected<ImageVariant, std::error_code> load_from_file_stb(const ImageInfo 
         default: break;
     }
     if (pixel_data_type == PixelDataType::eFloat16) {
-        auto f16_data_span = span_cast<lcf::float16_t>(data_span);
+        auto f16_data_span = span_cast<float16_t>(data_span);
         auto src_data_span = std::span(static_cast<const float *>(src_data_p), data_span.size() / sizeof(float));
         std::ranges::copy(src_data_span, f16_data_span.begin());
     } else {
