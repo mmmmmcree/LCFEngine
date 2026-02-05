@@ -37,28 +37,6 @@ void VulkanImageObject::setData(VulkanCommandBufferObject &cmd, std::span<const 
     this->transitLayout(cmd, vk::ImageLayout::eShaderReadOnlyOptimal);
 }
 
-lcf::Image VulkanImageObject::readData()
-{
-    auto device = m_context_p->getDevice();
-    vk::BufferImageCopy region;
-    region.setImageSubresource({ this->getAspectFlags(), 0, 0, 1 })
-        .setImageOffset({ 0, 0, 0 })
-        .setImageExtent(m_extent);
-    VulkanBufferProxy staging_buffer;
-    auto [width, height, depth] = m_extent;
-    staging_buffer.setUsage(GPUBufferUsage::eStaging)
-        .create(m_context_p, width * height * 4);
-    vkutils::immediate_submit(m_context_p, vk::QueueFlagBits::eGraphics, [&](VulkanCommandBufferObject & cmd) {
-        auto old_layout = *this->getLayout();
-        this->transitLayout(cmd, vk::ImageLayout::eTransferSrcOptimal);
-        cmd.copyImageToBuffer(this->getHandle(), vk::ImageLayout::eTransferSrcOptimal, staging_buffer.getHandle(), region);
-        this->transitLayout(cmd, old_layout);
-    });
-    Image image;
-    image.loadFromMemory({staging_buffer.getMappedMemoryPtr(), staging_buffer.getSizeInBytes()}, ImageFormat::eRGBA8Uint, width);
-    return image;
-}
-
 void VulkanImageObject::generateMipmaps(VulkanCommandBufferObject & cmd)
 {
     using Offset3DPair = std::pair<vk::Offset3D, vk::Offset3D>;

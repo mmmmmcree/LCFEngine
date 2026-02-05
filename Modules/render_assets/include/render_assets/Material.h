@@ -7,7 +7,7 @@
 #include "BufferWriteSegment.h"
 #include "bytes.h"
 #include "StructureLayout.h"
-#include "Image/Image.h"
+#include "image/image_fwd_decls.h"
 #include "PointerDefs.h"
 #include "Vector.h"
 #include "ranges/take_from.h"
@@ -20,7 +20,7 @@ namespace lcf {
         using Self = Material;
         using Param = std::variant<float, Vector2D<float>, Vector3D<float>, Vector4D<float>>;
         using ParamMap = tsl::robin_map<MaterialProperty, Param>;
-        using TextureReourceMap = tsl::robin_map<TextureSemantic, Image::SharedPointer>;
+        using TextureReourceMap = tsl::robin_map<TextureSemantic, ImageSharedPointer>;
     public:
         Material() noexcept = default;
         ~Material() noexcept = default;
@@ -40,8 +40,8 @@ namespace lcf {
         {
             return std::get<enum_value_t<property>>(this->getMaterialParam(property));
         }
-        Self & setTextureResource(TextureSemantic semantic, const Image::SharedPointer & texture_resource);
-        const Image::SharedPointer & getTextureResource(TextureSemantic semantic) const noexcept;
+        Self & setTextureResource(TextureSemantic semantic, const ImageSharedPointer & texture_resource);
+        const ImageSharedPointer & getTextureResource(TextureSemantic semantic) const noexcept;
         template <typename Mapping = typename enum_value_type_mapping_traits<VectorType>::type>
         BufferWriteSegments generateInterleavedSegments(ShadingModel shading_model) const noexcept
         {

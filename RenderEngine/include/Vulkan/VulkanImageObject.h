@@ -2,7 +2,6 @@
 
 #include <vulkan/vulkan.hpp>
 #include "vulkan_memory_resources.h"
-#include "image/Image.h"
 #include "PointerDefs.h"
 #include <variant>
 #include <unordered_map>
@@ -79,7 +78,6 @@ namespace lcf::render {
         bool create(VulkanContext * context_p);
         bool create(VulkanContext * context_p, vk::Image external_image);
         void setData(VulkanCommandBufferObject & cmd, std::span<const std::byte> data, uint32_t layer = 0);
-        Image readData();
         void generateMipmaps(VulkanCommandBufferObject & cmd);
         bool isCreated() const noexcept { return this->getHandle(); }
         void transitLayout(VulkanCommandBufferObject & cmd, vk::ImageLayout new_layout);

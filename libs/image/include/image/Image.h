@@ -1,9 +1,9 @@
 #pragma once
 
+#include "image_fwd_decls.h"
 #include "image_enums.h"
 #include <filesystem>
 #include "details/ImageVariant.h"
-#include "PointerDefs.h"
 #include <span>
 
 namespace lcf {
@@ -32,7 +32,7 @@ namespace lcf {
         ImageFormat m_format = ImageFormat::eInvalid;
     };
 
-    class Image : public STDPointerDefs<Image>
+    class Image : public ImagePointerDefs
     {
         using Self = Image;
         using ImageVariant = details::ImageVariant;

@@ -1,4 +1,5 @@
 #include "render_assets/DefaultAssetProvider.h"
+#include "image/Image.h"
 #include "vector_enum_value_types.h"
 #include "Vector.h"
 #include "bytes.h"

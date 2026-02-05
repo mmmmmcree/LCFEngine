@@ -1,5 +1,6 @@
 #include "render_assets/Material.h"
 #include "render_assets/DefaultAssetProvider.h"
+#include "image/Image.h"
 
 using namespace lcf;
 

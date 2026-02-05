@@ -41,9 +41,9 @@ namespace lcf {
 
 #define LCF_DECLARE_POINTER_DEFS(Type, Trait)  \
   using Type##PointerDefs = Trait<Type>; \
-  using Type##SharedPtr = typename Type##PointerDefs::SharedPointer; \
-  using Type##SharedConstPtr = typename Type##PointerDefs::SharedConstPointer; \
-  using Type##UniquePtr = typename Type##PointerDefs::UniquePointer; \
-  using Type##UniqueConstPtr = typename Type##PointerDefs::UniqueConstPointer; \
-  using Type##WeakPtr = typename Type##PointerDefs::WeakPointer; \
-  using Type##WeakConstPtr = typename Type##PointerDefs::WeakConstPointer
+  using Type##SharedPointer = typename Type##PointerDefs::SharedPointer; \
+  using Type##SharedConstPointer = typename Type##PointerDefs::SharedConstPointer; \
+  using Type##UniquePointer = typename Type##PointerDefs::UniquePointer; \
+  using Type##UniqueConstPointer = typename Type##PointerDefs::UniqueConstPointer; \
+  using Type##WeakPointer = typename Type##PointerDefs::WeakPointer; \
+  using Type##WeakConstPointer = typename Type##PointerDefs::WeakConstPointer
