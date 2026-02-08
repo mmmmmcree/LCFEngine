@@ -167,4 +167,22 @@ namespace lcf::enum_decode {
         }
         return decode;
     }
+
+    inline constexpr ColorSpace decode_color_space(uint8_t channel_count) noexcept
+    {
+        ColorSpace color_space = ColorSpace::eInvalid;
+        switch (channel_count) {
+            case 1: { color_space = ColorSpace::eGray; } break;
+            case 2: { color_space = ColorSpace::eGrayAlpha; } break;
+            case 3: { color_space = ColorSpace::eRGB; } break;
+            case 4: { color_space = ColorSpace::eRGBA; } break;
+            default: break;
+        }
+        return color_space;
+    }
+
+    inline constexpr ImageFormat decode_image_format(PixelDataType pixel_data_type, uint8_t channel_count) noexcept
+    {
+        return get_image_format(decode_color_space(channel_count), pixel_data_type);
+    }
 }

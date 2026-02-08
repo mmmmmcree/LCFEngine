@@ -21,6 +21,7 @@ using namespace lcf;
 namespace gil = boost::gil;
 namespace variant2 = boost::variant2;
 using ImageVariant = details::ImageVariant;
+using ConstImageViewVariant = details::ConstImageViewVariant;
 
 //- auxiliary structs begin
 struct ImageInfoData
@@ -53,7 +54,11 @@ ImageInfoData read_from_jpeg(const std::filesystem::path & path);
 
 ImageVariant generate_image(uint32_t width, uint32_t height, ImageFormat format);
 
-std::expected<ImageVariant, std::error_code> load_from_file_stb(const ImageInfo & info, ImageFormat specific_format);
+ConstImageViewVariant generate_image_view(std::span<const std::byte> data, ImageFormat format, uint32_t width);
+
+std::expected<ImageVariant, std::error_code> load_from_file_stb(const ImageInfo & info, ImageFormat specific_format) noexcept;
+
+std::expected<ImageVariant, std::error_code> load_from_memory_stb(std::span<const std::byte> data, ImageFormat & format) noexcept;
 
 std::error_code save_to_file_stb(const ImageVariant & image, ImageFormat format, ImageFileType file_type, const std::filesystem::path & path) noexcept;
 //- auxiliary function forward declarations end
@@ -165,15 +170,30 @@ std::error_code Image::loadFromFileGpuFriendly(const ImageInfo &info) noexcept
     return this->loadFromFile(info, format);
 }
 
-std::error_code Image::loadFromMemory(std::span<const std::byte> data, ImageFormat format, uint32_t width) noexcept
+std::error_code lcf::Image::loadFromMemoryEncoded(std::span<const std::byte> data) noexcept
 {
-    format = enum_decode::decode(format);
-    size_t row_size_in_bytes = enum_decode::get_channel_count(format) * enum_decode::get_bytes_per_channel(format) * width;
+    auto expected = load_from_memory_stb(data, m_format);
+    if (not expected) { return expected.error(); }
+    else { m_image = std::move(*expected); }
+    return {};
+}
+
+std::error_code lcf::Image::loadFromMemoryPixels(std::span<const std::byte> data, uint32_t width, ImageFormat src_format) noexcept
+{
+    return this->loadFromMemoryPixels(data, width, src_format, src_format);
+}
+
+std::error_code lcf::Image::loadFromMemoryPixels(std::span<const std::byte> data, uint32_t width, ImageFormat src_format, ImageFormat dst_format) noexcept
+{
+    src_format = enum_decode::decode(src_format);
+    size_t row_size_in_bytes = enum_decode::get_channel_count(src_format) * enum_decode::get_bytes_per_channel(src_format) * width;
     if (data.size() % row_size_in_bytes != 0) { return std::make_error_code(std::errc::invalid_argument); }
     uint32_t height = static_cast<uint32_t>(data.size() / row_size_in_bytes);
-    m_image = generate_image(width, height, format);
-    m_format = format;
-    std::memcpy(this->getDataSpan().data(), data.data(), data.size());
+    dst_format = enum_decode::decode(dst_format);
+    m_image = generate_image(width, height, dst_format);
+    m_format = dst_format;
+    auto src_view = generate_image_view(data, src_format, width);
+    details::convert(src_view, details::view(m_image));
     return {};
 }
 
@@ -296,7 +316,32 @@ ImageVariant generate_image(uint32_t width, uint32_t height, ImageFormat format)
     return {};
 }
 
-std::expected<ImageVariant, std::error_code> load_from_file_stb(const ImageInfo &info, ImageFormat specific_format)
+ConstImageViewVariant generate_image_view(std::span<const std::byte> data, ImageFormat format, uint32_t width)
+{
+    size_t row_size_in_bytes = enum_decode::get_channel_count(format) * enum_decode::get_bytes_per_channel(format) * width;
+    uint32_t height = static_cast<uint32_t>(data.size() / row_size_in_bytes);
+    switch (format) {
+        case ImageFormat::eGray8Uint: { return gil::interleaved_view(width, height, reinterpret_cast<const gil::gray8_pixel_t*>(data.data()), row_size_in_bytes); }
+        case ImageFormat::eGray16Uint: { return gil::interleaved_view(width, height, reinterpret_cast<const gil::gray16_pixel_t*>(data.data()), row_size_in_bytes); }
+        case ImageFormat::eGray16Float: { return gil::interleaved_view(width, height, reinterpret_cast<const gil::gray16f_pixel_t*>(data.data()), row_size_in_bytes); }
+        case ImageFormat::eGray32Float: { return gil::interleaved_view(width, height, reinterpret_cast<const gil::gray32f_pixel_t*>(data.data()), row_size_in_bytes); }
+        case ImageFormat::eGrayAlpha8Uint: { return gil::interleaved_view(width, height, reinterpret_cast<const gil::gray_alpha8_pixel_t*>(data.data()), row_size_in_bytes); }
+        case ImageFormat::eGrayAlpha16Uint: { return gil::interleaved_view(width, height, reinterpret_cast<const gil::gray_alpha16_pixel_t*>(data.data()), row_size_in_bytes); }
+        case ImageFormat::eGrayAlpha16Float: { return gil::interleaved_view(width, height, reinterpret_cast<const gil::gray_alpha16f_pixel_t*>(data.data()), row_size_in_bytes); }
+        case ImageFormat::eGrayAlpha32Float: { return gil::interleaved_view(width, height, reinterpret_cast<const gil::gray_alpha32f_pixel_t*>(data.data()), row_size_in_bytes); }
+        case ImageFormat::eRGB8Uint: { return gil::interleaved_view(width, height, reinterpret_cast<const gil::rgb8_pixel_t*>(data.data()), row_size_in_bytes); }
+        case ImageFormat::eRGB16Uint: { return gil::interleaved_view(width, height, reinterpret_cast<const gil::rgb16_pixel_t*>(data.data()), row_size_in_bytes); }
+        case ImageFormat::eRGB16Float: { return gil::interleaved_view(width, height, reinterpret_cast<const gil::rgb16f_pixel_t*>(data.data()), row_size_in_bytes); }
+        case ImageFormat::eRGB32Float: { return gil::interleaved_view(width, height, reinterpret_cast<const gil::rgb32f_pixel_t*>(data.data()), row_size_in_bytes); }
+        case ImageFormat::eRGBA8Uint: { return gil::interleaved_view(width, height, reinterpret_cast<const gil::rgba8_pixel_t*>(data.data()), row_size_in_bytes); }
+        case ImageFormat::eRGBA16Uint: { return gil::interleaved_view(width, height, reinterpret_cast<const gil::rgba16_pixel_t*>(data.data()), row_size_in_bytes); }
+        case ImageFormat::eRGBA16Float: { return gil::interleaved_view(width, height, reinterpret_cast<const gil::rgba16f_pixel_t*>(data.data()), row_size_in_bytes); }
+        default: break;
+    }
+    return {};
+}
+
+std::expected<ImageVariant, std::error_code> load_from_file_stb(const ImageInfo &info, ImageFormat specific_format) noexcept
 {
     std::string path_str = info.getPath().string();
     auto image = generate_image(info.getWidth(), info.getHeight(), specific_format);
@@ -326,6 +371,34 @@ std::expected<ImageVariant, std::error_code> load_from_file_stb(const ImageInfo 
         memcpy(data_span.data(), src_data_p, data_span.size());
     }
     stbi_image_free(src_data_p);
+    return image;
+}
+
+std::expected<ImageVariant, std::error_code> load_from_memory_stb(std::span<const std::byte> data, ImageFormat &format) noexcept
+{
+    const stbi_uc * src_data_p = (const stbi_uc *)data.data();
+    size_t data_size = data.size();
+    bool is_16_bit = stbi_is_16_bit_from_memory(src_data_p, data_size);
+    bool is_float = stbi_is_hdr_from_memory(src_data_p, data_size);
+    int width, height, channels;
+    void * dst_data_p = nullptr;
+    if (is_float) {
+        dst_data_p = stbi_loadf_from_memory(src_data_p, data_size, &width, &height, &channels, 0);
+        data_size = width * height * channels * sizeof(float);
+    } else if (is_16_bit) {
+        dst_data_p = stbi_load_16_from_memory(src_data_p, data_size, &width, &height, &channels, 0);
+        data_size = width * height * channels * sizeof(uint16_t);
+    } else {
+        dst_data_p = stbi_load_from_memory(src_data_p, data_size, &width, &height, &channels, 0);
+        data_size = width * height * channels * sizeof(uint8_t);
+    }
+    if (not dst_data_p) { return std::unexpected(std::make_error_code(std::errc::invalid_argument)); }
+    PixelDataType pixel_data_type = is_float ? PixelDataType::eFloat32 : (is_16_bit ? PixelDataType::eUint16 : PixelDataType::eUint8);
+    format = enum_decode::decode_image_format(pixel_data_type, static_cast<uint8_t>(channels));
+    auto image = generate_image(width, height, format);
+    auto data_span = details::view_as_bytes(image);
+    memcpy(data_span.data(), dst_data_p, data_size);
+    stbi_image_free(dst_data_p);
     return image;
 }
 

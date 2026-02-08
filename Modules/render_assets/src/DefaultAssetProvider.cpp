@@ -20,7 +20,7 @@ DefaultAssetProvider::DefaultAssetProvider()
     };
     for (const auto & [type, color] : color_map) {
         auto & image_resource = m_texture2d_resources[type] = Image::makeShared();
-        image_resource->loadFromMemory(as_bytes_from_value(color), ImageFormat::eRGBA8Uint, 1);
+        image_resource->loadFromMemoryPixels(as_bytes_from_value(color), 1, ImageFormat::eRGBA8Uint);
     }
     //todo Texture2D checkerboard
 

@@ -52,7 +52,9 @@ namespace lcf {
         std::error_code loadFromFile(const ImageInfo & info) noexcept;
         std::error_code loadFromFile(const ImageInfo & info, ImageFormat specific_format) noexcept;
         std::error_code loadFromFileGpuFriendly(const ImageInfo & info) noexcept; //- RGB -> RGBA
-        std::error_code loadFromMemory(std::span<const std::byte> data, ImageFormat format, uint32_t width) noexcept;
+        std::error_code loadFromMemoryEncoded(std::span<const std::byte> data) noexcept;
+        std::error_code loadFromMemoryPixels(std::span<const std::byte> data, uint32_t width, ImageFormat src_format) noexcept;
+        std::error_code loadFromMemoryPixels(std::span<const std::byte> data, uint32_t width, ImageFormat src_format, ImageFormat dst_format) noexcept;
         std::error_code saveToFile(const std::filesystem::path & path) const noexcept;
         std::span<std::byte> getDataSpan() noexcept;
         std::span<const std::byte> getDataSpan() const noexcept;
