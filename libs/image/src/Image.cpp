@@ -231,6 +231,7 @@ ImageInfoData read_from_png(const std::filesystem::path & path)
     switch (info._color_type) {
         case PNG_COLOR_TYPE_GRAY: { color_space = ColorSpace::eGray; } break;
         case PNG_COLOR_TYPE_GA: { color_space = ColorSpace::eGrayAlpha; } break;
+        case PNG_COLOR_TYPE_PALETTE:
         case PNG_COLOR_TYPE_RGB: { color_space = ColorSpace::eRGB; } break;
         case PNG_COLOR_TYPE_RGBA: { color_space = ColorSpace::eRGBA; } break;
         default: break;
