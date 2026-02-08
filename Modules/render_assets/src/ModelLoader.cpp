@@ -23,7 +23,6 @@ using AssimpHierarchyNode = std::pair<size_t, const aiNode *>;
 
 Matrix4x4 to_matrix4x4(const aiMatrix4x4 & ai_mat);
 
-
 template <>
 struct enum_mapping_traits<TextureSemantic, aiTextureType>
 {
@@ -46,7 +45,7 @@ struct enum_mapping_traits<TextureSemantic, aiTextureType>
     };
 };
 
-std::tuple<std::span<const std::byte>, ImageFormat, uint32_t> interpret_ai_texture(const aiTexture & ai_texture);
+std::expected<Image, std::error_code> to_image(const aiTexture & ai_texture);
 
 Model::HierarchyNode to_hierarchy_node(const AssimpHierarchyNode & ai_hierarchy_node);
 
@@ -65,7 +64,7 @@ struct ModelLoader::Impl
 
     std::optional<Model> load(const std::filesystem::path & path) noexcept;
     std::expected<Model, std::error_code> analyze(const std::filesystem::path & path) noexcept;
-    std::optional<std::error_code> loadTextures() noexcept;
+    void loadTextures() noexcept;
     void processGeometries(Model & model) noexcept;
     void processMaterials(Model & model) noexcept;
     void buildModel(Model & model) noexcept;
@@ -99,11 +98,7 @@ std::optional<Model> ModelLoader::Impl::load(const std::filesystem::path &path) 
         lcf_log_error("Failed to analyze model: {}", expected_model.error().message());
         return std::nullopt;
     }
-    auto error_code_opt = this->loadTextures();
-    if (error_code_opt) {
-        lcf_log_error("Failed to load textures: {}", error_code_opt.value().message());
-        return std::nullopt;
-    }
+    this->loadTextures();
     auto & model = expected_model.value();
     this->processGeometries(model);
     this->processMaterials(model);
@@ -137,7 +132,7 @@ std::expected<Model, std::error_code> ModelLoader::Impl::analyze(const std::file
     return model;
 }
 
-std::optional<std::error_code> ModelLoader::Impl::loadTextures() noexcept
+void ModelLoader::Impl::loadTextures() noexcept
 {
     std::unordered_map<std::string, Image::SharedPointer> texture_resource_map;
     for (uint32_t i = 0; i < m_ai_scene_p->mNumMaterials; ++i) {
@@ -149,23 +144,27 @@ std::optional<std::error_code> ModelLoader::Impl::loadTextures() noexcept
             if (result != AI_SUCCESS) { continue; } //- this type of texture is not present in the material
             std::filesystem::path texture_path = m_asset_directory_path / ai_path_str.C_Str();
             if (texture_resource_map.contains(texture_path.string())) { continue; }
-            if (not std::filesystem::exists(texture_path)) {
-                return std::make_error_code(std::errc::no_such_file_or_directory);
-            }
             auto image_sp = Image::makeShared();
             const aiTexture * ai_texture_p = m_ai_scene_p->GetEmbeddedTexture(ai_path_str.C_Str());
+            std::error_code error_code;
             if (ai_texture_p) {
-                auto [data_bytes, format, width] = interpret_ai_texture(*ai_texture_p);
-                image_sp->loadFromMemory(data_bytes, format, width);
+                auto expected = to_image(*ai_texture_p);
+                if (not expected) { error_code = expected.error(); }
+                else {
+                    image_sp = Image::makeShared(std::move(*expected));
+                    error_code = image_sp->convertToGpuFriendly();
+                }
             } else {
-                image_sp->loadFromFileGpuFriendly(texture_path);
+                error_code = image_sp->loadFromFileGpuFriendly(texture_path);
             }
-            //todo? check format to see if conversion is needed
+            if (error_code) {
+                lcf_log_error("Failed to load texture at: {}, error: {}", texture_path.string(), error_code.message());
+                continue;
+            }
             texture_resource_map[texture_path.string()] = image_sp;
             material.setTextureResource(texture_semantic, image_sp);
         }
     }
-    return std::nullopt;
 }
 
 void ModelLoader::Impl::processGeometries(Model &model) noexcept
@@ -229,28 +228,25 @@ constexpr uint32_t hash4(const char* str) noexcept
     return (str[0] << 24) | (str[1] << 16) | (str[2] << 8) | str[3];
 }
 
-std::tuple<std::span<const std::byte>, ImageFormat, uint32_t> interpret_ai_texture(const aiTexture & ai_texture)
+std::expected<Image, std::error_code> to_image(const aiTexture &ai_texture)
 {
+    Image image;
     uint32_t width = ai_texture.mWidth;
     uint32_t height = ai_texture.mHeight;
-    ImageFormat format = ImageFormat::eRGBA8Uint;
     bool is_compressed = (height == 0);
-    switch (hash4(ai_texture.achFormatHint)) {
-        case hash4("argb"): { format = ImageFormat::eARGB8Uint; } break;
-        case hash4("bgra"): { format = ImageFormat::eBGRA8Uint; } break;
-        case hash4("rgb"): { format = ImageFormat::eRGB8Uint; } break;
-        case hash4("bgr"): { format = ImageFormat::eBGR8Uint; } break;
-        default: break;
-    }
     size_t size_in_bytes = is_compressed ? width : width * height * sizeof(aiTexel);
-    auto bytes = std::span<const std::byte>(reinterpret_cast<const std::byte*>(ai_texture.pcData), size_in_bytes);
+    auto data_span = std::span(reinterpret_cast<const std::byte *>(ai_texture.pcData), size_in_bytes);
+    std::error_code error_code;
     if (is_compressed) {
-        width /= enum_decode::get_bytes_per_channel(format);
+        error_code = image.loadFromMemoryEncoded(data_span);
+    } else {
+        error_code = image.loadFromMemoryPixels(data_span, width, ImageFormat::eRGBA8Uint);
     }
-    return std::make_tuple(bytes, format, width);
+    if (error_code) { return std::unexpected(error_code); }
+    return image;
 }
 
-Model::HierarchyNode to_hierarchy_node(const AssimpHierarchyNode & ai_hierarchy_node)
+Model::HierarchyNode to_hierarchy_node(const AssimpHierarchyNode &ai_hierarchy_node)
 {
     Model::HierarchyNode hierarchy_node;
     auto [parent_index, ai_node] = ai_hierarchy_node;
@@ -284,6 +280,7 @@ void process_mesh(Geometry & geometry, const aiMesh & ai_mesh)
 
 void process_material(Material & material, const aiMaterial & ai_material)
 {
+    //todo read material properties
     for (auto property_p : std::span(ai_material.mProperties, ai_material.mNumProperties)) {
         // lcf_log_info("key: {}, semantic: {}, index: {}, data_length: {}, type: {}",
         //     property_p->mKey.C_Str(),
