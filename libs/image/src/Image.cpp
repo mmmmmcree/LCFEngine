@@ -119,6 +119,11 @@ std::error_code Image::convertTo(ImageFormat format) noexcept
     return {};
 }
 
+std::error_code lcf::Image::convertToGpuFriendly() noexcept
+{
+    return this->convertTo(enum_decode::decode_gpu_friendly(m_format));
+}
+
 Image & Image::resize(uint32_t width, uint32_t height, ImageSampler sampler) noexcept
 {
     if (width == this->getWidth() and height == this->getHeight()) { return *this; }
@@ -162,12 +167,7 @@ std::error_code Image::loadFromFile(const ImageInfo &info, ImageFormat specific_
 
 std::error_code Image::loadFromFileGpuFriendly(const ImageInfo &info) noexcept
 {
-    ImageFormat format = enum_decode::decode(info.getEncodeFormat());
-    PixelDataType pixel_data_type = enum_decode::get_pixel_data_type(format);
-    if (enum_decode::get_channel_count(format) == 3) {
-        format = static_cast<ImageFormat>(internal::encode(ColorSpace::eRGBA, pixel_data_type));
-    }
-    return this->loadFromFile(info, format);
+    return this->loadFromFile(info, enum_decode::decode_gpu_friendly(info.getEncodeFormat()));
 }
 
 std::error_code lcf::Image::loadFromMemoryEncoded(std::span<const std::byte> data) noexcept

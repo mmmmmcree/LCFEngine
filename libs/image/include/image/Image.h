@@ -48,6 +48,7 @@ namespace lcf {
         Image & operator=(ImageVariant && image);
     public:
         std::error_code convertTo(ImageFormat format) noexcept;
+        std::error_code convertToGpuFriendly() noexcept;
         Self & resize(uint32_t width, uint32_t height, ImageSampler sampler) noexcept;
         std::error_code loadFromFile(const ImageInfo & info) noexcept;
         std::error_code loadFromFile(const ImageInfo & info, ImageFormat specific_format) noexcept;

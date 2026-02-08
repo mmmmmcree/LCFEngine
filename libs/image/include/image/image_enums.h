@@ -153,21 +153,6 @@ namespace lcf::enum_decode {
         return get_size_in_bytes(static_cast<BasicDataType>(get_pixel_data_type(format)));
     }
 
-    inline constexpr ImageFormat decode(ImageFormat encode) noexcept
-    {
-        ImageFormat decode = encode;
-        switch (encode) {
-            case ImageFormat::eBGR8Uint:
-            case ImageFormat::eCMYK8Uint:
-            case ImageFormat::eYCbCr8Uint:
-            case ImageFormat::eYCCK8Uint: { decode = ImageFormat::eRGB8Uint; } break;
-            case ImageFormat::eBGRA8Uint: 
-            case ImageFormat::eARGB8Uint: { decode = ImageFormat::eRGBA8Uint; } break;
-            default: break;
-        }
-        return decode;
-    }
-
     inline constexpr ColorSpace decode_color_space(uint8_t channel_count) noexcept
     {
         ColorSpace color_space = ColorSpace::eInvalid;
@@ -179,6 +164,30 @@ namespace lcf::enum_decode {
             default: break;
         }
         return color_space;
+    }
+
+    inline constexpr ImageFormat decode(ImageFormat encode) noexcept
+    {
+        ImageFormat decoded = encode;
+        switch (encode) {
+            case ImageFormat::eBGR8Uint:
+            case ImageFormat::eCMYK8Uint:
+            case ImageFormat::eYCbCr8Uint:
+            case ImageFormat::eYCCK8Uint: { decoded = ImageFormat::eRGB8Uint; } break;
+            case ImageFormat::eBGRA8Uint: 
+            case ImageFormat::eARGB8Uint: { decoded = ImageFormat::eRGBA8Uint; } break;
+            default: break;
+        }
+        return decoded;
+    }
+
+    inline constexpr ImageFormat decode_gpu_friendly(ImageFormat encode) noexcept
+    {
+        ImageFormat decoded = decode(encode);
+        if (decode_color_space(get_channel_count(decoded)) == ColorSpace::eRGB) {
+            return static_cast<ImageFormat>(internal::encode(ColorSpace::eRGBA, get_pixel_data_type(decoded)));
+        }
+        return decoded;
     }
 
     inline constexpr ImageFormat decode_image_format(PixelDataType pixel_data_type, uint8_t channel_count) noexcept
