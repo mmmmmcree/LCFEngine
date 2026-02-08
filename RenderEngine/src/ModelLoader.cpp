@@ -35,7 +35,6 @@ Model ModelLoader::load(std::string_view path)
 Material::UniquePointer ModelLoader::processMaterial(const aiMaterial & ai_material, const aiScene &ai_scene)
 {
     Material::UniquePointer material_up = Material::makeUnique();
-    aiMaterial; 
     return material_up;
 }
 

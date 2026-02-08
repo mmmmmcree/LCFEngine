@@ -7,6 +7,8 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 #include "Image/Image.h"
+#include <expected>
+#include <system_error>
 #include <unordered_map>
 #include <queue>
 #include <algorithm>
@@ -156,7 +158,7 @@ std::optional<std::error_code> ModelLoader::Impl::loadTextures() noexcept
                 auto [data_bytes, format, width] = interpret_ai_texture(*ai_texture_p);
                 image_sp->loadFromMemory(data_bytes, format, width);
             } else {
-                image_sp->loadFromFile(texture_path);
+                image_sp->loadFromFileGpuFriendly(texture_path);
             }
             //todo? check format to see if conversion is needed
             texture_resource_map[texture_path.string()] = image_sp;
@@ -283,13 +285,13 @@ void process_mesh(Geometry & geometry, const aiMesh & ai_mesh)
 void process_material(Material & material, const aiMaterial & ai_material)
 {
     for (auto property_p : std::span(ai_material.mProperties, ai_material.mNumProperties)) {
-        lcf_log_info("key: {}, semantic: {}, index: {}, data_length: {}, type: {}",
-            property_p->mKey.C_Str(),
-            property_p->mSemantic,
-            property_p->mIndex,
-            property_p->mDataLength,
-            enum_name(property_p->mType)
-        );
+        // lcf_log_info("key: {}, semantic: {}, index: {}, data_length: {}, type: {}",
+        //     property_p->mKey.C_Str(),
+        //     property_p->mSemantic,
+        //     property_p->mIndex,
+        //     property_p->mDataLength,
+        //     enum_name(property_p->mType)
+        // );
         
     }
 }
