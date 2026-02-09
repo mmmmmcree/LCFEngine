@@ -58,6 +58,10 @@ std::expected<ImageVariant, std::error_code> load_from_file_gil(const ImageInfo 
 
 bool is_stb_load_supported(const ImageInfo & info) noexcept;
 
+std::expected<ImageVariant, std::error_code> load_from_file_gil(const ImageInfo & info, ImageFormat specific_format) noexcept;
+
+bool is_stb_load_supported(const ImageInfo & info) noexcept;
+
 std::expected<ImageVariant, std::error_code> load_from_file_stb(const ImageInfo & info, ImageFormat specific_format) noexcept;
 
 std::expected<ImageVariant, std::error_code> load_from_memory_stb(std::span<const std::byte> data, ImageFormat & format) noexcept;
@@ -303,6 +307,29 @@ std::expected<ImageVariant, std::error_code> load_from_file_gil(const ImageInfo 
 {
     std::string path_str = info.getPath().string();
     auto image = details::generate_image(info.getWidth(), info.getHeight(), specific_format);
+    try {
+        switch (info.getFileType()) {
+            case ImageFileType::ePNG: { gil::read_image(path_str, image, gil::png_tag {}); } break;
+            case ImageFileType::eJPEG: { gil::read_image(path_str, image, gil::jpeg_tag {}); } break;
+            case ImageFileType::eBMP: { gil::read_image(path_str, image, gil::bmp_tag {}); } break;
+            case ImageFileType::eTGA: { gil::read_image(path_str, image, gil::targa_tag {}); } break;
+            default: return std::unexpected(std::make_error_code(std::errc::invalid_argument));
+        }
+    } catch (const std::exception & e) {
+        return std::unexpected(std::make_error_code(std::errc::invalid_argument));
+    }
+    return image;
+}
+
+bool is_stb_load_supported(const ImageInfo & info) noexcept
+{
+    return enum_decode::is_native_image_format(info.getEncodeFormat());
+}
+
+std::expected<ImageVariant, std::error_code> load_from_file_gil(const ImageInfo &info, ImageFormat specific_format) noexcept
+{
+    std::string path_str = info.getPath().string();
+    auto image = generate_image(info.getWidth(), info.getHeight(), specific_format);
     try {
         switch (info.getFileType()) {
             case ImageFileType::ePNG: { gil::read_image(path_str, image, gil::png_tag {}); } break;
