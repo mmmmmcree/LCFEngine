@@ -207,6 +207,12 @@ namespace lcf {
         eShadowStrength = internal::encode(internal::MaterialProperty::eShadowStrength, VectorType::e1Float32)
     };
 
+    template <>
+    inline std::string_view enum_name<MaterialProperty>(MaterialProperty enum_value) noexcept
+    {
+        return enum_name(static_cast<internal::MaterialProperty>(std::to_underlying(enum_value) >> 8));
+    }
+
     template <> inline constexpr std::array<MaterialProperty, enum_count_v<internal::MaterialProperty>> enum_values_v<MaterialProperty>
     {
         MaterialProperty::eBaseColor,
