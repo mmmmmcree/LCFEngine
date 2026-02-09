@@ -6,6 +6,8 @@
 #include "string_view_hash.h"
 #include <boost/gil/extension/io/png.hpp>
 #include <boost/gil/extension/io/jpeg.hpp>
+#include <boost/gil/extension/io/targa.hpp>
+#include <boost/gil/extension/io/bmp.hpp>
 #include <boost/gil/extension/numeric/sampler.hpp>
 #include <boost/gil/extension/numeric/resample.hpp>
 #include <boost/algorithm/string.hpp>
@@ -55,6 +57,10 @@ ImageInfoData read_from_jpeg(const std::filesystem::path & path);
 ImageVariant generate_image(uint32_t width, uint32_t height, ImageFormat format);
 
 ConstImageViewVariant generate_image_view(std::span<const std::byte> data, ImageFormat format, uint32_t width);
+
+std::expected<ImageVariant, std::error_code> load_from_file_gil(const ImageInfo & info, ImageFormat specific_format) noexcept;
+
+bool is_stb_load_supported(const ImageInfo & info) noexcept;
 
 std::expected<ImageVariant, std::error_code> load_from_file_stb(const ImageInfo & info, ImageFormat specific_format) noexcept;
 
@@ -150,19 +156,19 @@ std::error_code Image::loadFromFile(const ImageInfo &info) noexcept
 std::error_code Image::loadFromFile(const ImageInfo &info, ImageFormat specific_format) noexcept
 {
     ImageFormat format = enum_decode::decode(specific_format);
-    std::error_code ec;
-    switch(info.getFileType()) {
-        case ImageFileType::eInvalid: { return std::make_error_code(std::errc::invalid_argument); } break;
-        case ImageFileType::ePNG:
-        case ImageFileType::eJPEG: {
-            auto expected = load_from_file_stb(info, format);
-            if (expected) { m_image = std::move(*expected); }
-            else { ec = expected.error(); }
-        } break;
-        default: { lcf_log_error("currently unsupported image file type: {}", enum_name(info.getFileType())); } break;
+    if (info.getFileType() == ImageFileType::eInvalid) {
+        return std::make_error_code(std::errc::invalid_argument);
     }
+    std::expected<ImageVariant, std::error_code> expected;
+    if (is_stb_load_supported(info)) {
+        expected = load_from_file_stb(info, format);
+    } else {
+        expected = load_from_file_gil(info, format);
+    }
+    if (not expected) { return expected.error(); }
+    else { m_image = std::move(*expected); }
     m_format = format;
-    return ec;
+    return {};
 }
 
 std::error_code Image::loadFromFileGpuFriendly(const ImageInfo &info) noexcept
@@ -339,6 +345,29 @@ ConstImageViewVariant generate_image_view(std::span<const std::byte> data, Image
         default: break;
     }
     return {};
+}
+
+bool is_stb_load_supported(const ImageInfo & info) noexcept
+{
+    return enum_decode::is_native_image_format(info.getEncodeFormat());
+}
+
+std::expected<ImageVariant, std::error_code> load_from_file_gil(const ImageInfo &info, ImageFormat specific_format) noexcept
+{
+    std::string path_str = info.getPath().string();
+    auto image = generate_image(info.getWidth(), info.getHeight(), specific_format);
+    try {
+        switch (info.getFileType()) {
+            case ImageFileType::ePNG: { gil::read_image(path_str, image, gil::png_tag {}); } break;
+            case ImageFileType::eJPEG: { gil::read_image(path_str, image, gil::jpeg_tag {}); } break;
+            case ImageFileType::eBMP: { gil::read_image(path_str, image, gil::bmp_tag {}); } break;
+            case ImageFileType::eTGA: { gil::read_image(path_str, image, gil::targa_tag {}); } break;
+            default: return std::unexpected(std::make_error_code(std::errc::invalid_argument));
+        }
+    } catch (const std::exception & e) {
+        return std::unexpected(std::make_error_code(std::errc::invalid_argument));
+    }
+    return image;
 }
 
 std::expected<ImageVariant, std::error_code> load_from_file_stb(const ImageInfo &info, ImageFormat specific_format) noexcept
