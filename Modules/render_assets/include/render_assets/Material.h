@@ -18,8 +18,7 @@ namespace lcf {
     class Material : public STDPointerDefs<Material>
     {
         using Self = Material;
-        using Param = std::variant<float, Vector2D<float>, Vector3D<float>, Vector4D<float>>;
-        using ParamMap = tsl::robin_map<MaterialProperty, Param>;
+        using ParamMap = tsl::robin_map<MaterialProperty, MaterialParam>;
         using TextureReourceMap = tsl::robin_map<TextureSemantic, ImageSharedPointer>;
     public:
         Material() noexcept = default;
@@ -30,11 +29,12 @@ namespace lcf {
         Self & operator=(Self &&) noexcept = default;
     public:
         template <MaterialProperty property>
-        Self & setParam(const enum_value_t<property> & value)
+        Self & setParam(const enum_value_t<property> & param) noexcept
         {
-            m_params[property] = value;
+            m_params[property] = param;
             return *this;
         }
+        Self & setParam(MaterialProperty property, const MaterialParam & param) noexcept;
         template <MaterialProperty property>
         const enum_value_t<property> & getParam() noexcept
         {
