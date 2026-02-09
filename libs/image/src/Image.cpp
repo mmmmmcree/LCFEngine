@@ -58,10 +58,6 @@ std::expected<ImageVariant, std::error_code> load_from_file_gil(const ImageInfo 
 
 bool is_stb_load_supported(const ImageInfo & info) noexcept;
 
-std::expected<ImageVariant, std::error_code> load_from_file_gil(const ImageInfo & info, ImageFormat specific_format) noexcept;
-
-bool is_stb_load_supported(const ImageInfo & info) noexcept;
-
 std::expected<ImageVariant, std::error_code> load_from_file_stb(const ImageInfo & info, ImageFormat specific_format) noexcept;
 
 std::expected<ImageVariant, std::error_code> load_from_memory_stb(std::span<const std::byte> data, ImageFormat & format) noexcept;
@@ -96,7 +92,7 @@ ImageInfo::ImageInfo(const std::filesystem::path & path)
 Image::Image(uint32_t width, uint32_t height, ImageFormat format)
 {
     m_format = enum_decode::decode(format);
-    m_image = details::generate_image(width, height, m_format);
+    m_image = details::generate_image<>(width, height, m_format);
 }
 
 Image::Image(ImageVariant && image) noexcept :
@@ -114,7 +110,7 @@ std::error_code Image::convertTo(ImageFormat format) noexcept
 {
     format = enum_decode::decode(format);
     if (m_format == format) { return {}; }
-    auto new_image = details::generate_image(this->getWidth(), this->getHeight(), format);
+    auto new_image = details::generate_image<>(this->getWidth(), this->getHeight(), format);
     try {
         details::convert(details::view(m_image), details::view(new_image));
     } catch (const std::exception & e) {
@@ -196,7 +192,7 @@ std::error_code lcf::Image::loadFromMemoryPixels(std::span<const std::byte> data
     if (data.size() % row_size_in_bytes != 0) { return std::make_error_code(std::errc::invalid_argument); }
     uint32_t height = static_cast<uint32_t>(data.size() / row_size_in_bytes);
     dst_format = enum_decode::decode(dst_format);
-    m_image = details::generate_image(width, height, dst_format);
+    m_image = details::generate_image<>(width, height, dst_format);
     m_format = dst_format;
     auto src_view = details::generate_image_view(data, src_format, width);
     details::convert(src_view, details::view(m_image));
@@ -306,30 +302,7 @@ bool is_stb_load_supported(const ImageInfo & info) noexcept
 std::expected<ImageVariant, std::error_code> load_from_file_gil(const ImageInfo &info, ImageFormat specific_format) noexcept
 {
     std::string path_str = info.getPath().string();
-    auto image = details::generate_image(info.getWidth(), info.getHeight(), specific_format);
-    try {
-        switch (info.getFileType()) {
-            case ImageFileType::ePNG: { gil::read_image(path_str, image, gil::png_tag {}); } break;
-            case ImageFileType::eJPEG: { gil::read_image(path_str, image, gil::jpeg_tag {}); } break;
-            case ImageFileType::eBMP: { gil::read_image(path_str, image, gil::bmp_tag {}); } break;
-            case ImageFileType::eTGA: { gil::read_image(path_str, image, gil::targa_tag {}); } break;
-            default: return std::unexpected(std::make_error_code(std::errc::invalid_argument));
-        }
-    } catch (const std::exception & e) {
-        return std::unexpected(std::make_error_code(std::errc::invalid_argument));
-    }
-    return image;
-}
-
-bool is_stb_load_supported(const ImageInfo & info) noexcept
-{
-    return enum_decode::is_native_image_format(info.getEncodeFormat());
-}
-
-std::expected<ImageVariant, std::error_code> load_from_file_gil(const ImageInfo &info, ImageFormat specific_format) noexcept
-{
-    std::string path_str = info.getPath().string();
-    auto image = generate_image(info.getWidth(), info.getHeight(), specific_format);
+    auto image = details::generate_image<>(info.getWidth(), info.getHeight(), specific_format);
     try {
         switch (info.getFileType()) {
             case ImageFileType::ePNG: { gil::read_image(path_str, image, gil::png_tag {}); } break;
@@ -347,7 +320,7 @@ std::expected<ImageVariant, std::error_code> load_from_file_gil(const ImageInfo 
 std::expected<ImageVariant, std::error_code> load_from_file_stb(const ImageInfo &info, ImageFormat specific_format) noexcept
 {
     std::string path_str = info.getPath().string();
-    auto image = details::generate_image(info.getWidth(), info.getHeight(), specific_format);
+    auto image = details::generate_image<>(info.getWidth(), info.getHeight(), specific_format);
     auto data_span = details::view_as_bytes(image);
     int width, height, channels;
     int requested_channels = enum_decode::get_channel_count(specific_format);
@@ -398,7 +371,7 @@ std::expected<ImageVariant, std::error_code> load_from_memory_stb(std::span<cons
     if (not dst_data_p) { return std::unexpected(std::make_error_code(std::errc::invalid_argument)); }
     PixelDataType pixel_data_type = is_float ? PixelDataType::eFloat32 : (is_16_bit ? PixelDataType::eUint16 : PixelDataType::eUint8);
     format = enum_decode::decode_image_format(pixel_data_type, static_cast<uint8_t>(channels));
-    auto image = details::generate_image(width, height, format);
+    auto image = details::generate_image<>(width, height, format);
     auto data_span = details::view_as_bytes(image);
     memcpy(data_span.data(), dst_data_p, data_size);
     stbi_image_free(dst_data_p);
