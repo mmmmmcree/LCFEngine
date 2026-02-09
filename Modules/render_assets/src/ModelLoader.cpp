@@ -2,6 +2,7 @@
 #include "enums/enum_cast.h"
 #include "log.h"
 #include "bytes.h"
+#include "string_view_hash.h"
 #include "Transform.h"
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
@@ -21,7 +22,15 @@ template <> inline constexpr bool is_pointer_type_convertible_v<aiVector3D, Vect
 
 using AssimpHierarchyNode = std::pair<size_t, const aiNode *>;
 
-Matrix4x4 to_matrix4x4(const aiMatrix4x4 & ai_mat);
+Matrix4x4 to_matrix4x4(const aiMatrix4x4 & ai_mat) noexcept;
+
+std::expected<Image, std::error_code> to_image(const aiTexture & ai_texture);
+
+Model::HierarchyNode to_hierarchy_node(const AssimpHierarchyNode & ai_hierarchy_node);
+
+void process_mesh(Geometry & geometry, const aiMesh & ai_mesh);
+
+void process_material(Material & material, const aiMaterial & ai_material);
 
 template <>
 struct enum_mapping_traits<TextureSemantic, aiTextureType>
@@ -45,13 +54,10 @@ struct enum_mapping_traits<TextureSemantic, aiTextureType>
     };
 };
 
-std::expected<Image, std::error_code> to_image(const aiTexture & ai_texture);
-
-Model::HierarchyNode to_hierarchy_node(const AssimpHierarchyNode & ai_hierarchy_node);
-
-void process_mesh(Geometry & geometry, const aiMesh & ai_mesh);
-
-void process_material(Material & material, const aiMaterial & ai_material);
+constexpr std::string_view ai_material_param_key(const char * key, int, int) noexcept //- adapt ai material param key macros
+{
+    return key;
+}
 
 struct ModelLoader::Impl
 {
@@ -213,7 +219,7 @@ void ModelLoader::Impl::buildModel(Model &model) noexcept
     }
 }
 
-Matrix4x4 to_matrix4x4(const aiMatrix4x4 & ai_mat)
+Matrix4x4 to_matrix4x4(const aiMatrix4x4 & ai_mat) noexcept
 {
     return {
         ai_mat.a1, ai_mat.a2, ai_mat.a3, ai_mat.a4,
@@ -221,11 +227,6 @@ Matrix4x4 to_matrix4x4(const aiMatrix4x4 & ai_mat)
         ai_mat.c1, ai_mat.c2, ai_mat.c3, ai_mat.c4,
         ai_mat.d1, ai_mat.d2, ai_mat.d3, ai_mat.d4
     };
-}
-
-constexpr uint32_t hash4(const char* str) noexcept
-{
-    return (str[0] << 24) | (str[1] << 16) | (str[2] << 8) | str[3];
 }
 
 std::expected<Image, std::error_code> to_image(const aiTexture &ai_texture)
@@ -277,19 +278,35 @@ void process_mesh(Geometry & geometry, const aiMesh & ai_mesh)
         }
     }
 }
-
+#include "enums/enum_name.h"
 void process_material(Material & material, const aiMaterial & ai_material)
 {
-    //todo read material properties
-    for (auto property_p : std::span(ai_material.mProperties, ai_material.mNumProperties)) {
-        // lcf_log_info("key: {}, semantic: {}, index: {}, data_length: {}, type: {}",
-        //     property_p->mKey.C_Str(),
-        //     property_p->mSemantic,
-        //     property_p->mIndex,
-        //     property_p->mDataLength,
-        //     enum_name(property_p->mType)
-        // );
-        
+    static const std::unordered_map<uint32_t, MaterialProperty> c_material_property_map = {
+        {hash<uint32_t>(ai_material_param_key(AI_MATKEY_BASE_COLOR)), MaterialProperty::eBaseColor},
+        {hash<uint32_t>(ai_material_param_key(AI_MATKEY_COLOR_DIFFUSE)), MaterialProperty::eBaseColor},
+        {hash<uint32_t>(ai_material_param_key(AI_MATKEY_COLOR_TRANSPARENT)), MaterialProperty::eBaseColor},
+        {hash<uint32_t>(ai_material_param_key(AI_MATKEY_METALLIC_FACTOR)), MaterialProperty::eMetallic},
+        {hash<uint32_t>(ai_material_param_key(AI_MATKEY_ROUGHNESS_FACTOR)), MaterialProperty::eRoughness},
+        {hash<uint32_t>(ai_material_param_key(AI_MATKEY_GLOSSINESS_FACTOR)), MaterialProperty::eRoughness},
+        {hash<uint32_t>(ai_material_param_key(AI_MATKEY_SPECULAR_FACTOR)), MaterialProperty::eSpecularFactor},
+        {hash<uint32_t>(ai_material_param_key(AI_MATKEY_COLOR_SPECULAR)), MaterialProperty::eSpecularColorFactor},
+        {hash<uint32_t>(ai_material_param_key(AI_MATKEY_CLEARCOAT_ROUGHNESS_FACTOR)), MaterialProperty::eClearCoatRoughness},
+        {hash<uint32_t>(ai_material_param_key(AI_MATKEY_COLOR_EMISSIVE)), MaterialProperty::eEmissive},
+        {hash<uint32_t>(ai_material_param_key(AI_MATKEY_TRANSMISSION_FACTOR)), MaterialProperty::eTransmission},
+        {hash<uint32_t>(ai_material_param_key(AI_MATKEY_VOLUME_THICKNESS_FACTOR)), MaterialProperty::eThickness},
+        {hash<uint32_t>(ai_material_param_key(AI_MATKEY_VOLUME_ATTENUATION_COLOR)), MaterialProperty::eAbsorption},
+        {hash<uint32_t>(ai_material_param_key(AI_MATKEY_REFRACTI)),MaterialProperty::eIOR},
+        {hash<uint32_t>(ai_material_param_key(AI_MATKEY_SHEEN_ROUGHNESS_FACTOR)), MaterialProperty::eSheenRoughness},
+        {hash<uint32_t>(ai_material_param_key(AI_MATKEY_ANISOTROPY_FACTOR)), MaterialProperty::eAnisotropy},
+        {hash<uint32_t>(ai_material_param_key(AI_MATKEY_ANISOTROPY_ROTATION)), MaterialProperty::eAnisotropyDirection},
+    };
+    for (aiMaterialProperty * property_p : std::span(ai_material.mProperties, ai_material.mNumProperties)) {
+        Vector4D<float> param;
+        auto it = c_material_property_map.find(hash<uint32_t>(property_p->mKey.C_Str()));
+        if (it == c_material_property_map.end()) { continue; }
+        memcpy(&param, property_p->mData, property_p->mDataLength);
+        material.setParam(it->second, param);
+        // lcf_log_info("Material property: {}, value: [{}, {}, {}, {}]", enum_name(it->second), param.x, param.y, param.z, param.w);
     }
 }
 
