@@ -168,30 +168,29 @@ namespace lcf::enum_decode {
 
     inline constexpr ImageFormat decode(ImageFormat encode) noexcept
     {
-        ImageFormat decoded = encode;
-        switch (encode) {
-            case ImageFormat::eBGR8Uint:
-            case ImageFormat::eCMYK8Uint:
-            case ImageFormat::eYCbCr8Uint:
-            case ImageFormat::eYCCK8Uint: { decoded = ImageFormat::eRGB8Uint; } break;
-            case ImageFormat::eBGRA8Uint: 
-            case ImageFormat::eARGB8Uint: { decoded = ImageFormat::eRGBA8Uint; } break;
-            default: break;
-        }
-        return decoded;
+        return get_image_format(decode_color_space(get_channel_count(encode)), get_pixel_data_type(encode));
     }
 
     inline constexpr ImageFormat decode_gpu_friendly(ImageFormat encode) noexcept
     {
-        ImageFormat decoded = decode(encode);
-        if (decode_color_space(get_channel_count(decoded)) == ColorSpace::eRGB) {
-            return static_cast<ImageFormat>(internal::encode(ColorSpace::eRGBA, get_pixel_data_type(decoded)));
+        if (get_channel_count(encode) == 3) {
+            return get_image_format(ColorSpace::eRGBA, get_pixel_data_type(encode));
         }
-        return decoded;
+        return decode(encode);
     }
 
     inline constexpr ImageFormat decode_image_format(PixelDataType pixel_data_type, uint8_t channel_count) noexcept
     {
         return get_image_format(decode_color_space(channel_count), pixel_data_type);
+    }
+
+    inline constexpr bool is_native_color_space(ColorSpace color_space) noexcept
+    {
+        return color_space != ColorSpace::eInvalid and decode_color_space(get_channel_count(color_space)) == color_space;
+    }
+
+    inline constexpr bool is_native_image_format(ImageFormat format) noexcept
+    {
+        return is_native_color_space(get_color_space(format));
     }
 }
