@@ -50,19 +50,22 @@ std::filesystem::path get_extension(ImageFileType type) noexcept;
 
 ImageFileType get_file_type(const std::filesystem::path & path) noexcept;
 
-ImageInfoData read_from_png(const std::filesystem::path & path);
+ImageInfoData read_info_from_png(const std::filesystem::path & path);
 
-ImageInfoData read_from_jpeg(const std::filesystem::path & path);
-
-std::expected<ImageVariant, std::error_code> load_from_file_gil(const ImageInfo & info, ImageFormat specific_format) noexcept;
+ImageInfoData read_info_from_jpeg(const std::filesystem::path & path);
 
 bool is_stb_load_supported(const ImageInfo & info) noexcept;
+
+std::expected<ImageVariant, std::error_code> load_from_file_gil(const ImageInfo & info, ImageFormat specific_format) noexcept;
 
 std::expected<ImageVariant, std::error_code> load_from_file_stb(const ImageInfo & info, ImageFormat specific_format) noexcept;
 
 std::expected<ImageVariant, std::error_code> load_from_memory_stb(std::span<const std::byte> data, ImageFormat & format) noexcept;
 
+bool is_stb_save_supported(ImageFileType file_type) noexcept;
+
 std::error_code save_to_file_stb(const ImageVariant & image, ImageFormat format, ImageFileType file_type, const std::filesystem::path & path) noexcept;
+
 //- auxiliary function forward declarations end
 
 ImageInfo::ImageInfo(const std::filesystem::path & path)
@@ -78,8 +81,8 @@ ImageInfo::ImageInfo(const std::filesystem::path & path)
     }
     ImageInfoData data;
     switch (m_file_type) {
-        case ImageFileType::ePNG: { data = read_from_png(path); } break;
-        case ImageFileType::eJPEG: { data = read_from_jpeg(path); } break;
+        case ImageFileType::ePNG: { data = read_info_from_png(path); } break;
+        case ImageFileType::eJPEG: { data = read_info_from_jpeg(path); } break;
         default: break;
     }
     
@@ -201,18 +204,12 @@ std::error_code lcf::Image::loadFromMemoryPixels(std::span<const std::byte> data
 
 std::error_code Image::saveToFile(const std::filesystem::path &path) const noexcept
 {
-    std::error_code ec;
     ImageFileType file_type = get_file_type(path);
-    switch(file_type) {
-        case ImageFileType::ePNG: 
-        case ImageFileType::eJPEG:
-        case ImageFileType::eBMP: 
-        case ImageFileType::eTGA: 
-        case ImageFileType::eHDR: { ec = save_to_file_stb(m_image, m_format, file_type, path); } break;
-        //-other file types requires additional save functions, stbi not supported yet
-        default: { ec = std::make_error_code(std::errc::invalid_argument); } break;
+    if (is_stb_save_supported(file_type)) {
+        return save_to_file_stb(m_image, m_format, file_type, path);
     }
-    return ec;
+    //todo: save functions for other file types
+    return std::make_error_code(std::errc::invalid_argument);
 }
 
 std::span<std::byte> Image::getDataSpan() noexcept
@@ -246,7 +243,7 @@ ImageFileType get_file_type(const std::filesystem::path & path) noexcept
     return result;
 }
 
-ImageInfoData read_from_png(const std::filesystem::path & path)
+ImageInfoData read_info_from_png(const std::filesystem::path & path)
 {
     auto info = gil::read_image_info(path.string(), gil::png_tag {})._info;
     ColorSpace color_space = ColorSpace::eInvalid;
@@ -265,7 +262,7 @@ ImageInfoData read_from_png(const std::filesystem::path & path)
     };
 }
 
-ImageInfoData read_from_jpeg(const std::filesystem::path &path)
+ImageInfoData read_info_from_jpeg(const std::filesystem::path &path)
 {
     auto info = gil::read_image_info(path.string(), gil::jpeg_tag {})._info;
     ColorSpace color_space = ColorSpace::eInvalid;
@@ -376,6 +373,15 @@ std::expected<ImageVariant, std::error_code> load_from_memory_stb(std::span<cons
     memcpy(data_span.data(), dst_data_p, data_size);
     stbi_image_free(dst_data_p);
     return image;
+}
+
+bool is_stb_save_supported(ImageFileType file_type) noexcept
+{
+    return file_type == ImageFileType::ePNG or
+        file_type == ImageFileType::eJPEG or
+        file_type == ImageFileType::eBMP or
+        file_type == ImageFileType::eTGA or
+        file_type == ImageFileType::eHDR;
 }
 
 std::error_code save_to_file_stb(const ImageVariant &image, ImageFormat format, ImageFileType file_type, const std::filesystem::path &path) noexcept

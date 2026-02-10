@@ -71,48 +71,4 @@ namespace lcf {
         ImageVariant m_image;
         ImageFormat m_format;
     };
-
-
-    // template <typename Allocator = std::allocator<unsigned char>>
-    // class Image2 : public ImagePointerDefs
-    // {
-    //     using Self = Image2<Allocator>;
-    //     using ImageVariant = details::ImageVariant<Allocator>;
-    // public:
-    //     using allocator_type = Allocator;
-    // public:
-    //     Image2() = default;
-    //     Image2(uint32_t width, uint32_t height, ImageFormat format);
-    //     Image2(const Self &) = default;
-    //     Image2(Self &&) noexcept = default;
-    //     Image2 & operator=(const Self & other) = default;
-    //     Image2 & operator=(Self && other) noexcept = default;
-    // private:
-    //     Image2(ImageVariant && image) noexcept : m_image(std::move(image)) {}
-    //     Image2 & operator=(ImageVariant && image) noexcept { m_image = std::move(image); return *this; }
-    // public:
-    //     std::error_code convertTo(ImageFormat format) noexcept;
-    //     std::error_code convertToGpuFriendly() noexcept;
-    //     Self & resize(uint32_t width, uint32_t height, ImageSampler sampler) noexcept;
-    //     std::error_code loadFromFile(const ImageInfo & info) noexcept;
-    //     std::error_code loadFromFile(const ImageInfo & info, ImageFormat specific_format) noexcept;
-    //     std::error_code loadFromFileGpuFriendly(const ImageInfo & info) noexcept; //- RGB -> RGBA
-    //     std::error_code loadFromMemoryEncoded(std::span<const std::byte> data) noexcept;
-    //     std::error_code loadFromMemoryPixels(std::span<const std::byte> data, uint32_t width, ImageFormat src_format) noexcept;
-    //     std::error_code loadFromMemoryPixels(std::span<const std::byte> data, uint32_t width, ImageFormat src_format, ImageFormat dst_format) noexcept;
-    //     std::error_code saveToFile(const std::filesystem::path & path) const noexcept;
-    //     std::span<std::byte> getDataSpan() noexcept { return details::view_as_bytes(m_image); }
-    //     std::span<const std::byte> getDataSpan() const noexcept { return details::view_as_bytes(m_image); }
-    //     ImageFormat getDecodeFormat() const noexcept { return m_format; }
-    //     ColorSpace getColorSpace() const noexcept { return enum_decode::get_color_space(m_format); }
-    //     PixelDataType getDataType() const noexcept { return enum_decode::get_pixel_data_type(m_format); }
-    //     uint32_t getChannelCount() const noexcept { return enum_decode::get_channel_count(m_format); }
-    //     uint32_t getBytesPerChannel() const noexcept { return enum_decode::get_bytes_per_channel(m_format); }
-    //     uint32_t getWidth() const noexcept { return static_cast<uint32_t>(m_image.width()); }
-    //     uint32_t getHeight() const noexcept { return static_cast<uint32_t>(m_image.height()); }
-    //     std::pair<uint32_t, uint32_t> getDimensions() const noexcept { return { this->getWidth(), this->getHeight() }; }
-    // private:
-    //     ImageVariant m_image;
-    //     ImageFormat m_format;
-    // };
 }
