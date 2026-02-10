@@ -54,10 +54,6 @@ ImageInfoData read_info_from_png(const std::filesystem::path & path);
 
 ImageInfoData read_info_from_jpeg(const std::filesystem::path & path);
 
-bool is_stb_load_supported(const ImageInfo & info) noexcept;
-
-std::expected<ImageVariant, std::error_code> load_from_file_gil(const ImageInfo & info, ImageFormat specific_format) noexcept;
-
 std::expected<ImageVariant, std::error_code> load_from_file_stb(const ImageInfo & info, ImageFormat specific_format) noexcept;
 
 std::expected<ImageVariant, std::error_code> load_from_memory_stb(std::span<const std::byte> data, ImageFormat & format) noexcept;
@@ -158,12 +154,7 @@ std::error_code Image::loadFromFile(const ImageInfo &info, ImageFormat specific_
     if (info.getFileType() == ImageFileType::eInvalid) {
         return std::make_error_code(std::errc::invalid_argument);
     }
-    std::expected<ImageVariant, std::error_code> expected;
-    if (is_stb_load_supported(info)) {
-        expected = load_from_file_stb(info, format);
-    } else {
-        expected = load_from_file_gil(info, format);
-    }
+    auto expected = load_from_file_stb(info, format);
     if (not expected) { return expected.error(); }
     else { m_image = std::move(*expected); }
     m_format = format;
@@ -289,29 +280,6 @@ ImageInfoData read_info_from_jpeg(const std::filesystem::path &path)
         info._height,
         enum_decode::get_image_format(color_space, PixelDataType::eUint8), 
     };
-}
-
-bool is_stb_load_supported(const ImageInfo & info) noexcept
-{
-    return enum_decode::is_native_image_format(info.getEncodeFormat());
-}
-
-std::expected<ImageVariant, std::error_code> load_from_file_gil(const ImageInfo &info, ImageFormat specific_format) noexcept
-{
-    std::string path_str = info.getPath().string();
-    auto image = details::generate_image<>(info.getWidth(), info.getHeight(), specific_format);
-    try {
-        switch (info.getFileType()) {
-            case ImageFileType::ePNG: { gil::read_image(path_str, image, gil::png_tag {}); } break;
-            case ImageFileType::eJPEG: { gil::read_image(path_str, image, gil::jpeg_tag {}); } break;
-            case ImageFileType::eBMP: { gil::read_image(path_str, image, gil::bmp_tag {}); } break;
-            case ImageFileType::eTGA: { gil::read_image(path_str, image, gil::targa_tag {}); } break;
-            default: return std::unexpected(std::make_error_code(std::errc::invalid_argument));
-        }
-    } catch (const std::exception & e) {
-        return std::unexpected(std::make_error_code(std::errc::invalid_argument));
-    }
-    return image;
 }
 
 std::expected<ImageVariant, std::error_code> load_from_file_stb(const ImageInfo &info, ImageFormat specific_format) noexcept
