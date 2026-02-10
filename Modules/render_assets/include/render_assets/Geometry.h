@@ -1,5 +1,6 @@
 #pragma once
 
+#include "render_assets_fwd_decls.h"
 #include "render_assets_enums.h"
 #include "enums/enum_count.h"
 #include "vector_enum_value_types.h"
@@ -14,7 +15,7 @@
 #include <ranges>
 
 namespace lcf {
-    class Geometry : public STDPointerDefs<Geometry>
+    class Geometry : public GeometryPointerDefs
     {
         using Self = Geometry;
         template <VertexAttribute attribute>

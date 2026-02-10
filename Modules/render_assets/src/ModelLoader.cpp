@@ -20,18 +20,6 @@ namespace stdr = std::ranges;
 
 template <> inline constexpr bool is_pointer_type_convertible_v<aiVector3D, Vector3D<float>> = true;
 
-using AssimpHierarchyNode = std::pair<size_t, const aiNode *>;
-
-Matrix4x4 to_matrix4x4(const aiMatrix4x4 & ai_mat) noexcept;
-
-std::expected<Image, std::error_code> to_image(const aiTexture & ai_texture);
-
-Model::HierarchyNode to_hierarchy_node(const AssimpHierarchyNode & ai_hierarchy_node);
-
-void process_mesh(Geometry & geometry, const aiMesh & ai_mesh);
-
-void process_material(Material & material, const aiMaterial & ai_material);
-
 template <>
 struct enum_mapping_traits<TextureSemantic, aiTextureType>
 {
@@ -53,6 +41,18 @@ struct enum_mapping_traits<TextureSemantic, aiTextureType>
         { TextureSemantic::eSpecular, aiTextureType_MAYA_SPECULAR }
     };
 };
+
+using AssimpHierarchyNode = std::pair<size_t, const aiNode *>;
+
+Matrix4x4 to_matrix4x4(const aiMatrix4x4 & ai_mat) noexcept;
+
+std::expected<Image, std::error_code> to_image(const aiTexture & ai_texture);
+
+Model::HierarchyNode to_hierarchy_node(const AssimpHierarchyNode & ai_hierarchy_node);
+
+void process_mesh(Geometry & geometry, const aiMesh & ai_mesh);
+
+void process_material(Material & material, const aiMaterial & ai_material);
 
 constexpr std::string_view ai_material_param_key(const char * key, int, int) noexcept //- adapt ai material param key macros
 {
@@ -104,9 +104,9 @@ std::optional<Model> ModelLoader::Impl::load(const std::filesystem::path &path) 
         lcf_log_error("Failed to analyze model: {}", expected_model.error().message());
         return std::nullopt;
     }
-    this->loadTextures();
     auto & model = expected_model.value();
     this->processGeometries(model);
+    this->loadTextures();
     this->processMaterials(model);
     return std::move(model);
 }
@@ -219,44 +219,6 @@ void ModelLoader::Impl::buildModel(Model &model) noexcept
     }
 }
 
-Matrix4x4 to_matrix4x4(const aiMatrix4x4 & ai_mat) noexcept
-{
-    return {
-        ai_mat.a1, ai_mat.a2, ai_mat.a3, ai_mat.a4,
-        ai_mat.b1, ai_mat.b2, ai_mat.b3, ai_mat.b4,
-        ai_mat.c1, ai_mat.c2, ai_mat.c3, ai_mat.c4,
-        ai_mat.d1, ai_mat.d2, ai_mat.d3, ai_mat.d4
-    };
-}
-
-std::expected<Image, std::error_code> to_image(const aiTexture &ai_texture)
-{
-    Image image;
-    uint32_t width = ai_texture.mWidth;
-    uint32_t height = ai_texture.mHeight;
-    bool is_compressed = (height == 0);
-    size_t size_in_bytes = is_compressed ? width : width * height * sizeof(aiTexel);
-    auto data_span = std::span(reinterpret_cast<const std::byte *>(ai_texture.pcData), size_in_bytes);
-    std::error_code error_code;
-    if (is_compressed) {
-        error_code = image.loadFromMemoryEncoded(data_span);
-    } else {
-        error_code = image.loadFromMemoryPixels(data_span, width, ImageFormat::eRGBA8Uint);
-    }
-    if (error_code) { return std::unexpected(error_code); }
-    return image;
-}
-
-Model::HierarchyNode to_hierarchy_node(const AssimpHierarchyNode &ai_hierarchy_node)
-{
-    Model::HierarchyNode hierarchy_node;
-    auto [parent_index, ai_node] = ai_hierarchy_node;
-    hierarchy_node.m_parent_index = parent_index;
-    hierarchy_node.m_primitive_indices.assign_range(std::span(ai_node->mMeshes, ai_node->mNumMeshes));
-    hierarchy_node.m_local_matrix = to_matrix4x4(ai_node->mTransformation);
-    return hierarchy_node;
-}
-
 void process_mesh(Geometry & geometry, const aiMesh & ai_mesh)
 {
     uint32_t vertex_num = ai_mesh.mNumVertices;
@@ -269,8 +231,7 @@ void process_mesh(Geometry & geometry, const aiMesh & ai_mesh)
     geometry.setIndices(std::move(indices))
         .setAttributes<VertexAttribute::ePosition>(std::span(ai_mesh.mVertices, vertex_num))
         .setAttributes<VertexAttribute::eNormal>(std::span(ai_mesh.mNormals, vertex_num));
-    // for (auto i : {0, 1}) {
-    for (auto i : {0}) { //! temp
+    for (auto i : {0, 1}) {
         if (not ai_mesh.HasTextureCoords(i)) { break; }
         auto span = std::span(ai_mesh.mTextureCoords[0], vertex_num);
         for (auto && [i, ai_texture_coord] : stdv::enumerate(span)) {
@@ -278,7 +239,7 @@ void process_mesh(Geometry & geometry, const aiMesh & ai_mesh)
         }
     }
 }
-#include "enums/enum_name.h"
+
 void process_material(Material & material, const aiMaterial & ai_material)
 {
     static const std::unordered_map<uint32_t, MaterialProperty> c_material_property_map = {
@@ -306,22 +267,43 @@ void process_material(Material & material, const aiMaterial & ai_material)
         if (it == c_material_property_map.end()) { continue; }
         memcpy(&param, property_p->mData, property_p->mDataLength);
         material.setParam(it->second, param);
-        // lcf_log_info("Material property: {}, value: [{}, {}, {}, {}]", enum_name(it->second), param.x, param.y, param.z, param.w);
     }
 }
 
-class AssetManager
+Model::HierarchyNode to_hierarchy_node(const AssimpHierarchyNode &ai_hierarchy_node)
 {
-/*
-    <id, Image::SharedPointer> texture_map;
-    <id, Geometry::SharedPointer> geometry_map;
-*/
-};
-class BackendAssetManager
-{
-/*
-    <Image::WeakPointer, BackendTexture::SharedPointer> texture_map;
-    <Geometry::WeakPointer, BackendGeometry::SharedPointer> geometry_map;
-*/
-};
+    Model::HierarchyNode hierarchy_node;
+    auto [parent_index, ai_node] = ai_hierarchy_node;
+    hierarchy_node.m_parent_index = parent_index;
+    hierarchy_node.m_primitive_indices.assign_range(std::span(ai_node->mMeshes, ai_node->mNumMeshes));
+    hierarchy_node.m_local_matrix = to_matrix4x4(ai_node->mTransformation);
+    return hierarchy_node;
+}
 
+Matrix4x4 to_matrix4x4(const aiMatrix4x4 & ai_mat) noexcept
+{
+    return {
+        ai_mat.a1, ai_mat.a2, ai_mat.a3, ai_mat.a4,
+        ai_mat.b1, ai_mat.b2, ai_mat.b3, ai_mat.b4,
+        ai_mat.c1, ai_mat.c2, ai_mat.c3, ai_mat.c4,
+        ai_mat.d1, ai_mat.d2, ai_mat.d3, ai_mat.d4
+    };
+}
+
+std::expected<Image, std::error_code> to_image(const aiTexture &ai_texture)
+{
+    Image image;
+    uint32_t width = ai_texture.mWidth;
+    uint32_t height = ai_texture.mHeight;
+    bool is_compressed = (height == 0);
+    size_t size_in_bytes = is_compressed ? width : width * height * sizeof(aiTexel);
+    auto data_span = std::span(reinterpret_cast<const std::byte *>(ai_texture.pcData), size_in_bytes);
+    std::error_code error_code;
+    if (is_compressed) {
+        error_code = image.loadFromMemoryEncoded(data_span);
+    } else {
+        error_code = image.loadFromMemoryPixels(data_span, width, ImageFormat::eRGBA8Uint);
+    }
+    if (error_code) { return std::unexpected(error_code); }
+    return image;
+}

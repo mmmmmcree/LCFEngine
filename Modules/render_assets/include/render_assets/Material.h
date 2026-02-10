@@ -1,5 +1,6 @@
 #pragma once
 
+#include "render_assets_fwd_decls.h"
 #include "render_assets_enums.h"
 #include "MaterialParam.h"
 #include "enums/enum_value_type.h"
@@ -15,7 +16,7 @@
 #include <variant>
 
 namespace lcf {
-    class Material : public STDPointerDefs<Material>
+    class Material : public MaterialPointerDefs
     {
         using Self = Material;
         using ParamMap = tsl::robin_map<MaterialProperty, MaterialParam>;
@@ -48,10 +49,9 @@ namespace lcf {
             const auto & material_properties = enum_values_v<MaterialProperty>;
             auto property_indices = std::ranges::views::iota(0u, material_properties.size()) |
                 std::views::filter([&](auto index) {
-                    return contains_flags(
-                        enum_decode::get_material_property_flags(shading_model),
-                        enum_decode::to_flag_bit(material_properties[index])
-                    );
+                    MaterialPropertyFlags property_flags = enum_decode::get_material_property_flags(shading_model);
+                    MaterialProperty property = material_properties[index];
+                    return contains_flags(property_flags, property);
                 }) | std::ranges::to<std::vector<uint32_t>>();
             StructureLayout layout;
             for (auto property : material_properties | views::take_from(property_indices)) {

@@ -1,14 +1,15 @@
 #pragma once
 
+#include "PointerDefs.h"
+
 namespace lcf {
     class Geometry;
+    LCF_DECLARE_POINTER_DEFS(Geometry, STDPointerDefs);
 
     class Material;
-    class MaterialParam;
+    LCF_DECLARE_POINTER_DEFS(Material, STDPointerDefs);
 
     class RenderPrimitive;
-
-    class Mesh;
 
     class Model;
 
