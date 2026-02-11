@@ -70,13 +70,13 @@ std::error_code save_to_file_stb(const ImageVariant & image, ImageFormat format,
 
 ImageInfo::ImageInfo(const std::filesystem::path & path)
 {
-    if (not std::filesystem::exists(path)) {
-        lcf_log_error("Image file not found: {}", path.string());
-        return;
-    }
     m_file_type = get_file_type(path);
     if (m_file_type == ImageFileType::eInvalid) {
         lcf_log_error("Invalid image file type: {}", path.string());
+        return;
+    }
+    if (not std::filesystem::exists(path)) {
+        lcf_log_error("Image file not found: {}", path.string());
         return;
     }
     ImageInfoData data;
