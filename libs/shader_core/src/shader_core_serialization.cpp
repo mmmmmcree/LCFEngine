@@ -1,9 +1,15 @@
-#include "ShaderCore/ShaderResource.h"
+#pragma once
+
+#include "shader_core/shader_core_serialization.h"
+#include "shader_core/ShaderResource.h"
 #include "enums/enum_name.h"
+#include <ranges>
 
 using namespace lcf;
+namespace stdr = std::ranges;
+namespace stdv = std::views;
 
-OrderedJSON lcf::serialize(const ShaderResourceMember & shader_resource_member)
+OrderedJSON lcf::serialize(const ShaderResourceMember &shader_resource_member)
 {
     OrderedJSON json;
     json["name"] = shader_resource_member.getName();
@@ -36,16 +42,18 @@ OrderedJSON lcf::serialize(const ShaderResource &shader_resource)
     return json;
 }
 
-OrderedJSON lcf::serialize(const ShaderResources & shader_resources)
+OrderedJSON serialize_resource_list(const ShaderResourceList& list)
 {
-    auto serialize_resource_list = [](const ShaderResourceList& list) -> OrderedJSON
-    {
-        OrderedJSON array = OrderedJSON::array();
-        for (const auto& resource : list) {
-            array.push_back(serialize(resource));
-        }
-        return array;
-    };
+    OrderedJSON array = OrderedJSON::array();
+    for (const auto& resource : list) {
+        array.push_back(serialize(resource));
+    }
+    return array;
+};
+
+OrderedJSON lcf::serialize(const ShaderResources &shader_resources)
+{
+    
     OrderedJSON json;
     if (not shader_resources.uniform_buffers.empty()) {
         json["uniform_buffers"] = serialize_resource_list(shader_resources.uniform_buffers);

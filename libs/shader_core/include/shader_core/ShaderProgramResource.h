@@ -1,6 +1,5 @@
 #pragma once
 
-#include "ShaderDefs.h"
 #include "ShaderResource.h"
 
 namespace lcf {

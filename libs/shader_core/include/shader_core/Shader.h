@@ -1,12 +1,11 @@
 #pragma once
 
-#include "ShaderDefs.h"
+#include "shader_core_fwd_decls.h"
 #include "ShaderResource.h"
-#include "PointerDefs.h"
 #include <filesystem>
 
 namespace lcf {
-    class Shader : public STDPointerDefs<Shader>
+    class Shader : public ShaderPointerDefs
     {
     public:
         Shader(ShaderTypeFlagBits type) : m_stage(type), m_entry_point("main") { }

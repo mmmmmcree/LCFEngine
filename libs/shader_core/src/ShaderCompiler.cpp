@@ -1,5 +1,6 @@
-#include "ShaderCore/ShaderCompiler.h"
-#include "ShaderCore/ShaderIncluder.h"
+#include "shader_core/ShaderCompiler.h"
+#include "shader_core/shader_core_enums.h"
+#include "shader_core/ShaderIncluder.h"
 #include "log.h"
 #include <filesystem>
 #include <fstream>
@@ -22,7 +23,7 @@ lcf::SpvCode lcf::ShaderCompiler::compileGlslSourceToSpv(const char *shader_name
         options.AddMacroDefinition(macro_definition.c_str());
     }
     if (not m_include_directories.empty()) {
-        auto includer = ShaderIncluder::makeUnique();
+        auto includer = std::make_unique<ShaderIncluder>();
         for (const auto &include_directory : m_include_directories) {
             includer->addIncludeDirectory(include_directory.c_str());
         }

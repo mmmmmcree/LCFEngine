@@ -1,15 +1,14 @@
 #pragma once
 
-#include "Shader.h"
-#include "PointerDefs.h"
+#include "shader_core_fwd_decls.h"
+#include "shader_core_enums.h"
 #include <unordered_map>
-#include "ShaderProgramResource.h"
 
 namespace lcf {
-    class ShaderProgram : public STDPointerDefs<ShaderProgram>
+    class ShaderProgram : public ShaderProgramPointerDefs
     {
     public:
-        using StageToShaderMap = std::unordered_map<ShaderTypeFlagBits, Shader::SharedPointer>;
+        using StageToShaderMap = std::unordered_map<ShaderTypeFlagBits, ShaderSharedPointer>;
         ShaderProgram() = default;
         virtual ~ShaderProgram() = default;
         virtual bool link();
@@ -17,7 +16,7 @@ namespace lcf {
         bool containsStage(ShaderTypeFlagBits stage) const { return m_stage_to_shader_map.contains(stage); }
         Shader * getShader(ShaderTypeFlagBits stage) const;
     protected:
-        void addShader(const Shader::SharedPointer & shader);
+        void addShader(const ShaderSharedPointer & shader);
     protected:
         bool m_is_linked = false;
         StageToShaderMap m_stage_to_shader_map;

@@ -1,5 +1,6 @@
 #include "Vulkan/VulkanShaderProgram.h"
 #include "Vulkan/VulkanContext.h"
+#include "Vulkan/vulkan_enums.h"
 #include "log.h"
 #include <format>
 

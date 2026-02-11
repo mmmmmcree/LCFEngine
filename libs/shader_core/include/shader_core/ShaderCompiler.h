@@ -1,14 +1,23 @@
 #pragma once
 
-#include "ShaderDefs.h"
+#include <spirv_cross/spirv_cross.hpp>
 #include "ShaderResource.h"
 #include <filesystem>
 #include <string>
 #include <vector>
 
 namespace lcf {
+    using SpvCode = std::vector<uint32_t>;
+
     class ShaderCompiler
     {
+    public:
+        ShaderCompiler() = default;
+        ~ShaderCompiler() noexcept = default;
+        ShaderCompiler(const ShaderCompiler &) = delete;
+        ShaderCompiler & operator=(const ShaderCompiler &) = delete;
+        ShaderCompiler(ShaderCompiler &&) = default;
+        ShaderCompiler & operator=(ShaderCompiler &&) = default;
     public:
         void addMacroDefinition(std::string_view macro_definition);
         void addIncludeDirectory(std::string_view include_directory);

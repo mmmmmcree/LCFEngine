@@ -1,4 +1,4 @@
-#include "ShaderCore/ShaderIncluder.h"
+#include "shader_core/ShaderIncluder.h"
 #include <filesystem>
 #include <fstream>
 

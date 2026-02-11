@@ -1,12 +1,11 @@
 #pragma once
 
-#include "ShaderDefs.h"
-#include "PointerDefs.h"
+#include <shaderc/shaderc.hpp>
 #include <string>
 #include <vector>
 
 namespace lcf {
-    class ShaderIncluder : public shaderc::CompileOptions::IncluderInterface, public STDPointerDefs<ShaderIncluder>
+    class ShaderIncluder : public shaderc::CompileOptions::IncluderInterface
     {
     public:
         void addIncludeDirectory(const char *path);

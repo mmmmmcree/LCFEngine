@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ShaderCore/ShaderProgram.h"
+#include "shader_core/ShaderProgram.h"
 #include "VulkanDescriptorSetLayout.h"
 #include "VulkanShader.h"
 #include "VulkanPushConstant.h"

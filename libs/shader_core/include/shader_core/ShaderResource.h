@@ -1,7 +1,6 @@
 #pragma once
 
-#include "ShaderDefs.h"
-#include "JSON.h"
+#include "shader_core_enums.h"
 #include <vector>
 #include <unordered_map>
 #include <map>
@@ -91,10 +90,4 @@ namespace lcf {
         ShaderResourceList builtin_inputs;
         ShaderResourceList builtin_outputs;
     };
-
-    OrderedJSON serialize(const ShaderResourceMember & shader_resource_member);
-
-    OrderedJSON serialize(const ShaderResource & shader_resource);
-
-    OrderedJSON serialize(const ShaderResources & shader_resources);
 }

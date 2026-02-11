@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
-#include "ShaderCore/Shader.h"
+#include "shader_core/Shader.h"
 #include "PointerDefs.h"
 
 namespace vk { class DispatchLoaderDynamic; }
