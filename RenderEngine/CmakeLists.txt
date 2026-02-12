@@ -34,8 +34,8 @@ target_link_libraries(${PROJECT_NAME}
         core 
         Boost::headers   
         shader_core
+        render_assets
     PRIVATE
-        assimp::assimp
 )  
 
 if(USE_VULKAN)

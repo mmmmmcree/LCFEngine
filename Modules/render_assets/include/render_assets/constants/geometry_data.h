@@ -2,7 +2,7 @@
 
 #include "Vector.h"
 
-namespace lcf::render::data {
+namespace lcf::constants {
     constexpr Vector3D<float> quad_positions[] = {
         {-1.0f, -1.0f, 0.0f},
         {+1.0f, -1.0f, 0.0f},

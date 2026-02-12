@@ -114,9 +114,10 @@ namespace lcf {
         const IndexList & getIndices() const noexcept { return m_indices; }
         Self & addFace(Face face) { m_faces.emplace_back(std::move(face)); return *this; }
         const FaceList & getFaces() const noexcept { return m_faces; }
-
+        uint32_t getVertexCount() const noexcept { return m_vertex_count; }
+        uint32_t getIndexCount() const noexcept { return static_cast<uint32_t>(m_indices.size()); }
         template <typename Mapping = enum_value_type_mapping_traits<VectorType>::type>
-        BufferWriteSegments generateInterleavedSegments(VertexAttributeFlags enabled_flags = VertexAttributeFlags::eAll) const noexcept
+        BufferWriteSegments generateInterleavedVertexBufferSegments(VertexAttributeFlags enabled_flags = VertexAttributeFlags::eAll) const noexcept
         {
             std::vector<size_t> enabled_indices;
             enabled_indices.reserve(c_vertex_attribute_count);

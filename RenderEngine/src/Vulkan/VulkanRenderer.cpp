@@ -3,14 +3,13 @@
 #include "Vulkan/vulkan_utililtie.h"
 #include "Vulkan/vulkan_constants.h"
 #include "Matrix.h"
-#include "common/geometry_data.h"
 #include "Quaternion.h"
 #include "image/Image.h"
 #include "Entity.h"
 #include "Transform.h"
 #include <boost/container/small_vector.hpp>
 #include "bytes.h"
-#include "ModelLoader.h"
+#include "render_assets/ModelLoader.h"
 
 lcf::VulkanRenderer::~VulkanRenderer()
 {
@@ -21,6 +20,7 @@ lcf::VulkanRenderer::~VulkanRenderer()
 void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint32_t, uint32_t> & max_extent)
 {
     m_context_p = context_p;
+    const auto & sampler_manager = context_p->getSamplerManager();
     m_frame_resources.resize(3); //todo remove constant
     auto device = m_context_p->getDevice();
 
@@ -69,7 +69,6 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     m_per_material_params_ssbo_sp = VulkanBufferObject::makeShared();
     m_per_material_params_ssbo_sp->setUsage(GPUBufferUsage::eShaderStorage)
         .create(m_context_p, size_of_v<vk::DeviceAddress>);
-    
 
     m_indirect_call_buffer.setUsage(GPUBufferUsage::eIndirect)
         .create(m_context_p, size_of_v<vk::DrawIndirectCommand> + 1 * size_of_v<vk::DrawIndirectCommand>); // uint32_t(for IndirectDrawCount) + padding | vk::DrawIndirectCommand ...
@@ -99,23 +98,13 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         .add(std::to_underlying(PerRenderableBindingPoints::eTransform), m_per_renderable_ssbo_group[2].generateBufferInfo())
         .update();
 
-    auto mesh_sp = Mesh::makeShared();
-    mesh_sp->create(std::size(data::cube_positions));
-    mesh_sp->setVertexData(VertexSemanticFlags::ePosition, as_bytes(data::cube_positions))
-        .setVertexData(VertexSemanticFlags::eNormal, as_bytes(data::cube_normals))
-        .setVertexData(VertexSemanticFlags::eTexCoord0, as_bytes(data::cube_uvs))
-        .setIndexData(data::cube_indices);
-
-    auto material_sp = Material::makeShared();
     auto image1_sp = Image::makeShared();
     image1_sp->loadFromFileGpuFriendly({"assets/images/bk.jpg"});
     auto image2_sp = Image::makeShared();
     image2_sp->loadFromFileGpuFriendly({"assets/images/qt256.png"});
-    material_sp->addImage(image1_sp)
-        .addImage(image2_sp);
 
-    Model cube_model = ModelLoader().load("./assets/models/dinosaur/source/Rampaging T-Rex.glb");
-    cube_model.addMaterial(material_sp);
+    auto load_mode_result = ModelLoader {}.load("./assets/models/dinosaur/source/Rampaging T-Rex.glb");
+    const auto & cube_model = load_mode_result.value();
 
     struct PBRMaterialParams
     {
@@ -136,7 +125,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         .create(context_p, size_of_v<PBRMaterialParams>);
     m_material_params.addWriteSegment({as_bytes_from_value(material_params)});
     vkutils::immediate_submit(m_context_p, vk::QueueFlagBits::eTransfer, [this, &cube_model](VulkanCommandBufferObject & cmd) {
-        m_mesh.create(m_context_p, cmd, cube_model.getMesh(0));
+        m_mesh.create(m_context_p, cmd, cube_model.m_render_primitive_list[0].getGeometry());
         m_material_params.commit(cmd);
     });
 
@@ -145,20 +134,18 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     VulkanImageObject::SharedPointer texture2_sp;
     VulkanSampler::SharedPointer sampler_sp;
 
-    const Image & image = material_sp->getImage(0);
     texture1_sp = VulkanImageObject::makeShared();
     texture1_sp->setFormat(vk::Format::eR8G8B8A8Unorm)
         .setUsage(vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst)
         .setMipmapped(true)
-        .setExtent({ image.getWidth(), image.getHeight(), 1u })
+        .setExtent({ image1_sp->getWidth(), image1_sp->getHeight(), 1u })
         .create(m_context_p);
 
-    const Image & image2 = material_sp->getImage(1);
     texture2_sp = VulkanImageObject::makeShared();
     texture2_sp->setFormat(vk::Format::eR8G8B8A8Unorm)
         .setUsage(vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst)
         .setMipmapped(true)
-        .setExtent({ image2.getWidth(), image2.getHeight(), 1u })
+        .setExtent({ image2_sp->getWidth(), image2_sp->getHeight(), 1u })
         .create(m_context_p);
 
     uint32_t cube_width = 1024;
@@ -179,22 +166,15 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         .addColorAttachmentFormat(vk::Format::eR8G8B8A8Unorm);
     VulkanPipeline stc_pipeline;
     stc_pipeline.create(m_context_p, stc_pipeline_info);
-    vk::SamplerCreateInfo sphere_sampler_info;
-    sphere_sampler_info.setMagFilter(vk::Filter::eLinear)
-        .setMinFilter(vk::Filter::eLinear)
-        .setAddressModeU(vk::SamplerAddressMode::eClampToEdge)
-        .setAddressModeV(vk::SamplerAddressMode::eClampToEdge)
-        .setAddressModeW(vk::SamplerAddressMode::eClampToEdge);
-    auto sphere_sampler = device.createSamplerUnique(sphere_sampler_info);
 
     vkutils::immediate_submit(m_context_p, vk::QueueFlagBits::eGraphics, [&](VulkanCommandBufferObject & cmd) {
-        texture1_sp->setData(cmd, image.getDataSpan());
+        texture1_sp->setData(cmd, image1_sp->getDataSpan());
         texture1_sp->generateMipmaps(cmd);
 
         vk::DescriptorImageInfo image_info;
         image_info.setImageLayout(*texture1_sp->getLayout())
             .setImageView(texture1_sp->getDefaultView())
-            .setSampler(sphere_sampler.get());
+            .setSampler(sampler_manager.getShared(SamplerPreset::eEnvironmentMap)->getHandle());
 
         const auto & layout_sp = stc_pipeline.getDescriptorSetLayoutSharedPtr(0);
         auto descriptor_set_sp = VulkanDescriptorSet::makeShared();
@@ -217,7 +197,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         fbo.endRendering(cmd);
         cube_map_sp->transitLayout(cmd, vk::ImageLayout::eShaderReadOnlyOptimal);
 
-        texture2_sp->setData(cmd, image2.getDataSpan());
+        texture2_sp->setData(cmd, image2_sp->getDataSpan());
         texture2_sp->generateMipmaps(cmd);
     });
 
@@ -240,7 +220,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     skybox_ds_sp->create(m_skybox_pipeline.getDescriptorSetLayoutSharedPtr(std::to_underlying(DescriptorSetBindingPoints::ePerMaterial)));
     m_skybox_material.create(skybox_ds_sp);
     m_skybox_material.setTexture(1, 0, cube_map_sp)
-        .setSampler(1, 0, m_context_p->getSamplerManager().getShared(SamplerPreset::eEnvironmentMap))
+        .setSampler(1, 0, sampler_manager.getShared(SamplerPreset::eEnvironmentMap))
         .commitUpdate();
 
     auto layout_sp = m_graphics_pipeline.getDescriptorSetLayoutSharedPtr(std::to_underlying(DescriptorSetBindingPoints::ePerMaterial));
@@ -249,8 +229,8 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     m_material.create(material_ds_sp);
     m_material.setTexture(2, 1, texture1_sp)
         .setTexture(2, 0, texture2_sp)
-        .setSampler(1, 0, m_context_p->getSamplerManager().getShared(SamplerPreset::eColorMap))
-        .setSampler(1, 1, m_context_p->getSamplerManager().getShared(SamplerPreset::eColorMap))
+        .setSampler(1, 0, sampler_manager.getShared(SamplerPreset::eColorMap))
+        .setSampler(1, 1, sampler_manager.getShared(SamplerPreset::eColorMap))
         .setParamsSSBO(0, m_per_material_params_ssbo_sp)
         .commitUpdate();
 }
@@ -329,21 +309,16 @@ void lcf::VulkanRenderer::render(const Entity & camera, const Entity & render_ta
         instance_count += indirect_call.instanceCount;
     }
 
-    auto & data_transfer_cmd = current_frame_resources.data_transfer_command_buffer;
-
     uint32_t indirect_call_count = static_cast<uint32_t>(indirect_calls.size());
     m_indirect_call_buffer.addWriteSegment({as_bytes_from_value(indirect_call_count), 0})
         .addWriteSegment({as_bytes(indirect_calls), size_of_v<vk::DrawIndirectCommand>});
 
     m_per_material_params_ssbo_sp->addWriteSegment({as_bytes_from_value(m_material_params.getDeviceAddress()), 0u});
 
-    // data_transfer_cmd.begin({}); //- no need to wait
     m_indirect_call_buffer.commit(cmd);
     m_per_view_uniform_buffer.commit(cmd);
     m_per_renderable_ssbo_group.commitAll(cmd);
     m_per_material_params_ssbo_sp->commit(cmd);
-    // data_transfer_cmd.end();
-    // auto data_transfer_complete_info =  data_transfer_cmd.submit();
 
     current_framebuffer.beginRendering(cmd);
 

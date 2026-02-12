@@ -37,7 +37,7 @@ namespace lcf {
     public:
         std::vector<Entity> generateEntities(Registry & registry) const noexcept;
         Entity generateEntity(Registry & registry) const noexcept;
-    private:
+    // private:
         RenderPrimitiveList m_render_primitive_list;
         HierarchyNodeList m_hierarchy_node_list;
     };
