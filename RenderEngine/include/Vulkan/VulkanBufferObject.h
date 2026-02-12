@@ -1,12 +1,11 @@
 #pragma once
 
+#include "vulkan_fwd_decls.h"
 #include "VulkanBufferWriter.h"
 #include "VulkanBufferProxy.h"
 
 namespace lcf::render {
-    class VulkanBufferObjectGroup;
-
-    class VulkanBufferObject : public STDPointerDefs<VulkanBufferObject>
+    class VulkanBufferObject : public VulkanBufferObjectPointerDefs
     {
         friend class VulkanBufferObjectGroup;
         using Self = VulkanBufferObject;

@@ -11,9 +11,29 @@ VulkanBuffer::VulkanBuffer(VmaAllocator allocator, VmaAllocation allocation, vk:
 {
 }
 
-VulkanBuffer::~VulkanBuffer()
+VulkanBuffer::~VulkanBuffer() noexcept
 {
     vmaDestroyBuffer(m_allocator, m_buffer, m_allocation);
+}
+
+VulkanBuffer::VulkanBuffer(Self && other) noexcept :
+    m_allocator(std::exchange(other.m_allocator, nullptr)),
+    m_allocation(std::exchange(other.m_allocation, nullptr)),
+    m_buffer(std::exchange(other.m_buffer, nullptr)),
+    m_mapped_data_p(std::exchange(other.m_mapped_data_p, nullptr)),
+    m_size(std::exchange(other.m_size, 0))
+{
+}
+
+VulkanBuffer & VulkanBuffer::operator=(Self && other) noexcept
+{
+    if (this == &other) { return *this; }
+    m_allocator = std::exchange(other.m_allocator, nullptr);
+    m_allocation = std::exchange(other.m_allocation, nullptr);
+    m_buffer = std::exchange(other.m_buffer, nullptr);
+    m_mapped_data_p = std::exchange(other.m_mapped_data_p, nullptr);
+    m_size = std::exchange(other.m_size, 0);
+    return *this;
 }
 
 vk::Result VulkanBuffer::flush(VkDeviceSize offset, VkDeviceSize size)
@@ -30,9 +50,29 @@ VulkanImage::VulkanImage(VmaAllocator allocator, VmaAllocation allocation, vk::I
 {
 }
 
-VulkanImage::~VulkanImage()
+VulkanImage::~VulkanImage() noexcept
 {
     vmaDestroyImage(m_allocator, m_image, m_allocation);
+}
+
+VulkanImage::VulkanImage(Self && other) noexcept :
+    m_allocator(std::exchange(other.m_allocator, nullptr)),
+    m_allocation(std::exchange(other.m_allocation, nullptr)),
+    m_image(std::exchange(other.m_image, nullptr)),
+    m_mapped_data_p(std::exchange(other.m_mapped_data_p, nullptr)),
+    m_size(std::exchange(other.m_size, 0))
+{
+}
+
+VulkanImage & VulkanImage::operator=(Self && other) noexcept
+{
+    if (this == &other) { return *this; }
+    m_allocator = std::exchange(other.m_allocator, nullptr);
+    m_allocation = std::exchange(other.m_allocation, nullptr);
+    m_image = std::exchange(other.m_image, nullptr);
+    m_mapped_data_p = std::exchange(other.m_mapped_data_p, nullptr);
+    m_size = std::exchange(other.m_size, 0);
+    return *this;
 }
 
 vk::Result VulkanImage::flush(VkDeviceSize offset, VkDeviceSize size)

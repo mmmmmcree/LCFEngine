@@ -1,7 +1,7 @@
 #pragma once
 
+#include "vulkan_fwd_decls.h"
 #include <vulkan/vulkan.hpp>
-#include "PointerDefs.h"
 #include <vma/vk_mem_alloc.h>
 
 namespace lcf::render {
@@ -12,16 +12,21 @@ namespace lcf::render {
         vk::MemoryPropertyFlags memory_flags;
     };
 
-    class VulkanImage : public STDPointerDefs<VulkanImage>
+    class VulkanImage : public VulkanImagePointerDefs
     {
+        using Self = VulkanImage;
     public:
         VulkanImage(VmaAllocator allocator,
             VmaAllocation allocation,
             vk::Image image,
             vk::DeviceSize size,
             void * mapped_data_p = nullptr);
-        ~VulkanImage();
-        vk::Image getHandle() const noexcept { return m_image; }
+        ~VulkanImage() noexcept;
+        VulkanImage(const Self &) = delete;
+        Self & operator=(const Self &) = delete;
+        VulkanImage(Self &&) noexcept;
+        Self & operator=(Self &&) noexcept;
+        const vk::Image & getHandle() const noexcept { return m_image; }
         std::byte * getMappedMemoryPtr() const noexcept { return m_mapped_data_p; }
         vk::DeviceSize getSize() const noexcept { return m_size; }
         vk::Result flush(VkDeviceSize offset = 0, VkDeviceSize size = VK_WHOLE_SIZE);
@@ -33,16 +38,21 @@ namespace lcf::render {
         vk::DeviceSize m_size = 0;
     };
 
-    class VulkanBuffer : public STDPointerDefs<VulkanBuffer>
+    class VulkanBuffer : public VulkanBufferPointerDefs
     {
+        using Self = VulkanBuffer;
     public:
         VulkanBuffer(VmaAllocator allocator,
             VmaAllocation allocation,
             vk::Buffer buffer,
             vk::DeviceSize size,
             void * mapped_data_p = nullptr);
-        ~VulkanBuffer();
-        vk::Buffer getHandle() const noexcept { return m_buffer; }
+        ~VulkanBuffer() noexcept;
+        VulkanBuffer(const Self &) = delete;
+        Self & operator=(const Self &) = delete;
+        VulkanBuffer(Self &&) noexcept;
+        Self & operator=(Self &&) noexcept;
+        const vk::Buffer & getHandle() const noexcept { return m_buffer; }
         std::byte * getMappedMemoryPtr() const noexcept { return m_mapped_data_p; }
         vk::DeviceSize getSize() const noexcept { return m_size; }
         vk::Result flush(VkDeviceSize offset = 0, VkDeviceSize size = VK_WHOLE_SIZE);
