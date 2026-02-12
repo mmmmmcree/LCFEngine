@@ -41,7 +41,7 @@ namespace lcf {
         {
             return std::get<enum_value_t<property>>(this->getMaterialParam(property));
         }
-        Self & setTextureResource(TextureSemantic semantic, const ImageSharedPointer & texture_resource);
+        Self & setTextureResource(TextureSemantic semantic, const ImageSharedPointer & texture_resource) noexcept;
         const ImageSharedPointer & getTextureResource(TextureSemantic semantic) const noexcept;
         template <typename Mapping = typename enum_value_type_mapping_traits<VectorType>::type>
         BufferWriteSegments generateInterleavedSegments(ShadingModel shading_model) const noexcept

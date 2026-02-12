@@ -5,7 +5,7 @@
 
 using namespace lcf;
 
-Material & Material::setTextureResource(TextureSemantic semantic, const Image::SharedPointer &texture_resource)
+Material & Material::setTextureResource(TextureSemantic semantic, const Image::SharedPointer &texture_resource) noexcept
 {
     m_texture_resources[semantic] = texture_resource;
     return *this;
