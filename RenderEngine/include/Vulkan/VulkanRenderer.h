@@ -54,6 +54,7 @@ namespace lcf {
         VulkanBufferObjectGroup m_per_renderable_ssbo_group;
         
         VulkanMesh m_mesh;
+        std::vector<VulkanMesh> m_meshes;
         VulkanMaterial m_material;
         VulkanBufferObject::SharedPointer m_per_material_params_ssbo_sp; //- ssbo that store params_buffer's address
         VulkanBufferObject m_material_params; //- params with real data

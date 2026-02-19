@@ -7,11 +7,8 @@
 #include "Entity.h"
 
 namespace lcf {
-    class ModelLoader;
-
     class Model
     {
-        friend class ModelLoader;
         using Self = Model;
     public:
         struct HierarchyNode

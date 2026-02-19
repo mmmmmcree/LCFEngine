@@ -115,7 +115,8 @@ std::expected<Model, std::error_code> ModelLoader::Impl::analyze(const std::file
 {
     if (not std::filesystem::exists(path)) {
         return std::unexpected(std::make_error_code(std::errc::no_such_file_or_directory));
-    } else if (not std::filesystem::is_regular_file(path)) {
+    }
+    if (not std::filesystem::is_regular_file(path)) {
         return std::unexpected(std::make_error_code(std::errc::is_a_directory));
     }
     const aiScene * ai_scene = m_importer.ReadFile(

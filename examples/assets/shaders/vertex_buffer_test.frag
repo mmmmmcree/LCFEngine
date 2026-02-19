@@ -43,7 +43,8 @@ layout(set = 2, binding = 2) uniform texture2D textures[65536]; // descriptor in
 
 void main()
 {
-    uint material_id = fs_in.material_id;
+    // uint material_id = fs_in.material_id;
+    uint material_id = 0;
     const MaterialParams material_params = material_params_list[material_id].material_params;
     // vec4 texture0_color = texture(sampler2D(textures[nonuniformEXT(material_id)], samplers[0]), fs_in.uv);
     // vec4 texture1_color = texture(sampler2D(textures[nonuniformEXT(material_id + 1)], samplers[0]), fs_in.uv);

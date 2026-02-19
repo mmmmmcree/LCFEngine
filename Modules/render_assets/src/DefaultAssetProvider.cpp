@@ -1,4 +1,5 @@
 #include "render_assets/DefaultAssetProvider.h"
+#include "render_assets/constants/geometry_data.h"
 #include "image/Image.h"
 #include "vector_enum_value_types.h"
 #include "Vector.h"
@@ -55,6 +56,13 @@ DefaultAssetProvider::DefaultAssetProvider()
     };
 
     m_default_geometry_sp = Geometry::makeShared();
+
+    m_default_geometry_sp->resize(std::size(constants::cube_positions))
+        .setAttributes<VertexAttribute::ePosition>(constants::cube_positions)
+        .setAttributes<VertexAttribute::eNormal>(constants::cube_normals)
+        .setAttributes<VertexAttribute::eTexCoord0>(constants::cube_uvs)
+        .setIndices(constants::cube_indices);
+
     m_default_material_sp = Material::makeShared();
 }
 

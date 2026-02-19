@@ -10,6 +10,10 @@
 #include <boost/container/small_vector.hpp>
 #include "bytes.h"
 #include "render_assets/ModelLoader.h"
+#include "common/glsl_type_traits.h"
+
+namespace stdr = std::ranges;
+namespace stdv = std::views;
 
 lcf::VulkanRenderer::~VulkanRenderer()
 {
@@ -62,9 +66,9 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         .create(m_context_p, size_of_v<Matrix4x4> * 3); // projection, view, projection_view
 
     m_per_renderable_ssbo_group.create(m_context_p, GPUBufferPattern::eDynamic);
-    m_per_renderable_ssbo_group.emplace(size_of_v<vk::DeviceAddress>, GPUBufferUsage::eShaderStorage); // vertex buffer
-    m_per_renderable_ssbo_group.emplace(size_of_v<vk::DeviceAddress>, GPUBufferUsage::eShaderStorage); // index buffer
-    m_per_renderable_ssbo_group.emplace(2 * size_of_v<Matrix4x4>, GPUBufferUsage::eShaderStorage); // transform
+    m_per_renderable_ssbo_group.emplace(100 * size_of_v<vk::DeviceAddress>, GPUBufferUsage::eShaderStorage); // vertex buffer
+    m_per_renderable_ssbo_group.emplace(100 * size_of_v<vk::DeviceAddress>, GPUBufferUsage::eShaderStorage); // index buffer
+    m_per_renderable_ssbo_group.emplace(200 * size_of_v<Matrix4x4>, GPUBufferUsage::eShaderStorage); // transform
 
     m_per_material_params_ssbo_sp = VulkanBufferObject::makeShared();
     m_per_material_params_ssbo_sp->setUsage(GPUBufferUsage::eShaderStorage)
@@ -103,7 +107,9 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     auto image2_sp = Image::makeShared();
     image2_sp->loadFromFileGpuFriendly({"assets/images/qt256.png"});
 
-    auto load_mode_result = ModelLoader {}.load("./assets/models/dinosaur/source/Rampaging T-Rex.glb");
+    // auto load_mode_result = ModelLoader {}.load("./assets/models/dinosaur/source/Rampaging T-Rex.glb");
+    auto load_mode_result = ModelLoader {}.load("./assets/models/BarbieDodgePickup/scene.gltf");
+    // auto load_mode_result = ModelLoader {}.load("./assets/models/ToyCar/glTF/ToyCar.gltf");
     const auto & cube_model = load_mode_result.value();
 
     struct PBRMaterialParams
@@ -125,8 +131,25 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         .create(context_p, size_of_v<PBRMaterialParams>);
     m_material_params.addWriteSegment({as_bytes_from_value(material_params)});
     vkutils::immediate_submit(m_context_p, vk::QueueFlagBits::eTransfer, [this, &cube_model](VulkanCommandBufferObject & cmd) {
-        m_mesh.create(m_context_p, cmd, cube_model.m_render_primitive_list[0].getGeometry());
         m_material_params.commit(cmd);
+
+        for (const auto & render_primitive: cube_model.m_render_primitive_list) {
+            auto & mesh = m_meshes.emplace_back();
+            const auto & geometry = render_primitive.getGeometry();
+            mesh.create(m_context_p, cmd,
+                generate_interleaved_segments<glsl::std140::enum_value_type_mapping_t>(
+                    geometry,
+                    VertexAttributeFlags::ePosition | VertexAttributeFlags::eNormal | VertexAttributeFlags::eTexCoord0
+                ), geometry.getIndices());
+        }
+        auto geometry_range = cube_model.m_render_primitive_list
+            | stdv::transform([](const auto & render_primitive) -> const Geometry & { return render_primitive.getGeometry(); });
+        auto interleaved_segments = generate_interleaved_segments<glsl::std140::enum_value_type_mapping_t>(
+            geometry_range,
+            VertexAttributeFlags::ePosition | VertexAttributeFlags::eNormal | VertexAttributeFlags::eTexCoord0
+        );
+        auto indices = generate_merged_indices(geometry_range);
+        m_mesh.create(m_context_p, cmd, interleaved_segments, indices);
     });
 
     VulkanImageObject::SharedPointer cube_map_sp;
@@ -278,34 +301,44 @@ void lcf::VulkanRenderer::render(const Entity & camera, const Entity & render_ta
     
     static uint64_t frame_count = 0;
     ++frame_count;
-    std::vector<Matrix4x4> model_matrices(2);
-    model_matrices[0].scale(0.5f);
     float angle = 0.1f * frame_count;
-    model_matrices[1].scale(0.5f);
-    model_matrices[1].translateLocal({ 6.0f, 0.2f, 0.2f });
-    model_matrices[1].rotateAroundSelf(Quaternion::fromAxisAndAngle({1.0f, 1.0f, 0.0f}, angle));
+    std::vector<Matrix4x4> model_matrices(120);
+    for (uint32_t i = 0; i < model_matrices.size(); i += 2) {
+        model_matrices[i].rotateAroundSelf(Quaternion::fromAxisAndAngle({1.0f, 1.0f, 0.0f}, angle));
+        model_matrices[i + 1].rotateAroundSelf(Quaternion::fromAxisAndAngle({1.0f, 0.0f, 0.0f}, -90.0f));
+    }
+    // model_matrices[0].scale(0.5f);
+    // model_matrices[1].scale(0.5f);
+    // model_matrices[1].translateLocal({ 6.0f, 0.2f, 0.2f });
+    // 
 
     auto & per_renderable_vertex_buffer_ssbo = m_per_renderable_ssbo_group[0];
     auto & per_renderable_index_buffer_ssbo = m_per_renderable_ssbo_group[1];
     auto & per_renderable_transform_ssbo = m_per_renderable_ssbo_group[2];
 
-    per_renderable_vertex_buffer_ssbo.addWriteSegment({as_bytes_from_value(m_mesh.getVertexBufferAddress()), 0u});
-    per_renderable_index_buffer_ssbo.addWriteSegment({as_bytes_from_value(m_mesh.getIndexBufferAddress()), 0u});
+    for (uint32_t i = 0; i < m_meshes.size(); ++i) {
+        const auto & vertex_buffer_address = m_meshes[i].getVertexBufferAddress();
+        const auto & index_buffer_address = m_meshes[i].getIndexBufferAddress();
+        size_t offset = i * size_of_v<vk::DeviceAddress>;
+        per_renderable_vertex_buffer_ssbo.addWriteSegment({as_bytes_from_value(vertex_buffer_address), offset});
+        per_renderable_index_buffer_ssbo.addWriteSegment({as_bytes_from_value(index_buffer_address), offset});
+    }
     per_renderable_transform_ssbo.addWriteSegment({as_bytes(model_matrices), 0u});
 
     uint32_t instance_count = 0;
-    std::vector<vk::DrawIndirectCommand> indirect_calls(1);
+    std::vector<vk::DrawIndirectCommand> indirect_calls(m_meshes.size());
     for (int i = 0; i < indirect_calls.size(); ++i) {
         /**
          * @brief 
-         * firstVertex: draw index, use as geometry index to locate vertex buffer and index buffer
+         * indiret call index: draw index, use as geometry index to locate vertex buffer and index buffer
          * firstInstance: instance index, use as offset to locate model matrix, one for each instance
          */
         auto & indirect_call = indirect_calls[i];
-        indirect_call.setVertexCount(m_mesh.getIndexCount())
-            .setInstanceCount(2)
-            .setFirstVertex(i)
-            .setFirstInstance(instance_count);
+        const auto & mesh = m_meshes[i];
+        indirect_call.setFirstVertex(0)
+            .setVertexCount(mesh.getIndexCount())
+            .setFirstInstance(instance_count)
+            .setInstanceCount(2);
         instance_count += indirect_call.instanceCount;
     }
 
