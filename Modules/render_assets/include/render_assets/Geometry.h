@@ -38,13 +38,14 @@ namespace lcf {
         Geometry(Self &&) noexcept = default;
         Self & operator=(Self &&) noexcept = default;
     public:
-        void resize(uint32_t vertex_count)
+        Self & resize(uint32_t vertex_count)
         {
             m_vertex_count = vertex_count;
             for (auto && [i, attributes_bytes] : std::ranges::views::enumerate(m_attributes_map)) {
                 if (attributes_bytes.empty()) { continue; }
                 attributes_bytes.resize(m_vertex_count * enum_decode::get_size_in_bytes(enum_decode::get_vector_type(enum_values_v<VertexAttribute>[i])));
             }
+            return *this;
         }
         template <VertexAttribute attribute, std::ranges::contiguous_range Range>
         requires is_convertible_v<std::ranges::range_value_t<Range>, attribute_basic_t<attribute>> or
@@ -74,7 +75,7 @@ namespace lcf {
             return *this;
         }
         template <std::ranges::contiguous_range Range>
-        Self & setAttributesRaw(VertexAttribute attribute, Range && range, size_t start_index = 0)
+        Self & setRawAttributes(VertexAttribute attribute, Range && range, size_t start_index = 0)
         {
             this->ensureAttributeExist(attribute);
             auto & attributes_bytes = m_attributes_map[enum_decode::get_index(attribute)];
@@ -95,6 +96,7 @@ namespace lcf {
             this->getAttribute<attribute>(index) = value;
             return *this;
         }
+        std::span<const std::byte> getRawAttributes(VertexAttribute attribute) const noexcept { return m_attributes_map[enum_decode::get_index(attribute)]; }
         template <VertexAttribute attribute>
         auto getBasicAttributes() noexcept { return this->_getAttributeSpan<attribute, attribute_basic_t<attribute>>(); }
         template <VertexAttribute attribute>
@@ -116,38 +118,11 @@ namespace lcf {
         const FaceList & getFaces() const noexcept { return m_faces; }
         uint32_t getVertexCount() const noexcept { return m_vertex_count; }
         uint32_t getIndexCount() const noexcept { return static_cast<uint32_t>(m_indices.size()); }
+
         template <typename Mapping = enum_value_type_mapping_traits<VectorType>::type>
-        BufferWriteSegments generateInterleavedVertexBufferSegments(VertexAttributeFlags enabled_flags = VertexAttributeFlags::eAll) const noexcept
+        BufferWriteSegments generateInterleavedVertexBufferSegments(VertexAttributeFlags enabled_flags) const noexcept
         {
-            std::vector<size_t> enabled_indices;
-            enabled_indices.reserve(c_vertex_attribute_count);
-            StructureLayout layout;
-            for (size_t i = 0; i < c_vertex_attribute_count; ++i) {
-                VertexAttributeFlags attribute_flag_bit = static_cast<VertexAttributeFlags>(1 << i);
-                if (not contains_flags(enabled_flags, attribute_flag_bit) or m_attributes_map[i].empty()) { continue; }
-                switch (enum_decode::get_vector_type(enum_values_v<VertexAttribute>[i])) {
-                    case VectorType::e2Float32: { layout.addField<enum_value_t<VectorType::e2Float32, Mapping>>(); } break;
-                    case VectorType::e3Float32: { layout.addField<enum_value_t<VectorType::e3Float32, Mapping>>(); } break;
-                    case VectorType::e4Float32: { layout.addField<enum_value_t<VectorType::e4Float32, Mapping>>(); } break;
-                    case VectorType::e4UInt32: { layout.addField<enum_value_t<VectorType::e4UInt32, Mapping>>(); } break;
-                    default: break;
-                }
-                enabled_indices.emplace_back(i);
-            }
-            layout.create();
-            BufferWriteSegments segments;
-            size_t field_index = 0;
-            for (auto index : enabled_indices) {
-                const auto & attribute_bytes = std::span(m_attributes_map[index]);
-                size_t type_size = attribute_bytes.size() / m_vertex_count;
-                size_t offset = layout.getFieldOffset(field_index);
-                size_t structural_size = layout.getStructualSize();
-                for (size_t i = 0; i < m_vertex_count; ++i) {
-                    segments.add({attribute_bytes.subspan(i * type_size, type_size), offset + i * structural_size});
-                }
-                ++field_index;
-            }
-            return segments;
+            return generate_interleaved_segments<Mapping>(*this, enabled_flags);
         }
     private:
         void ensureAttributeExist(VertexAttribute attribute)
@@ -175,6 +150,70 @@ namespace lcf {
         IndexList m_indices;
         FaceList m_faces;
     };
+
+    template <typename Mapping = enum_value_type_mapping_traits<VectorType>::type, std::ranges::forward_range GeometryRange>
+    requires std::is_reference_v<std::ranges::range_reference_t<GeometryRange>> and
+        std::is_same_v<typename std::ranges::iterator_t<GeometryRange>::value_type, Geometry>
+    BufferWriteSegments generate_interleaved_segments(GeometryRange && geometry_range, VertexAttributeFlags enabled_flags) noexcept
+    {
+        auto attributes = enum_values_v<VertexAttribute> | std::views::filter([enabled_flags](auto attribute) {
+            return contains_flags(enabled_flags, enum_decode::to_flag_bit(attribute));
+        });
+        StructureLayout layout;
+        for (auto attribute : attributes) {
+            switch (enum_decode::get_vector_type(attribute)) {
+                case VectorType::e2Float32: { layout.addField<enum_value_t<VectorType::e2Float32, Mapping>>(); } break;
+                case VectorType::e3Float32: { layout.addField<enum_value_t<VectorType::e3Float32, Mapping>>(); } break;
+                case VectorType::e4Float32: { layout.addField<enum_value_t<VectorType::e4Float32, Mapping>>(); } break;
+                case VectorType::e4UInt32: { layout.addField<enum_value_t<VectorType::e4UInt32, Mapping>>(); } break;
+                default: break;
+            }
+        }
+        layout.create();
+        BufferWriteSegments segments;
+        size_t structural_size = layout.getStructualSize();
+        size_t offset = 0;
+        for (const auto & geometry : geometry_range) {
+            size_t field_index = 0;
+            for (auto attribute : attributes) {
+                size_t type_size = enum_decode::get_size_in_bytes(enum_decode::get_vector_type(attribute));
+                size_t src_offset = 0, dst_offset = layout.getFieldOffset(field_index++);
+                auto attribute_bytes = geometry.getRawAttributes(attribute);
+                if (attribute_bytes.empty()) { continue; }
+                for (size_t i = 0; i < geometry.getVertexCount(); ++i) {
+                    segments.add({attribute_bytes.subspan(src_offset, type_size), offset + dst_offset});
+                    src_offset += type_size;
+                    dst_offset += structural_size;
+                }
+            }
+            offset += geometry.getVertexCount() * structural_size;
+        }
+        return segments;
+    }
+
+    template <typename Mapping = enum_value_type_mapping_traits<VectorType>::type>
+    BufferWriteSegments generate_interleaved_segments(const Geometry & geometry, VertexAttributeFlags enabled_flags) noexcept
+    {
+        return generate_interleaved_segments<Mapping>(std::span(&geometry, 1), enabled_flags);
+    }
+
+    template <std::ranges::forward_range GeometryRange>
+    requires std::is_reference_v<std::ranges::range_reference_t<GeometryRange>> and
+        std::is_same_v<typename std::ranges::iterator_t<GeometryRange>::value_type, Geometry>
+    Geometry::IndexList generate_merged_indices(GeometryRange && geometry_range) noexcept
+    {
+        Geometry::IndexList indices;
+        size_t index_count = 0;
+        for (const auto & geometry : geometry_range) { index_count += geometry.getIndexCount(); }
+        indices.reserve(index_count);
+        uint32_t vertex_offset = 0;
+        for (const auto & geometry : geometry_range) { 
+            indices.append_range(std::views::transform(geometry.getIndices(),
+                [vertex_offset](uint32_t index) { return index + vertex_offset; }));
+            vertex_offset += geometry.getVertexCount();
+        }
+        return indices;
+    }
 }
 
 
@@ -218,7 +257,7 @@ int main() {
     Geometry geometry {vertex_count};
     geometry.setAttributes<VertexAttribute::ePosition>(positions_i) //- works,  behaves like copy static_cast<float>(int), but not recommended
         .setAttributes<VertexAttribute::ePosition>(positions) //- works, type safe
-        .setAttributesRaw(VertexAttribute::ePosition, positions) //- works, behaves like memcpy, copy bytes
+        .setRawAttributes(VertexAttribute::ePosition, positions) //- works, behaves like memcpy, copy bytes
         .setAttributes<VertexAttribute::ePosition>(positions2) //- works, type safe
         .setAttribute<VertexAttribute::ePosition>(0, {1.0f, 1.0f, 1.0f})//- set single attribute
         .setAttributes<VertexAttribute::eNormal>(normals)

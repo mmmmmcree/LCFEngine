@@ -43,39 +43,35 @@ namespace lcf {
         }
         Self & setTextureResource(TextureSemantic semantic, const ImageSharedPointer & texture_resource) noexcept;
         const ImageSharedPointer & getTextureResource(TextureSemantic semantic) const noexcept;
-        template <typename Mapping = typename enum_value_type_mapping_traits<VectorType>::type>
-        BufferWriteSegments generateInterleavedSegments(ShadingModel shading_model) const noexcept
-        {
-            const auto & material_properties = enum_values_v<MaterialProperty>;
-            auto property_indices = std::ranges::views::iota(0u, material_properties.size()) |
-                std::views::filter([&](auto index) {
-                    MaterialPropertyFlags property_flags = enum_decode::get_material_property_flags(shading_model);
-                    MaterialProperty property = material_properties[index];
-                    return contains_flags(property_flags, property);
-                }) | std::ranges::to<std::vector<uint32_t>>();
-            StructureLayout layout;
-            for (auto property : material_properties | views::take_from(property_indices)) {
-                switch (enum_decode::get_vector_type(property)) {
-                    case VectorType::e1Float32: { layout.addField<enum_value_t<VectorType::e1Float32, Mapping>>(); } break;
-                    case VectorType::e2Float32: { layout.addField<enum_value_t<VectorType::e2Float32, Mapping>>(); } break;
-                    case VectorType::e3Float32: { layout.addField<enum_value_t<VectorType::e3Float32, Mapping>>(); } break;
-                    case VectorType::e4Float32: { layout.addField<enum_value_t<VectorType::e4Float32, Mapping>>(); } break;
-                    default: break;
-                }
-            }
-            layout.create();
-            BufferWriteSegments segments;
-            size_t field_index = 0;
-            for (auto property : material_properties | views::take_from(property_indices)) {
-                auto property_bytes = as_bytes_from_variant(this->getMaterialParam(property));
-                segments.add(property_bytes, layout.getFieldOffset(field_index++));
-            }
-            return segments;
-        }
-    private:
         const MaterialParam & getMaterialParam(MaterialProperty property) const noexcept;
     private:
         ParamMap m_params;
         TextureReourceMap m_texture_resources;
     };
+
+    template <typename Mapping = typename enum_value_type_mapping_traits<VectorType>::type>
+    BufferWriteSegments generate_interleaved_segments(const Material & material, ShadingModel shading_model) noexcept
+    {
+        auto material_properties = enum_values_v<MaterialProperty> | std::views::filter([shading_model](auto property) {
+            return contains_flags(enum_decode::get_material_property_flags(shading_model), property);
+        });
+        StructureLayout layout;
+        for (auto property : material_properties) {
+            switch (enum_decode::get_vector_type(property)) {
+                case VectorType::e1Float32: { layout.addField<enum_value_t<VectorType::e1Float32, Mapping>>(); } break;
+                case VectorType::e2Float32: { layout.addField<enum_value_t<VectorType::e2Float32, Mapping>>(); } break;
+                case VectorType::e3Float32: { layout.addField<enum_value_t<VectorType::e3Float32, Mapping>>(); } break;
+                case VectorType::e4Float32: { layout.addField<enum_value_t<VectorType::e4Float32, Mapping>>(); } break;
+                default: break;
+            }
+        }
+        layout.create();
+        BufferWriteSegments segments;
+        size_t field_index = 0;
+        for (auto property : material_properties) {
+            auto property_bytes = as_bytes_from_variant(material.getMaterialParam(property));
+            segments.add(property_bytes, layout.getFieldOffset(field_index++));
+        }
+        return segments;
+    }
 }
