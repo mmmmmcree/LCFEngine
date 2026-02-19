@@ -1,7 +1,7 @@
 #pragma once
 
-#include "gui_fwd_decls.h"
-#include "sdl/SDLWindow.h"
+#include "gui/gui_fwd_decls.h"
+#include "gui/sdl/SDLWindow.h"
 #include <vector>
 #include <string>
 #include <set>

@@ -2,13 +2,12 @@
 
 #include "gui_fwd_decls.h"
 #include "gui_enums.h"
-#include "PointerDefs.h"
 
-class VkInstance_T;
-class VkSurfaceKHR_T;
+struct VkInstance_T;
+struct VkSurfaceKHR_T;
 
 namespace lcf::gui {
-    class VulkanSurfaceBridge : public STDPointerDefs<VulkanSurfaceBridge>
+    class VulkanSurfaceBridge : public VulkanSurfaceBridgePointerDefs
     {
     public:
         VulkanSurfaceBridge() = default;

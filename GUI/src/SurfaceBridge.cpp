@@ -1,4 +1,4 @@
-#include "SurfaceBridge.h"
+#include "gui/SurfaceBridge.h"
 
 #ifdef USE_SDL3
 #include <SDL3/SDL_log.h>

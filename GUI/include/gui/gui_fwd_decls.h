@@ -1,5 +1,7 @@
 #pragma once
 
+#include "PointerDefs.h"
+
 // common types
 namespace lcf::gui {
     struct WindowCreateInfo;
@@ -21,4 +23,5 @@ namespace lcf::gui {
 // specific graphics api related
 namespace lcf::gui {
     class VulkanSurfaceBridge;
+    LCF_DECLARE_POINTER_DEFS(VulkanSurfaceBridge, STDPointerDefs);
 }

@@ -1,5 +1,5 @@
-#include "gui_serialization.h"
-#include "gui_types.h"
+#include "gui/gui_serialization.h"
+#include "gui/gui_types.h"
 
 using namespace lcf;
 

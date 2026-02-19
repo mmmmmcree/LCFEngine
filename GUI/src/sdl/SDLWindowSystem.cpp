@@ -1,7 +1,7 @@
-#include "sdl/SDLWindowSystem.h"
+#include "gui/sdl/SDLWindowSystem.h"
 #include <SDL3/SDL_vulkan.h>
-#include "gui_types.h"
-#include "gui_serialization.h"
+#include "gui/gui_types.h"
+#include "gui/gui_serialization.h"
 
 using namespace lcf::gui;
 
