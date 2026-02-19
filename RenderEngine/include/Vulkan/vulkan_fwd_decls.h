@@ -20,4 +20,10 @@ namespace lcf::render {
     LCF_DECLARE_POINTER_DEFS(VulkanBufferObject, STDPointerDefs);
 
     class VulkanBufferObjectGroup;
+
+    class VulkanImageObject;
+    LCF_DECLARE_POINTER_DEFS(VulkanImageObject, STDPointerDefs);
+
+    class VulkanSwapchain;
+    LCF_DECLARE_POINTER_DEFS(VulkanSwapchain, STDPointerDefs);
 }

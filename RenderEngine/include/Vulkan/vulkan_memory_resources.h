@@ -21,6 +21,7 @@ namespace lcf::render {
             vk::Image image,
             vk::DeviceSize size,
             void * mapped_data_p = nullptr);
+        explicit VulkanImage(vk::Image image); //- native vk image wrapper for swapchain
         ~VulkanImage() noexcept;
         VulkanImage(const Self &) = delete;
         Self & operator=(const Self &) = delete;

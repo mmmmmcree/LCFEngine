@@ -1,36 +1,15 @@
 #pragma once
 
+#include "vulkan_fwd_decls.h"
 #include <vulkan/vulkan.hpp>
 #include "vulkan_memory_resources.h"
-#include "PointerDefs.h"
-#include <variant>
 #include <unordered_map>
-#include <boost/icl/interval_map.hpp>
-#include <optional>
+#include "interval/interval_containers.h"
 
 namespace lcf::render {
-    class VulkanContext;
-
     class VulkanAttachment;
 
-    class VulkanCommandBufferObject;
-
-    //todo temporary
-    template <typename T>
-    class DefaultIntervalWrapper
-    {
-        using Self = DefaultIntervalWrapper<T>;
-    public:
-        DefaultIntervalWrapper() = default;
-        DefaultIntervalWrapper(T && value) : m_value(std::forward<T>(value)) {}
-        bool operator==(const Self & other) const { return m_value == other.m_value; }
-        Self & operator+=(const Self & other) { return *this; }
-        const T & getValue() const { return m_value.value(); }
-    private:
-        std::optional<T> m_value;
-    };
-
-    class VulkanImageObject : public STDPointerDefs<VulkanImageObject>
+    class VulkanImageObject : public VulkanImageObjectPointerDefs
     {
         using Self = VulkanImageObject;
         struct ImageViewKey
@@ -61,16 +40,13 @@ namespace lcf::render {
                 return std::hash<uint64_t>{}(packed);
             }
         };
-        using ImageVariant = std::variant<vk::Image, VulkanImage::SharedPointer>;
         using ImageViewMap = std::unordered_map<ImageViewKey, vk::UniqueImageView, ImageViewKeyHash>;
-        using WrappedImageLayout = DefaultIntervalWrapper<vk::ImageLayout>;
-        using LayoutMap = boost::icl::interval_map<uint16_t, WrappedImageLayout>;
-        using LayoutMapInterval = typename boost::icl::interval<typename LayoutMap::domain_type>;
-        using LayoutMapIntervalType = typename LayoutMapInterval::type;
+        using LayoutMap = icl::interval_map<uint16_t, icl::DefaultIntervalWrapper<vk::ImageLayout>>;
+        using LayoutMapInterval = typename LayoutMap::interval_type;
         friend class VulkanAttachment;
     public:
         VulkanImageObject() = default;
-        ~VulkanImageObject() = default;
+        ~VulkanImageObject();
         VulkanImageObject(const VulkanImageObject & other) = delete;
         VulkanImageObject & operator=(const VulkanImageObject & other) = delete;
         VulkanImageObject(VulkanImageObject && other) noexcept = default;
@@ -109,7 +85,7 @@ namespace lcf::render {
         vk::ImageViewType deduceImageViewType(const vk::ImageSubresourceRange & subresource_range) const noexcept;
         vk::ImageSubresourceRange getFullResourceRange() const noexcept;
         uint32_t getLayoutKey(uint32_t layer, uint32_t mip_level) const noexcept { return layer * this->getMipLevelCount() + mip_level; }
-        std::vector<LayoutMapIntervalType> getLayoutIntervals(uint32_t base_layer, uint32_t layer_count, uint32_t base_mip_level, uint32_t mip_level_count) const noexcept;
+        std::vector<LayoutMapInterval> getLayoutIntervals(uint32_t base_layer, uint32_t layer_count, uint32_t base_mip_level, uint32_t mip_level_count) const noexcept;
         std::optional<vk::ImageLayout> getLayout(uint32_t base_layer, uint32_t layer_count, uint32_t base_mip_level, uint32_t mip_level_count) const noexcept;
         void blitTo(VulkanCommandBufferObject & cmd,
             const vk::ImageSubresourceLayers & src_subresource,
@@ -134,7 +110,7 @@ namespace lcf::render {
         uint16_t m_array_layers = 1u;
         vk::SampleCountFlagBits m_samples = vk::SampleCountFlagBits::e1;
         vk::ImageUsageFlags m_usage = {};
-        ImageVariant m_image;
+        VulkanImage::SharedPointer m_image_sp;
         mutable ImageViewMap m_view_map;
         LayoutMap m_layout_map;
     };

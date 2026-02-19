@@ -7,6 +7,10 @@
 
 using namespace lcf::render;
 
+VulkanImageObject::~VulkanImageObject()
+{
+}
+
 bool VulkanImageObject::create(VulkanContext * context_p)
 {
    return this->_create(context_p, vk::ImageTiling::eOptimal, MemoryAllocationCreateInfo {vk::MemoryPropertyFlagBits::eDeviceLocal});
@@ -15,7 +19,7 @@ bool VulkanImageObject::create(VulkanContext * context_p)
 bool VulkanImageObject::create(VulkanContext *context_p, vk::Image external_image)
 {
     m_context_p = context_p;
-    m_image = external_image;
+    m_image_sp = VulkanImage::makeShared(external_image);
     auto interval = LayoutMapInterval::right_open(0, this->getMipLevelCount() * m_array_layers);
     m_layout_map.set(std::make_pair(interval, vk::ImageLayout::eUndefined));
     return this->isCreated();
@@ -58,7 +62,7 @@ void VulkanImageObject::transitLayout(VulkanCommandBufferObject & cmd, vk::Image
 
 void VulkanImageObject::transitLayout(VulkanCommandBufferObject & cmd, const vk::ImageSubresourceRange &subresource_range, vk::ImageLayout new_layout)
 {
-    auto from_interval = [this](const LayoutMapIntervalType &interval) {
+    auto from_interval = [this](const LayoutMapInterval &interval) {
         uint32_t base_layer = interval.lower() / m_mip_level_count;
         uint32_t layer_count = (interval.upper() - 1) / m_mip_level_count - base_layer + 1;
         uint32_t base_level = interval.lower() % m_mip_level_count;
@@ -100,18 +104,12 @@ void VulkanImageObject::copyFrom(VulkanCommandBufferObject &cmd, vk::Buffer buff
 
 vk::Image VulkanImageObject::getHandle() const noexcept
 {
-    return std::visit([](const auto& img) -> vk::Image {
-        if constexpr (std::is_same_v<std::decay_t<decltype(img)>, vk::Image>) { return img; }
-        else { return img->getHandle(); }
-    }, m_image);
+    return m_image_sp->getHandle();
 }
 
 std::byte * VulkanImageObject::getMappedMemoryPtr() const noexcept
 {
-    return std::visit([](const auto& img) -> std::byte * {
-        if constexpr (std::is_same_v<std::decay_t<decltype(img)>, vk::Image>) { return nullptr; }
-        else { return img->getMappedMemoryPtr(); }
-    }, m_image);   
+    return m_image_sp->getMappedMemoryPtr();
 }
 
 vk::ImageView VulkanImageObject::getDefaultView() const
@@ -157,7 +155,7 @@ bool VulkanImageObject::_create(VulkanContext *context_p, vk::ImageTiling tiling
         .setUsage(m_usage)
         .setInitialLayout(vk::ImageLayout::eUndefined)
         .setSharingMode(vk::SharingMode::eExclusive);
-    m_image = m_context_p->getMemoryAllocator().createImage(image_info, memory_info);
+    m_image_sp = m_context_p->getMemoryAllocator().createImage(image_info, memory_info);
     auto interval = LayoutMapInterval::right_open(0, this->getMipLevelCount() * this->getArrayLayerCount());
     m_layout_map.set(std::make_pair(interval, image_info.initialLayout));
     return this->isCreated();
@@ -211,9 +209,9 @@ vk::ImageSubresourceRange VulkanImageObject::getFullResourceRange() const noexce
     return vk::ImageSubresourceRange(this->getAspectFlags(), 0, this->getMipLevelCount(), 0, this->getArrayLayerCount());
 }
 
-std::vector<VulkanImageObject::LayoutMapIntervalType> VulkanImageObject::getLayoutIntervals(uint32_t base_layer, uint32_t layer_count, uint32_t base_mip_level, uint32_t mip_level_count) const noexcept
+std::vector<VulkanImageObject::LayoutMapInterval> VulkanImageObject::getLayoutIntervals(uint32_t base_layer, uint32_t layer_count, uint32_t base_mip_level, uint32_t mip_level_count) const noexcept
 {
-    std::vector<LayoutMapIntervalType> intervals;
+    std::vector<LayoutMapInterval> intervals;
     if (base_layer == 0 and layer_count == m_array_layers and base_mip_level == 0 and mip_level_count == m_mip_level_count) {
         intervals.emplace_back(LayoutMapInterval::right_open(0, m_mip_level_count * m_array_layers));
         return intervals;

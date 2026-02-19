@@ -1,6 +1,8 @@
 #include "Vulkan/VulkanSwapchain.h"
 #include "Vulkan/VulkanContext.h"
-#include "gui_types.h"
+#include "Vulkan/VulkanImageObject.h"
+#include "gui/gui_enums.h"
+#include "gui/SurfaceBridge.h"
 #include "enums/enum_name.h"
 
 using namespace lcf::render;
@@ -19,9 +21,10 @@ lcf::render::VulkanSwapchain::~VulkanSwapchain()
     this->destroy();
 }
 
-void VulkanSwapchain::create(VulkanContext * context_p)
+void VulkanSwapchain::create(VulkanContext * context_p, uint32_t swapchain_buffer_count)
 {
     if (this->isCreated()) { return; }
+    m_swapchain_images.resize(swapchain_buffer_count);
     m_context_p = context_p;
     vk::PhysicalDevice physical_device = m_context_p->getPhysicalDevice();
     auto surface_formats = physical_device.getSurfaceFormatsKHR(this->getSurface());

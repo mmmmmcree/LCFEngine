@@ -50,9 +50,16 @@ VulkanImage::VulkanImage(VmaAllocator allocator, VmaAllocation allocation, vk::I
 {
 }
 
+VulkanImage::VulkanImage(vk::Image image) :
+    m_image(image)
+{
+}
+
 VulkanImage::~VulkanImage() noexcept
 {
-    vmaDestroyImage(m_allocator, m_image, m_allocation);
+    if (m_allocator and m_allocation) {
+        vmaDestroyImage(m_allocator, m_image, m_allocation);
+    }
 }
 
 VulkanImage::VulkanImage(Self && other) noexcept :
