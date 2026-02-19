@@ -5,11 +5,11 @@
 #include <vector>
 
 namespace lcf {
-    class RenderPrimitive //readonly, copyable
+    class RenderPrimitive //- copyable
     {
         using Self = RenderPrimitive;
     public:
-        RenderPrimitive(); //todo construct with default geometry and material
+        RenderPrimitive();
         ~RenderPrimitive() noexcept = default;
         RenderPrimitive(const Self &) = default;
         Self & operator=(const Self &) = default;
