@@ -1,9 +1,9 @@
 #include "Vulkan/VulkanContext.h"
+#include "gui/gui_types.h"
 #include "log.h"
 #include <set>
 #include <string>
 #include <algorithm>
-#include "gui_types.h"
 
 using namespace lcf::render;
 
@@ -39,7 +39,7 @@ void VulkanContext::create()
     m_descriptor_set_allocator.create(this);
     m_sampler_manager.create(this);
     for (auto &render_target : m_surface_render_targets) {
-        render_target->create(this);
+        render_target->create(this, 4);
     }
 }
 
