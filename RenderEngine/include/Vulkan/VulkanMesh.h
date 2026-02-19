@@ -4,16 +4,16 @@
 #include "VulkanBufferObject.h"
 
 namespace lcf::render {
-    class VulkanContext;
-
-    class VulkanCommandBufferObject;
-
     class VulkanMesh
     {
     public:
         VulkanMesh() = default;
         bool isCreated() const { return m_vertex_buffer.isCreated() and m_index_buffer.isCreated(); }
-        bool create(VulkanContext * context_p, VulkanCommandBufferObject & cmd, const Geometry & geometry);
+        std::error_code create(
+            VulkanContext * context_p,
+            VulkanCommandBufferObject & cmd,
+            const BufferWriteSegments & vertex_data_segments, 
+            std::span<const uint32_t> indices);
         const vk::DeviceAddress & getVertexBufferAddress() const noexcept { return m_vertex_buffer.getDeviceAddress(); }
         const vk::DeviceAddress & getIndexBufferAddress() const noexcept { return m_index_buffer.getDeviceAddress(); }
         uint32_t getVertexCount() const noexcept { return m_vertex_count; }
@@ -23,5 +23,6 @@ namespace lcf::render {
         VulkanBufferObject m_index_buffer;
         uint32_t m_vertex_count;
         uint32_t m_index_count;
+        std::vector<uint32_t> m_indices;
     };
 }

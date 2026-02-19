@@ -5,24 +5,24 @@
 #include "render_assets/Geometry.h"
 
 using namespace lcf::render;
+namespace stdr = std::ranges;
 
-bool VulkanMesh::create(VulkanContext *context_p, VulkanCommandBufferObject &cmd, const Geometry & geometry)
+std::error_code VulkanMesh::create(VulkanContext *context_p, VulkanCommandBufferObject &cmd, const BufferWriteSegments &vertex_data_segments, std::span<const uint32_t> indices)
 {
-    if (not context_p or not context_p->isCreated() or this->isCreated()) { return false; }
-    auto vertex_data_segments = geometry.generateInterleavedVertexBufferSegments<glsl::std140::enum_value_type_mapping_t>();
+    if (this->isCreated()) { return std::make_error_code(std::errc::operation_not_permitted); }
     m_vertex_buffer.setUsage(GPUBufferUsage::eShaderStorage)
         .setPattern(GPUBufferPattern::eStatic)
         .create(context_p, vertex_data_segments.getUpperBoundInBytes());
-    for (const auto &segment : vertex_data_segments) {
-        m_vertex_buffer.addWriteSegment(segment);
-    }
-    auto indices_bytes = as_bytes(geometry.getIndices());
     m_index_buffer.setUsage(GPUBufferUsage::eShaderStorage)
         .setPattern(GPUBufferPattern::eStatic)
-        .create(context_p, indices_bytes.size());
+        .create(context_p, indices.size_bytes());
+    for (const auto & segment : vertex_data_segments) {
+        m_vertex_buffer.addWriteSegment(segment);
+    }
+    m_indices.append_range(indices);
     m_vertex_buffer.commit(cmd);
-    m_index_buffer.addWriteSegment(indices_bytes).commit(cmd);
-    m_vertex_count = geometry.getVertexCount();
-    m_index_count = geometry.getIndexCount();
-    return this->isCreated();
+    m_index_buffer.addWriteSegment({as_bytes(m_indices)}).commit(cmd);
+    m_vertex_count = stdr::max(indices) + 1;
+    m_index_count = indices.size();
+    return {};
 }
