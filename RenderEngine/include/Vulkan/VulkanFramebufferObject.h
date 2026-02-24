@@ -1,13 +1,11 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
-#include "VulkanImageObject.h"
-#include "VulkanCommandBufferObject.h"
+#include "vulkan_fwd_decls.h"
+#include "VulkanAttachment.h"
 #include <optional>
 
 namespace lcf::render {
-    class VulkanContext;
-
     struct VulkanFramebufferObjectCreateInfo;
 
     class VulkanFramebufferObject

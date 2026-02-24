@@ -27,6 +27,8 @@ namespace lcf::render {
     class VulkanSwapchain;
     LCF_DECLARE_POINTER_DEFS(VulkanSwapchain, STDPointerDefs);
 
+    class VulkanFramebufferObject;
+
     class VulkanShader;
     LCF_DECLARE_POINTER_DEFS(VulkanShader, STDPointerDefs);
 

@@ -1,5 +1,7 @@
 #include "Vulkan/VulkanFramebufferObject.h"
 #include "Vulkan/VulkanContext.h"
+#include "Vulkan/VulkanCommandBufferObject.h"
+#include "Vulkan/VulkanImageObject.h"
 #include "log.h"
 
 using namespace lcf::render;
