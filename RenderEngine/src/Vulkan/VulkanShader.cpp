@@ -4,26 +4,27 @@
 #include "Vulkan/vulkan_enums.h"
 #include "log.h"
 
+using namespace lcf::render;
 
-lcf::render::VulkanShader::VulkanShader(VulkanContext * context, ShaderTypeFlagBits type) :
+VulkanShader::VulkanShader(VulkanContext * context, ShaderTypeFlagBits type) :
     Shader(type),
     m_context_p(context)
 {
 }
 
-lcf::render::VulkanShader::~VulkanShader()
+VulkanShader::~VulkanShader()
 {
     for (auto & layout : m_descriptor_set_layout_list) {
         m_context_p->getDevice().destroyDescriptorSetLayout(layout);
     }
 }
 
-lcf::render::VulkanShader::operator bool() const
+VulkanShader::operator bool() const
 {
     return this->isCompiled();
 }
 
-bool lcf::render::VulkanShader::compileGlslFile(const std::filesystem::path & file_path)
+bool VulkanShader::compileGlslFile(const std::filesystem::path & file_path)
 {
     ShaderCompiler compiler;
     compiler.addMacroDefinition("VULKAN_SHADER");
@@ -41,12 +42,12 @@ bool lcf::render::VulkanShader::compileGlslFile(const std::filesystem::path & fi
     return this->isCompiled();
 }
 
-bool lcf::render::VulkanShader::isCompiled() const
+bool VulkanShader::isCompiled() const
 {
     return m_module.get();
 }
 
-vk::PipelineShaderStageCreateInfo lcf::render::VulkanShader::getShaderStageInfo() const
+vk::PipelineShaderStageCreateInfo VulkanShader::getShaderStageInfo() const
 {
     return vk::PipelineShaderStageCreateInfo({}, enum_cast<vk::ShaderStageFlagBits>(m_stage), m_module.get(), m_entry_point.c_str());
 }

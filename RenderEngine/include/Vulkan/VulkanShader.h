@@ -1,20 +1,20 @@
 #pragma once
 
+#include "vulkan_fwd_decls.h"
 #include <vulkan/vulkan.hpp>
 #include "shader_core/Shader.h"
-#include "PointerDefs.h"
 
-namespace vk { class DispatchLoaderDynamic; }
 namespace lcf::render {
-	class VulkanContext;
-	class VulkanShader : public Shader, public STDPointerDefs<VulkanShader>
+	class VulkanShader : public Shader, public VulkanShaderPointerDefs
 	{
 	public:
-		IMPORT_POINTER_DEFS(STDPointerDefs<VulkanShader>);
+		IMPORT_POINTER_DEFS(VulkanShaderPointerDefs);
 		VulkanShader(VulkanContext * context, ShaderTypeFlagBits type);
-		VulkanShader(const VulkanShader& other) = delete;
-		VulkanShader& operator=(const VulkanShader& other) = delete;
 		~VulkanShader() override;
+		VulkanShader(const VulkanShader & other) = delete;
+		VulkanShader& operator=(const VulkanShader & other) = delete;
+		VulkanShader(VulkanShader && other) noexcept = default;
+		VulkanShader& operator=(VulkanShader && other) noexcept = default;
 		operator bool() const;
 		virtual bool compileGlslFile(const std::filesystem::path & file_path) override;
 		virtual bool isCompiled() const override;
