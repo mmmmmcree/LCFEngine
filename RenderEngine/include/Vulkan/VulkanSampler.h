@@ -1,12 +1,10 @@
 #pragma once
 
+#include "vulkan_fwd_decls.h"
 #include <vulkan/vulkan.hpp>
-#include "PointerDefs.h"
 #include "common/render_enums.h"
 
 namespace lcf::render {
-    class VulkanContext;
-
     class VulkanSamplerParams
     {
         using Self = VulkanSamplerParams;
@@ -90,7 +88,7 @@ namespace lcf::render {
         bool m_unnormalized_coordinates;
     };
 
-    class VulkanSampler : public STDPointerDefs<VulkanSampler>
+    class VulkanSampler : public VulkanSamplerPointerDefs
     {
         using Self = VulkanSampler;
     public:

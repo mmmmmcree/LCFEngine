@@ -1,6 +1,7 @@
 #include "Vulkan/VulkanImageObject.h"
 #include "Vulkan/VulkanContext.h"
 #include "Vulkan/VulkanCommandBufferObject.h"
+#include "Vulkan/vulkan_memory_resources.h"
 #include "Vulkan/VulkanBufferObject.h"
 #include "Vulkan/vulkan_utililtie.h"
 #include "log.h"
@@ -133,7 +134,7 @@ vk::ImageType VulkanImageObject::getImageType() const noexcept
     return vk::ImageType::e1D;
 }
 
-bool VulkanImageObject::_create(VulkanContext *context_p, vk::ImageTiling tiling, MemoryAllocationCreateInfo memory_info)
+bool VulkanImageObject::_create(VulkanContext *context_p, vk::ImageTiling tiling, const MemoryAllocationCreateInfo & memory_info)
 {
     m_context_p = context_p;
     if (m_flags & vk::ImageCreateFlagBits::eCubeCompatible) {

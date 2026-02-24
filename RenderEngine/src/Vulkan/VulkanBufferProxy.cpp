@@ -1,8 +1,11 @@
 #include "Vulkan/VulkanBufferProxy.h"
+#include "Vulkan/vulkan_memory_resources.h"
 #include "Vulkan/VulkanContext.h"
 #include <boost/align.hpp>
 
 using namespace lcf::render;
+
+VulkanBufferProxy::~VulkanBufferProxy() = default;
 
 bool VulkanBufferProxy::create(VulkanContext *context_p, uint64_t size_in_bytes)
 {
@@ -81,7 +84,22 @@ void VulkanBufferProxy::writeSegmentsDirectly(
     m_buffer_sp->flush(segments.getLowerBoundInBytes() + dst_offset_in_bytes, segments.getValidSizeInBytes());
 }
 
-vk::DescriptorBufferInfo lcf::render::VulkanBufferProxy::generateBufferInfo() const noexcept
+uint64_t VulkanBufferProxy::getSizeInBytes() const noexcept
+{
+    return m_buffer_sp->getSize();
+}
+
+std::byte *VulkanBufferProxy::getMappedMemoryPtr() const noexcept
+{
+    return m_buffer_sp->getMappedMemoryPtr();
+}
+
+vk::Buffer VulkanBufferProxy::getHandle() const noexcept
+{
+    return m_buffer_sp->getHandle();
+}
+
+vk::DescriptorBufferInfo VulkanBufferProxy::generateBufferInfo() const noexcept
 {
     return {this->getHandle(), 0u, vk::WholeSize};
 }

@@ -1,13 +1,14 @@
 #pragma once
 
-#include "vulkan_fwd_decls.h"
 #include <vulkan/vulkan.hpp>
-#include "vulkan_memory_resources.h"
+#include "vulkan_fwd_decls.h"
 #include <unordered_map>
 #include "interval/interval_containers.h"
 
 namespace lcf::render {
     class VulkanAttachment;
+
+    struct MemoryAllocationCreateInfo;
 
     class VulkanImageObject : public VulkanImageObjectPointerDefs
     {
@@ -80,7 +81,7 @@ namespace lcf::render {
         vk::ImageAspectFlags getAspectFlags() const noexcept;
         std::optional<vk::ImageLayout> getLayout() const noexcept { return this->getLayout(0, m_array_layers, 0, m_mip_level_count); }
     private:
-        bool _create(VulkanContext * context_p, vk::ImageTiling tiling, MemoryAllocationCreateInfo memory_info);
+        bool _create(VulkanContext * context_p, vk::ImageTiling tiling, const MemoryAllocationCreateInfo & memory_info);
         vk::UniqueImageView generateView(const ImageViewKey & image_view_key) const;
         vk::ImageViewType deduceImageViewType(const vk::ImageSubresourceRange & subresource_range) const noexcept;
         vk::ImageSubresourceRange getFullResourceRange() const noexcept;
@@ -110,7 +111,7 @@ namespace lcf::render {
         uint16_t m_array_layers = 1u;
         vk::SampleCountFlagBits m_samples = vk::SampleCountFlagBits::e1;
         vk::ImageUsageFlags m_usage = {};
-        VulkanImage::SharedPointer m_image_sp;
+        VulkanImageSharedPointer m_image_sp;
         mutable ImageViewMap m_view_map;
         LayoutMap m_layout_map;
     };

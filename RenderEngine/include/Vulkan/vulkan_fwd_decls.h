@@ -29,4 +29,10 @@ namespace lcf::render {
 
     class VulkanShader;
     LCF_DECLARE_POINTER_DEFS(VulkanShader, STDPointerDefs);
+
+    class VulkanShaderProgram;
+    LCF_DECLARE_POINTER_DEFS(VulkanShaderProgram, STDPointerDefs);
+
+    class VulkanSampler;
+    LCF_DECLARE_POINTER_DEFS(VulkanSampler, STDPointerDefs);
 }
