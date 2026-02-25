@@ -8,6 +8,26 @@
 
 using namespace lcf::render;
 
+bool lcf::render::VulkanImageObject::ImageViewKey::operator==(const ImageViewKey &other) const noexcept
+{
+    return m_range == other.m_range and m_components == other.m_components;
+}
+
+std::size_t VulkanImageObject::ImageViewKeyHash::operator()(const ImageViewKey & key) const noexcept
+{
+    uint64_t packed = 0;
+    packed |= static_cast<uint64_t>(static_cast<uint32_t>(key.m_range.aspectMask)) << 56;
+    packed |= (static_cast<uint64_t>(key.m_range.baseMipLevel) & 0xFF) << 48;
+    packed |= (static_cast<uint64_t>(key.m_range.levelCount) & 0xFF) << 40;
+    packed |= (static_cast<uint64_t>(key.m_range.baseArrayLayer) & 0xFFFF) << 32;
+    packed |= (static_cast<uint64_t>(key.m_range.layerCount) & 0xFFFF) << 24;
+    packed |= (static_cast<uint64_t>(static_cast<uint32_t>(key.m_components.r)) & 0xFF) << 20;
+    packed |= (static_cast<uint64_t>(static_cast<uint32_t>(key.m_components.g)) & 0xFF) << 16;
+    packed |= (static_cast<uint64_t>(static_cast<uint32_t>(key.m_components.b)) & 0xFF) << 12;
+    packed |= (static_cast<uint64_t>(static_cast<uint32_t>(key.m_components.a)) & 0xFF) << 8;
+    return std::hash<uint64_t>{}(packed);
+}
+
 VulkanImageObject::~VulkanImageObject()
 {
 }

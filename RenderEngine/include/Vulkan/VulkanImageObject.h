@@ -17,29 +17,13 @@ namespace lcf::render {
         {
             ImageViewKey(const vk::ImageSubresourceRange & range, const vk::ComponentMapping & components = {}) :
                 m_range(range), m_components(components) {}
-            bool operator==(const ImageViewKey & other) const noexcept
-            {
-                return m_range == other.m_range and m_components == other.m_components;
-            }
+            bool operator==(const ImageViewKey & other) const noexcept;
             vk::ImageSubresourceRange m_range;
             vk::ComponentMapping m_components;
         };
         struct ImageViewKeyHash
         {
-            std::size_t operator()(const ImageViewKey & key) const noexcept
-            {
-                uint64_t packed = 0;
-                packed |= static_cast<uint64_t>(static_cast<uint32_t>(key.m_range.aspectMask)) << 56;
-                packed |= (static_cast<uint64_t>(key.m_range.baseMipLevel) & 0xFF) << 48;
-                packed |= (static_cast<uint64_t>(key.m_range.levelCount) & 0xFF) << 40;
-                packed |= (static_cast<uint64_t>(key.m_range.baseArrayLayer) & 0xFFFF) << 32;
-                packed |= (static_cast<uint64_t>(key.m_range.layerCount) & 0xFFFF) << 24;
-                packed |= (static_cast<uint64_t>(static_cast<uint32_t>(key.m_components.r)) & 0xFF) << 20;
-                packed |= (static_cast<uint64_t>(static_cast<uint32_t>(key.m_components.g)) & 0xFF) << 16;
-                packed |= (static_cast<uint64_t>(static_cast<uint32_t>(key.m_components.b)) & 0xFF) << 12;
-                packed |= (static_cast<uint64_t>(static_cast<uint32_t>(key.m_components.a)) & 0xFF) << 8;
-                return std::hash<uint64_t>{}(packed);
-            }
+            std::size_t operator()(const ImageViewKey & key) const noexcept;
         };
         using ImageViewMap = std::unordered_map<ImageViewKey, vk::UniqueImageView, ImageViewKeyHash>;
         using LayoutMap = icl::interval_map<uint16_t, icl::DefaultIntervalWrapper<vk::ImageLayout>>;
@@ -115,5 +99,4 @@ namespace lcf::render {
         mutable ImageViewMap m_view_map;
         LayoutMap m_layout_map;
     };
-
 }
