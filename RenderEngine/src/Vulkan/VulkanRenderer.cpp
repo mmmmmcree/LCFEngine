@@ -72,7 +72,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
 
     m_per_material_params_ssbo_sp = VulkanBufferObject::makeShared();
     m_per_material_params_ssbo_sp->setUsage(GPUBufferUsage::eShaderStorage)
-        .create(m_context_p, size_of_v<vk::DeviceAddress>);
+        .create(m_context_p, size_of_v<vk::DeviceAddress> * 2);
 
     m_indirect_call_buffer.setUsage(GPUBufferUsage::eIndirect)
         .create(m_context_p, size_of_v<vk::DrawIndirectCommand> + 1 * size_of_v<vk::DrawIndirectCommand>); // uint32_t(for IndirectDrawCount) + padding | vk::DrawIndirectCommand ...
@@ -114,6 +114,11 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
 
     struct PBRMaterialParams
     {
+        Vector4D<float> m_base_color = {1.0f, 1.0f, 1.0f, 1.0f};
+        Vector4D<float> m_emissive_color = {1.0f, 1.0f, 1.0f, 1.0f};
+    };
+    struct PBRMaterialTextureIds
+    {
         uint32_t m_base_color_texture_id = 0;
         uint32_t m_roughness_texture_id = 1;
         uint32_t m_metallic_texture_id = 2;
@@ -122,16 +127,21 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         uint32_t m_clearcoat_texture_id = 5;
         uint32_t m_clearcoat_roughness_texture_id = 6;
         uint32_t m_anisotropy_texture_id = 7;
-        Vector4D<float> m_base_color = {1.0f, 1.0f, 1.0f, 1.0f};
-        Vector4D<float> m_emissive_color = {1.0f, 1.0f, 1.0f, 1.0f};
     };
+    
     PBRMaterialParams material_params; 
     m_material_params.setUsage(GPUBufferUsage::eShaderStorage)
         .setPattern(GPUBufferPattern::eStatic)
         .create(context_p, size_of_v<PBRMaterialParams>);
     m_material_params.addWriteSegment({as_bytes_from_value(material_params)});
+    PBRMaterialTextureIds texture_ids;
+    m_material_texture_indices.setUsage(GPUBufferUsage::eShaderStorage)
+        .setPattern(GPUBufferPattern::eStatic)
+        .create(context_p, size_of_v<PBRMaterialTextureIds>);
+    m_material_texture_indices.addWriteSegment({as_bytes_from_value(texture_ids)});
     vkutils::immediate_submit(m_context_p, vk::QueueFlagBits::eTransfer, [this, &cube_model](VulkanCommandBufferObject & cmd) {
         m_material_params.commit(cmd);
+        m_material_texture_indices.commit(cmd);
 
         for (const auto & render_primitive: cube_model.m_render_primitive_list) {
             auto & mesh = m_meshes.emplace_back();
@@ -346,7 +356,8 @@ void lcf::VulkanRenderer::render(const Entity & camera, const Entity & render_ta
     m_indirect_call_buffer.addWriteSegment({as_bytes_from_value(indirect_call_count), 0})
         .addWriteSegment({as_bytes(indirect_calls), size_of_v<vk::DrawIndirectCommand>});
 
-    m_per_material_params_ssbo_sp->addWriteSegment({as_bytes_from_value(m_material_params.getDeviceAddress()), 0u});
+    m_per_material_params_ssbo_sp->addWriteSegment({as_bytes_from_value(m_material_params.getDeviceAddress()), 0u})
+        .addWriteSegment({as_bytes_from_value(m_material_texture_indices.getDeviceAddress()), size_of_v<vk::DeviceAddress>});
 
     m_indirect_call_buffer.commit(cmd);
     m_per_view_uniform_buffer.commit(cmd);
