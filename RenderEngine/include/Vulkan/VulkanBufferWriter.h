@@ -1,17 +1,12 @@
 #pragma once
 
+#include <vulkan/vulkan.hpp>
+#include "vulkan_fwd_decls.h"
 #include "common/render_enums.h"
-#include "VulkanTimelineSemaphore.h"
-#include "VulkanBufferProxy.h"
 #include "BufferWriteSegment.h"
+#include <vector>
 
 namespace lcf::render {
-    class VulkanContext;
-
-    class VulkanCommandBufferObject;
-
-    class VulkanBufferObject;
-
     class VulkanBufferWriter
     {
         friend class VulkanBufferObject;
@@ -20,7 +15,7 @@ namespace lcf::render {
         using WriteBufferRequestList = std::vector<WriteBufferRequest>;
     public:
         VulkanBufferWriter() = default;
-        ~VulkanBufferWriter() = default;
+        ~VulkanBufferWriter() noexcept;
         VulkanBufferWriter(const Self &) = delete;
         VulkanBufferWriter & operator=(const Self &) = delete;
         VulkanBufferWriter(Self &&) = default;
@@ -29,7 +24,7 @@ namespace lcf::render {
         bool create(VulkanContext * context_p);
         Self & setPattern(GPUBufferPattern pattern) noexcept { m_pattern = pattern; return *this; }
         GPUBufferPattern getPattern() const noexcept { return m_pattern; }
-        bool hasPendingOperations() const noexcept { return not m_timeline_semaphore_up->isTargetReached(); }
+        bool hasPendingOperations() const noexcept;
         Self & addWriteRequest(VulkanBufferProxy & buffer_proxy, const BufferWriteSegments & segments) noexcept;
         void write(VulkanCommandBufferObject & cmd) const noexcept;
     private:
@@ -50,7 +45,7 @@ namespace lcf::render {
             uint64_t dst_offset_in_bytes = 0u) const noexcept;
     private:
         VulkanContext * m_context_p = nullptr;
-        mutable VulkanTimelineSemaphore::UniquePointer m_timeline_semaphore_up;
+        mutable VulkanTimelineSemaphoreUniquePointer m_timeline_semaphore_up;
         GPUBufferPattern m_pattern = GPUBufferPattern::eDynamic;
         mutable WriteBufferRequestList m_write_requests;
     };

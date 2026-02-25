@@ -1,10 +1,9 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
+#include "vulkan_fwd_decls.h"
 #include <functional>
 #include "common/render_enums.h"
-#include "VulkanContext.h"
-#include "VulkanCommandBufferObject.h"
 
 namespace lcf::render::vkutils {
     using TransitionDependency = std::tuple<vk::PipelineStageFlags2, vk::AccessFlags2, vk::PipelineStageFlags2, vk::AccessFlags2>;

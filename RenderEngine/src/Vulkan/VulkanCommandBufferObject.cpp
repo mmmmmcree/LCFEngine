@@ -1,11 +1,14 @@
 #include "Vulkan/VulkanCommandBufferObject.h"
 #include "Vulkan/VulkanContext.h"
+#include "Vulkan/VulkanTimelineSemaphore.h"
 
 using namespace lcf::render;
 
-bool VulkanCommandBufferObject::create(VulkanContext * context_p, vk::QueueFlagBits queue_type)
+VulkanCommandBufferObject::~VulkanCommandBufferObject() noexcept = default;
+
+std::error_code VulkanCommandBufferObject::create(VulkanContext *context_p, vk::QueueFlagBits queue_type)
 {
-    if (not context_p or not context_p->isCreated()) { return false; }
+    if (not context_p or not context_p->isCreated()) { return std::make_error_code(std::errc::invalid_argument); }
     m_context_p = context_p;
     m_queue_type = queue_type;
     m_timeline_semaphore_sp = VulkanTimelineSemaphore::makeShared();
@@ -16,7 +19,7 @@ bool VulkanCommandBufferObject::create(VulkanContext * context_p, vk::QueueFlagB
         .setCommandBufferCount(1);
     auto device = m_context_p->getDevice();
     vk::CommandBuffer::operator=(device.allocateCommandBuffers(command_buffer_info).front());
-    return true;
+    return {};
 }
 
 void VulkanCommandBufferObject::waitUntilAvailable()

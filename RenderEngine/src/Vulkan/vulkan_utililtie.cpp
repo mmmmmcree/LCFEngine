@@ -1,4 +1,6 @@
 #include "Vulkan/vulkan_utililtie.h"
+#include "Vulkan/VulkanContext.h"
+#include "Vulkan/VulkanCommandBufferObject.h"
 
 using namespace lcf::render::vkutils;
 
@@ -13,5 +15,5 @@ void lcf::render::vkutils::immediate_submit(VulkanContext *context, vk::QueueFla
     submit_func(cmd);
     cmd.end();
     cmd.submit();
-    cmd.getTimelineSemaphore()->wait();
+    cmd.waitUntilAvailable();
 }

@@ -1,13 +1,23 @@
 #include "Vulkan/VulkanBufferWriter.h"
+#include "Vulkan/VulkanCommandBufferObject.h"
+#include "Vulkan/VulkanTimelineSemaphore.h"
+#include "Vulkan/VulkanBufferProxy.h"
 #include "Vulkan/vulkan_utililtie.h"
 
 using namespace lcf::render;
+
+VulkanBufferWriter::~VulkanBufferWriter() noexcept = default;
 
 bool VulkanBufferWriter::create(VulkanContext *context_p)
 {
     m_context_p = context_p;
     m_timeline_semaphore_up = VulkanTimelineSemaphore::makeUnique();
     return m_timeline_semaphore_up->create(m_context_p);
+}
+
+bool lcf::render::VulkanBufferWriter::hasPendingOperations() const noexcept
+{
+    return not m_timeline_semaphore_up->isTargetReached();
 }
 
 VulkanBufferWriter & VulkanBufferWriter::addWriteRequest(

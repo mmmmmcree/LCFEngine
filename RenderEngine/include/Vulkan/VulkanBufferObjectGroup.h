@@ -1,21 +1,18 @@
 #pragma once
 
+#include "vulkan_fwd_decls.h"
 #include "VulkanBufferWriter.h"
 #include "VulkanBufferObject.h"
 #include <vector>
 
 namespace lcf::render {
-    class VulkanContext;
-
-    class VulkanCommandBufferObject;
-
     class VulkanBufferObjectGroup
     {
         using Self = VulkanBufferObjectGroup;
         using BufferList = std::vector<VulkanBufferObject>;
     public:
         VulkanBufferObjectGroup() = default;
-        ~VulkanBufferObjectGroup() = default;
+        ~VulkanBufferObjectGroup() noexcept = default;
         VulkanBufferObjectGroup(const Self &) = delete;
         Self & operator=(const Self &) = delete;
         VulkanBufferObjectGroup(Self &&) = default;

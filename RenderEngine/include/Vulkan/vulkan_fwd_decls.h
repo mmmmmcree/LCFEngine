@@ -16,6 +16,8 @@ namespace lcf::render {
     class VulkanBuffer;
     LCF_DECLARE_POINTER_DEFS(VulkanBuffer, STDPointerDefs);
 
+    class VulkanBufferProxy;
+
     class VulkanBufferObject;
     LCF_DECLARE_POINTER_DEFS(VulkanBufferObject, STDPointerDefs);
 
