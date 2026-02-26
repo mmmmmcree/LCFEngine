@@ -24,7 +24,7 @@ namespace lcf::render {
         void writeSegmentsDirectly(const BufferWriteSegments &segments, uint64_t dst_offset_in_bytes = 0u) noexcept;
         uint64_t getSizeInBytes() const noexcept;
         vk::Buffer getHandle() const noexcept;
-        std::byte * getMappedMemoryPtr() const noexcept;
+        std::span<std::byte> getMappedMemorySpan() const noexcept;
         const vk::DeviceAddress & getDeviceAddress() const noexcept { return m_device_address; }
         const VulkanBufferSharedPointer & getResource() const noexcept { return m_buffer_sp; }
         Self & setUsage(GPUBufferUsage usage) noexcept { m_buffer_usage = usage; return *this; }

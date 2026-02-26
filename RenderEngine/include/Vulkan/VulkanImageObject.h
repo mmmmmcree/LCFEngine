@@ -45,7 +45,7 @@ namespace lcf::render {
         void transitLayout(VulkanCommandBufferObject & cmd, const vk::ImageSubresourceRange & subresource_range, vk::ImageLayout new_layout);
         void copyFrom(VulkanCommandBufferObject & cmd, vk::Buffer buffer, std::span<const vk::BufferImageCopy> regions);
         vk::Image getHandle() const noexcept;
-        std::byte * getMappedMemoryPtr() const noexcept;
+        std::span<std::byte> getMappedMemorySpan() const noexcept;
         vk::ImageView getDefaultView() const;
         vk::ImageView getView(const ImageViewKey & image_view_key) const;
         Self & addImageFlags(vk::ImageCreateFlags flags) { m_flags |= flags; return *this; }

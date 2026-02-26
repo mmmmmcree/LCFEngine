@@ -128,9 +128,11 @@ vk::Image VulkanImageObject::getHandle() const noexcept
     return m_image_sp->getHandle();
 }
 
-std::byte * VulkanImageObject::getMappedMemoryPtr() const noexcept
+std::span<std::byte> VulkanImageObject::getMappedMemorySpan() const noexcept
 {
-    return m_image_sp->getMappedMemoryPtr();
+    auto mapped_memory_ptr = m_image_sp->getMappedMemoryPtr();
+    if (not mapped_memory_ptr) { return {}; }
+    return {mapped_memory_ptr, m_image_sp->getSize()};
 }
 
 vk::ImageView VulkanImageObject::getDefaultView() const

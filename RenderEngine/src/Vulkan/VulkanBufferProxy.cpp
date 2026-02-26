@@ -4,6 +4,7 @@
 #include <boost/align.hpp>
 
 using namespace lcf::render;
+namespace stdr = std::ranges;
 
 VulkanBufferProxy::~VulkanBufferProxy() = default;
 
@@ -68,8 +69,8 @@ void VulkanBufferProxy::writeSegmentDirectly(
     const BufferWriteSegment & segment,
     uint64_t dst_offset_in_bytes) noexcept
 {
-    memcpy(this->getMappedMemoryPtr() + segment.getBeginOffsetInBytes() + dst_offset_in_bytes,
-        segment.getData(), segment.getSizeInBytes());
+    auto dst = this->getMappedMemorySpan().subspan(segment.getBeginOffsetInBytes() + dst_offset_in_bytes);
+    stdr::copy(segment.getDataSpan(), dst.begin());
     m_buffer_sp->flush(segment.getBeginOffsetInBytes() + dst_offset_in_bytes, segment.getSizeInBytes());
 }
 
@@ -78,8 +79,8 @@ void VulkanBufferProxy::writeSegmentsDirectly(
     uint64_t dst_offset_in_bytes) noexcept
 {
     for (const auto & write_segment : segments) {
-        memcpy(this->getMappedMemoryPtr() + write_segment.getBeginOffsetInBytes() + dst_offset_in_bytes,
-            write_segment.getData(), write_segment.getSizeInBytes());
+        auto dst = this->getMappedMemorySpan().subspan(write_segment.getBeginOffsetInBytes() + dst_offset_in_bytes);
+        stdr::copy(write_segment.getDataSpan(), dst.begin());
     }
     m_buffer_sp->flush(segments.getLowerBoundInBytes() + dst_offset_in_bytes, segments.getValidSizeInBytes());
 }
@@ -89,9 +90,11 @@ uint64_t VulkanBufferProxy::getSizeInBytes() const noexcept
     return m_buffer_sp->getSize();
 }
 
-std::byte *VulkanBufferProxy::getMappedMemoryPtr() const noexcept
+std::span<std::byte> VulkanBufferProxy::getMappedMemorySpan() const noexcept
 {
-    return m_buffer_sp->getMappedMemoryPtr();
+    auto mapped_memory_ptr = m_buffer_sp->getMappedMemoryPtr();
+    if (not mapped_memory_ptr) { return {}; }
+    return {mapped_memory_ptr, m_buffer_sp->getSize()};
 }
 
 vk::Buffer VulkanBufferProxy::getHandle() const noexcept
