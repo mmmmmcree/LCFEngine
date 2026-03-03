@@ -15,7 +15,9 @@ using namespace std::chrono_literals;
 int main(int argc, char *argv[])
 {
     lcf::Logger::init();
-    lcf::Registry registry;
+    lcf::Registry registry {{
+        lcf::TaskSchedulerCreateInfo {lcf::TaskSchedulerRunMode::eNewThread}
+    }};
     lcf::render::VulkanContext context; //- create context before create vulkan window(load vulkan if use dynamic link library)
 
     auto window_up = lcf::gui::WindowSystem::getInstance().allocateWindow();
@@ -70,7 +72,7 @@ int main(int argc, char *argv[])
     engine_scheduler.registerPeriodicTask(std::move(engine_periodic_task))
         .run();
 
-    lcf::TaskScheduler window_scheduler {lcf::TaskScheduler::RunMode::eThisThread};
+    lcf::TaskScheduler window_scheduler {{lcf::TaskSchedulerRunMode::eThisThread}};
     lcf::PeriodicTask periodic_task(
         5ms,
         [&] {

@@ -3,8 +3,11 @@
 
 using namespace lcf;
 
-Registry::Registry() : Base()
+Registry::Registry(const RegistryCreateInfo & info) : Base()
 {
-    this->ctx().emplace<TaskScheduler>(TaskScheduler::RunMode::eNewThread); //! must emplace before dispatcher? don't know why
+    if (info.getTaskSchedulerInfoOpt()) {
+        const TaskSchedulerCreateInfo & task_scheduler_info = *info.getTaskSchedulerInfoOpt();
+        this->ctx().emplace<TaskScheduler>(task_scheduler_info); //! must emplace before dispatcher? don't know why
+    }
     this->ctx().emplace<Dispatcher>();
 }
