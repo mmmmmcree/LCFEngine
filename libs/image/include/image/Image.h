@@ -1,6 +1,5 @@
 #pragma once
 
-#include "image_fwd_decls.h"
 #include "image_enums.h"
 #include <filesystem>
 #include "details/ImageVariant.h"
@@ -32,7 +31,7 @@ namespace lcf {
         ImageFormat m_format = ImageFormat::eInvalid;
     };
 
-    class Image : public ImagePointerDefs
+    class Image
     {
         using Self = Image;
         using ImageVariant = details::ImageVariant<>; //todo use allocator
