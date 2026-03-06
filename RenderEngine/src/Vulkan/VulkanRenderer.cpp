@@ -4,12 +4,12 @@
 #include "Vulkan/vulkan_constants.h"
 #include "Matrix.h"
 #include "Quaternion.h"
-#include "image/Image.h"
 #include "Entity.h"
 #include "Transform.h"
 #include <boost/container/small_vector.hpp>
 #include "bytes.h"
 #include "render_assets/ModelLoader.h"
+#include "render_assets/Texture2D.h"
 #include "common/glsl_type_traits.h"
 
 namespace stdr = std::ranges;
@@ -102,9 +102,9 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         .add(std::to_underlying(PerRenderableBindingPoints::eTransform), m_per_renderable_ssbo_group[2].generateBufferInfo())
         .update();
 
-    auto image1_sp = Image::makeShared();
+    auto image1_sp = Texture2D::makeShared();
     image1_sp->loadFromFileGpuFriendly({"assets/images/bk.jpg"});
-    auto image2_sp = Image::makeShared();
+    auto image2_sp = Texture2D::makeShared();
     image2_sp->loadFromFileGpuFriendly({"assets/images/qt256.png"});
 
     // auto load_mode_result = ModelLoader {}.load("./assets/models/dinosaur/source/Rampaging T-Rex.glb");
