@@ -1,11 +1,11 @@
 #include "render_assets/Material.h"
 #include "render_assets/DefaultAssetProvider.h"
-#include "image/Image.h"
+#include "render_assets/Texture2D.h"
 #include "bytes.h"
 
 using namespace lcf;
 
-Material & Material::setTextureResource(TextureSemantic semantic, const Image::SharedPointer &texture_resource) noexcept
+Material & Material::setTextureResource(TextureSemantic semantic, const Texture2D::SharedPointer &texture_resource) noexcept
 {
     m_texture_resources[semantic] = texture_resource;
     return *this;
@@ -26,7 +26,7 @@ Material & Material::setParam(MaterialProperty property, const MaterialParam & p
     return *this;
 }
 
-const Image::SharedPointer &Material::getTextureResource(TextureSemantic semantic) const noexcept
+const Texture2D::SharedPointer &Material::getTextureResource(TextureSemantic semantic) const noexcept
 {
     auto it = m_texture_resources.find(semantic);
     if (it != m_texture_resources.end()) { return it->second; }

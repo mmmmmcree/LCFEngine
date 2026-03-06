@@ -4,13 +4,12 @@
 #include "MaterialParam.h"
 #include "Material.h"
 #include "Geometry.h"
-#include "image/image_fwd_decls.h"
 #include <tsl/robin_map.h>
 
 namespace lcf {
     class DefaultAssetProvider
     {
-        using Texture2DResourceMap = tsl::robin_map<DefaultTexture2DType, ImageSharedPointer>;
+        using Texture2DResourceMap = tsl::robin_map<DefaultTexture2DType, Texture2DSharedPointer>;
         using MaterialParamMap = tsl::robin_map<MaterialProperty, MaterialParam>;
     public:
         ~DefaultAssetProvider() = default;
@@ -21,8 +20,8 @@ namespace lcf {
     public:
         static const DefaultAssetProvider & getInstance() noexcept;
         const MaterialParam & getMaterialParam(MaterialProperty property) const noexcept;
-        const ImageSharedPointer & getTextureResource(DefaultTexture2DType type) const noexcept;
-        const ImageSharedPointer & getTextureResource(TextureSemantic semantic) const noexcept;
+        const Texture2DSharedPointer & getTextureResource(DefaultTexture2DType type) const noexcept;
+        const Texture2DSharedPointer & getTextureResource(TextureSemantic semantic) const noexcept;
         const Geometry::SharedPointer getGeometryResource() const noexcept;
         const Material::SharedPointer getMaterialResource() const noexcept;
     private:

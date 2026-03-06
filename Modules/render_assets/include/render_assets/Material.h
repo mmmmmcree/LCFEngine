@@ -8,7 +8,6 @@
 #include "BufferWriteSegment.h"
 #include "bytes.h"
 #include "StructureLayout.h"
-#include "image/image_fwd_decls.h"
 #include "PointerDefs.h"
 #include "Vector.h"
 #include "ranges/take_from.h"
@@ -20,7 +19,7 @@ namespace lcf {
     {
         using Self = Material;
         using ParamMap = tsl::robin_map<MaterialProperty, MaterialParam>;
-        using TextureReourceMap = tsl::robin_map<TextureSemantic, ImageSharedPointer>;
+        using TextureReourceMap = tsl::robin_map<TextureSemantic, Texture2DSharedPointer>;
     public:
         Material() noexcept = default;
         ~Material() noexcept = default;
@@ -41,8 +40,8 @@ namespace lcf {
         {
             return std::get<enum_value_t<property>>(this->getMaterialParam(property));
         }
-        Self & setTextureResource(TextureSemantic semantic, const ImageSharedPointer & texture_resource) noexcept;
-        const ImageSharedPointer & getTextureResource(TextureSemantic semantic) const noexcept;
+        Self & setTextureResource(TextureSemantic semantic, const Texture2DSharedPointer & texture_resource) noexcept;
+        const Texture2DSharedPointer & getTextureResource(TextureSemantic semantic) const noexcept;
         const MaterialParam & getMaterialParam(MaterialProperty property) const noexcept;
     private:
         ParamMap m_params;

@@ -1,4 +1,5 @@
 #include "render_assets/ModelLoader.h"
+#include "render_assets/Texture2D.h"
 #include "enums/enum_cast.h"
 #include "log.h"
 #include "bytes.h"
@@ -7,7 +8,6 @@
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
-#include "Image/Image.h"
 #include <expected>
 #include <system_error>
 #include <unordered_map>
@@ -46,7 +46,7 @@ using AssimpHierarchyNode = std::pair<size_t, const aiNode *>;
 
 Matrix4x4 to_matrix4x4(const aiMatrix4x4 & ai_mat) noexcept;
 
-std::expected<Image, std::error_code> to_image(const aiTexture & ai_texture);
+std::expected<Texture2D, std::error_code> to_texture2d(const aiTexture & ai_texture);
 
 Model::HierarchyNode to_hierarchy_node(const AssimpHierarchyNode & ai_hierarchy_node);
 
@@ -141,7 +141,7 @@ std::expected<Model, std::error_code> ModelLoader::Impl::analyze(const std::file
 
 void ModelLoader::Impl::loadTextures() noexcept
 {
-    std::unordered_map<std::string, Image::SharedPointer> texture_resource_map;
+    std::unordered_map<std::string, Texture2D::SharedPointer> texture_resource_map;
     for (uint32_t i = 0; i < m_ai_scene_p->mNumMaterials; ++i) {
         const aiMaterial & ai_material = *m_ai_scene_p->mMaterials[i];
         Material & material = *m_material_resource_list[i];
@@ -151,25 +151,25 @@ void ModelLoader::Impl::loadTextures() noexcept
             if (result != AI_SUCCESS) { continue; } //- this type of texture is not present in the material
             std::filesystem::path texture_path = m_asset_directory_path / ai_path_str.C_Str();
             if (texture_resource_map.contains(texture_path.string())) { continue; }
-            auto image_sp = Image::makeShared();
+            auto texture_sp = Texture2D::makeShared();
             const aiTexture * ai_texture_p = m_ai_scene_p->GetEmbeddedTexture(ai_path_str.C_Str());
             std::error_code error_code;
             if (ai_texture_p) {
-                auto expected = to_image(*ai_texture_p);
+                auto expected = to_texture2d(*ai_texture_p);
                 if (not expected) { error_code = expected.error(); }
                 else {
-                    image_sp = Image::makeShared(std::move(*expected));
-                    error_code = image_sp->convertToGpuFriendly();
+                    texture_sp = Texture2D::makeShared(std::move(*expected));
+                    error_code = texture_sp->convertToGpuFriendly();
                 }
             } else {
-                error_code = image_sp->loadFromFileGpuFriendly(texture_path);
+                error_code = texture_sp->loadFromFileGpuFriendly(texture_path);
             }
             if (error_code) {
                 lcf_log_error("Failed to load texture at: {}, error: {}", texture_path.string(), error_code.message());
                 continue;
             }
-            texture_resource_map[texture_path.string()] = image_sp;
-            material.setTextureResource(texture_semantic, image_sp);
+            texture_resource_map[texture_path.string()] = texture_sp;
+            material.setTextureResource(texture_semantic, texture_sp);
         }
     }
 }
@@ -291,9 +291,9 @@ Matrix4x4 to_matrix4x4(const aiMatrix4x4 & ai_mat) noexcept
     };
 }
 
-std::expected<Image, std::error_code> to_image(const aiTexture &ai_texture)
+std::expected<Texture2D, std::error_code> to_texture2d(const aiTexture &ai_texture)
 {
-    Image image;
+    Texture2D texture;
     uint32_t width = ai_texture.mWidth;
     uint32_t height = ai_texture.mHeight;
     bool is_compressed = (height == 0);
@@ -301,10 +301,10 @@ std::expected<Image, std::error_code> to_image(const aiTexture &ai_texture)
     auto data_span = std::span(reinterpret_cast<const std::byte *>(ai_texture.pcData), size_in_bytes);
     std::error_code error_code;
     if (is_compressed) {
-        error_code = image.loadFromMemoryEncoded(data_span);
+        error_code = texture.loadFromMemoryEncoded(data_span);
     } else {
-        error_code = image.loadFromMemoryPixels(data_span, width, ImageFormat::eRGBA8Uint);
+        error_code = texture.loadFromMemoryPixels(data_span, width, ImageFormat::eRGBA8Uint);
     }
     if (error_code) { return std::unexpected(error_code); }
-    return image;
+    return texture;
 }

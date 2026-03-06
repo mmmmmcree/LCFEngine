@@ -1,6 +1,6 @@
 #include "render_assets/DefaultAssetProvider.h"
 #include "render_assets/constants/geometry_data.h"
-#include "image/Image.h"
+#include "render_assets/Texture2D.h"
 #include "vector_enum_value_types.h"
 #include "Vector.h"
 #include "bytes.h"
@@ -20,8 +20,8 @@ DefaultAssetProvider::DefaultAssetProvider()
         {DefaultTexture2DType::eBlue,  Color {0x00, 0x00, 0xFF, 0xFF}},
     };
     for (const auto & [type, color] : color_map) {
-        auto & image_resource = m_texture2d_resources[type] = Image::makeShared();
-        image_resource->loadFromMemoryPixels(as_bytes_from_value(color), 1, ImageFormat::eRGBA8Uint);
+        auto & texture_resource = m_texture2d_resources[type] = Texture2D::makeShared();
+        texture_resource->loadFromMemoryPixels(as_bytes_from_value(color), 1, ImageFormat::eRGBA8Uint);
     }
     //todo Texture2D checkerboard
 
@@ -77,12 +77,12 @@ const MaterialParam & DefaultAssetProvider::getMaterialParam(MaterialProperty pr
     return m_material_params.at(property);
 }
 
-const Image::SharedPointer & DefaultAssetProvider::getTextureResource(DefaultTexture2DType type) const noexcept
+const Texture2D::SharedPointer & DefaultAssetProvider::getTextureResource(DefaultTexture2DType type) const noexcept
 {
     return m_texture2d_resources.at(type);
 }
 
-const Image::SharedPointer & DefaultAssetProvider::getTextureResource(TextureSemantic semantic) const noexcept
+const Texture2D::SharedPointer & DefaultAssetProvider::getTextureResource(TextureSemantic semantic) const noexcept
 {
     switch (semantic) {
         case TextureSemantic::eBaseColor: { return this->getTextureResource(DefaultTexture2DType::eWhite); }
