@@ -38,10 +38,10 @@ namespace lcf {
     public:
         Image() = default;
         Image(uint32_t width, uint32_t height, ImageFormat format);
-        Image(const Image &) = default;
-        Image(Image &&) noexcept = default;
+        Image(const Image & other) = default;
         Image & operator=(const Image & other) = default;
-        Image & operator=(Image && other) noexcept = default;
+        Image(Image && other) noexcept;
+        Image & operator=(Image && other) noexcept;
     private:
         Image(ImageVariant && image) noexcept;
         Image & operator=(ImageVariant && image);

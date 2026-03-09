@@ -98,6 +98,20 @@ Image::Image(uint32_t width, uint32_t height, ImageFormat format)
     m_image = details::generate_image<>(width, height, m_format);
 }
 
+Image & Image::operator=(Image && other) noexcept
+{
+    if (this == &other) { return *this; }
+    m_image = std::exchange(other.m_image, {});
+    m_format = std::exchange(other.m_format, {});
+    return *this;
+}
+
+Image::Image(Image && other) noexcept :
+    m_image(std::exchange(other.m_image, {})),
+    m_format(std::exchange(other.m_format, {}))
+{
+}
+
 Image::Image(ImageVariant && image) noexcept :
     m_image(std::move(image))
 {
