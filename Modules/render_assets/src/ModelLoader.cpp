@@ -44,15 +44,15 @@ struct enum_mapping_traits<TextureSemantic, aiTextureType>
 
 using AssimpHierarchyNode = std::pair<size_t, const aiNode *>;
 
-Matrix4x4 to_matrix4x4(const aiMatrix4x4 & ai_mat) noexcept;
+static Matrix4x4 to_matrix4x4(const aiMatrix4x4 & ai_mat) noexcept;
 
-std::expected<Texture2D, std::error_code> to_texture2d(const aiTexture & ai_texture);
+static std::expected<Texture2D, std::error_code> to_texture2d(const aiTexture & ai_texture);
 
-Model::HierarchyNode to_hierarchy_node(const AssimpHierarchyNode & ai_hierarchy_node);
+static Model::HierarchyNode to_hierarchy_node(const AssimpHierarchyNode & ai_hierarchy_node);
 
-void process_mesh(Geometry & geometry, const aiMesh & ai_mesh);
+static void process_mesh(Geometry & geometry, const aiMesh & ai_mesh);
 
-void process_material(Material & material, const aiMaterial & ai_material);
+static void process_material(Material & material, const aiMaterial & ai_material);
 
 constexpr std::string_view ai_material_param_key(const char * key, int, int) noexcept //- adapt ai material param key macros
 {
