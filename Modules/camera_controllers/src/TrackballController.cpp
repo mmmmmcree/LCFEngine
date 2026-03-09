@@ -1,11 +1,9 @@
 #include "TrackballController.h"
 #include "InputReader.h"
-#include "Transform.h"
-#include "signals.h"
 
-void lcf::modules::TrackballController::update(Entity & camera, float delta_time)
+bool lcf::modules::TrackballController::update(Transform & camera_transform, float delta_time)
 {
-    if (not m_input_reader) { return; }
+    if (not m_input_reader) { return false; }
     float delta_yaw = 0.0f, delta_pitch = 0.0f, delta_front = 0.0f, delta_up = 0.0f, delta_right = 0.0f;
     const auto & current_input_state = m_input_reader->getCurrentState();
     const auto & prev_input_state = m_input_reader->getPreviousState();
@@ -23,7 +21,6 @@ void lcf::modules::TrackballController::update(Entity & camera, float delta_time
         delta_up += dy * m_move_speed;
     }
 
-    auto & camera_transform = camera.getComponent<Transform>();
     auto right = camera_transform.getXAxis().normalized();
     auto up = camera_transform.getYAxis().normalized();
     auto delta_center = (right * delta_right + up * delta_up);
@@ -33,5 +30,5 @@ void lcf::modules::TrackballController::update(Entity & camera, float delta_time
     camera_transform.translateWorld(delta_center);
     camera_transform.rotateAround(yaw * pitch, m_center); //-先转pitch再转yaw，否则转完yaw后camera->right()就变了，先前算的pitch失效
     camera_transform.translateLocalZAxis(-delta_front);
-    camera.enqueueSignal<lcf::TransformUpdateSignal>({});
+    return true;
 }

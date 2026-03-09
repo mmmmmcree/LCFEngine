@@ -24,7 +24,6 @@ target_link_libraries(${PROJECT_NAME}
     PUBLIC  
         math
         utilities 
-        core
         input
     PRIVATE
 )

@@ -3,8 +3,8 @@
 #include "RenderPrimitive.h"
 #include "Matrix.h"
 #include <vector>
-#include "Registry.h"
-#include "Entity.h"
+// #include "Registry.h"
+// #include "Entity.h"
 
 namespace lcf {
     class Model
@@ -32,8 +32,8 @@ namespace lcf {
         Model(Model &&) = default;
         Model &operator=(Model &&) = default;
     public:
-        std::vector<Entity> generateEntities(Registry & registry) const noexcept;
-        Entity generateEntity(Registry & registry) const noexcept;
+        // std::vector<Entity> generateEntities(Registry & registry) const noexcept;
+        // Entity generateEntity(Registry & registry) const noexcept;
     // private:
         RenderPrimitiveList m_render_primitive_list;
         HierarchyNodeList m_hierarchy_node_list;
