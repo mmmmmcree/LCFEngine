@@ -301,7 +301,7 @@ void lcf::VulkanRenderer::render(const Entity & camera, const Entity & render_ta
     auto &current_framebuffer = current_frame_resources.fbo;
 
     Matrix4x4 projection, projection_view;
-    projection.perspective(60.0f, static_cast<float>(width) / height, 0.1f, 1000.0f);
+    projection.perspectiveRH_ZO(60.0f, static_cast<float>(width) / height, 0.1f, 1000.0f);
     auto &camera_transform = camera.getComponent<Transform>();
     const auto & camera_view = camera.getComponent<TransformInvertedWorldMatrix>();
     projection_view = projection * camera_view.getMatrix();
