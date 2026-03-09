@@ -3,6 +3,7 @@
 #include "ResourceEntity.h"
 #include "ResourceLease.h"
 #include "resources_enums.h"
+#include "resources_signals.h"
 
 namespace lcf {
     template <typename Resource>
@@ -43,9 +44,13 @@ namespace lcf {
         void tryDestroy() noexcept
         {
             if (not m_entity_lifecycle_p) { return; }
-            m_entity_lifecycle_p->decreaseOwnerCount();
+            if (m_entity_lifecycle_p->decreaseOwnerCount() == 1)  {
+                auto & entity = m_entity_lifecycle_p->getEntity();
+                if (entity.has<Resource>()) {
+                    entity.triggerSignal<ResourceReleasedSignal<Resource>>({entity.getArtifactID(), entity.get<Resource>()});
+                }
+            }
             if (m_entity_lifecycle_p->shouldDestroy()) {
-                //todo emit signal here with artifact_id with specific Resource
                 delete m_entity_lifecycle_p;
                 m_entity_lifecycle_p = nullptr;
             }

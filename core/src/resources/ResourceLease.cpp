@@ -1,5 +1,5 @@
-#include "core/resources/ResourceLease.h"
-#include "core/resources/ResourceEntity.h"
+#include "resources/ResourceLease.h"
+#include "resources/ResourceEntity.h"
 
 using namespace lcf;
 

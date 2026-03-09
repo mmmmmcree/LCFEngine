@@ -1,14 +1,20 @@
 #pragma once
 
 #include "Registry.h"
+#include "Dispatcher.h"
 #include "ResourceID.h"
+#include "resources_signals.h"
 
 namespace lcf {
     class ResourceEntity
     {
     public:
         ResourceEntity(Registry & registry) : m_registry_p(&registry), m_artifact_id(registry.create()) {}
-        ~ResourceEntity() noexcept { m_registry_p->destroy(m_artifact_id); } //todo if necessary, emit signal here with artifact_id, no specific Resource
+        ~ResourceEntity() noexcept
+        {
+            m_registry_p->destroy(m_artifact_id);
+            this->triggerSignal<ResourceDestroyedSignal>(m_artifact_id);
+        }
         ResourceEntity(const ResourceEntity &) = delete;
         ResourceEntity & operator=(const ResourceEntity &) = delete;
         ResourceEntity(ResourceEntity &&) noexcept = default;
@@ -18,6 +24,10 @@ namespace lcf {
         T & get() const noexcept { return m_registry_p->get<T>(m_artifact_id); }
         template <typename T>
         bool has() const noexcept { return m_registry_p->any_of<T>(m_artifact_id); }
+        template <typename Signal>
+        void enqueueSignal(const Signal & signal) const { m_registry_p->ctx().get<Dispatcher *>()->enqueue(signal); }
+        template <typename Signal>
+        void triggerSignal(const Signal & signal) const { m_registry_p->ctx().get<Dispatcher *>()->trigger(signal); }
     private:
         Registry * m_registry_p;
         ResourceArtifactID m_artifact_id;
