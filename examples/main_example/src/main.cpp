@@ -3,6 +3,7 @@
 #include "Vulkan/VulkanContext.h"
 #include "Vulkan/VulkanRenderer.h"
 #include "tasks/TaskScheduler.h"
+#include "signals.h"
 #include "Transform.h"
 #include "TransformSystem.h"
 #include "TrackballController.h"
@@ -37,8 +38,8 @@ int main(int argc, char *argv[])
 
     lcf::TransformSystem transform_system(registry);
     lcf::Entity camera_entity(registry);
-    auto & transform = camera_entity.requireComponent<lcf::Transform>();
-    camera_entity.requireComponent<lcf::TransformInvertedWorldMatrix>(transform.getWorldMatrix());
+    auto & camera_transform = camera_entity.requireComponent<lcf::Transform>();
+    camera_entity.requireComponent<lcf::TransformInvertedWorldMatrix>(camera_transform.getWorldMatrix());
 
     lcf::InputReader input_reader;
     lcf::modules::TrackballController trackball_controller;
@@ -54,7 +55,9 @@ int main(int argc, char *argv[])
         last_time = now;
 
         input_reader.update(window_up->getComponent<lcf::InputCollector>().getSnapshot());
-        trackball_controller.update(camera_entity, delta_time); //todo upadate multiple camera entity
+        if (trackball_controller.update(camera_transform, delta_time)) {
+            camera_entity.enqueueSignal<lcf::TransformUpdateSignal>({});
+        }
 
         registry.ctx().get<lcf::Dispatcher>().update();
 

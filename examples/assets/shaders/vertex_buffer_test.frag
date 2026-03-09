@@ -55,6 +55,7 @@ void main()
     vec4 texture0_color = texture(sampler2D(textures[nonuniformEXT(material_texture_ids.base_color_texture_id)], samplers[0]), fs_in.uv);
     vec4 texture1_color = texture(sampler2D(textures[nonuniformEXT(material_texture_ids.roughness_texture_id)], samplers[0]), fs_in.uv);
 
+    texture0_color *= material_params.base_color;
     // frag_color = material_params.base_color;
     frag_color = mix(texture0_color, texture1_color, 0.5);
 }
