@@ -1,4 +1,5 @@
 #include "Registry.h"
+#include "Dispatcher.h"
 #include "tasks/TaskScheduler.h"
 
 using namespace lcf;

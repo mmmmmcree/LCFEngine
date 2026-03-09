@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Registry.h"
+#include "Dispatcher.h"
 #include "tasks/TaskScheduler.h"
 #include "signals.h"
 
