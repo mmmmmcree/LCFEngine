@@ -1,9 +1,6 @@
 #pragma once
 
-
 #include "glm.h"
-#include <string>
-#include <format>
 
 namespace lcf {
     template <number_c T, glm::qualifier qualifier>
@@ -72,9 +69,16 @@ namespace lcf {
         Self inverted() const noexcept { return glm::inverse(*this); }
         void transpose() noexcept { *this = glm::transpose(*this); }
         Self transposed() const noexcept { return glm::transpose(*this); }
-        void lookAt(const Vec3 &eye, const Vec3 &center, const Vec3 &up) noexcept { *this = glm::lookAt(eye, center, up); }
-        void ortho(T left, T right, T bottom, T top, T near_plane, T far_plane) noexcept { *this = glm::ortho(left, right, bottom, top, near_plane, far_plane); }
-        void perspective(T fovy_deg, T aspect, T near_plane, T far_plane) noexcept { *this = glm::perspective(glm::radians(fovy_deg), aspect, near_plane, far_plane); }
+        void lookAtLH(const Vec3 &eye, const Vec3 &center, const Vec3 &up) noexcept { *this = glm::lookAtLH(eye, center, up); }
+        void lookAtRH(const Vec3 &eye, const Vec3 &center, const Vec3 &up) noexcept { *this = glm::lookAtRH(eye, center, up); }
+        void orthoLH(T left, T right, T bottom, T top, T near_plane, T far_plane) noexcept { *this = glm::orthoLH(left, right, bottom, top, near_plane, far_plane); }
+        void orthoRH(T left, T right, T bottom, T top, T near_plane, T far_plane) noexcept { *this = glm::orthoRH(left, right, bottom, top, near_plane, far_plane); }
+        void orthoZO(T left, T right, T bottom, T top, T near_plane, T far_plane) noexcept { *this = glm::orthoZO(left, right, bottom, top, near_plane, far_plane); }
+        void orthoNO(T left, T right, T bottom, T top, T near_plane, T far_plane) noexcept { *this = glm::orthoNO(left, right, bottom, top, near_plane, far_plane); }
+        void perspectiveLH_ZO(T fovy_deg, T aspect, T near_plane, T far_plane) noexcept { *this = glm::perspectiveLH_ZO(glm::radians(fovy_deg), aspect, near_plane, far_plane); }
+        void perspectiveLH_NO(T fovy_deg, T aspect, T near_plane, T far_plane) noexcept { *this = glm::perspectiveLH_NO(glm::radians(fovy_deg), aspect, near_plane, far_plane); }
+        void perspectiveRH_ZO(T fovy_deg, T aspect, T near_plane, T far_plane) noexcept { *this = glm::perspectiveRH_ZO(glm::radians(fovy_deg), aspect, near_plane, far_plane); }
+        void perspectiveRH_NO(T fovy_deg, T aspect, T near_plane, T far_plane) noexcept { *this = glm::perspectiveRH_NO(glm::radians(fovy_deg), aspect, near_plane, far_plane); }
         T * getData() noexcept { return glm::value_ptr(static_cast<Base &>(*this)); }
         const T * getData() const noexcept { return glm::value_ptr(static_cast<const Base &>(*this)); }
         const T * getConstData() const noexcept { return glm::value_ptr(static_cast<const Base &>(*this)); }
@@ -84,21 +88,6 @@ namespace lcf {
         void setRow(int index, const Vec4 &row) noexcept;
         Vec4 getRow(int index) const noexcept;
     };
-
-    template <number_c T, glm::qualifier qualifier>
-    std::string to_string(const GLMMatrix4x4<T, qualifier> &mat)
-    {
-        return std::format("GLMTransformMatrix(\n"
-            "  {:7.4f}, {:7.4f}, {:7.4f}, {:7.4f},\n"
-            "  {:7.4f}, {:7.4f}, {:7.4f}, {:7.4f},\n"
-            "  {:7.4f}, {:7.4f}, {:7.4f}, {:7.4f},\n"
-            "  {:7.4f}, {:7.4f}, {:7.4f}, {:7.4f}\n)",
-            mat[0][0], mat[1][0], mat[2][0], mat[3][0],
-            mat[0][1], mat[1][1], mat[2][1], mat[3][1],
-            mat[0][2], mat[1][2], mat[2][2], mat[3][2],
-            mat[0][3], mat[1][3], mat[2][3], mat[3][3]
-        );       
-    }
 }
 
 template <lcf::number_c T, glm::qualifier qualifier>

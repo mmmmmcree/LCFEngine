@@ -1,8 +1,6 @@
 #pragma once
 
 #include "glm.h"
-#include <string>
-#include <format>
 
 namespace lcf {
     template <number_c T, glm::qualifier qualifier>
@@ -84,11 +82,4 @@ namespace lcf {
         Mat3 toMatrix3x3() const noexcept { return glm::mat3_cast(*this); }
         Mat4 toMatrix4x4() const noexcept { return glm::mat4_cast(*this); }
     };
-
-    template <number_c T, glm::qualifier qualifier = glm::defaultp>
-    std::string to_string(const GLMQuaternion<T, qualifier> &quat)
-    {
-        return std::format("GLMQuaternion(scalar: {}, x: {}, y: {}, z: {})",
-            quat.getScalar(), quat.getX(), quat.getY(), quat.getZ());
-    }
 }
