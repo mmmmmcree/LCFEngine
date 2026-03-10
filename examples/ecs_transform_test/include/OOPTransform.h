@@ -1,9 +1,9 @@
 #pragma once
 #include "Matrix.h"
 #include <vector>
-#include "Entity.h"
+#include "ecs/Entity.h"
 
-namespace lcf {
+namespace lcf::ecs {
     class OOPTransform
     {
         using Self = OOPTransform;
@@ -81,7 +81,7 @@ namespace lcf {
 
     struct OOPTransform2Hierarchy
     {
-        using ChildrenList = std::vector<EntityHandle>;
+        using ChildrenList = std::vector<EntityId>;
         ChildrenList m_children;
     };
 }

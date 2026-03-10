@@ -1,46 +1,48 @@
 #include "TransformSystem.h"
-#include "signals.h"
+#include "ecs/signals.h"
+#include "ecs/Registry.h"
 #include <deque>
 #include <algorithm>
 #include "Matrix.h"
 #include "Vector.h"
 
+using namespace lcf::ecs;
 
-using Transform = lcf::ENTTTransform;
+using Transform = ENTTTransform;
 
-lcf::TransformSystem::TransformSystem(Registry & registry) :
+TransformSystem::TransformSystem(Registry & registry) :
     m_registry_p(&registry)
 {
     auto & dispatcher = m_registry_p->ctx().get<Dispatcher>();
-    dispatcher.sink<lcf::TransformAttachSignal>().connect<&lcf::TransformSystem::onTransformHierarchyAttach>(*this);
-    dispatcher.sink<lcf::TransformDetachSignal>().connect<&lcf::TransformSystem::onTransformHierarchyDetach>(*this);
-    dispatcher.sink<lcf::TransformUpdateSignal>().connect<&lcf::TransformSystem::onTransformUpdate>(*this);
+    dispatcher.sink<TransformAttachSignal>().connect<&TransformSystem::onTransformHierarchyAttach>(*this);
+    dispatcher.sink<TransformDetachSignal>().connect<&TransformSystem::onTransformHierarchyDetach>(*this);
+    dispatcher.sink<TransformUpdateSignal>().connect<&TransformSystem::onTransformUpdate>(*this);
 }
 
-lcf::TransformSystem::~TransformSystem()
+TransformSystem::~TransformSystem()
 {
     auto & dispatcher = m_registry_p->ctx().get<Dispatcher>();
-    dispatcher.sink<lcf::TransformAttachSignal>().disconnect(this);
-    dispatcher.sink<lcf::TransformDetachSignal>().disconnect(this);
-    dispatcher.sink<lcf::TransformUpdateSignal>().disconnect(this);
+    dispatcher.sink<TransformAttachSignal>().disconnect(this);
+    dispatcher.sink<TransformDetachSignal>().disconnect(this);
+    dispatcher.sink<TransformUpdateSignal>().disconnect(this);
 }
 
-void lcf::TransformSystem::onTransformUpdate(const TransformUpdateSignal &info)
+void TransformSystem::onTransformUpdate(const TransformUpdateSignal &info)
 {
     this->markDirty(info.m_sender);
 }
 
-void lcf::TransformSystem::onTransformHierarchyAttach(const TransformAttachSignal&info)
+void TransformSystem::onTransformHierarchyAttach(const TransformAttachSignal&info)
 {
     this->attach(info.m_parent, info.m_sender);    
 }
 
-void lcf::TransformSystem::onTransformHierarchyDetach(const TransformDetachSignal &info)
+void TransformSystem::onTransformHierarchyDetach(const TransformDetachSignal &info)
 {
     this->detach(info.m_sender);
 }
 
-void lcf::TransformSystem::update() noexcept
+void TransformSystem::update() noexcept
 {
     for (uint32_t level = 0; level < s_frequent_level_count; ++level) {
         auto & dirty_entitys = m_frequent_level_map[level];
@@ -58,7 +60,7 @@ void lcf::TransformSystem::update() noexcept
     m_dirty_entities.clear();
 }
 
-void lcf::TransformSystem::attach(EntityHandle parent, EntityHandle child)
+void TransformSystem::attach(EntityId parent, EntityId child)
 {
     if (child == parent or child == entt::null) { return; }
     auto & child_hierarchy = m_registry_p->get_or_emplace<TransformHierarchy>(child);
@@ -74,11 +76,11 @@ void lcf::TransformSystem::attach(EntityHandle parent, EntityHandle child)
     child_transform.setWorldMatrix(parent_transform.getWorldMatrix() * child_transform.getLocalMatrix());
 }
 
-void lcf::TransformSystem::detach(EntityHandle entity)
+void TransformSystem::detach(EntityId entity)
 {
     auto & transform = m_registry_p->get<Transform>(entity);
     auto & hierarchy = m_registry_p->get<TransformHierarchy>(entity);
-    hierarchy.setParent(null_entity_handle);
+    hierarchy.setParent(null);
     auto & parent_hierarchy = m_registry_p->get<TransformHierarchy>(hierarchy.getParent());
     auto to_remove_it = std::ranges::find(parent_hierarchy.m_children, entity);
     if (to_remove_it != parent_hierarchy.m_children.end()) {
@@ -87,7 +89,7 @@ void lcf::TransformSystem::detach(EntityHandle entity)
     }
 }
 
-void lcf::TransformSystem::markDirty(EntityHandle entity) noexcept
+void TransformSystem::markDirty(EntityId entity) noexcept
 {
     auto * hierarchy_p = m_registry_p->try_get<TransformHierarchy>(entity);
     if (not hierarchy_p) { return; }
@@ -103,21 +105,21 @@ void lcf::TransformSystem::markDirty(EntityHandle entity) noexcept
     state.markDirty();
 }
 
-void lcf::TransformSystem::updateBFS(EntityHandle entity) noexcept
+void TransformSystem::updateBFS(EntityId entity) noexcept
 {
     auto & state = m_registry_p->get<TransformState>(entity);
     if (not state.isDirty()) { return; } //- the return condition shows that the entity is updated by their parent
     state.clean();
     auto & hierarchy = m_registry_p->get<TransformHierarchy>(entity);
     auto & transform = m_registry_p->get<Transform>(entity);
-    EntityHandle parent = hierarchy.getParent();
+    EntityId parent = hierarchy.getParent();
     if (parent == entt::null) {
         transform.setWorldMatrix(transform.getLocalMatrix());
     } else {
         Transform & parent_transform = m_registry_p->get<Transform>(parent);
         transform.setWorldMatrix(parent_transform.getWorldMatrix() * transform.getLocalMatrix());
     }
-    std::deque<EntityHandle> bfs_queue;
+    std::deque<EntityId> bfs_queue;
     bfs_queue.emplace_back(entity);
     while (not bfs_queue.empty()) {
         auto cur_entity = bfs_queue.front();
@@ -139,14 +141,14 @@ void lcf::TransformSystem::updateBFS(EntityHandle entity) noexcept
     }
 }
 
-void lcf::TransformSystem::updateDFS(EntityHandle entity) noexcept
+void TransformSystem::updateDFS(EntityId entity) noexcept
 {
     auto & state = m_registry_p->get<TransformState>(entity);
     if (not state.isDirty()) { return; } //- the return condition shows that the entity is updated by their parent
     state.clean();
     auto & hierarchy = m_registry_p->get<TransformHierarchy>(entity);
     auto & transform = m_registry_p->get<Transform>(entity);
-    EntityHandle parent = hierarchy.getParent();
+    EntityId parent = hierarchy.getParent();
     if (parent == entt::null) {
         transform.setWorldMatrix(transform.getLocalMatrix());
     } else {
@@ -156,7 +158,7 @@ void lcf::TransformSystem::updateDFS(EntityHandle entity) noexcept
     this->updateRecursively(entity);
 }
 
-void lcf::TransformSystem::updateRecursively(EntityHandle entity) noexcept
+void TransformSystem::updateRecursively(EntityId entity) noexcept
 {
     auto & hierarchy = m_registry_p->get<TransformHierarchy>(entity);
     auto & transform = m_registry_p->get<Transform>(entity);

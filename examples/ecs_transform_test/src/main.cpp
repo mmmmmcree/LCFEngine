@@ -1,5 +1,5 @@
-#include "Registry.h"
-#include "Entity.h"
+#include "ecs/Registry.h"
+#include "ecs/Entity.h"
 #include "TransformSystem.h"
 #include "log.h"
 #include <chrono>
@@ -23,51 +23,51 @@ void performance_test(int num_nodes, float update_ratio, float attach_probabilit
     for (int i = 0; i < num_updates; ++i) {
         update_indices[i] = dis(gen);
     }
-    lcf::Registry registry_dfs, registry_oop;
-    lcf::TransformSystem transform_system_dfs(registry_dfs);
+    lcf::ecs::Registry registry_dfs, registry_oop;
+    lcf::ecs::TransformSystem transform_system_dfs(registry_dfs);
 
-    lcf::Registry registry_sep_oop;
-    lcf::TransformSystem2 transform_system2(registry_sep_oop);
+    lcf::ecs::Registry registry_sep_oop;
+    lcf::ecs::TransformSystem2 transform_system2(registry_sep_oop);
     
-    std::vector<lcf::Entity> entities_dfs;
-    std::vector<lcf::OOPTransform *> oop_transforms;
-    std::vector<lcf::Entity> entities_oop;
-    std::vector<lcf::Entity> entities_sep_oop;
+    std::vector<lcf::ecs::Entity> entities_dfs;
+    std::vector<lcf::ecs::OOPTransform *> oop_transforms;
+    std::vector<lcf::ecs::Entity> entities_oop;
+    std::vector<lcf::ecs::Entity> entities_sep_oop;
 
-    std::vector<lcf::Registry> junks;
+    std::vector<lcf::ecs::Registry> junks;
     
     for (int i = 0; i < num_nodes; ++i) {
         entities_dfs.emplace_back(registry_dfs);
-        entities_dfs[i].requireComponent<lcf::ENTTTransform>();
-        entities_dfs[i].requireComponent<lcf::TransformHierarchy>();
-        entities_dfs[i].requireComponent<lcf::TransformState>();
+        entities_dfs[i].requireComponent<lcf::ecs::ENTTTransform>();
+        entities_dfs[i].requireComponent<lcf::ecs::TransformHierarchy>();
+        entities_dfs[i].requireComponent<lcf::ecs::TransformState>();
         for (int j = 0; j < 10; ++j) {
             junks.emplace_back();
         }
-        oop_transforms.emplace_back(new lcf::OOPTransform);
+        oop_transforms.emplace_back(new lcf::ecs::OOPTransform);
         entities_oop.emplace_back(registry_oop);
-        entities_oop[i].requireComponent<lcf::OOPTransform>();
+        entities_oop[i].requireComponent<lcf::ecs::OOPTransform>();
 
         entities_sep_oop.emplace_back(registry_sep_oop);
-        entities_sep_oop[i].requireComponent<lcf::OOPTransform2>();
-        entities_sep_oop[i].requireComponent<lcf::OOPTransform2Hierarchy>();
+        entities_sep_oop[i].requireComponent<lcf::ecs::OOPTransform2>();
+        entities_sep_oop[i].requireComponent<lcf::ecs::OOPTransform2Hierarchy>();
 
     }
-    std::vector<lcf::Registry>{}.swap(junks);
+    std::vector<lcf::ecs::Registry>{}.swap(junks);
     
     for (int i = 1; i < num_nodes; ++i) {
         if (std::uniform_real_distribution<float>(0.0, 1.0)(gen) > attach_probability) { continue; }
         int parent_index = std::uniform_int_distribution<>(0, i - 1)(gen);
         if (parent_index == i) { continue; }
         // lcf_log_error("parent_index: {}, cur_index: {}", parent_index, i);
-        entities_dfs[i].emitSignal<lcf::TransformAttachSignal>(entities_dfs[parent_index].getHandle());
+        entities_dfs[i].emitSignal<lcf::ecs::TransformAttachSignal>(entities_dfs[parent_index].getHandle());
         oop_transforms[i]->attachTo(oop_transforms[parent_index]);
 
-        auto & child = entities_oop[i].getComponent<lcf::OOPTransform>();
-        auto & parent = entities_oop[parent_index].getComponent<lcf::OOPTransform>();
+        auto & child = entities_oop[i].getComponent<lcf::ecs::OOPTransform>();
+        auto & parent = entities_oop[parent_index].getComponent<lcf::ecs::OOPTransform>();
         child.attachTo(&parent);
 
-        entities_sep_oop[i].emitSignal<lcf::OOPTransform2AttachSignalInfo>(entities_sep_oop[parent_index].getHandle());
+        entities_sep_oop[i].emitSignal<lcf::ecs::OOPTransform2AttachSignalInfo>(entities_sep_oop[parent_index].getHandle());
     }
 
     // // clear first dirty flag
@@ -75,7 +75,7 @@ void performance_test(int num_nodes, float update_ratio, float attach_probabilit
     for (int i = 0; i < num_nodes; ++i) {
         oop_transforms[i]->getWorldMatrix();
     }
-    for (auto [entity, transform] : registry_oop.view<lcf::OOPTransform>().each()) {
+    for (auto [entity, transform] : registry_oop.view<lcf::ecs::OOPTransform>().each()) {
         transform.getWorldMatrix();
     }
     transform_system2.update();
@@ -85,17 +85,17 @@ void performance_test(int num_nodes, float update_ratio, float attach_probabilit
         // lcf_log_info("update index: {}", update_index);
         lcf::Vector3D<float> offset(0.1, 0.2, 0.3);
         auto & entity_dfs = entities_dfs[update_index];
-        entity_dfs.getComponent<lcf::ENTTTransform>().translateLocal(offset);
-        entity_dfs.emitSignal<lcf::TransformUpdateSignal>({}); 
+        entity_dfs.getComponent<lcf::ecs::ENTTTransform>().translateLocal(offset);
+        entity_dfs.emitSignal<lcf::ecs::TransformUpdateSignal>({}); 
         oop_transforms[update_index]->translateLocal(offset);
 
         auto & entity_oop = entities_oop[update_index];
-        entity_oop.getComponent<lcf::OOPTransform>().translateLocal(offset);
+        entity_oop.getComponent<lcf::ecs::OOPTransform>().translateLocal(offset);
 
         auto & entity_sep_oop = entities_sep_oop[update_index];
 
-        entity_sep_oop.getComponent<lcf::OOPTransform2>().translateLocal(offset);
-        entity_sep_oop.emitSignal<lcf::OOPTransform2UpdateSignalInfo>({});
+        entity_sep_oop.getComponent<lcf::ecs::OOPTransform2>().translateLocal(offset);
+        entity_sep_oop.emitSignal<lcf::ecs::OOPTransform2UpdateSignalInfo>({});
     }
 
     auto start_dfs = std::chrono::high_resolution_clock::now();

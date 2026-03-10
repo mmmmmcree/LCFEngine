@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Entity.h"
-#include "signals.h"
+#include "ecs/Entity.h"
+#include "ecs/signals.h"
 #include "Vector.h"
 #include "Matrix.h"
 #include <boost/container/vector.hpp>
@@ -9,8 +9,9 @@
 #include <boost/container/flat_map.hpp>
 #include <boost/unordered/unordered_flat_map.hpp>
 #include <bitset>
+#include <vector>
 
-namespace lcf {
+namespace lcf::ecs {
     struct TransformHierarchy;
 
     struct TransformState;
@@ -19,7 +20,7 @@ namespace lcf {
     {
     public:
         using Set = entt::basic_sparse_set<entt::entity>;
-        using FrequentLargeList = std::vector<EntityHandle>;
+        using FrequentLargeList = std::vector<EntityId>;
         static constexpr uint32_t s_frequent_level_count = 4;
         using FrequentLevelMap = std::array<FrequentLargeList, s_frequent_level_count>;
         using UnfrequentLevelMap = entt::dense_map<uint32_t, FrequentLargeList>;
@@ -30,12 +31,12 @@ namespace lcf {
         void onTransformHierarchyDetach(const TransformDetachSignal & info);
         void update() noexcept;
     private:
-        void attach(EntityHandle parent, EntityHandle child);
-        void detach(EntityHandle entity);
-        void markDirty(EntityHandle entity) noexcept;
-        void updateBFS(EntityHandle entity) noexcept;
-        void updateDFS(EntityHandle entity) noexcept;
-        void updateRecursively(EntityHandle entity) noexcept;
+        void attach(EntityId parent, EntityId child);
+        void detach(EntityId entity);
+        void markDirty(EntityId entity) noexcept;
+        void updateBFS(EntityId entity) noexcept;
+        void updateDFS(EntityId entity) noexcept;
+        void updateRecursively(EntityId entity) noexcept;
     private:
         Registry * m_registry_p;
         Set m_dirty_entities;
@@ -45,16 +46,16 @@ namespace lcf {
 
     struct TransformHierarchy // 32 bytes
     {
-        using ChildrenList = boost::container::vector<EntityHandle, boost::pool_allocator<EntityHandle>>;
+        using ChildrenList = boost::container::vector<EntityId, boost::pool_allocator<EntityId>>;
         TransformHierarchy() = default;
-        void setParent(EntityHandle parent) noexcept { m_parent = parent; }
-        EntityHandle getParent() const noexcept { return m_parent; }
-        void addChild(EntityHandle child) noexcept { m_children.emplace_back(child); }
+        void setParent(EntityId parent) noexcept { m_parent = parent; }
+        EntityId getParent() const noexcept { return m_parent; }
+        void addChild(EntityId child) noexcept { m_children.emplace_back(child); }
         const ChildrenList & getChildren() const noexcept { return m_children; }
         void setLevel(uint32_t level) noexcept { m_level = level; }
         uint32_t getLevel() const noexcept { return m_level; }
 
-        EntityHandle m_parent = entt::null;
+        EntityId m_parent = entt::null;
         uint32_t m_level = 0;
         ChildrenList m_children;
     };

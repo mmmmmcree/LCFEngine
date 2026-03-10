@@ -1,18 +1,20 @@
 #pragma once
 
-#include "Entity.h"
-#include "Registry.h"
+#include "ecs/Entity.h"
+#include "ecs/Registry.h"
 #include "OOPTransform.h"
 
-namespace lcf {
+namespace lcf::ecs {
     struct OOPTransform2UpdateSignalInfo : public EntitySignalBase
     {
-
+        OOPTransform2UpdateSignalInfo(EntityId sender) : EntitySignalBase(sender) {}
     };
     struct OOPTransform2AttachSignalInfo : public EntitySignalBase
     {
-        OOPTransform2AttachSignalInfo(EntityHandle parent) : m_parent(parent) {}
-        EntityHandle m_parent;
+        OOPTransform2AttachSignalInfo(EntityId sender, EntityId parent) :
+            EntitySignalBase(sender),
+            m_parent(parent) {}
+        EntityId m_parent;
     };
 
     struct TransformSystem2
@@ -38,7 +40,7 @@ namespace lcf {
             auto entity = info.m_sender;
             this->markDirty(entity);
         }
-        void markDirty(EntityHandle entity)
+        void markDirty(EntityId entity)
         {
             auto & t = m_registry_p->get<OOPTransform2>(entity);
             if (t.m_is_dirty) { return; }
@@ -50,7 +52,7 @@ namespace lcf {
         }
         void update() noexcept
         {
-            for (auto [entity, transform] : m_registry_p->view<lcf::OOPTransform2>().each()) {
+            for (auto [entity, transform] : m_registry_p->view<OOPTransform2>().each()) {
                 transform.getWorldMatrix();
             }
         }
