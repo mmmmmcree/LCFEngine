@@ -10,17 +10,17 @@ TransformSystem::TransformSystem(Registry & registry) :
     m_registry_p(&registry)
 {
     auto & dispatcher = m_registry_p->ctx().get<Dispatcher>();
-    dispatcher.sink<TransformAttachSignal>().connect<&TransformSystem::onTransformHierarchyAttach>(*this);
-    dispatcher.sink<TransformDetachSignal>().connect<&TransformSystem::onTransformHierarchyDetach>(*this);
-    dispatcher.sink<TransformUpdateSignal>().connect<&TransformSystem::onTransformUpdate>(*this);
+    dispatcher.connect<&TransformSystem::onTransformHierarchyDetach>(*this);
+    dispatcher.connect<&TransformSystem::onTransformHierarchyAttach>(*this);
+    dispatcher.connect<&TransformSystem::onTransformUpdate>(*this);
 }
 
 TransformSystem::~TransformSystem()
 {
     auto & dispatcher = m_registry_p->ctx().get<Dispatcher>();
-    dispatcher.sink<TransformAttachSignal>().disconnect(this);
-    dispatcher.sink<TransformDetachSignal>().disconnect(this);
-    dispatcher.sink<TransformUpdateSignal>().disconnect(this);
+    dispatcher.disconnect<&TransformSystem::onTransformHierarchyDetach>(*this);
+    dispatcher.disconnect<&TransformSystem::onTransformHierarchyAttach>(*this);
+    dispatcher.disconnect<&TransformSystem::onTransformUpdate>(*this);
 }
 
 void TransformSystem::onTransformUpdate(const TransformUpdateSignal &info) noexcept
