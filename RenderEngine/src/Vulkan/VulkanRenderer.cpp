@@ -4,7 +4,7 @@
 #include "Vulkan/vulkan_constants.h"
 #include "Matrix.h"
 #include "Quaternion.h"
-#include "Entity.h"
+#include "ecs/Entity.h"
 #include "Transform.h"
 #include <boost/container/small_vector.hpp>
 #include "bytes.h"
@@ -268,7 +268,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         .commitUpdate();
 }
 
-void lcf::VulkanRenderer::render(const Entity & camera, const Entity & render_target)
+void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity & render_target)
 {
     auto device = m_context_p->getDevice();
     auto &current_frame_resources = m_frame_resources[m_current_frame_index];

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "PointerDefs.h"
-#include "Entity.h"
+#include "ecs/Entity.h"
 #include "gui/gui_fwd_decls.h"
 #include "gui/gui_enums.h"
 #include <SDL3/SDL.h>
@@ -17,8 +17,8 @@ namespace lcf::gui {
     public:
         ~SDLWindow();
         bool create(const WindowCreateInfo & info);
-        Entity & getEntity() noexcept { return m_entity; }
-        const Entity & getEntity() const noexcept { return m_entity; }
+        ecs::Entity & getEntity() noexcept { return m_entity; }
+        const ecs::Entity & getEntity() const noexcept { return m_entity; }
         template <typename Component>
         Component & getComponent() const { return m_entity.getComponent<Component>(); }
         bool isCreated() const noexcept { return m_window_p and m_state != WindowState::eNotCreated; }
@@ -31,7 +31,7 @@ namespace lcf::gui {
         void setSurfaceState(SurfaceState state) noexcept;
     private:
         SDL_Window * m_window_p = nullptr;
-        Entity m_entity;
+        ecs::Entity m_entity;
         WindowState m_state = WindowState::eNotCreated;
         InputState m_input_state;
     };

@@ -13,7 +13,7 @@ namespace lcf {
     {
         using LoadFunc = std::function<std::optional<Resource>(Args...)>;
     public:
-        ResourceLoader(Registry & registry, LoadFunc && load_func) :
+        ResourceLoader(ResourceRegistry & registry, LoadFunc && load_func) :
             m_registry_p(&registry),
             m_load_func(std::move(load_func))
         {}
@@ -32,13 +32,13 @@ namespace lcf {
         //     return {};
         // }
     private:
-        Registry * m_registry_p; // registry of RenderSystem
+        ResourceRegistry * m_registry_p; // registry of RenderSystem
         LoadFunc m_load_func;
     };
 
 namespace details {
     template <std::size_t... I>
-    constexpr auto make_resource_loader_impl(Registry & registry, auto && func, std::index_sequence<I...>)
+    constexpr auto make_resource_loader_impl(ResourceRegistry & registry, auto && func, std::index_sequence<I...>)
     {
         using Traits = callable_traits<std::decay_t<decltype(func)>>;
         using Resource = typename Traits::result_type::value_type;
@@ -49,7 +49,7 @@ namespace details {
 }
 
     template <callable_c F>
-    auto make_resource_loader(Registry & registry, F && load_func)
+    auto make_resource_loader(ResourceRegistry & registry, F && load_func)
     requires std::is_same_v<
         typename callable_traits<std::decay_t<F>>::result_type,
         std::optional<typename callable_traits<std::decay_t<F>>::result_type::value_type>>

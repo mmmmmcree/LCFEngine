@@ -1,11 +1,11 @@
 #pragma once
 
-#include "Registry.h"
+#include "resources/ResourceRegistry.h"
 #include "resources/ResourceHandle.h"
 #include "resources/ResourceLoader.h"
 #include "concepts/invocable_concept.h"
 
-namespace lcf {
+namespace lcf::ecs {
     class ResourceSystem
     {
     public:
@@ -41,7 +41,7 @@ namespace lcf {
             m_resource_registry.ctx().emplace<Loader>(std::move(loader));
         }
     private:
-        Registry * m_registry;
-        Registry m_resource_registry;
+        Registry * m_ecs_registry;
+        ResourceRegistry m_resource_registry;
     };
 }

@@ -1,18 +1,36 @@
 #pragma once
 
 #include "ecs_fwd_decls.h"
+#include "Dispatcher.h"
+#include "tasks/TaskScheduler.h"
 #include "tasks/tasks_create_infos.h"
 #include <optional>
 
-namespace lcf {
+namespace lcf::ecs {
     class RegistryCreateInfo;
 
-    class Registry : public entt::registry
+    class Registry : public BasicRegistry
     {
-        using Base = entt::registry;
+        using Base = BasicRegistry;
     public:
         Registry(const RegistryCreateInfo & info);
         using Base::Base;
+    public:
+        template <typename Signal>
+        void emitSignal(Signal && signal)
+        {
+            auto & task_scheduler = this->ctx().get<TaskScheduler>();
+            auto & dispatcher = this->ctx().get<Dispatcher>();
+            task_scheduler.post([&dispatcher, signal = std::forward<Signal>(signal)]() {
+                dispatcher.trigger(signal);
+            });
+        }
+        template <typename Signal>
+        void enqueueSignal(Signal && signal)
+        {
+            auto & dispatcher = this->ctx().get<Dispatcher>();
+            dispatcher.enqueue(std::forward<Signal>(signal));
+        }
     };
 
 

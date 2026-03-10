@@ -18,7 +18,7 @@ VulkanContext::~VulkanContext()
     m_device->waitIdle();
 }
 
-VulkanContext & VulkanContext::registerWindow(Entity &window_entity)
+VulkanContext & VulkanContext::registerWindow(ecs::Entity &window_entity)
 {
     auto & bridge_sp = window_entity.getComponent<gui::VulkanSurfaceBridge::SharedPointer>();
     bridge_sp->createBackend(this->getInstance());

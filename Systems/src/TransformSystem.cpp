@@ -1,53 +1,56 @@
 #include "TransformSystem.h"
-#include "signals.h"
+#include "ecs/Registry.h"
+#include "ecs/signals.h"
 #include <deque>
 #include <algorithm>
 
-lcf::TransformSystem::TransformSystem(Registry & registry) :
+using namespace lcf::ecs;
+
+TransformSystem::TransformSystem(Registry & registry) :
     m_registry_p(&registry)
 {
     auto & dispatcher = m_registry_p->ctx().get<Dispatcher>();
-    dispatcher.sink<lcf::TransformAttachSignal>().connect<&lcf::TransformSystem::onTransformHierarchyAttach>(*this);
-    dispatcher.sink<lcf::TransformDetachSignal>().connect<&lcf::TransformSystem::onTransformHierarchyDetach>(*this);
-    dispatcher.sink<lcf::TransformUpdateSignal>().connect<&lcf::TransformSystem::onTransformUpdate>(*this);
+    dispatcher.sink<TransformAttachSignal>().connect<&TransformSystem::onTransformHierarchyAttach>(*this);
+    dispatcher.sink<TransformDetachSignal>().connect<&TransformSystem::onTransformHierarchyDetach>(*this);
+    dispatcher.sink<TransformUpdateSignal>().connect<&TransformSystem::onTransformUpdate>(*this);
 }
 
-lcf::TransformSystem::~TransformSystem()
+TransformSystem::~TransformSystem()
 {
     auto & dispatcher = m_registry_p->ctx().get<Dispatcher>();
-    dispatcher.sink<lcf::TransformAttachSignal>().disconnect(this);
-    dispatcher.sink<lcf::TransformDetachSignal>().disconnect(this);
-    dispatcher.sink<lcf::TransformUpdateSignal>().disconnect(this);
+    dispatcher.sink<TransformAttachSignal>().disconnect(this);
+    dispatcher.sink<TransformDetachSignal>().disconnect(this);
+    dispatcher.sink<TransformUpdateSignal>().disconnect(this);
 }
 
-void lcf::TransformSystem::onTransformUpdate(const TransformUpdateSignal &info) noexcept
+void TransformSystem::onTransformUpdate(const TransformUpdateSignal &info) noexcept
 {
     this->markDirty(info.m_sender);
 }
 
-void lcf::TransformSystem::onTransformHierarchyAttach(const TransformAttachSignal &info)
+void TransformSystem::onTransformHierarchyAttach(const TransformAttachSignal &info)
 {
     this->attach(info.m_parent, info.m_sender);    
 }
 
-void lcf::TransformSystem::onTransformHierarchyDetach(const TransformDetachSignal &info)
+void TransformSystem::onTransformHierarchyDetach(const TransformDetachSignal &info)
 {
     this->detach(info.m_sender);
 }
 
-void lcf::TransformSystem::update() noexcept
+void TransformSystem::update() noexcept
 {
     for (auto [entity, transform] : m_registry_p->view<Transform>().each()) {
         transform.getWorldMatrix();
     }
 }
 
-void lcf::TransformSystem::attach(EntityHandle parent, EntityHandle child)
+void TransformSystem::attach(EntityId parent, EntityId child)
 {
-    if (child == parent or child == null_entity_handle) { return; }
+    if (child == parent or child == null) { return; }
     auto & child_hierarchy = m_registry_p->get_or_emplace<TransformHierarchy>(child);
     auto & child_transform = m_registry_p->get_or_emplace<Transform>(child);
-    if (parent == null_entity_handle) { return; }
+    if (parent == null) { return; }
     auto & parent_hierarchy = m_registry_p->get_or_emplace<TransformHierarchy>(parent);
     auto & parent_transform = m_registry_p->get_or_emplace<Transform>(parent);
     this->detach(child);
@@ -57,7 +60,7 @@ void lcf::TransformSystem::attach(EntityHandle parent, EntityHandle child)
     this->markDirty(child);
 }
 
-void lcf::TransformSystem::detach(EntityHandle entity)
+void TransformSystem::detach(EntityId entity)
 {
     auto & transform = m_registry_p->get<Transform>(entity);
     auto & hierarchy = m_registry_p->get<TransformHierarchy>(entity);
@@ -66,7 +69,7 @@ void lcf::TransformSystem::detach(EntityHandle entity)
     parent_hierarchy.removeChild(entity);
 }
 
-void lcf::TransformSystem::markDirty(EntityHandle entity) noexcept
+void TransformSystem::markDirty(EntityId entity) noexcept
 {
     auto & transform = m_registry_p->get<Transform>(entity);
     if (transform.isDirty()) { return; }
@@ -80,7 +83,7 @@ void lcf::TransformSystem::markDirty(EntityHandle entity) noexcept
     }
 }
 
-void lcf::TransformHierarchy::removeChild(EntityHandle child)
+void TransformHierarchy::removeChild(EntityId child)
 {
     auto it = std::ranges::find(m_children, child);
     if (it != m_children.end()) {

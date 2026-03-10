@@ -3,7 +3,7 @@
 #include "Vulkan/VulkanContext.h"
 #include "Vulkan/VulkanRenderer.h"
 #include "tasks/TaskScheduler.h"
-#include "signals.h"
+#include "ecs/signals.h"
 #include "Transform.h"
 #include "TransformSystem.h"
 #include "TrackballController.h"
@@ -16,7 +16,7 @@ using namespace std::chrono_literals;
 int main(int argc, char *argv[])
 {
     lcf::Logger::init();
-    lcf::Registry registry {{
+    lcf::ecs::Registry registry {{
         lcf::TaskSchedulerCreateInfo {lcf::TaskSchedulerRunMode::eNewThread}
     }};
     lcf::render::VulkanContext context; //- create context before create vulkan window(load vulkan if use dynamic link library)
@@ -36,8 +36,8 @@ int main(int argc, char *argv[])
     lcf::VulkanRenderer renderer;
     renderer.create(&context, lcf::gui::WindowSystem::getInstance().getPrimaryDisplayerInfo().getDesktopModeInfo().getRenderExtent());
 
-    lcf::TransformSystem transform_system(registry);
-    lcf::Entity camera_entity(registry);
+    lcf::ecs::TransformSystem transform_system(registry);
+    lcf::ecs::Entity camera_entity(registry);
     auto & camera_transform = camera_entity.requireComponent<lcf::Transform>();
     camera_entity.requireComponent<lcf::TransformInvertedWorldMatrix>(camera_transform.getWorldMatrix());
 
@@ -56,10 +56,10 @@ int main(int argc, char *argv[])
 
         input_reader.update(window_up->getComponent<lcf::InputCollector>().getSnapshot());
         if (trackball_controller.update(camera_transform, delta_time)) {
-            camera_entity.enqueueSignal<lcf::TransformUpdateSignal>({});
+            registry.enqueueSignal<lcf::ecs::TransformUpdateSignal>({camera_entity.getId()});
         }
 
-        registry.ctx().get<lcf::Dispatcher>().update();
+        registry.ctx().get<lcf::ecs::Dispatcher>().update();
 
         transform_system.update();
         renderer.render(camera_entity, window_up->getEntity()); //todo make a data pack

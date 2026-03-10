@@ -1,10 +1,11 @@
 #pragma once
 
-#include "Entity.h"
+#include "ecs/ecs_fwd_decls.h"
+#include "ecs/signals.h"
 #include "Transform.h"
-#include "signals.h"
+#include <vector>
 
-namespace lcf {
+namespace lcf::ecs {
     struct TransformHierarchy;
 
     class TransformSystem
@@ -17,22 +18,22 @@ namespace lcf {
         void onTransformHierarchyDetach(const TransformDetachSignal & info);
         void update() noexcept;
     private:
-        void attach(EntityHandle parent, EntityHandle child);
-        void detach(EntityHandle entity);
-        void markDirty(EntityHandle entity) noexcept;
+        void attach(EntityId parent, EntityId child);
+        void detach(EntityId entity);
+        void markDirty(EntityId entity) noexcept;
     private:
         Registry * m_registry_p;
     };
 
     struct TransformHierarchy
     {
-        using ChildrenList = std::vector<EntityHandle>;
-        void setParent(EntityHandle parent) noexcept { m_parent = parent; }
-        EntityHandle getParent() const noexcept { return m_parent; }
-        void addChild(EntityHandle child) { m_children.emplace_back(child); }
-        void removeChild(EntityHandle child);
+        using ChildrenList = std::vector<EntityId>;
+        void setParent(EntityId parent) noexcept { m_parent = parent; }
+        EntityId getParent() const noexcept { return m_parent; }
+        void addChild(EntityId child) { m_children.emplace_back(child); }
+        void removeChild(EntityId child);
         const ChildrenList & getChildren() const noexcept { return m_children; }
-        EntityHandle m_parent;
+        EntityId m_parent;
         ChildrenList m_children;
     };
 }

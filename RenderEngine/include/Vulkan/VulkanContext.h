@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common/Context.h"
-#include "Entity.h"
+#include "ecs/Entity.h"
 #include "VulkanSwapchain.h"
 #include "VulkanMemoryAllocator.h"
 #include "VulkanSamplerManager.h"
@@ -24,7 +24,7 @@ namespace lcf::render {
         VulkanContext(const VulkanContext &other) = delete;
         VulkanContext & operator=(const VulkanContext &other) = delete;
         ~VulkanContext();
-        Self & registerWindow(Entity & window_entity);
+        Self & registerWindow(ecs::Entity & window_entity);
         void create();
         bool isCreated() const { return m_device.get(); }
         bool isValid() const { return m_device.get(); }

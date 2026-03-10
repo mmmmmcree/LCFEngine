@@ -1,7 +1,6 @@
 #pragma once
 
-#include "Registry.h"
-#include "Dispatcher.h"
+#include "ResourceRegistry.h"
 #include "ResourceID.h"
 #include "resources_signals.h"
 
@@ -9,11 +8,11 @@ namespace lcf {
     class ResourceEntity
     {
     public:
-        ResourceEntity(Registry & registry) : m_registry_p(&registry), m_artifact_id(registry.create()) {}
+        ResourceEntity(ResourceRegistry & registry) : m_registry_p(&registry), m_artifact_id(registry.create()) {}
         ~ResourceEntity() noexcept
         {
             m_registry_p->destroy(m_artifact_id);
-            this->triggerSignal<ResourceDestroyedSignal>(m_artifact_id);
+            m_registry_p->triggerSignal<ResourceDestroyedSignal>(m_artifact_id);
         }
         ResourceEntity(const ResourceEntity &) = delete;
         ResourceEntity & operator=(const ResourceEntity &) = delete;
@@ -25,18 +24,18 @@ namespace lcf {
         template <typename T>
         bool has() const noexcept { return m_registry_p->any_of<T>(m_artifact_id); }
         template <typename Signal>
-        void enqueueSignal(const Signal & signal) const { m_registry_p->ctx().get<Dispatcher *>()->enqueue(signal); }
+        void enqueueSignal(Signal && signal) const { m_registry_p->enqueueSignal(std::forward<Signal>(signal)); }
         template <typename Signal>
-        void triggerSignal(const Signal & signal) const { m_registry_p->ctx().get<Dispatcher *>()->trigger(signal); }
+        void triggerSignal(Signal && signal) const { m_registry_p->triggerSignal(std::forward<Signal>(signal)); }
     private:
-        Registry * m_registry_p;
+        ResourceRegistry * m_registry_p;
         ResourceArtifactID m_artifact_id;
     };
 
     class ResourceEntityLifecycle
     {
     public:
-        ResourceEntityLifecycle(Registry & registry) :
+        ResourceEntityLifecycle(ResourceRegistry & registry) :
             m_entity(registry),
             m_tenant_count(0),
             m_owner_count(1)

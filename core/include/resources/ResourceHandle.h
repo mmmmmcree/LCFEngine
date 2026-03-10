@@ -11,7 +11,7 @@ namespace lcf {
     {
     public:
         ResourceHandle() = default;
-        ResourceHandle(Registry & registry) : m_entity_lifecycle_p(new ResourceEntityLifecycle(registry)) {}
+        ResourceHandle(ResourceRegistry & registry) : m_entity_lifecycle_p(new ResourceEntityLifecycle(registry)) {}
         ~ResourceHandle() noexcept { this->tryDestroy(); }
         ResourceHandle(const ResourceHandle & other) noexcept : m_entity_lifecycle_p(other.m_entity_lifecycle_p)
         {

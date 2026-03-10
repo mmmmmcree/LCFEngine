@@ -2,7 +2,7 @@
 
 #include "gui_fwd_decls.h"
 #include "gui_enums.h"
-#include "Registry.h"
+#include "ecs/Registry.h"
 #include <string>
 #include <vector>
 
@@ -11,7 +11,7 @@ namespace lcf::gui {
     {
         using Self = WindowCreateInfo;
         WindowCreateInfo(
-            Registry * registry_p = nullptr,
+            ecs::BasicRegistry * registry_p = nullptr,
             uint32_t width = 1280,
             uint32_t height = 720,
             SurfaceType surface_type = SurfaceType::eNone,
@@ -26,8 +26,8 @@ namespace lcf::gui {
         WindowCreateInfo(Self && other) = default;
         Self & operator=(Self && other) = default;
         ~WindowCreateInfo() = default;
-        Self & setRegistryPtr(Registry * registry_p) noexcept { m_registry_p = registry_p; return *this; }
-        Registry * getRegistryPtr() const noexcept { return m_registry_p; }
+        Self & setRegistryPtr(ecs::BasicRegistry * registry_p) noexcept { m_registry_p = registry_p; return *this; }
+        ecs::BasicRegistry * getRegistryPtr() const noexcept { return m_registry_p; }
         Self & setWidth(uint32_t width) noexcept { m_width = width; return *this; }
         uint32_t getWidth() const noexcept { return m_width; }
         Self & setHeight(uint32_t height) noexcept { m_height = height; return *this; }
@@ -37,7 +37,7 @@ namespace lcf::gui {
         Self & setTitle(std::string_view title) noexcept { m_title = title; return *this; }
         const std::string & getTitle() const noexcept { return m_title; }
 
-        Registry * m_registry_p;
+        ecs::BasicRegistry * m_registry_p;
         uint32_t m_width;
         uint32_t m_height;
         SurfaceType m_surface_type;

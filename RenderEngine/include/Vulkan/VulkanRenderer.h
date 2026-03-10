@@ -5,7 +5,7 @@
 #include "VulkanPipeline.h"
 #include "VulkanImageObject.h"
 #include "VulkanFramebufferObject.h"
-#include "Entity.h"
+#include "ecs/Entity.h"
 #include "VulkanCommandBufferObject.h"
 #include "VulkanBufferObject.h"
 #include "VulkanBufferObjectGroup.h"
@@ -25,7 +25,7 @@ namespace lcf {
         VulkanRenderer& operator=(const VulkanRenderer&) = delete;
         ~VulkanRenderer();
         void create(VulkanContext * context_p, const std::pair<uint32_t, uint32_t> & max_extent);
-        void render(const Entity & camera, const Entity & render_target);
+        void render(const ecs::Entity & camera, const ecs::Entity & render_target);
     private:
         VulkanContext * m_context_p;
         struct FrameResources

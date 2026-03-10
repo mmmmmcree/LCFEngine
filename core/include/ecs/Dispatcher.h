@@ -1,8 +1,9 @@
 #pragma once
 
 #include <entt/signal/dispatcher.hpp>
+#include "type_traits/callable_traits.h"
 
-namespace lcf {
+namespace lcf::ecs {
     class Dispatcher : public entt::dispatcher
     {
         using Base = entt::dispatcher;

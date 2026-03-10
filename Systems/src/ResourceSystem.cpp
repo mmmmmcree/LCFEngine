@@ -1,12 +1,11 @@
 #include "ResourceSystem.h"
-#include "Dispatcher.h"
+#include "ecs/Registry.h"
+#include "ecs/Dispatcher.h"
 
-using namespace lcf;
+using namespace lcf::ecs;
 
 ResourceSystem::ResourceSystem(Registry & registry) :
-    m_registry(&registry),
-    m_resource_registry(RegistryCreateInfo {})
+    m_ecs_registry(&registry),
+    m_resource_registry(registry.ctx().get<Dispatcher>())
 {
-    m_resource_registry.ctx().emplace<Dispatcher *>(&m_registry->ctx().get<Dispatcher>());
-    //todo use entt::registry instead of Registry?
 }

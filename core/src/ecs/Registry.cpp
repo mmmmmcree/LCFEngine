@@ -1,8 +1,7 @@
-#include "Registry.h"
-#include "Dispatcher.h"
-#include "tasks/TaskScheduler.h"
+#include "ecs/Registry.h"
 
-using namespace lcf;
+
+using namespace lcf::ecs;
 
 Registry::Registry(const RegistryCreateInfo & info) : Base()
 {

@@ -27,11 +27,11 @@ namespace lcf {
             return *this;
         }
         ResourceReleasedSignal(ResourceReleasedSignal<Resource> && other) :
-            m_artifact_id(std::exchange(other.m_artifact_id, null_entity_handle)), m_resource(std::exchange(other.m_resource, nullptr)) {}
+            m_artifact_id(std::exchange(other.m_artifact_id, ecs::null)), m_resource(std::exchange(other.m_resource, nullptr)) {}
         ResourceReleasedSignal<Resource> & operator=(ResourceReleasedSignal<Resource> && other)
         {
             if (this == &other) { return *this; }
-            m_artifact_id = std::exchange(other.m_artifact_id, null_entity_handle);
+            m_artifact_id = std::exchange(other.m_artifact_id, ecs::null);
             m_resource = std::exchange(other.m_resource, nullptr);
             return *this;
         }
