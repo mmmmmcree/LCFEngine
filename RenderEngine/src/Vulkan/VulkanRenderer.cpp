@@ -11,6 +11,7 @@
 #include "render_assets/ModelLoader.h"
 #include "render_assets/Texture2D.h"
 #include "common/glsl_type_traits.h"
+#include "Vulkan/vulkan_enums.h"
 
 namespace stdr = std::ranges;
 namespace stdv = std::views;
@@ -110,56 +111,80 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     // auto load_mode_result = ModelLoader {}.load("./assets/models/dinosaur/source/Rampaging T-Rex.glb");
     auto load_mode_result = ModelLoader {}.load("./assets/models/BarbieDodgePickup/scene.gltf");
     // auto load_mode_result = ModelLoader {}.load("./assets/models/ToyCar/glTF/ToyCar.gltf");
-    const auto & cube_model = load_mode_result.value();
+    const auto & model = load_mode_result.value();
 
     struct PBRMaterialParams
     {
         Vector4D<float> m_base_color = {1.0f, 1.0f, 1.0f, 1.0f};
+        float m_metallic = 0.0f;
+        float m_roughness = 0.5f;
+        float m_reflectance = 0.0f;
+        float m_ambient_occlusion = 1.0f;
         Vector4D<float> m_emissive_color = {1.0f, 1.0f, 1.0f, 1.0f};
+        Vector3D<float> m_normal = {0.0f, 0.0f, 1.0f};
     };
     struct PBRMaterialTextureIds
     {
-        uint32_t m_base_color_texture_id = 0;
-        uint32_t m_roughness_texture_id = 1;
-        uint32_t m_metallic_texture_id = 2;
-        uint32_t m_reflectance_texture_id = 3;
-        uint32_t m_ambient_occlusion_texture_id = 4;
-        uint32_t m_clearcoat_texture_id = 5;
-        uint32_t m_clearcoat_roughness_texture_id = 6;
-        uint32_t m_anisotropy_texture_id = 7;
+        uint32_t m_base_color_texture_id = 0;    
+        uint32_t m_metallic_roughness_texture_id = 1;
+        uint32_t m_emissive_texture_id = 0;
+        uint32_t m_normal_texture_id = 0;
     };
     
+    Material empty_material;
+    m_material_params.appendWriteSegments(generate_interleaved_segments<glsl::std140::enum_value_type_mapping_t>(empty_material, ShadingModel::eStandard));
+     
     PBRMaterialParams material_params; 
     m_material_params.setUsage(GPUBufferUsage::eShaderStorage)
         .setPattern(GPUBufferPattern::eStatic)
         .create(context_p, size_of_v<PBRMaterialParams>);
-    m_material_params.addWriteSegment({as_bytes_from_value(material_params)});
+    // m_material_params.addWriteSegment({as_bytes_from_value(material_params)});
     PBRMaterialTextureIds texture_ids;
     m_material_texture_indices.setUsage(GPUBufferUsage::eShaderStorage)
         .setPattern(GPUBufferPattern::eStatic)
         .create(context_p, size_of_v<PBRMaterialTextureIds>);
     m_material_texture_indices.addWriteSegment({as_bytes_from_value(texture_ids)});
-    vkutils::immediate_submit(m_context_p, vk::QueueFlagBits::eTransfer, [this, &cube_model](VulkanCommandBufferObject & cmd) {
+
+    static uint32_t s_texture_id = 0;
+    std::unordered_map<Texture2D::SharedPointer, uint32_t> texture_id_map;
+    vkutils::immediate_submit(m_context_p, vk::QueueFlagBits::eTransfer, [this, &model, &texture_id_map] (VulkanCommandBufferObject & cmd) {
         m_material_params.commit(cmd);
         m_material_texture_indices.commit(cmd);
 
-        for (const auto & render_primitive: cube_model.m_render_primitive_list) {
+        auto geometry_range = model.m_render_primitive_list |
+            stdv::transform([](const auto & render_primitive) -> const Geometry & { return render_primitive.getGeometry(); });
+
+        for (const auto & geometry: geometry_range) {
             auto & mesh = m_meshes.emplace_back();
-            const auto & geometry = render_primitive.getGeometry();
             mesh.create(m_context_p, cmd,
                 generate_interleaved_segments<glsl::std140::enum_value_type_mapping_t>(
                     geometry,
                     VertexAttributeFlags::ePosition | VertexAttributeFlags::eNormal | VertexAttributeFlags::eTexCoord0
                 ), geometry.getIndices());
         }
-        auto geometry_range = cube_model.m_render_primitive_list
-            | stdv::transform([](const auto & render_primitive) -> const Geometry & { return render_primitive.getGeometry(); });
-        auto interleaved_segments = generate_interleaved_segments<glsl::std140::enum_value_type_mapping_t>(
-            geometry_range,
-            VertexAttributeFlags::ePosition | VertexAttributeFlags::eNormal | VertexAttributeFlags::eTexCoord0
-        );
-        auto indices = generate_merged_indices(geometry_range);
-        m_mesh.create(m_context_p, cmd, interleaved_segments, indices);
+
+        m_mesh.create(m_context_p, cmd,
+            generate_interleaved_segments<glsl::std140::enum_value_type_mapping_t>(
+                geometry_range,
+                VertexAttributeFlags::ePosition | VertexAttributeFlags::eNormal | VertexAttributeFlags::eTexCoord0
+            ),
+            generate_merged_indices(geometry_range));
+
+        auto material_range = model.m_render_primitive_list |
+            stdv::transform([](const auto & render_primitive) -> const Material & { return render_primitive.getMaterial(); });
+        for (const auto & material: material_range) {
+            for (auto texture_resource : get_texture_resources(material, ShadingModel::eStandard)) {
+                if (texture_id_map.contains(texture_resource)) { continue; }
+                uint32_t texture_id = s_texture_id++;
+                texture_id_map[texture_resource] = texture_id;
+                auto & image_sp = m_texture_map[texture_id] = VulkanImageObject::makeShared();
+                image_sp->setFormat(enum_cast<vk::Format>(texture_resource->getDecodeFormat()))
+                    .setExtent({ texture_resource->getWidth(), texture_resource->getHeight(), 1u })
+                    .setUsage(vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst)
+                    .create(m_context_p);
+                image_sp->setData(cmd, texture_resource->getDataSpan());
+            }
+        }
     });
 
     VulkanImageObject::SharedPointer cube_map_sp;
@@ -168,14 +193,13 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     VulkanSampler::SharedPointer sampler_sp;
 
     texture1_sp = VulkanImageObject::makeShared();
-    texture1_sp->setFormat(vk::Format::eR8G8B8A8Unorm)
+    texture1_sp->setFormat(enum_cast<vk::Format>(image1_sp->getDecodeFormat()))
         .setUsage(vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst)
         .setMipmapped(true)
         .setExtent({ image1_sp->getWidth(), image1_sp->getHeight(), 1u })
         .create(m_context_p);
-
     texture2_sp = VulkanImageObject::makeShared();
-    texture2_sp->setFormat(vk::Format::eR8G8B8A8Unorm)
+    texture2_sp->setFormat(enum_cast<vk::Format>(image2_sp->getDecodeFormat()))
         .setUsage(vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst)
         .setMipmapped(true)
         .setExtent({ image2_sp->getWidth(), image2_sp->getHeight(), 1u })
@@ -260,9 +284,10 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     auto material_ds_sp = VulkanDescriptorSet::makeShared();
     material_ds_sp->create(layout_sp);
     m_material.create(material_ds_sp);
-    m_material.setTexture(2, 1, texture1_sp)
-        .setTexture(2, 0, texture2_sp)
-        .setSampler(1, 0, sampler_manager.getShared(SamplerPreset::eColorMap))
+    for (const auto & [texture_id, texture_sp] : m_texture_map) {
+        m_material.setTexture(2, texture_id, texture_sp);
+    }
+    m_material.setSampler(1, 0, sampler_manager.getShared(SamplerPreset::eColorMap))
         .setSampler(1, 1, sampler_manager.getShared(SamplerPreset::eColorMap))
         .setParamsSSBO(0, m_per_material_params_ssbo_sp)
         .commitUpdate();
@@ -316,11 +341,8 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
     for (uint32_t i = 0; i < model_matrices.size(); i += 2) {
         model_matrices[i].rotateAroundSelf(Quaternion::fromAxisAndAngle({1.0f, 1.0f, 0.0f}, angle));
         model_matrices[i + 1].rotateAroundSelf(Quaternion::fromAxisAndAngle({1.0f, 0.0f, 0.0f}, -90.0f));
+        model_matrices[i + 1].translateLocalX(10.0f);
     }
-    // model_matrices[0].scale(0.5f);
-    // model_matrices[1].scale(0.5f);
-    // model_matrices[1].translateLocal({ 6.0f, 0.2f, 0.2f });
-    // 
 
     auto & per_renderable_vertex_buffer_ssbo = m_per_renderable_ssbo_group[0];
     auto & per_renderable_index_buffer_ssbo = m_per_renderable_ssbo_group[1];

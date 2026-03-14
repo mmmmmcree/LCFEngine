@@ -13,6 +13,7 @@
 #include "VulkanSampler.h"
 #include "VulkanMaterial.h"
 #include "VulkanDescriptorSet.h"
+#include <unordered_map>
 
 namespace lcf {
     using namespace lcf::render;
@@ -55,6 +56,9 @@ namespace lcf {
         
         VulkanMesh m_mesh;
         std::vector<VulkanMesh> m_meshes;
+        std::unordered_map<uint32_t, VulkanImageObjectSharedPointer> m_texture_map;
+        std::vector<VulkanBufferObject> m_material_params_list;
+        std::vector<VulkanBufferObject> m_material_texture_ids_list;
         VulkanMaterial m_material;
         VulkanBufferObject::SharedPointer m_per_material_params_ssbo_sp; //- ssbo that store params_buffer's address
         VulkanBufferObject m_material_params; //- params with real data

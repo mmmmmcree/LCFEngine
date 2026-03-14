@@ -334,24 +334,36 @@ namespace lcf::enum_decode {
 }
 
 namespace lcf {
-    enum class TextureSemantic : uint8_t
+    enum class TextureSemantic : std::underlying_type_t<MaterialPropertyFlags>
     {
-        eBaseColor,
-        eMetallicRoughness,
-        eNormal,
-        eOcclusion,
-        eEmissive,
-        eHeight,
-        eClearCoat,
-        eClearCoatRoughness,
-        eClearCoatNormal,
-        eSheenColor,
-        eSheenRoughness,
-        eVolumeThickness,
-        eTransmission,
+        eBaseColor = MaterialPropertyFlags::eBaseColor,
+        eMetallicRoughness = MaterialPropertyFlags::eMetallic | MaterialPropertyFlags::eRoughness,
+        eNormal = MaterialPropertyFlags::eNormal,
+        eOcclusion = MaterialPropertyFlags::eAmbientOcclusion,
+        eEmissive = MaterialPropertyFlags::eEmissive,
+        eClearCoat = MaterialPropertyFlags::eClearCoat,
+        eClearCoatRoughness = MaterialPropertyFlags::eClearCoatRoughness,
+        eClearCoatNormal = MaterialPropertyFlags::eClearCoatNormal,
+        eSheenColor = MaterialPropertyFlags::eSheenColor,
+        eSheenRoughness = MaterialPropertyFlags::eSheenRoughness,
+        eVolumeThickness = MaterialPropertyFlags::eThickness,
+        eTransmission = MaterialPropertyFlags::eTransmission,
+        eSpecular,
         eSpecularColor,
-        eSpecular
+        eHeight,
     };
+}
+
+namespace lcf::enum_decode {
+    inline constexpr MaterialPropertyFlags to_property_flags(TextureSemantic semantic) noexcept
+    {
+        return static_cast<MaterialPropertyFlags>(std::to_underlying(semantic));
+    }
+
+    inline constexpr TextureSemantic to_texture_semantic(MaterialPropertyFlags property_flags) noexcept
+    {
+        return static_cast<TextureSemantic>(property_flags);
+    }
 }
 
 namespace lcf {

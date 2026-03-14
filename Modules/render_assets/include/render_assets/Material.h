@@ -52,7 +52,7 @@ namespace lcf {
     BufferWriteSegments generate_interleaved_segments(const Material & material, ShadingModel shading_model) noexcept
     {
         auto material_properties = enum_values_v<MaterialProperty> | std::views::filter([shading_model](auto property) {
-            return contains_flags(enum_decode::get_material_property_flags(shading_model), property);
+            return contains_flags(enum_decode::get_material_property_flags(shading_model), enum_decode::to_flag_bit(property));
         });
         StructureLayout layout;
         for (auto property : material_properties) {
@@ -72,5 +72,12 @@ namespace lcf {
             segments.add(property_bytes, layout.getFieldOffset(field_index++));
         }
         return segments;
+    }
+
+    inline auto get_texture_resources(const Material & material, ShadingModel shading_model) noexcept
+    {
+        return enum_values_v<TextureSemantic> | std::views::filter([shading_model](auto semantic) {
+            return contains_flags(enum_decode::get_material_property_flags(shading_model), enum_decode::to_property_flags(semantic));
+        }) | std::views::transform([&material](auto semantic) -> const Texture2DSharedPointer & { return material.getTextureResource(semantic); });
     }
 }
