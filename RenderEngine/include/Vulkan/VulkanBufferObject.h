@@ -24,7 +24,9 @@ namespace lcf::render {
         Self & setPattern(GPUBufferPattern pattern) noexcept;
         Self & resize(uint64_t size_in_bytes);
         Self & addWriteSegment(const BufferWriteSegment &segment) noexcept; // overwrite if overlaps
+        Self & appendWriteSegments(const BufferWriteSegments & segments) noexcept;
         Self & addWriteSegmentIfAbsent(const BufferWriteSegment &segment) noexcept; // don't overwrite if overlaps
+        Self & appendWriteSegmentsIfAbsent(const BufferWriteSegments & segments) noexcept;
         void commit(VulkanCommandBufferObject & cmd) noexcept;
         const vk::DeviceAddress & getDeviceAddress() const noexcept { return m_buffer_proxy.getDeviceAddress(); }
         uint64_t getSizeInBytes() const noexcept { return m_buffer_proxy.getSizeInBytes(); }
