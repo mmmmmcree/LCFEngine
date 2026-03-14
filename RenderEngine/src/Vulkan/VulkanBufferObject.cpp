@@ -30,9 +30,20 @@ VulkanBufferObject & VulkanBufferObject::addWriteSegment(const BufferWriteSegmen
     return *this;
 }
 
+VulkanBufferObject & VulkanBufferObject::appendWriteSegments(const BufferWriteSegments &segments) noexcept
+{
+    m_write_segments.append(segments);
+    return *this;
+}
 VulkanBufferObject & VulkanBufferObject::addWriteSegmentIfAbsent(const BufferWriteSegment &segment) noexcept
 {
     m_write_segments.addIfAbsent(segment);
+    return *this;
+}
+
+VulkanBufferObject & VulkanBufferObject::appendWriteSegmentsIfAbsent(const BufferWriteSegments &segments) noexcept
+{
+    m_write_segments.appendIfAbsent(segments);
     return *this;
 }
 
