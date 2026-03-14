@@ -1,6 +1,7 @@
 #pragma once
 
 #include "bytes.h"
+#include "concepts/range_concept.h"
 #include <deque>
 #include <limits>
 
@@ -16,7 +17,6 @@ namespace lcf {
         BufferWriteSegment(BufferWriteSegment && other) noexcept = default;
         BufferWriteSegment & operator=(BufferWriteSegment && other) noexcept = default;
         ByteView getDataSpan() const noexcept { return m_data; }
-        const std::byte * getData() const noexcept { return m_data.data(); }
         size_t getSizeInBytes() const noexcept { return m_data.size_bytes(); }
         size_t getBeginOffsetInBytes() const noexcept { return m_offset_in_bytes; }
         size_t getEndOffsetInBytes() const noexcept { return m_offset_in_bytes + m_data.size_bytes(); }
@@ -64,11 +64,27 @@ namespace lcf::impl {
             m_write_segment_upper_bound = std::max(m_write_segment_upper_bound, segment.getEndOffsetInBytes());
             return *this;
         }
+        template <compatible_range_c<BufferWriteSegment> Range>
+        Self & append(Range && range) noexcept
+        {
+            m_write_segment_lower_bound = std::min(m_write_segment_lower_bound, std::ranges::min(range | std::views::transform([](auto && s) { return s.getBeginOffsetInBytes(); })));
+            m_write_segment_upper_bound = std::max(m_write_segment_upper_bound, std::ranges::max(range | std::views::transform([](auto && s) { return s.getEndOffsetInBytes(); })));
+            m_segments.append_range(std::forward<Range>(range));
+            return *this;
+        }
         Self & addIfAbsent(const BufferWriteSegment& segment) noexcept
         {
             m_segments.emplace_front(segment);
             m_write_segment_lower_bound = std::min(m_write_segment_lower_bound, segment.getBeginOffsetInBytes());
             m_write_segment_upper_bound = std::max(m_write_segment_upper_bound, segment.getEndOffsetInBytes());
+            return *this;
+        }
+        template <compatible_range_c<BufferWriteSegment> Range>
+        Self & appendIfAbsent(Range && range) noexcept
+        {
+            m_write_segment_lower_bound = std::min(m_write_segment_lower_bound, std::ranges::min(range | std::views::transform([](auto && s) { return s.getBeginOffsetInBytes(); })));
+            m_write_segment_upper_bound = std::max(m_write_segment_upper_bound, std::ranges::max(range | std::views::transform([](auto && s) { return s.getEndOffsetInBytes(); })));
+            m_segments.prepend_range(std::forward<Range>(range));
             return *this;
         }
         bool empty() const noexcept { return m_segments.empty(); }
