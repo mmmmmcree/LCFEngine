@@ -73,7 +73,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
 
     m_per_material_params_ssbo_sp = VulkanBufferObject::makeShared();
     m_per_material_params_ssbo_sp->setUsage(GPUBufferUsage::eShaderStorage)
-        .create(m_context_p, size_of_v<vk::DeviceAddress> * 2);
+        .create(m_context_p, size_of_v<vk::DeviceAddress> * 2 * 100);
 
     m_indirect_call_buffer.setUsage(GPUBufferUsage::eIndirect)
         .create(m_context_p, size_of_v<vk::DrawIndirectCommand> + 1 * size_of_v<vk::DrawIndirectCommand>); // uint32_t(for IndirectDrawCount) + padding | vk::DrawIndirectCommand ...
@@ -109,8 +109,9 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     image2_sp->loadFromFileGpuFriendly({"assets/images/qt256.png"});
 
     // auto load_mode_result = ModelLoader {}.load("./assets/models/dinosaur/source/Rampaging T-Rex.glb");
-    auto load_mode_result = ModelLoader {}.load("./assets/models/BarbieDodgePickup/scene.gltf");
-    // auto load_mode_result = ModelLoader {}.load("./assets/models/ToyCar/glTF/ToyCar.gltf");
+    // auto load_mode_result = ModelLoader {}.load("./assets/models/BarbieDodgePickup/scene.gltf");
+    auto load_mode_result = ModelLoader {}.load("./assets/models/ToyCar/glTF/ToyCar.gltf");
+    // auto load_mode_result = ModelLoader {}.load("./assets/models/DamagedHelmet/DamagedHelmet.gltf");
     const auto & model = load_mode_result.value();
 
     struct PBRMaterialParams
@@ -173,7 +174,24 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         auto material_range = model.m_render_primitive_list |
             stdv::transform([](const auto & render_primitive) -> const Material & { return render_primitive.getMaterial(); });
         for (const auto & material: material_range) {
-            for (auto texture_resource : get_texture_resources(material, ShadingModel::eStandard)) {
+            auto & texture_params_buffer = m_material_params_list.emplace_back();
+            texture_params_buffer.setUsage(GPUBufferUsage::eShaderStorage)
+                .setPattern(GPUBufferPattern::eStatic)
+                .create(m_context_p, size_of_v<PBRMaterialParams>);
+            texture_params_buffer.appendWriteSegments(generate_interleaved_segments<glsl::std140::enum_value_type_mapping_t>(material, ShadingModel::eStandard));
+
+            auto & texture_ids_buffer = m_material_texture_ids_list.emplace_back();
+            texture_ids_buffer.setUsage(GPUBufferUsage::eShaderStorage)
+                .setPattern(GPUBufferPattern::eStatic)
+                .create(m_context_p, size_of_v<PBRMaterialTextureIds>);
+            std::vector<TextureSemantic> texture_semantics = {
+                TextureSemantic::eBaseColor,
+                TextureSemantic::eMetallicRoughness,
+                TextureSemantic::eNormal,
+                TextureSemantic::eEmissive
+            };
+            // for (auto texture_resource : get_texture_resources(material, ShadingModel::eStandard)) {
+            for (auto texture_resource : texture_semantics | stdv::transform([&material](auto semantic) -> const Texture2D::SharedPointer & { return material.getTextureResource(semantic); })) {
                 if (texture_id_map.contains(texture_resource)) { continue; }
                 uint32_t texture_id = s_texture_id++;
                 texture_id_map[texture_resource] = texture_id;
@@ -184,6 +202,17 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
                     .create(m_context_p);
                 image_sp->setData(cmd, texture_resource->getDataSpan());
             }
+            // for (auto [i, texture_resource] : get_texture_resources(material, ShadingModel::eStandard) | stdv::enumerate) {
+
+            for (auto [i, texture_resource] : texture_semantics |
+                stdv::transform([&material](auto semantic) -> const Texture2D::SharedPointer & { return material.getTextureResource(semantic); }) |
+                stdv::enumerate
+            ) {
+                const uint32_t & texture_id = texture_id_map[texture_resource];
+                texture_ids_buffer.addWriteSegment({as_bytes_from_value(texture_id), sizeof(uint32_t) * i});
+            }
+            texture_params_buffer.commit(cmd);
+            texture_ids_buffer.commit(cmd);
         }
     });
 
@@ -340,7 +369,7 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
     std::vector<Matrix4x4> model_matrices(120);
     for (uint32_t i = 0; i < model_matrices.size(); i += 2) {
         model_matrices[i].rotateAroundSelf(Quaternion::fromAxisAndAngle({1.0f, 1.0f, 0.0f}, angle));
-        model_matrices[i + 1].rotateAroundSelf(Quaternion::fromAxisAndAngle({1.0f, 0.0f, 0.0f}, -90.0f));
+        model_matrices[i + 1].rotateAroundSelf(Quaternion::fromAxisAndAngle({1.0f, 0.0f, 0.0f}, 90.0f));
         model_matrices[i + 1].translateLocalX(10.0f);
     }
 
@@ -373,13 +402,18 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
             .setInstanceCount(2);
         instance_count += indirect_call.instanceCount;
     }
+    for (int i = 0; i < indirect_calls.size(); ++i) {
+        const auto & material_params_buffer = m_material_params_list[i];
+        const auto & texture_ids_buffer = m_material_texture_ids_list[i];
+        size_t params_offset = 2 * i * size_of_v<vk::DeviceAddress>;
+        size_t texture_ids_offset = params_offset + size_of_v<vk::DeviceAddress>;
+        m_per_material_params_ssbo_sp->addWriteSegment({as_bytes_from_value(material_params_buffer.getDeviceAddress()), params_offset})
+            .addWriteSegment({as_bytes_from_value(texture_ids_buffer.getDeviceAddress()), texture_ids_offset});
+    }
 
     uint32_t indirect_call_count = static_cast<uint32_t>(indirect_calls.size());
     m_indirect_call_buffer.addWriteSegment({as_bytes_from_value(indirect_call_count), 0})
         .addWriteSegment({as_bytes(indirect_calls), size_of_v<vk::DrawIndirectCommand>});
-
-    m_per_material_params_ssbo_sp->addWriteSegment({as_bytes_from_value(m_material_params.getDeviceAddress()), 0u})
-        .addWriteSegment({as_bytes_from_value(m_material_texture_indices.getDeviceAddress()), size_of_v<vk::DeviceAddress>});
 
     m_indirect_call_buffer.commit(cmd);
     m_per_view_uniform_buffer.commit(cmd);
