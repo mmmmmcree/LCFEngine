@@ -333,6 +333,27 @@ namespace lcf::enum_decode {
     }
 }
 
+namespace lcf::internal {
+    enum class TextureSemantic : uint8_t
+    {
+        eBaseColor,
+        eMetallicRoughness,
+        eNormal,
+        eOcclusion,
+        eEmissive,
+        eClearCoat,
+        eClearCoatRoughness,
+        eClearCoatNormal,
+        eSheenColor,
+        eSheenRoughness,
+        eVolumeThickness,
+        eTransmission,
+        eSpecular,
+        eSpecularColor,
+        eHeight,
+    };
+}
+
 namespace lcf {
     enum class TextureSemantic : std::underlying_type_t<MaterialPropertyFlags>
     {
@@ -351,6 +372,25 @@ namespace lcf {
         eSpecular,
         eSpecularColor,
         eHeight,
+    };
+
+    template <> inline constexpr std::array<TextureSemantic, enum_count_v<internal::TextureSemantic>> enum_values_v<TextureSemantic>
+    {
+        TextureSemantic::eBaseColor,
+        TextureSemantic::eMetallicRoughness,
+        TextureSemantic::eNormal,
+        TextureSemantic::eOcclusion,
+        TextureSemantic::eEmissive,
+        TextureSemantic::eClearCoat,
+        TextureSemantic::eClearCoatRoughness,
+        TextureSemantic::eClearCoatNormal,
+        TextureSemantic::eSheenColor,
+        TextureSemantic::eSheenRoughness,
+        TextureSemantic::eVolumeThickness,
+        TextureSemantic::eTransmission,
+        TextureSemantic::eSpecular,
+        TextureSemantic::eSpecularColor,
+        TextureSemantic::eHeight,
     };
 }
 
