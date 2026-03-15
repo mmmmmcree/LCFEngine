@@ -13,18 +13,19 @@ layout(location = 0) in VS_OUT {
 
 struct MaterialParams {
     vec4 base_color;
+    float roughness;
+    float metallic;
+    float reflectance;
+    float ambient_occlusion;
     vec4 emissive_color;
+    vec3 normal;
 };
 
 struct MaterialTextureIds {
     uint base_color_texture_id;
-    uint roughness_texture_id;
-    uint metallic_texture_id;
-    uint reflectance_texture_id;
-    uint ambient_occlusion_texture_id;
-    uint clearcoat_texture_id;
-    uint clearcoat_roughness_texture_id;
-    uint anisotropy_texture_id;
+    uint metallic_roughness_texture_id;
+    uint normal_texture_id;
+    uint emissive_texture_id;
 };
 
 layout(buffer_reference, std430) readonly buffer MaterialParamsRef { MaterialParams value; };
@@ -46,16 +47,18 @@ layout(set = 2, binding = 2) uniform texture2D textures[65536]; // descriptor in
 
 void main()
 {
-    // uint material_id = fs_in.material_id;
-    uint material_id = 0;
+    uint material_id = fs_in.material_id;
     MaterialRecord material_record = material_records[material_id];
     const MaterialParams material_params = material_record.material_params_ref.value;
     const MaterialTextureIds material_texture_ids = material_record.material_texture_ids_ref.value;
 
-    vec4 texture0_color = texture(sampler2D(textures[nonuniformEXT(material_texture_ids.base_color_texture_id)], samplers[0]), fs_in.uv);
-    vec4 texture1_color = texture(sampler2D(textures[nonuniformEXT(material_texture_ids.roughness_texture_id)], samplers[0]), fs_in.uv);
+    // vec4 texture0_color = texture(sampler2D(textures[nonuniformEXT(material_texture_ids.base_color_texture_id)], samplers[0]), fs_in.uv);
+    // vec4 texture1_color = texture(sampler2D(textures[nonuniformEXT(material_texture_ids.metallic_roughness_texture_id)], samplers[0]), fs_in.uv);
+    vec4 texture_base_color = texture(sampler2D(textures[nonuniformEXT(material_texture_ids.base_color_texture_id)], samplers[0]), fs_in.uv);
+    // vec4 base_color = material_params.base_color * texture_base_color;
+    vec4 base_color = texture_base_color * material_params.base_color;
+    vec4 texture_emmisive_color = texture(sampler2D(textures[nonuniformEXT(material_texture_ids.emissive_texture_id)], samplers[0]), fs_in.uv);
+    vec4 emissive_color = material_params.emissive_color * texture_emmisive_color;
 
-    texture0_color *= material_params.base_color;
-    // frag_color = material_params.base_color;
-    frag_color = mix(texture0_color, texture1_color, 0.5);
+    frag_color = texture_base_color + emissive_color;
 }
