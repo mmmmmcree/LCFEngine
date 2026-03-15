@@ -150,7 +150,10 @@ void ModelLoader::Impl::loadTextures() noexcept
             auto result = ai_material.GetTexture(enum_cast<aiTextureType>(texture_semantic), 0, &ai_path_str);
             if (result != AI_SUCCESS) { continue; } //- this type of texture is not present in the material
             std::filesystem::path texture_path = m_asset_directory_path / ai_path_str.C_Str();
-            if (texture_resource_map.contains(texture_path.string())) { continue; }
+            if (texture_resource_map.contains(texture_path.string())) {
+                material.setTextureResource(texture_semantic, texture_resource_map[texture_path.string()]);
+                continue;
+            }
             auto texture_sp = Texture2D::makeShared();
             const aiTexture * ai_texture_p = m_ai_scene_p->GetEmbeddedTexture(ai_path_str.C_Str());
             std::error_code error_code;
