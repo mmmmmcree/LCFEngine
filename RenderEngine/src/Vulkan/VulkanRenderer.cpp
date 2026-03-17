@@ -110,51 +110,11 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
 
     // auto load_mode_result = ModelLoader {}.load("./assets/models/dinosaur/source/Rampaging T-Rex.glb");
     // auto load_mode_result = ModelLoader {}.load("./assets/models/BarbieDodgePickup/scene.gltf");
-    auto load_mode_result = ModelLoader {}.load("./assets/models/ToyCar/glTF/ToyCar.gltf");
-    // auto load_mode_result = ModelLoader {}.load("./assets/models/DamagedHelmet/DamagedHelmet.gltf");
-    const auto & model = load_mode_result.value();
-
-    struct PBRMaterialParams
-    {
-        Vector4D<float> m_base_color = {1.0f, 1.0f, 1.0f, 1.0f};
-        float m_metallic = 0.0f;
-        float m_roughness = 0.5f;
-        float m_reflectance = 0.0f;
-        float m_ambient_occlusion = 1.0f;
-        Vector4D<float> m_emissive_color = {1.0f, 1.0f, 1.0f, 1.0f};
-        Vector3D<float> m_normal = {0.0f, 0.0f, 1.0f};
-    };
-    struct PBRMaterialTextureIds
-    {
-        uint32_t m_base_color_texture_id = 0;    
-        uint32_t m_metallic_roughness_texture_id = 1;
-        uint32_t m_emissive_texture_id = 0;
-        uint32_t m_normal_texture_id = 0;
-    };
-    
-    Material empty_material;
-    m_material_params.appendWriteSegments(generate_interleaved_segments<glsl::std140::enum_value_type_mapping_t>(empty_material, ShadingModel::eStandard));
-     
-    PBRMaterialParams material_params; 
-    m_material_params.setUsage(GPUBufferUsage::eShaderStorage)
-        .setPattern(GPUBufferPattern::eStatic)
-        .create(context_p, size_of_v<PBRMaterialParams>);
-    // m_material_params.addWriteSegment({as_bytes_from_value(material_params)});
-    PBRMaterialTextureIds texture_ids;
-    m_material_texture_indices.setUsage(GPUBufferUsage::eShaderStorage)
-        .setPattern(GPUBufferPattern::eStatic)
-        .create(context_p, size_of_v<PBRMaterialTextureIds>);
-    m_material_texture_indices.addWriteSegment({as_bytes_from_value(texture_ids)});
-
     static uint32_t s_texture_id = 0;
     std::unordered_map<Texture2D::SharedPointer, uint32_t> texture_id_map;
-    vkutils::immediate_submit(m_context_p, vk::QueueFlagBits::eTransfer, [this, &model, &texture_id_map] (VulkanCommandBufferObject & cmd) {
-        m_material_params.commit(cmd);
-        m_material_texture_indices.commit(cmd);
-
+    auto upload_model_to_gpu = [this, &texture_id_map] (VulkanCommandBufferObject & cmd, Model & model) {
         auto geometry_range = model.m_render_primitive_list |
             stdv::transform([](const auto & render_primitive) -> const Geometry & { return render_primitive.getGeometry(); });
-
         for (const auto & geometry: geometry_range) {
             auto & mesh = m_meshes.emplace_back();
             mesh.create(m_context_p, cmd,
@@ -164,34 +124,19 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
                 ), geometry.getIndices());
         }
 
-        m_mesh.create(m_context_p, cmd,
-            generate_interleaved_segments<glsl::std140::enum_value_type_mapping_t>(
-                geometry_range,
-                VertexAttributeFlags::ePosition | VertexAttributeFlags::eNormal | VertexAttributeFlags::eTexCoord0
-            ),
-            generate_merged_indices(geometry_range));
-
         auto material_range = model.m_render_primitive_list |
             stdv::transform([](const auto & render_primitive) -> const Material & { return render_primitive.getMaterial(); });
         for (const auto & material: material_range) {
             auto & texture_params_buffer = m_material_params_list.emplace_back();
             texture_params_buffer.setUsage(GPUBufferUsage::eShaderStorage)
                 .setPattern(GPUBufferPattern::eStatic)
-                .create(m_context_p, size_of_v<PBRMaterialParams>);
+                .create(m_context_p, 1);
             texture_params_buffer.appendWriteSegments(generate_interleaved_segments<glsl::std140::enum_value_type_mapping_t>(material, ShadingModel::eStandard));
-
             auto & texture_ids_buffer = m_material_texture_ids_list.emplace_back();
             texture_ids_buffer.setUsage(GPUBufferUsage::eShaderStorage)
                 .setPattern(GPUBufferPattern::eStatic)
-                .create(m_context_p, size_of_v<PBRMaterialTextureIds>);
-            std::vector<TextureSemantic> texture_semantics = {
-                TextureSemantic::eBaseColor,
-                TextureSemantic::eMetallicRoughness,
-                TextureSemantic::eNormal,
-                TextureSemantic::eEmissive
-            };
-            // for (auto texture_resource : get_texture_resources(material, ShadingModel::eStandard)) {
-            for (auto texture_resource : texture_semantics | stdv::transform([&material](auto semantic) -> const Texture2D::SharedPointer & { return material.getTextureResource(semantic); })) {
+                .create(m_context_p, 1);
+            for (auto texture_resource : get_texture_resources(material, ShadingModel::eStandard)) {
                 if (texture_id_map.contains(texture_resource)) { continue; }
                 uint32_t texture_id = s_texture_id++;
                 texture_id_map[texture_resource] = texture_id;
@@ -202,20 +147,24 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
                     .create(m_context_p);
                 image_sp->setData(cmd, texture_resource->getDataSpan());
             }
-            // for (auto [i, texture_resource] : get_texture_resources(material, ShadingModel::eStandard) | stdv::enumerate) {
-
-            for (auto [i, texture_resource] : texture_semantics |
-                stdv::transform([&material](auto semantic) -> const Texture2D::SharedPointer & { return material.getTextureResource(semantic); }) |
-                stdv::enumerate
-            ) {
-                const uint32_t & texture_id = texture_id_map[texture_resource];
-                texture_ids_buffer.addWriteSegment({as_bytes_from_value(texture_id), sizeof(uint32_t) * i});
+            for (uint32_t offset = 0; const auto & texture_resource : get_texture_resources(material, ShadingModel::eStandard)) {
+                texture_ids_buffer.addWriteSegment({as_bytes_from_value(texture_id_map[texture_resource]), offset});
+                offset += sizeof(uint32_t);
             }
             texture_params_buffer.commit(cmd);
             texture_ids_buffer.commit(cmd);
         }
-    });
+    };
 
+    auto load_mode_result = ModelLoader {}.load("./assets/models/ToyCar/glTF/ToyCar.gltf");
+    vkutils::immediate_submit(m_context_p, vk::QueueFlagBits::eTransfer, [&model = load_mode_result.value(), &upload_model_to_gpu] (VulkanCommandBufferObject & cmd) {
+        upload_model_to_gpu(cmd, model);
+    });
+    load_mode_result = ModelLoader {}.load("./assets/models/DamagedHelmet/DamagedHelmet.gltf");
+    vkutils::immediate_submit(m_context_p, vk::QueueFlagBits::eTransfer, [&model = load_mode_result.value(), &upload_model_to_gpu] (VulkanCommandBufferObject & cmd) {
+        upload_model_to_gpu(cmd, model);
+    });
+    
     VulkanImageObject::SharedPointer cube_map_sp;
     VulkanImageObject::SharedPointer texture1_sp;
     VulkanImageObject::SharedPointer texture2_sp;
