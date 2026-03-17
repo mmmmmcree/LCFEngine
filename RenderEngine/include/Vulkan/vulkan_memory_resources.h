@@ -28,7 +28,7 @@ namespace lcf::render {
         VulkanImage(Self &&) noexcept;
         Self & operator=(Self &&) noexcept;
         const vk::Image & getHandle() const noexcept { return m_image; }
-        std::byte * getMappedMemoryPtr() const noexcept { return m_mapped_data_p; }
+        std::span<std::byte> getMappedMemorySpan() const noexcept { return m_mapped_data_p ? std::span<std::byte>(m_mapped_data_p, m_size) : std::span<std::byte>{}; }
         vk::DeviceSize getSize() const noexcept { return m_size; }
         vk::Result flush(VkDeviceSize offset = 0, VkDeviceSize size = VK_WHOLE_SIZE);
     private:
@@ -54,7 +54,7 @@ namespace lcf::render {
         VulkanBuffer(Self &&) noexcept;
         Self & operator=(Self &&) noexcept;
         const vk::Buffer & getHandle() const noexcept { return m_buffer; }
-        std::byte * getMappedMemoryPtr() const noexcept { return m_mapped_data_p; }
+        std::span<std::byte> getMappedMemorySpan() const noexcept { return m_mapped_data_p ? std::span<std::byte>(m_mapped_data_p, m_size) : std::span<std::byte>{}; }
         vk::DeviceSize getSize() const noexcept { return m_size; }
         vk::Result flush(VkDeviceSize offset = 0, VkDeviceSize size = VK_WHOLE_SIZE);
     private:

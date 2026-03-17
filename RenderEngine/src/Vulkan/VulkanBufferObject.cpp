@@ -60,7 +60,7 @@ void VulkanBufferObject::commit(VulkanCommandBufferObject &cmd) noexcept
 
 void VulkanBufferObject::prepareResize(VulkanCommandBufferObject & cmd, VulkanBufferWriter & writer) noexcept
 {
-    const auto & old_buffer_resource = m_buffer_proxy.getResource();
+    auto old_buffer_resource = m_buffer_proxy.getResource();
     uint32_t old_size = m_buffer_proxy.getSizeInBytes();
     m_buffer_proxy.recreate(m_required_size);
     if (writer.hasPendingOperations()) {
@@ -69,7 +69,7 @@ void VulkanBufferObject::prepareResize(VulkanCommandBufferObject & cmd, VulkanBu
             old_size,
             0, 0);
     } else {
-        this->addWriteSegmentIfAbsent({as_bytes_from_ptr(old_buffer_resource->getMappedMemoryPtr(), old_size)});
+        this->addWriteSegmentIfAbsent({old_buffer_resource->getMappedMemorySpan()});
     }
     cmd.acquireResource(old_buffer_resource);
 }

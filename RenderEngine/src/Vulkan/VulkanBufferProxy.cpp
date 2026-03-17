@@ -92,9 +92,7 @@ uint64_t VulkanBufferProxy::getSizeInBytes() const noexcept
 
 std::span<std::byte> VulkanBufferProxy::getMappedMemorySpan() const noexcept
 {
-    auto mapped_memory_ptr = m_buffer_sp->getMappedMemoryPtr();
-    if (not mapped_memory_ptr) { return {}; }
-    return {mapped_memory_ptr, m_buffer_sp->getSize()};
+    return m_buffer_sp->getMappedMemorySpan();
 }
 
 vk::Buffer VulkanBufferProxy::getHandle() const noexcept
