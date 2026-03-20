@@ -1,50 +1,108 @@
 {
-  "name": "lcf-engine",
+  "name": "lcfengine",
   "version": "1.0.0",
-  "description": "LCF Engine - A C++ game engine with Vulkan rendering support",
   "dependencies": [
-    "boost-headers",
-    "boost-align",
-    "boost-container",
-    {
-      "name": "libjpeg-turbo",
-      "version>=": "3.1.0#2"
+    "magic-enum",
+    "nlohmann-json",
+    "spdlog",
+    "half",
+    "boost-align"
+  ],
+  "features": {
+    "image": {
+      "description": "Dependencies for libs/image",
+      "dependencies": [
+        "stb",
+        "libpng",
+        "libjpeg-turbo",
+        "boost-gil",
+        "boost-algorithm"
+      ]
     },
-    {  
-      "name": "libpng",
-      "version>=": "1.6.48"
+    "math": {
+      "description": "Dependencies for libs/math",
+      "dependencies": [
+        "glm"
+      ]
     },
-    {
-      "name": "sdl3[vulkan]",
-      "version>=": "3.2.18"
+    "shader-core": {
+      "description": "Dependencies for libs/shader_core",
+      "dependencies": [
+        "shaderc",
+        "spirv-cross"
+      ]
     },
-    {
-      "name": "stb",
-      "version>=": "2024-07-29#1"
+    "containers": {
+      "description": "Dependencies for containers/",
+      "dependencies": [
+        "robin-map",
+        "boost-graph",
+        "boost-icl"
+      ]
     },
-    {
-      "name": "magic-enum",
-      "version>=": "0.9.7"
+    "engine-core": {
+      "description": "Dependencies for core/",
+      "dependencies": [
+        "entt",
+        "taskflow",
+        "boost-asio",
+        "boost-uuid"
+      ]
     },
-    {
-      "name": "entt",
-      "version>=": "3.15.0"
+    "input": {
+      "description": "Dependencies for input/",
+      "dependencies": [
+        "boost-circular-buffer",
+        "boost-lockfree"
+      ]
     },
-    {
-      "name": "shaderc",
-      "version>=": "2025.2"
+    "render-engine": {
+      "description": "Dependencies for RenderEngine/",
+      "dependencies": [
+        "assimp",
+        "vulkan",
+        "vulkan-memory-allocator",
+        "boost-container",
+        "boost-functional"
+      ]
     },
-    {
-      "name": "spirv-cross",
-      "version>=": "1.4.309.0"
-    }, 
-    {
-      "name": "vulkan",
-      "version>=": "1.4.309.0"
+    "gui": {
+      "description": "Dependencies for GUI/",
+      "dependencies": [
+        {
+          "name": "sdl3",
+          "features": [ "vulkan" ]
+        }
+      ]
     },
-    {
-      "name": "vulkan-memory-allocator",
-      "version>=": "3.3.0"
+    "profiling": {
+      "description": "Dependencies for profiling/",
+      "dependencies": [
+        "tracy"
+      ]
+    },
+    "examples": {
+      "description": "Dependencies for example programs",
+      "dependencies": [
+        "boost-beast",
+        "boost-url",
+        "boost-pool",
+        "boost-unordered",
+        "openssl",
+        "cli11"
+      ]
     }
+  },
+  "default-features": [
+    "image",
+    "math",
+    "shader-core",
+    "containers",
+    "engine-core",
+    "input",
+    "render-engine",
+    "gui",
+    "profiling",
+    "examples"
   ]
 }

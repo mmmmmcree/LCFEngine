@@ -8,7 +8,7 @@ add_library(${PROJECT_NAME} STATIC
     ${SOURCES} 
 )
      
-find_package(Boost CONFIG REQUIRED)
+find_package(Boost CONFIG REQUIRED COMPONENTS container functional align)
 find_package(assimp CONFIG REQUIRED)
      
 include_directories( 
@@ -32,7 +32,7 @@ target_link_libraries(${PROJECT_NAME}
         image
         GUI 
         core 
-        Boost::headers   
+        Boost::container Boost::functional Boost::align
         shader_core
         render_assets
     PRIVATE
