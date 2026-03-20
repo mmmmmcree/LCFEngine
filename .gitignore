@@ -6,3 +6,6 @@ models/
 note/
 designs/
 /todo.md
+/CMakePresets.json
+/vcpkg-configuration.json
+/vcpkg.json
