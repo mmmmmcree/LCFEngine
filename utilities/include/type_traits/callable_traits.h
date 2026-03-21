@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <tuple>
+#include <type_traits>
 
 namespace lcf {
     template <typename>
@@ -96,6 +97,14 @@ namespace lcf {
     struct callable_traits<std::function<R(Args...)>>
     {
         using signature = callable_signature<std::function<R(Args...)>>;
+        using result_type = typename signature::result_type;
+        using arg_types = typename signature::arg_types;
+    };
+
+    template <typename T>
+    struct callable_traits
+    {
+        using signature = callable_signature<decltype(&std::remove_reference_t<T>::operator())>;
         using result_type = typename signature::result_type;
         using arg_types = typename signature::arg_types;
     };
