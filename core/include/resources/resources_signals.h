@@ -41,13 +41,4 @@ namespace lcf {
         ResourceArtifactID m_artifact_id;
         const Resource * m_resource;
     };
-
-    struct ResourceDestroyedSignal
-    {
-        ResourceDestroyedSignal(ResourceArtifactID artifact_id) :
-            m_artifact_id(artifact_id) {}
-        ResourceArtifactID getArtifactID() const { return m_artifact_id; }
-
-        ResourceArtifactID m_artifact_id;
-    };
 }

@@ -1,63 +1,87 @@
 #pragma once
 
+#include "resource_utils.h"
 #include "ResourceRegistry.h"
 #include "ResourceID.h"
 #include "resources_signals.h"
 
 namespace lcf {
+    template <typename Resource>
     class ResourceEntity
     {
     public:
-        ResourceEntity(ResourceRegistry & registry) : m_registry_p(&registry), m_artifact_id(registry.create()) {}
-        ~ResourceEntity() noexcept
+        ResourceEntity() = default;
+        ResourceEntity(ResourceRegistry & registry) :
+            m_registry_p(&registry),
+            m_artifact_id(registry.create())
         {
-            m_registry_p->destroy(m_artifact_id);
-            m_registry_p->triggerSignal<ResourceDestroyedSignal>(m_artifact_id);
+            m_control_block_p =new ResourceControlBlock([registry_p = m_registry_p, artifact_id = m_artifact_id]() {
+                if (not registry_p or artifact_id == ecs::null) { return; }
+                auto state = registry_p->get<ResourceState>(artifact_id);
+                if (state == ResourceState::eLoaded) {
+                    registry_p->triggerSignal(ResourceReleasedSignal<Resource>(artifact_id, registry_p->get<Resource>(artifact_id)));
+                }
+                registry_p->destroy(artifact_id);
+            });
+            m_control_block_p->increaseRefCount();
         }
-        ResourceEntity(const ResourceEntity &) = delete;
-        ResourceEntity & operator=(const ResourceEntity &) = delete;
-        ResourceEntity(ResourceEntity &&) noexcept = default;
-        ResourceEntity & operator=(ResourceEntity &&) noexcept = default;
+        ~ResourceEntity() noexcept { this->tryDestroy(); }
+        ResourceEntity(const ResourceEntity & other) noexcept :
+            m_registry_p(other.m_registry_p),
+            m_control_block_p(other.m_control_block_p),
+            m_artifact_id(other.m_artifact_id)
+        {
+            m_control_block_p->increaseRefCount();
+        }
+        ResourceEntity & operator=(const ResourceEntity & other) noexcept
+        {
+            if (this == &other) { return *this; }
+            this->tryDestroy();
+            m_registry_p = other.m_registry_p;
+            m_control_block_p = other.m_control_block_p;
+            m_artifact_id = other.m_artifact_id;
+            m_control_block_p->increaseRefCount();
+            return *this;
+        }
+        ResourceEntity(ResourceEntity && other) noexcept :
+            m_registry_p(std::exchange(other.m_registry_p, nullptr)),
+            m_control_block_p(std::exchange(other.m_control_block_p, nullptr)),
+            m_artifact_id(std::exchange(other.m_artifact_id, ecs::null))
+        {
+        }
+        ResourceEntity & operator=(ResourceEntity && other) noexcept
+        {
+            if (this == &other) { return *this; }
+            this->tryDestroy();
+            m_registry_p = std::exchange(other.m_registry_p, nullptr);
+            m_control_block_p = std::exchange(other.m_control_block_p, nullptr);
+            m_artifact_id = std::exchange(other.m_artifact_id, ecs::null);
+            return *this;
+        }
+        operator bool() const noexcept { return this->isValid(); }
+        Resource & operator*() const noexcept { return m_registry_p->get<Resource>(m_artifact_id); }
+        Resource * operator->() const noexcept { return m_registry_p->try_get<Resource>(m_artifact_id); }
+    public:
+        bool isValid() const noexcept { return m_artifact_id != ecs::null and this->getState() == ResourceState::eLoaded; }
         const ResourceArtifactID & getArtifactID() const noexcept { return m_artifact_id; }
-        template <typename T>
-        T & get() const noexcept { return m_registry_p->get<T>(m_artifact_id); }
-        template <typename T>
-        bool has() const noexcept { return m_registry_p->any_of<T>(m_artifact_id); }
-        template <typename Signal>
-        void enqueueSignal(Signal && signal) const { m_registry_p->enqueueSignal(std::forward<Signal>(signal)); }
-        template <typename Signal>
-        void triggerSignal(Signal && signal) const { m_registry_p->triggerSignal(std::forward<Signal>(signal)); }
+        const ResourceState & getState() const noexcept { return m_registry_p->get<ResourceState>(m_artifact_id); }
+        ResourceLease getLease() const noexcept { return ResourceLease(m_control_block_p); }
+    
     private:
-        ResourceRegistry * m_registry_p;
-        ResourceArtifactID m_artifact_id;
-    };
-
-    class ResourceEntityLifecycle
-    {
-    public:
-        ResourceEntityLifecycle(ResourceRegistry & registry) :
-            m_entity(registry),
-            m_tenant_count(0),
-            m_owner_count(1)
-        {}
-        ~ResourceEntityLifecycle() noexcept = default;
-        ResourceEntityLifecycle(const ResourceEntityLifecycle &) = delete;
-        ResourceEntityLifecycle & operator=(const ResourceEntityLifecycle &) = delete;
-        ResourceEntityLifecycle(ResourceEntityLifecycle &&) noexcept = default;
-        ResourceEntityLifecycle & operator=(ResourceEntityLifecycle &&) noexcept = default;
-    public:
-        ResourceEntity & getEntity() noexcept { return m_entity; }
-        const ResourceEntity & getEntity() const noexcept { return m_entity; }
-        uint32_t getTenantCount() const noexcept { return m_tenant_count.load(std::memory_order_relaxed); }
-        uint32_t getOwnerCount() const noexcept { return m_owner_count.load(std::memory_order_relaxed); }
-        bool shouldDestroy() const noexcept { return this->getTenantCount() + this->getOwnerCount() == 0; }
-        uint32_t increaseTenantCount() noexcept { return m_tenant_count.fetch_add(1, std::memory_order_relaxed); }
-        uint32_t decreaseTenantCount() noexcept { return m_tenant_count.fetch_sub(1, std::memory_order_relaxed); }
-        uint32_t increaseOwnerCount() noexcept { return m_owner_count.fetch_add(1, std::memory_order_relaxed); }
-        uint32_t decreaseOwnerCount() noexcept { return m_owner_count.fetch_sub(1, std::memory_order_relaxed); }
+        void tryDestroy() noexcept
+        {
+            if (not m_control_block_p) { return; }
+            auto * control_block_p = std::exchange(m_control_block_p, nullptr);
+            if (control_block_p->decreaseRefCountAndShouldDestroy()) {
+                delete control_block_p;
+            }
+            m_registry_p = nullptr;
+            m_artifact_id = ecs::null;
+        }
     private:
-        ResourceEntity m_entity;
-        std::atomic<uint32_t> m_tenant_count;
-        std::atomic<uint32_t> m_owner_count;
+        ResourceRegistry * m_registry_p = nullptr;
+        ResourceArtifactID m_artifact_id = ecs::null;
+        ResourceControlBlock * m_control_block_p = nullptr;
+        //uuid
     };
 }

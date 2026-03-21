@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ResourceHandle.h"
+#include "ResourceEntity.h"
 #include "tasks/TaskScheduler.h"
 #include "type_traits/callable_traits.h"
 #include "concepts/invocable_concept.h"
@@ -17,17 +17,17 @@ namespace lcf {
             m_registry_p(&registry),
             m_load_func(std::move(load_func))
         {}
-        ResourceHandle<Resource> load(Args... args) const noexcept
+        ResourceEntity<Resource> load(Args... args) const noexcept
         {
             auto opt_resource = m_load_func(std::move(args)...);
             if (not opt_resource) { return {}; }
-            ResourceHandle<Resource> handle {*m_registry_p};
-            m_registry_p->emplace<Resource>(handle.getArtifactID(), std::move(opt_resource.value()));
-            auto & state = m_registry_p->emplace<ResourceState>(handle.getArtifactID());
+            ResourceEntity<Resource> res_entity {*m_registry_p};
+            m_registry_p->emplace<Resource>(res_entity.getArtifactID(), std::move(opt_resource.value()));
+            auto & state = m_registry_p->emplace<ResourceState>(res_entity.getArtifactID());
             state = ResourceState::eLoaded;
-            return handle;
+            return res_entity;
         }
-        // ResourceHandle<Resource> loadAsync(TaskScheduler & scheduler) const
+        // ResourceEntity<Resource> loadAsync(TaskScheduler & scheduler) const
         // {
         //     return {};
         // }

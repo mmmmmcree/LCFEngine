@@ -1,7 +1,6 @@
 #pragma once
 
 #include "resources/ResourceRegistry.h"
-#include "resources/ResourceHandle.h"
 #include "resources/ResourceLoader.h"
 #include "concepts/invocable_concept.h"
 
@@ -17,7 +16,7 @@ namespace lcf::ecs {
             return this->registerLoader(make_resource_loader(m_resource_registry, std::forward<Loader>(loader)));
         }
         template <typename Resource, typename... Args>
-        ResourceHandle<Resource> load(Args &&... args) noexcept
+        ResourceEntity<Resource> load(Args &&... args) noexcept
         {
             using Loader = ResourceLoader<Resource, Args...>;
             if (not m_resource_registry.ctx().contains<Loader>()) { return {}; }
@@ -25,9 +24,9 @@ namespace lcf::ecs {
             return loader.load(std::forward<Args>(args)...);
         }
         template <typename Resource>
-        ResourceHandle<Resource> registerResource(Resource && resource) noexcept
+        ResourceEntity<Resource> registerResource(Resource && resource) noexcept
         {
-            ResourceHandle<Resource> handle {m_resource_registry};
+            ResourceEntity<Resource> handle {m_resource_registry};
             m_resource_registry.emplace<Resource>(handle.getArtifactID(), std::forward<Resource>(resource));
             auto & state = m_resource_registry.emplace<ResourceState>(handle.getArtifactID());
             state = ResourceState::eLoaded;
