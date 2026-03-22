@@ -29,7 +29,7 @@ void VulkanCommandBufferObject::waitUntilAvailable()
 
 void VulkanCommandBufferObject::begin(const vk::CommandBufferBeginInfo &begin_info)
 {
-    m_resources.clear();
+    m_resource_leases.clear();
     m_wait_infos.clear();
     m_signal_infos.clear();
     this->reset();
@@ -56,7 +56,7 @@ vk::SemaphoreSubmitInfo VulkanCommandBufferObject::submit()
     return submission_complete_info;
 }
 
-void VulkanCommandBufferObject::acquireResource(VulkanSharableResource resource)
+void VulkanCommandBufferObject::acquireResourceLease(ResourceLease resource_lease)
 {
-    m_resources.emplace_back(std::move(resource));
+    m_resource_leases.emplace_back(std::move(resource_lease));
 }

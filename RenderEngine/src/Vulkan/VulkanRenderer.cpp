@@ -212,10 +212,11 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
             .setSampler(sampler_manager.getShared(SamplerPreset::eEnvironmentMap)->getHandle());
 
         const auto & layout_sp = stc_pipeline.getDescriptorSetLayoutSharedPtr(0);
-        auto descriptor_set_sp = VulkanDescriptorSet::makeShared();
-        descriptor_set_sp->create(layout_sp);
-        auto descriptor_set_updater = descriptor_set_sp->generateUpdater();
+        auto descriptor_set_rp = make_resource_ptr<VulkanDescriptorSet>();
+        descriptor_set_rp->create(layout_sp);
+        auto descriptor_set_updater = descriptor_set_rp->generateUpdater();
         descriptor_set_updater.add(0, image_info).update();
+
 
         auto [w, h, z] = cube_map_sp->getExtent();
         VulkanFramebufferObjectCreateInfo fbo_info;
@@ -223,9 +224,9 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         VulkanFramebufferObject fbo;
         fbo.addColorAttachment(cube_map_sp)
             .create(m_context_p, fbo_info);
-        cmd.acquireResource(descriptor_set_sp);
+        cmd.acquireResourceLease(descriptor_set_rp.lease());
         cmd.bindPipeline(stc_pipeline.getType(), stc_pipeline.getHandle());
-        cmd.bindDescriptorSets(stc_pipeline.getType(), stc_pipeline.getPipelineLayout(), descriptor_set_sp->getIndex(), descriptor_set_sp->getHandle(), nullptr);
+        cmd.bindDescriptorSets(stc_pipeline.getType(), stc_pipeline.getPipelineLayout(), descriptor_set_rp->getIndex(), descriptor_set_rp->getHandle(), nullptr);
         fbo.setViewportAndScissor(cmd);
         fbo.beginRendering(cmd);
         cmd.draw(36, 1, 0, 0); // draw with const data in shader program

@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <functional>
+#include <memory>
 
 namespace lcf {
     class ResourceControlBlock
@@ -75,33 +76,27 @@ namespace lcf {
         using deleter_t = std::function<void(Resource *)>;
     public:
         ResourcePointer() = default;
-        ResourcePointer(Resource * resource_p) :
-            m_resource_p(resource_p),
-            m_control_block_p(new ResourceControlBlock([resource_p = m_resource_p]() { delete resource_p; }))
-        {
-            if (m_control_block_p) { m_control_block_p->increaseRefCount(); }
-        }
-        ResourcePointer(Resource * resource_p, deleter_t deleter) :
-            m_resource_p(resource_p),
-            m_control_block_p(new ResourceControlBlock([deleter=std::move(deleter), resource_p = m_resource_p]() { deleter(resource_p); }))
-        {
-            if (m_control_block_p) { m_control_block_p->increaseRefCount(); }
-        }
+        ResourcePointer(Resource * resource_p) { this->create(resource_p); }
+        ResourcePointer(Resource * resource_p, deleter_t deleter) { this->create(resource_p, std::move(deleter)); }
+        ResourcePointer(Resource && resource) { this->create(new Resource(std::forward<Resource>(resource))); }
+        ResourcePointer(Resource && resource, deleter_t deleter) { this->create(new Resource(std::forward<Resource>(resource)), std::move(deleter)); }
+        ResourcePointer(std::unique_ptr<Resource> resource_up) { this->create(resource_up.release()); }
         ~ResourcePointer() noexcept { this->tryDestroy(); }
-        ResourcePointer(const ResourcePointer & other) noexcept : 
-            m_resource_p(other.m_resource_p),
-            m_control_block_p(other.m_control_block_p)
-        {
-            if (m_control_block_p) { m_control_block_p->increaseRefCount(); }
-        }
+        ResourcePointer(const ResourcePointer & other) noexcept { this->copyFrom(other); }
         ResourcePointer & operator=(const ResourcePointer & other) noexcept
         {
             if (this == &other) { return *this; }
             this->tryDestroy();
-            m_resource_p = other.m_resource_p;
-            m_control_block_p = other.m_control_block_p;
-            if (m_control_block_p) { m_control_block_p->increaseRefCount(); }
+            this->copyFrom(other);
             return *this;
+        }
+        ResourcePointer & operator=(Resource && resource) noexcept
+        {
+            return this->operator=(ResourcePointer(std::forward<Resource>(resource)));
+        }
+        ResourcePointer & operator=(std::unique_ptr<Resource> resource_up) noexcept
+        {
+            return this->operator=(ResourcePointer(resource_up.release()));
         }
         ResourcePointer(ResourcePointer && other) noexcept :
             m_resource_p(std::exchange(other.m_resource_p, nullptr)),
@@ -119,8 +114,26 @@ namespace lcf {
         Resource * operator->() const { return m_resource_p; }
         Resource & operator*() const { return *m_resource_p; }
         operator bool() const noexcept { return m_resource_p; }
-        ResourceLease getLease() const noexcept { return ResourceLease(m_control_block_p); }
+        ResourceLease lease() const noexcept { return ResourceLease(m_control_block_p); }
     private:
+        void create(Resource * resource_p)
+        {
+            m_resource_p = resource_p;
+            m_control_block_p = new ResourceControlBlock([resource_p = m_resource_p]() { delete resource_p; });
+            if (m_control_block_p) { m_control_block_p->increaseRefCount(); }
+        }
+        void create(Resource * resource_p, deleter_t deleter)
+        {
+            m_resource_p = resource_p;
+            m_control_block_p = new ResourceControlBlock([deleter=std::move(deleter), resource_p = m_resource_p]() { deleter(resource_p); });
+            if (m_control_block_p) { m_control_block_p->increaseRefCount(); }
+        }
+        void copyFrom(const ResourcePointer & other) noexcept
+        {
+            m_resource_p = other.m_resource_p;
+            m_control_block_p = other.m_control_block_p;
+            if (m_control_block_p) { m_control_block_p->increaseRefCount(); }
+        }
         void tryDestroy() noexcept
         {
             if (not m_control_block_p) { return; }
@@ -134,34 +147,16 @@ namespace lcf {
         Resource * m_resource_p = nullptr;
         ResourceControlBlock * m_control_block_p = nullptr;
     };
-    namespace details {
-        template <typename Resource, typename Tuple, std::size_t... Indexes>
-        ResourcePointer<Resource> make_resource_ptr_with_tail_deleter(Tuple && args_tuple, std::index_sequence<Indexes...>)
-        {
-            using deleter_t = typename ResourcePointer<Resource>::deleter_t;
-            constexpr auto last_index = std::tuple_size_v<std::remove_reference_t<Tuple>> - 1;
-            deleter_t deleter(std::get<last_index>(std::forward<Tuple>(args_tuple)));
-            return ResourcePointer<Resource>(
-                new Resource(std::get<Indexes>(std::forward<Tuple>(args_tuple))...),
-                std::move(deleter)
-            );
-        }
-    }
-
+    
     template <typename Resource, typename... Args>
     ResourcePointer<Resource> make_resource_ptr(Args &&... args)
     {
-        using deleter_t = typename ResourcePointer<Resource>::deleter_t;
-        if constexpr (sizeof...(Args) > 0 and
-            std::is_convertible_v<std::tuple_element_t<sizeof...(Args) - 1, std::tuple<std::decay_t<Args>...>>, deleter_t>
-        ) {
-            auto args_tuple = std::forward_as_tuple(std::forward<Args>(args)...);
-            return details::make_resource_ptr_with_tail_deleter<Resource>(
-                std::move(args_tuple),
-                std::make_index_sequence<sizeof...(Args) - 1> {}
-            );
-        } else {
-            return ResourcePointer<Resource>(new Resource(std::forward<Args>(args)...));
-        }
+        return ResourcePointer<Resource>(new Resource(std::forward<Args>(args)...));
+    }
+
+    template <typename Resource, typename... Args>
+    ResourcePointer<Resource> make_resource_ptr_with_deleter(Args &&... args, typename ResourcePointer<Resource>::deleter_t deleter)
+    {
+        return ResourcePointer<Resource>(new Resource(std::forward<Args>(args)...), std::move(deleter));
     }
 }

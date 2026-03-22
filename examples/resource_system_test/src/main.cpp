@@ -52,21 +52,21 @@ int main()
 
     resource_system.registerLoader(std::move(load_image));
     auto img_res_entity = resource_system.load<Image>(std::filesystem::path("a.jpg"));
-    // auto img_cpy_res_entity = resource_system.registerResource(std::move(*img_res_entity));
+    auto img_cpy_res_entity = resource_system.registerResource(std::move(*img_res_entity));
     if (img_res_entity) {
         lcf_log_info("Image loaded: {}x{}", img_res_entity->getWidth(), img_res_entity->getHeight());
     }
-    // if (img_cpy_res_entity) {
-    //     lcf_log_info("Image copied: {}x{}", img_cpy_res_entity->getWidth(), img_cpy_res_entity->getHeight());
-    // }
+    if (img_cpy_res_entity) {
+        lcf_log_info("Image copied: {}x{}", img_cpy_res_entity->getWidth(), img_cpy_res_entity->getHeight());
+    }
     resource_system.registerLoader([]() -> std::optional<SomeResource> {
         return SomeResource {};
     });
     lcf_log_info("666");
     ResourceLease lease;
     {
-        auto resource_handle = resource_system.load<SomeResource>();
-        // lease = resource_handle.getLease();
+        auto res_entity = resource_system.load<SomeResource>();
+        lease = res_entity.lease();
     }
     return 0;
 }

@@ -1,6 +1,7 @@
 #include "Vulkan/VulkanBufferObject.h"
 #include "Vulkan/VulkanContext.h"
 #include "Vulkan/VulkanCommandBufferObject.h"
+#include "Vulkan/vulkan_memory_resources.h"
 
 using namespace lcf::render;
 
@@ -71,5 +72,5 @@ void VulkanBufferObject::prepareResize(VulkanCommandBufferObject & cmd, VulkanBu
     } else {
         this->addWriteSegmentIfAbsent({old_buffer_resource->getMappedMemorySpan()});
     }
-    cmd.acquireResource(old_buffer_resource);
+    cmd.acquireResourceLease(old_buffer_resource.lease());
 }

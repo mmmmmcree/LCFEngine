@@ -52,10 +52,10 @@ bool VulkanBufferProxy::create(VulkanContext *context_p, uint64_t size_in_bytes)
     MemoryAllocationCreateInfo memory_info {memory_flags};
     auto device = m_context_p->getDevice();
     auto & memory_allocator = m_context_p->getMemoryAllocator();
-    m_buffer_sp = memory_allocator.createBuffer(buffer_info, memory_info);
-    if (not m_buffer_sp) { return false; }
+    m_buffer_rp = memory_allocator.createBuffer(buffer_info, memory_info);
+    if (not m_buffer_rp) { return false; }
     if (buffer_info.usage & vk::BufferUsageFlagBits::eShaderDeviceAddress) {
-        m_device_address = device.getBufferAddress(m_buffer_sp->getHandle());
+        m_device_address = device.getBufferAddress(m_buffer_rp->getHandle());
     }
     return true;
 }
@@ -71,7 +71,7 @@ void VulkanBufferProxy::writeSegmentDirectly(
 {
     auto dst = this->getMappedMemorySpan().subspan(segment.getBeginOffsetInBytes() + dst_offset_in_bytes);
     stdr::copy(segment.getDataSpan(), dst.begin());
-    m_buffer_sp->flush(segment.getBeginOffsetInBytes() + dst_offset_in_bytes, segment.getSizeInBytes());
+    m_buffer_rp->flush(segment.getBeginOffsetInBytes() + dst_offset_in_bytes, segment.getSizeInBytes());
 }
 
 void VulkanBufferProxy::writeSegmentsDirectly(
@@ -82,22 +82,22 @@ void VulkanBufferProxy::writeSegmentsDirectly(
         auto dst = this->getMappedMemorySpan().subspan(write_segment.getBeginOffsetInBytes() + dst_offset_in_bytes);
         stdr::copy(write_segment.getDataSpan(), dst.begin());
     }
-    m_buffer_sp->flush(segments.getLowerBoundInBytes() + dst_offset_in_bytes, segments.getValidSizeInBytes());
+    m_buffer_rp->flush(segments.getLowerBoundInBytes() + dst_offset_in_bytes, segments.getValidSizeInBytes());
 }
 
 uint64_t VulkanBufferProxy::getSizeInBytes() const noexcept
 {
-    return m_buffer_sp->getSize();
+    return m_buffer_rp->getSize();
 }
 
 std::span<std::byte> VulkanBufferProxy::getMappedMemorySpan() const noexcept
 {
-    return m_buffer_sp->getMappedMemorySpan();
+    return m_buffer_rp->getMappedMemorySpan();
 }
 
 vk::Buffer VulkanBufferProxy::getHandle() const noexcept
 {
-    return m_buffer_sp->getHandle();
+    return m_buffer_rp->getHandle();
 }
 
 vk::DescriptorBufferInfo VulkanBufferProxy::generateBufferInfo() const noexcept

@@ -65,7 +65,7 @@ namespace lcf {
         bool isValid() const noexcept { return m_artifact_id != ecs::null and this->getState() == ResourceState::eLoaded; }
         const ResourceArtifactID & getArtifactID() const noexcept { return m_artifact_id; }
         const ResourceState & getState() const noexcept { return m_registry_p->get<ResourceState>(m_artifact_id); }
-        ResourceLease getLease() const noexcept { return ResourceLease(m_control_block_p); }
+        ResourceLease lease() const noexcept { return ResourceLease(m_control_block_p); }
     
     private:
         void tryDestroy() noexcept
