@@ -369,9 +369,9 @@ namespace lcf {
         eSheenRoughness = MaterialPropertyFlags::eSheenRoughness,
         eVolumeThickness = MaterialPropertyFlags::eThickness,
         eTransmission = MaterialPropertyFlags::eTransmission,
-        eSpecular,
-        eSpecularColor,
-        eHeight,
+        eSpecular = MaterialPropertyFlags::eSpecularFactor,//todo
+        eSpecularColor = MaterialPropertyFlags::eSpecularColorFactor, //todo
+        eHeight = MaterialPropertyFlags::eMicroThickness, //todo
     };
 
     template <> inline constexpr std::array<TextureSemantic, enum_count_v<internal::TextureSemantic>> enum_values_v<TextureSemantic>
