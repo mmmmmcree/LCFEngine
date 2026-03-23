@@ -14,11 +14,11 @@ namespace lcf {
         ~ResourceControlBlock() { m_deleter(); }
         ResourceControlBlock(const ResourceControlBlock &) = delete;
         ResourceControlBlock & operator=(const ResourceControlBlock &) = delete;
-        ResourceControlBlock(ResourceControlBlock &&) = default;
-        ResourceControlBlock & operator=(ResourceControlBlock &&) = default;
+        ResourceControlBlock(ResourceControlBlock &&) = delete;
+        ResourceControlBlock & operator=(ResourceControlBlock &&) = delete;
     public:
         void increaseRefCount() noexcept { m_ref_count.fetch_add(1, std::memory_order_relaxed); }
-        bool decreaseRefCountAndShouldDestroy() noexcept { return m_ref_count.fetch_sub(1, std::memory_order_relaxed) == 1; }
+        bool decreaseRefCountAndShouldDestroy() noexcept { return m_ref_count.fetch_sub(1, std::memory_order_acq_rel) == 1; }
     private:
         deleter_t m_deleter;
         std::atomic<uint32_t> m_ref_count { 0u };
@@ -90,11 +90,11 @@ namespace lcf {
             this->copyFrom(other);
             return *this;
         }
-        ResourcePointer & operator=(Resource && resource) noexcept
+        ResourcePointer & operator=(Resource && resource)
         {
             return this->operator=(ResourcePointer(std::forward<Resource>(resource)));
         }
-        ResourcePointer & operator=(std::unique_ptr<Resource> resource_up) noexcept
+        ResourcePointer & operator=(std::unique_ptr<Resource> resource_up)
         {
             return this->operator=(ResourcePointer(resource_up.release()));
         }
@@ -155,7 +155,7 @@ namespace lcf {
     }
 
     template <typename Resource, typename... Args>
-    ResourcePointer<Resource> make_resource_ptr_with_deleter(Args &&... args, typename ResourcePointer<Resource>::deleter_t deleter)
+    ResourcePointer<Resource> make_resource_ptr_with_deleter(typename ResourcePointer<Resource>::deleter_t deleter, Args &&... args)
     {
         return ResourcePointer<Resource>(new Resource(std::forward<Args>(args)...), std::move(deleter));
     }
