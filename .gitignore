@@ -9,3 +9,5 @@ designs/
 /CMakePresets.json
 /vcpkg-configuration.json
 /vcpkg.json
+.claude/
+/CLAUDE.md
