@@ -29,7 +29,7 @@ namespace lcf::render {
         bool isCreated() const { return m_device.get(); }
         bool isValid() const { return m_device.get(); }
         const vk::Instance & getInstance() const noexcept { return m_instance.get(); }
-        vk::PhysicalDevice getPhysicalDevice() const noexcept { return m_physical_device; }
+        const vk::PhysicalDevice & getPhysicalDevice() const noexcept { return m_physical_device; }
         const vk::Device & getDevice() const noexcept { return m_device.get(); }
         uint32_t getQueueFamilyIndex(vk::QueueFlagBits type) const noexcept;
         const vk::Queue & getQueue(vk::QueueFlagBits type) const noexcept;
