@@ -41,7 +41,6 @@ namespace lcf::render {
     private:
         void setupVulkanInstance();
         void pickPhysicalDevice();
-        int calculatePhysicalDeviceScore(const vk::PhysicalDevice &device);
         void findQueueFamilies();
         void createLogicalDevice();
         void createCommandPools();

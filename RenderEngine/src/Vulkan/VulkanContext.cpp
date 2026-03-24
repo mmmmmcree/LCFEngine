@@ -178,27 +178,26 @@ void VulkanContext::setupVulkanInstance()
 
 void VulkanContext::pickPhysicalDevice()
 {
-    auto devices = m_instance->enumeratePhysicalDevices();
-    if (devices.empty()) {
+    auto calc_physical_device_score = [](const vk::PhysicalDevice &device) {
+       vk::PhysicalDeviceProperties2 device_properties = device.getProperties2();
+       vk::PhysicalDeviceFeatures2 device_features = device.getFeatures2();
+        uint32_t score = 0;
+        score += device_properties.properties.deviceType == vk::PhysicalDeviceType::eDiscreteGpu ? 1000 : 0;
+        score += device_properties.properties.limits.maxImageDimension2D;
+        score += device_features.features.geometryShader ? 1000 : 0;
+        return score;
+    };
+    using DeviceScorePair = std::pair<vk::PhysicalDevice, uint32_t>;
+    auto devices_with_score = m_instance->enumeratePhysicalDevices() | std::views::transform([&calc_physical_device_score](const auto &device) {
+        return std::make_pair(device, calc_physical_device_score(device));
+    }) | std::ranges::to<std::vector<DeviceScorePair>>();
+    if (devices_with_score.empty()) {
         std::runtime_error error("No physical devices found");
         lcf_log_error(error.what());
         throw error;
     }
-    std::ranges::sort(devices, [this](const vk::PhysicalDevice &a, const vk::PhysicalDevice &b) {
-        return calculatePhysicalDeviceScore(a) > calculatePhysicalDeviceScore(b);
-    });
-    m_physical_device = devices.front();
-}
-
-int VulkanContext::calculatePhysicalDeviceScore(const vk::PhysicalDevice &device)
-{
-    vk::PhysicalDeviceProperties properties = device.getProperties();
-    vk::PhysicalDeviceFeatures features = device.getFeatures();
-    int score = 0;
-    score += properties.deviceType == vk::PhysicalDeviceType::eDiscreteGpu ? 1000 : 0;
-    score += properties.limits.maxImageDimension2D;
-    score += features.geometryShader ? 1000 : 0;
-    return score;
+    std::ranges::sort(devices_with_score, {}, &DeviceScorePair::second);
+    m_physical_device = devices_with_score.back().first; 
 }
 
 void VulkanContext::findQueueFamilies()
