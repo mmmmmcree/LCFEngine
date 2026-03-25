@@ -6,8 +6,104 @@
 #include <vulkan/vulkan_enums.hpp>
 #include "enums/enum_cast.h"
 
-namespace lcf::render {
+namespace lcf::render::vkenums {
+    enum class DescriptorSetStrategy : uint8_t //- only 2bits is used
+    {
+        ePerFrame,   // Batch reset per frame, no individual free
+        ePersistent,   // Long-lived, individually freeable (reserved, not currently used)
+        eBindless,   // Descriptor indexing, update-after-bind
+    };
 
+namespace internal {
+    inline constexpr uint8_t encode(DescriptorSetStrategy strategy, uint8_t index) noexcept
+    {
+        // [strategy:2][set index:6]
+        return (std::to_underlying(strategy) << 6) | (index & 0x3F);
+    }
+}
+
+    enum class DescriptorSetIndex : uint8_t
+    {
+        ePerView          = internal::encode(DescriptorSetStrategy::ePerFrame, 0),
+        eBindlessBuffers  = internal::encode(DescriptorSetStrategy::eBindless, 1),
+        eBindlessTextures = internal::encode(DescriptorSetStrategy::eBindless, 2),
+    };
+
+namespace internal {
+    uint8_t encode(vk::DescriptorType descriptor_type, uint8_t binding_point) noexcept
+    {
+        
+    }
+
+    enum class BindlessBufferBinding : uint8_t //- only 3bits is used, reserve 4 bits for future use
+    {
+        eVertexBufferAddresses,
+        eIndexBufferAddresses,
+        eTransforms,
+        eMaterialRecords,
+        // eUniformBufferAddresses, 
+        // eStorageBufferAddresses
+    };
+
+    enum class BindlessTextureBinding : uint8_t //- only 3bits is used, reserve 4 bits for future use
+    {
+        eSamplers,
+        // eTextures3D,
+        // eTexturesCube,
+        // eTexturesCubeArray,
+        // eTextures2DArray,
+        // eStorageImages2D,
+        // eStorageImages3D,
+        eTexture2Ds   // LAST → variable descriptor count
+    };
+
+    inline constexpr uint16_t encode(DescriptorSetIndex index, uint8_t binding_point) noexcept
+    {
+        return (std::to_underlying(index) << 8) | binding_point;
+    }
+
+    inline constexpr uint16_t encode(DescriptorSetIndex index, BindlessBufferBinding binding_point) noexcept
+    {
+        return encode(index, std::to_underlying(binding_point));
+    }
+    inline constexpr uint16_t encode(DescriptorSetIndex index, BindlessTextureBinding binding_point) noexcept
+    {
+        return encode(index, std::to_underlying(binding_point));
+    }
+}
+
+    enum class DescriptorBindingPoint : uint16_t
+    {
+        // Per-view
+        eCamera = internal::encode(DescriptorSetIndex::ePerView, 0),
+        // Bindless buffers
+        eVertexBufferAddresses = internal::encode(DescriptorSetIndex::eBindlessBuffers, internal::BindlessBufferBinding::eVertexBufferAddresses),
+        eIndexBufferAddresses = internal::encode(DescriptorSetIndex::eBindlessBuffers, internal::BindlessBufferBinding::eIndexBufferAddresses),
+        eTransforms = internal::encode(DescriptorSetIndex::eBindlessBuffers, internal::BindlessBufferBinding::eTransforms),
+        eMaterialRecords = internal::encode(DescriptorSetIndex::eBindlessBuffers, internal::BindlessBufferBinding::eMaterialRecords),
+        // Bindless textures
+        eSamplers = internal::encode(DescriptorSetIndex::eBindlessTextures, internal::BindlessTextureBinding::eSamplers),
+        eTexture2Ds = internal::encode(DescriptorSetIndex::eBindlessTextures, internal::BindlessTextureBinding::eTexture2Ds),
+    };
+
+namespace decode {
+    inline constexpr DescriptorSetStrategy get_strategy(DescriptorSetIndex index) noexcept
+    {
+        return static_cast<DescriptorSetStrategy>(std::to_underlying(index) >> 6);
+    }
+    inline constexpr uint8_t get_index(DescriptorSetIndex index) noexcept
+    {
+        return std::to_underlying(index) & 0x3F;
+    }
+    inline constexpr uint8_t get_index(DescriptorBindingPoint binding_point) noexcept
+    {
+        return get_index(static_cast<DescriptorSetIndex>(std::to_underlying(binding_point) >> 8));
+    }
+    inline constexpr uint8_t get_binding_point(DescriptorBindingPoint binding_point) noexcept
+    {
+        return std::to_underlying(binding_point) & 0xFF;
+    }
+}
 }
 
 namespace lcf {

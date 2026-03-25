@@ -1,11 +1,10 @@
 #pragma once
 
-#include "common/render_enums.h"
-#include "enums/enum_cast.h"
-#include <vulkan/vulkan.hpp>
+#include "vulkan_enums.h"
 
 namespace lcf::render::vkconstants {
-    static constexpr vk::DescriptorSetLayoutBinding per_view_bindings[] = {
+    static constexpr vk::DescriptorSetLayoutBinding per_view_bindings[]
+    {
         {
             std::to_underlying(PerViewBindingPoints::eCamera),
             vk::DescriptorType::eUniformBufferDynamic,
@@ -14,7 +13,8 @@ namespace lcf::render::vkconstants {
         },
     };
 
-    static constexpr vk::DescriptorSetLayoutBinding per_renderable_bindings[] = {
+    static constexpr vk::DescriptorSetLayoutBinding per_renderable_bindings[]
+    {
         {
             std::to_underlying(PerRenderableBindingPoints::eVertexBuffer),
             vk::DescriptorType::eStorageBuffer,
