@@ -28,29 +28,29 @@ struct MaterialTextureIds {
     uint emissive_texture_id;
 };
 
-layout(buffer_reference, std430) readonly buffer MaterialParamsRef { MaterialParams value; };
+layout(buffer_reference, std430) readonly buffer MaterialParamsAddress { MaterialParams value; };
 
-layout(buffer_reference, std430) readonly buffer MaterialTextureIdsRef { MaterialTextureIds value; };
+layout(buffer_reference, std430) readonly buffer MaterialTextureIdsAddress { MaterialTextureIds value; };
 
 struct MaterialRecord {
-    MaterialParamsRef material_params_ref;
-    MaterialTextureIdsRef material_texture_ids_ref;
+    MaterialParamsAddress material_params;
+    MaterialTextureIdsAddress material_texture_ids;
 };
 
-layout(set = 2, binding = 0) readonly buffer material_records_ssbo {
+layout(std430, set = 1, binding = 3) readonly buffer MaterialRecords {
     MaterialRecord material_records[];
 };
 //todo set 2 for material records, allocate new sets for samplers and textures
 
-layout(set = 2, binding = 1) uniform sampler samplers[2];
-layout(set = 2, binding = 2) uniform texture2D textures[65536]; // descriptor indexing, must be the last binding, here use a literal for cpu-side array size
+layout(set = 2, binding = 0) uniform sampler samplers[2];
+layout(set = 2, binding = 1) uniform texture2D textures[65536]; // descriptor indexing, must be the last binding, here use a literal for cpu-side array size
 
 void main()
 {
     uint material_id = fs_in.material_id;
     MaterialRecord material_record = material_records[material_id];
-    const MaterialParams material_params = material_record.material_params_ref.value;
-    const MaterialTextureIds material_texture_ids = material_record.material_texture_ids_ref.value;
+    const MaterialParams material_params = material_record.material_params.value;
+    const MaterialTextureIds material_texture_ids = material_record.material_texture_ids.value;
 
     // vec4 texture0_color = texture(sampler2D(textures[nonuniformEXT(material_texture_ids.base_color_texture_id)], samplers[0]), fs_in.uv);
     // vec4 texture1_color = texture(sampler2D(textures[nonuniformEXT(material_texture_ids.metallic_roughness_texture_id)], samplers[0]), fs_in.uv);

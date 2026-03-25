@@ -30,11 +30,6 @@ namespace internal {
     };
 
 namespace internal {
-    uint8_t encode(vk::DescriptorType descriptor_type, uint8_t binding_point) noexcept
-    {
-        
-    }
-
     enum class BindlessBufferBinding : uint8_t //- only 3bits is used, reserve 4 bits for future use
     {
         eVertexBufferAddresses,

@@ -13,26 +13,26 @@ struct Vertex
     vec2 uv;
 };
 
-layout(buffer_reference, std430) readonly buffer VertexBuffer
+layout(buffer_reference, std430) readonly buffer VertexBufferAddress
 { 
 	Vertex vertices[];
 };
 
-layout(buffer_reference, std430) readonly buffer IndexBuffer
+layout(buffer_reference, std430) readonly buffer IndexBufferAddress
 { 
 	uint indices[];
 };
 
-layout(std430, set = 1, binding = 0) readonly buffer vertex_buffers_ssbo {
-    VertexBuffer vertex_buffers[];
+layout(std430, set = 1, binding = 0) readonly buffer VertexBufferAddresses {
+    VertexBufferAddress vertex_buffer[];
 };
 
-layout(std430, set = 1, binding = 1) readonly buffer index_buffer_ssbo {
-    IndexBuffer index_buffers[];
+layout(std430, set = 1, binding = 1) readonly buffer IndexBufferAddresses {
+    IndexBufferAddress index_buffer[];
 };
 
-layout(std430, set = 1, binding = 2) readonly buffer transform_ssbo {
-    mat4 transform_matrices[];
+layout(std430, set = 1, binding = 2) readonly buffer TransformBuffer {
+    mat4 transforms[];
 };
 
 layout(location = 0) out VS_OUT {
@@ -45,13 +45,11 @@ void main()
 {
     uint object_id = gl_DrawID;
     uint instance_id = gl_BaseInstance + gl_InstanceIndex;
-    VertexBuffer vertex_buffer = vertex_buffers[object_id];
-    IndexBuffer index_buffer = index_buffers[object_id];
 
-    uint vertex_id = index_buffer.indices[gl_VertexIndex];
-    Vertex vertex = vertex_buffer.vertices[vertex_id];
+    uint vertex_id = index_buffer[object_id].indices[gl_VertexIndex];
+    Vertex vertex = vertex_buffer[object_id].vertices[vertex_id];
 
-    gl_Position = projection_view * transform_matrices[instance_id] * vec4(vertex.position, 1.0);
+    gl_Position = projection_view * transforms[instance_id] * vec4(vertex.position, 1.0);
 
     vs_out.color = normalize(vertex.position);
     vs_out.uv = vertex.uv;

@@ -60,7 +60,6 @@ namespace lcf {
         std::vector<VulkanBufferObject> m_material_params_list;
         std::vector<VulkanBufferObject> m_material_texture_ids_list;
         VulkanMaterial m_material;
-        VulkanBufferObject::SharedPointer m_per_material_params_ssbo_sp; //- ssbo that store params_buffer's address
         VulkanMaterial m_skybox_material;
     };
 }

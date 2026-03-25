@@ -16,22 +16,28 @@ namespace lcf::render::vkconstants {
     static constexpr vk::DescriptorSetLayoutBinding per_renderable_bindings[]
     {
         {
-            std::to_underlying(PerRenderableBindingPoints::eVertexBuffer),
+            vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eVertexBufferAddresses),
             vk::DescriptorType::eStorageBuffer,
             1u,
             vk::ShaderStageFlagBits::eVertex
         },
         {
-            std::to_underlying(PerRenderableBindingPoints::eIndexBuffer),
+            vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eIndexBufferAddresses),
             vk::DescriptorType::eStorageBuffer,
             1u,
             vk::ShaderStageFlagBits::eVertex
         },
         {
-            std::to_underlying(PerRenderableBindingPoints::eTransform),
+            vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eTransforms),
             vk::DescriptorType::eStorageBuffer,
             1u,
             vk::ShaderStageFlagBits::eVertex
+        },
+        {
+            vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eMaterialRecords),
+            vk::DescriptorType::eStorageBuffer,
+            1u,
+            vk::ShaderStageFlagBits::eFragment
         },
     };
 }

@@ -67,13 +67,14 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         .create(m_context_p, size_of_v<Matrix4x4> * 3); // projection, view, projection_view
 
     m_per_renderable_ssbo_group.create(m_context_p, GPUBufferPattern::eDynamic);
-    m_per_renderable_ssbo_group.emplace(100 * size_of_v<vk::DeviceAddress>, GPUBufferUsage::eShaderStorage); // vertex buffer
-    m_per_renderable_ssbo_group.emplace(100 * size_of_v<vk::DeviceAddress>, GPUBufferUsage::eShaderStorage); // index buffer
-    m_per_renderable_ssbo_group.emplace(200 * size_of_v<Matrix4x4>, GPUBufferUsage::eShaderStorage); // transform
+    m_per_renderable_ssbo_group.emplace(100 * size_of_v<vk::DeviceAddress>, GPUBufferUsage::eShaderStorage); // vertex buffer addresses
+    m_per_renderable_ssbo_group.emplace(100 * size_of_v<vk::DeviceAddress>, GPUBufferUsage::eShaderStorage); // index buffer addresses
+    m_per_renderable_ssbo_group.emplace(200 * size_of_v<Matrix4x4>, GPUBufferUsage::eShaderStorage); // transforms
+    m_per_renderable_ssbo_group.emplace(size_of_v<vk::DeviceAddress> * 2 * 100, GPUBufferUsage::eShaderStorage); // material records
 
-    m_per_material_params_ssbo_sp = VulkanBufferObject::makeShared();
-    m_per_material_params_ssbo_sp->setUsage(GPUBufferUsage::eShaderStorage)
-        .create(m_context_p, size_of_v<vk::DeviceAddress> * 2 * 100);
+    // m_per_material_params_ssbo_sp = VulkanBufferObject::makeShared();
+    // m_per_material_params_ssbo_sp->setUsage(GPUBufferUsage::eShaderStorage)
+    //     .create(m_context_p, size_of_v<vk::DeviceAddress> * 2 * 100);
 
     m_indirect_call_buffer.setUsage(GPUBufferUsage::eIndirect)
         .create(m_context_p, size_of_v<vk::DrawIndirectCommand> + 1 * size_of_v<vk::DrawIndirectCommand>); // uint32_t(for IndirectDrawCount) + padding | vk::DrawIndirectCommand ...
@@ -101,6 +102,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     ds_updater.add(std::to_underlying(PerRenderableBindingPoints::eVertexBuffer), m_per_renderable_ssbo_group[0].generateBufferInfo())
         .add(std::to_underlying(PerRenderableBindingPoints::eIndexBuffer), m_per_renderable_ssbo_group[1].generateBufferInfo())
         .add(std::to_underlying(PerRenderableBindingPoints::eTransform), m_per_renderable_ssbo_group[2].generateBufferInfo())
+        .add(vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eMaterialRecords), m_per_renderable_ssbo_group[3].generateBufferInfo())
         .update();
 
     auto image1_sp = Texture2D::makeShared();
@@ -264,11 +266,11 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     material_ds_sp->create(layout_sp);
     m_material.create(material_ds_sp);
     for (const auto & [texture_id, texture_sp] : m_texture_map) {
-        m_material.setTexture(2, texture_id, texture_sp);
+        m_material.setTexture(1, texture_id, texture_sp);
     }
-    m_material.setSampler(1, 0, sampler_manager.getShared(SamplerPreset::eColorMap))
-        .setSampler(1, 1, sampler_manager.getShared(SamplerPreset::eColorMap))
-        .setParamsSSBO(0, m_per_material_params_ssbo_sp)
+    m_material.setSampler(0, 0, sampler_manager.getShared(SamplerPreset::eColorMap))
+        .setSampler(0, 1, sampler_manager.getShared(SamplerPreset::eColorMap))
+        // .setParamsSSBO(0, m_per_material_params_ssbo_sp)
         .commitUpdate();
 }
 
@@ -312,7 +314,6 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
     m_per_view_uniform_buffer.addWriteSegment({as_bytes_from_value(projection), 0u})
         .addWriteSegment({as_bytes_from_value(camera_view.getMatrix()), sizeof(Matrix4x4)})
         .addWriteSegment({as_bytes_from_value(projection_view), 2 * sizeof(Matrix4x4)});
-    
     static uint64_t frame_count = 0;
     ++frame_count;
     float angle = 0.1f * frame_count;
@@ -326,6 +327,7 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
     auto & per_renderable_vertex_buffer_ssbo = m_per_renderable_ssbo_group[0];
     auto & per_renderable_index_buffer_ssbo = m_per_renderable_ssbo_group[1];
     auto & per_renderable_transform_ssbo = m_per_renderable_ssbo_group[2];
+    auto & per_renderable_material_records = m_per_renderable_ssbo_group[3];
 
     for (uint32_t i = 0; i < m_meshes.size(); ++i) {
         const auto & vertex_buffer_address = m_meshes[i].getVertexBufferAddress();
@@ -357,7 +359,7 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
         const auto & texture_ids_buffer = m_material_texture_ids_list[i];
         size_t params_offset = 2 * i * size_of_v<vk::DeviceAddress>;
         size_t texture_ids_offset = params_offset + size_of_v<vk::DeviceAddress>;
-        m_per_material_params_ssbo_sp->addWriteSegment({as_bytes_from_value(material_params_buffer.getDeviceAddress()), params_offset})
+        per_renderable_material_records.addWriteSegment({as_bytes_from_value(material_params_buffer.getDeviceAddress()), params_offset})
             .addWriteSegment({as_bytes_from_value(texture_ids_buffer.getDeviceAddress()), texture_ids_offset});
     }
 
@@ -368,7 +370,6 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
     m_indirect_call_buffer.commit(cmd);
     m_per_view_uniform_buffer.commit(cmd);
     m_per_renderable_ssbo_group.commitAll(cmd);
-    m_per_material_params_ssbo_sp->commit(cmd);
 
     current_framebuffer.beginRendering(cmd);
 
