@@ -7,17 +7,28 @@
 
 namespace lcf {
     template <enum_c Dst, enum_c Src>
-    struct enum_mapping_traits
-    {
-        using mapping_type = std::tuple<Src, Dst>;
-        static constexpr size_t N = sizeof(enum_mapping_traits<Src, Dst>::mappings) / sizeof(mapping_type);
-        static constexpr mapping_type mappings[N] = enum_mapping_traits<Src, Dst>::mappings;
-    };
+    struct enum_mapping_traits;
+
+    namespace detail {
+        template <typename T>
+        concept has_mappings = requires { T::mappings; };
+
+        // Resolve mappings: try <Dst, Src> first, fall back to <Src, Dst>
+        template <enum_c Dst, enum_c Src>
+        constexpr const auto& resolve_mappings() noexcept
+        {
+            if constexpr (has_mappings<enum_mapping_traits<Dst, Src>>) {
+                return enum_mapping_traits<Dst, Src>::mappings;
+            } else {
+                return enum_mapping_traits<Src, Dst>::mappings;
+            }
+        }
+    }
 
     template <enum_c Dst, enum_c Src>
     constexpr Dst enum_cast(Src src) noexcept
     {
-        for (const auto & mapping : enum_mapping_traits<Dst, Src>::mappings) {
+        for (const auto & mapping : detail::resolve_mappings<Dst, Src>()) {
             if (std::get<Src>(mapping) == src) {
                 return std::get<Dst>(mapping);
             }
@@ -29,7 +40,7 @@ namespace lcf {
     constexpr Dst enum_flags_cast(Src src) noexcept
     {
         Dst dst {};
-        for (const auto & mapping : enum_mapping_traits<Dst>::mappings) {
+        for (const auto & mapping : detail::resolve_mappings<Dst, Src>()) {
             if (static_cast<bool>(std::get<Src>(mapping) & src)) {
                 dst |= std::get<Dst>(mapping);
             }

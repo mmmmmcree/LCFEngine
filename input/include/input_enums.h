@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include "enums/enum_flags.h"
 
 namespace lcf {
