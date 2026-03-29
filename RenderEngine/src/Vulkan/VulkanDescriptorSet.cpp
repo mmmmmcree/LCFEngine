@@ -25,7 +25,7 @@ bool lcf::render::VulkanDescriptorSet::create(const VulkanDescriptorSetLayout::S
 VulkanDescriptorSetUpdater lcf::render::VulkanDescriptorSet::generateUpdater() const noexcept
 {
     return VulkanDescriptorSetUpdater {
-        this->getLayout().m_context_p,
+        this->getLayout().m_context_p->getDevice(),
         this->getHandle(),
         this->getLayout().getBindings()};
 }
