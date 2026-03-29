@@ -99,6 +99,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         .update();
 
     ds_updater = m_per_renderable_descriptor_set.generateUpdater();
+
     ds_updater.add(std::to_underlying(PerRenderableBindingPoints::eVertexBuffer), m_per_renderable_ssbo_group[0].generateBufferInfo())
         .add(std::to_underlying(PerRenderableBindingPoints::eIndexBuffer), m_per_renderable_ssbo_group[1].generateBufferInfo())
         .add(std::to_underlying(PerRenderableBindingPoints::eTransform), m_per_renderable_ssbo_group[2].generateBufferInfo())
@@ -110,8 +111,6 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     auto image2_sp = Texture2D::makeShared();
     image2_sp->loadFromFileGpuFriendly({"assets/images/qt256.png"});
 
-    // auto load_mode_result = ModelLoader {}.load("./assets/models/dinosaur/source/Rampaging T-Rex.glb");
-    // auto load_mode_result = ModelLoader {}.load("./assets/models/BarbieDodgePickup/scene.gltf");
     static uint32_t s_texture_id = 0;
     std::unordered_map<Texture2D::SharedPointer, uint32_t> texture_id_map;
     auto upload_model_to_gpu = [this, &texture_id_map] (VulkanCommandBufferObject & cmd, Model & model) {
