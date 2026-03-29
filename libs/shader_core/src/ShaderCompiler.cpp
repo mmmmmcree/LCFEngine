@@ -4,6 +4,10 @@
 #include "log.h"
 #include <filesystem>
 #include <fstream>
+#include <ranges>
+#include <regex>
+
+namespace stdr = std::ranges;
 
 void lcf::ShaderCompiler::addMacroDefinition(std::string_view macro_definition)
 {
@@ -15,7 +19,31 @@ void lcf::ShaderCompiler::addIncludeDirectory(std::string_view include_directory
     m_include_directories.emplace_back(include_directory);
 }
 
-lcf::SpvCode lcf::ShaderCompiler::compileGlslSourceToSpv(const char *shader_name, ShaderTypeFlagBits type, const char *source_code, const char *entry_point, bool optimize)
+lcf::JSON lcf::ShaderCompiler::extractPragmas(std::string_view source_code)
+{
+    lcf::JSON result = lcf::JSON::object();
+    static const std::regex pragma_pattern(R"(#\s*pragma\s+lcf\s+(\w+)\s*\(\s*([^)]*)\s*\)\s*;?)");
+    static const std::regex kv_pattern(R"((\w+)\s*=\s*([\w\d_]+))");
+    auto begin = std::cregex_iterator(source_code.data(), source_code.data() + source_code.size(), pragma_pattern);
+    for (const auto& match : std::ranges::subrange(begin, std::cregex_iterator{})) {
+        auto pragma_name = match[1].str();
+        auto pragma_args_str = match[2].str();
+        auto args = lcf::JSON::object();
+        auto kv_begin = std::sregex_iterator(pragma_args_str.begin(), pragma_args_str.end(), kv_pattern);
+        for (const auto& kv_match : std::ranges::subrange(kv_begin, std::sregex_iterator{})) {
+            args[kv_match[1].str()] = kv_match[2].str();
+        }
+        result[pragma_name].emplace_back(std::move(args));
+    }
+    return result;
+}
+
+lcf::SpvCode lcf::ShaderCompiler::compileGlslSourceToSpv(
+    ShaderTypeFlagBits type,
+    const std::string & source_code,
+    const std::string & shader_name,
+    const std::string & entry_point,
+    bool optimize)
 {
     shaderc::Compiler compiler;
     shaderc::CompileOptions options;
@@ -30,30 +58,13 @@ lcf::SpvCode lcf::ShaderCompiler::compileGlslSourceToSpv(const char *shader_name
         options.SetIncluder(std::move(includer));
     }
     if (optimize) { options.SetOptimizationLevel(shaderc_optimization_level_size); }
-    shaderc::SpvCompilationResult result = compiler.CompileGlslToSpv(source_code, enum_cast<shaderc_shader_kind>(type), shader_name, entry_point, options);
+    shaderc::SpvCompilationResult result = compiler.CompileGlslToSpv(source_code, enum_cast<shaderc_shader_kind>(type), shader_name.c_str(), entry_point.c_str(), options);
     if (result.GetCompilationStatus() != shaderc_compilation_status_success) {
         std::runtime_error error(std::format("shader compilation failed: {}", result.GetErrorMessage()));
         lcf_log_error(error.what());
         throw error;
     }
     return {result.cbegin(), result.cend()};
-}
-
-lcf::SpvCode lcf::ShaderCompiler::compileGlslSourceFileToSpv(const std::filesystem::path & file_path, ShaderTypeFlagBits type, const char *entry_point, bool optimize)
-{
-    if (not std::filesystem::exists(file_path)) {
-        std::runtime_error error(std::format("file {} not found", file_path.string()));
-        lcf_log_error(error.what());
-        throw error;
-    }
-    std::ifstream file(file_path, std::ios::in);
-    if (not file.is_open()) {
-        std::runtime_error error(std::format("failed to open file {}", file_path.string()));
-        lcf_log_error(error.what());
-        throw error;
-    }
-    std::string file_content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-    return this->compileGlslSourceToSpv(file_path.filename().string().c_str(), type, file_content.c_str(), entry_point, optimize);
 }
 
 lcf::ShaderResources lcf::ShaderCompiler::analyzeSpvCode(const SpvCode &spv_code)

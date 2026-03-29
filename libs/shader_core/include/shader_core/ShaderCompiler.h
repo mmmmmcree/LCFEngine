@@ -2,6 +2,7 @@
 
 #include <spirv_cross/spirv_cross.hpp>
 #include "ShaderResource.h"
+#include "JSON.h"
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -21,8 +22,13 @@ namespace lcf {
     public:
         void addMacroDefinition(std::string_view macro_definition);
         void addIncludeDirectory(std::string_view include_directory);
-        SpvCode compileGlslSourceToSpv(const char *shader_name, ShaderTypeFlagBits type, const char *source_code, const char * entry_point = "main", bool optimize = false);
-        SpvCode compileGlslSourceFileToSpv(const std::filesystem::path & file_path, ShaderTypeFlagBits type, const char * entry_point = "main", bool optimize = false);
+        lcf::JSON extractPragmas(std::string_view source_code);
+        SpvCode compileGlslSourceToSpv(
+            ShaderTypeFlagBits type,
+            const std::string & source_code,
+            const std::string & shader_name,
+            const std::string & entry_point = "main",
+            bool optimize = false);
         ShaderResources analyzeSpvCode(const SpvCode &spv_code);
     private:
         ShaderResource parseBufferResource(const spirv_cross::Compiler &spv_compiler, const spirv_cross::Resource &resource);
