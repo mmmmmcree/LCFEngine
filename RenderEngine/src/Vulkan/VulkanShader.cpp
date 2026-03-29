@@ -3,12 +3,14 @@
 #include "shader_core/ShaderCompiler.h"
 #include "Vulkan/vulkan_enums.h"
 #include "log.h"
+#include "file_utils.h"
 
 using namespace lcf::render;
 
-VulkanShader::VulkanShader(VulkanContext * context, ShaderTypeFlagBits type) :
-    Shader(type),
-    m_context_p(context)
+VulkanShader::VulkanShader(VulkanContext * context, ShaderTypeFlagBits type, std::string_view entry_point) :
+    m_context_p(context),
+    m_stage(type),
+    m_entry_point(entry_point)
 {
 }
 
@@ -24,14 +26,25 @@ VulkanShader::operator bool() const
     return this->isCompiled();
 }
 
-bool VulkanShader::compileGlslFile(const std::filesystem::path & file_path)
+std::error_code VulkanShader::compileGlslFile(const std::filesystem::path & file_path)
 {
     ShaderCompiler compiler;
     compiler.addMacroDefinition("VULKAN_SHADER");
     auto include_dir = file_path.parent_path() / "include";
     compiler.addIncludeDirectory(include_dir.string());
-    auto spirv_code =  compiler.compileGlslSourceFileToSpv(file_path, m_stage, m_entry_point.c_str());
+    auto expected_file_content = read_file_as_string(file_path);
+    if (not expected_file_content) {
+        lcf_log_info("Error reading file: {}", expected_file_content.error().message());
+        return expected_file_content.error();
+    }
+    const auto & file_content = expected_file_content.value();
+    auto spirv_code = compiler.compileGlslSourceToSpv(
+        m_stage,
+        file_content,
+        file_path.filename().string(),
+        m_entry_point, false);
     m_resources = compiler.analyzeSpvCode(spirv_code);
+    m_pragmas = compiler.extractPragmas(file_content);
     vk::ShaderModuleCreateInfo module_info;
     module_info.setCode(spirv_code);
     try {
@@ -39,7 +52,7 @@ bool VulkanShader::compileGlslFile(const std::filesystem::path & file_path)
     } catch (const vk::Error& e) {
         lcf_log_debug(e.what());
     }
-    return this->isCompiled();
+    return {};
 }
 
 bool VulkanShader::isCompiled() const
