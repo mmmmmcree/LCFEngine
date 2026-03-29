@@ -1,20 +1,22 @@
 #pragma once
 
-#include "shader_core/ShaderProgram.h"
+#include "shader_core/shader_core_fwd_decls.h"
+#include "shader_core/shader_core_enums.h"
+#include "vulkan_fwd_decls.h"
 #include "VulkanDescriptorSetLayout.h"
 #include "VulkanShader.h"
 #include "VulkanPushConstant.h"
 #include <vector>
+#include <unordered_map>
 #include <span>
 
 
 namespace lcf::render {
-    class VulkanContext;
-    class VulkanShaderProgram : public ShaderProgram, public STDPointerDefs<VulkanShaderProgram>
+    class VulkanShaderProgram : public STDPointerDefs<VulkanShaderProgram>
     {
         using Self = VulkanShaderProgram;
     public:
-        IMPORT_POINTER_DEFS(STDPointerDefs<VulkanShaderProgram>);
+        using StageToShaderMap = std::unordered_map<ShaderTypeFlagBits, VulkanShader::SharedPointer>;
         using ShaderStageInfoList = std::vector<vk::PipelineShaderStageCreateInfo>;
         using DescriptorSetLayoutBindingList = std::vector<vk::DescriptorSetLayoutBinding>;
         using DescriptorSetLayoutBindingTable = std::vector<DescriptorSetLayoutBindingList>; // [set][binding]
@@ -25,7 +27,9 @@ namespace lcf::render {
         VulkanShaderProgram & operator=(const VulkanShaderProgram &) = delete;
         ~VulkanShaderProgram();
         Self & addShaderFromGlslFile(ShaderTypeFlagBits stage, std::string_view file_path);
-        virtual bool link() override;
+        bool isLinked() const { return m_pipeline_layout.get(); }
+        std::error_code link();
+        bool containsStage(ShaderTypeFlagBits stage) const { return m_stage_to_shader_map.contains(stage); }
         bool hasVertexInput() const noexcept;
         const ShaderStageInfoList & getShaderStageInfoList() const { return m_shader_stage_info_list; }
         const VulkanDescriptorSetLayout::SharedPointer & getDescriptorSetLayoutSharedPtr(uint32_t set_index) const { return m_descriptor_set_layout_sp_list[set_index]; }
@@ -41,6 +45,7 @@ namespace lcf::render {
         void createPipelineLayout();
     private:
         VulkanContext * m_context_p = nullptr;
+        StageToShaderMap m_stage_to_shader_map;
         ShaderStageInfoList m_shader_stage_info_list;
         DescriptorSetLayoutBindingTable m_descriptor_set_layout_binding_table;
         DescriptorSetLayoutSharedPtrList m_descriptor_set_layout_sp_list;
