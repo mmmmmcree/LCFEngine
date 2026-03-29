@@ -23,6 +23,8 @@ layout(buffer_reference, std430) readonly buffer IndexBufferAddress
 	uint indices[];
 };
 
+#pragma lcf descriptor_set_strategy(set = 1, strategy = bindless);
+
 layout(std430, set = 1, binding = 0) readonly buffer VertexBufferAddresses {
     VertexBufferAddress vertex_buffer[];
 };
