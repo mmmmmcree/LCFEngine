@@ -18,6 +18,7 @@ using namespace lcf;
 namespace stdv = std::views;
 namespace stdr = std::ranges;
 
+namespace lcf {
 template <> inline constexpr bool is_pointer_type_convertible_v<aiVector3D, Vector3D<float>> = true;
 
 template <>
@@ -41,6 +42,7 @@ struct enum_mapping_traits<TextureSemantic, aiTextureType>
         { TextureSemantic::eSpecular, aiTextureType_MAYA_SPECULAR }
     };
 };
+} // namespace lcf
 
 using AssimpHierarchyNode = std::pair<size_t, const aiNode *>;
 

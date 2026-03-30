@@ -2,6 +2,7 @@
 
 #include "gui_fwd_decls.h"
 #include "gui_enums.h"
+#include <atomic>
 
 struct VkInstance_T;
 struct VkSurfaceKHR_T;

@@ -39,7 +39,7 @@ namespace lcf {
     using PointerDefs::makeShared; \
     using PointerDefs::makeUnique
 
-#define LCF_DECLARE_POINTER_DEFS(Type, Trait)  \
+#define LCF_DECLARE_POINTER_DEFS(Type, Trait) \
   using Type##PointerDefs = Trait<Type>; \
   using Type##SharedPointer = typename Type##PointerDefs::SharedPointer; \
   using Type##SharedConstPointer = typename Type##PointerDefs::SharedConstPointer; \

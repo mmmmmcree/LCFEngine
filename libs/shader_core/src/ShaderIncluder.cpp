@@ -1,6 +1,7 @@
 #include "shader_core/ShaderIncluder.h"
 #include <filesystem>
 #include <fstream>
+#include <cstring>
 
 void lcf::ShaderIncluder::addIncludeDirectory(const char *path)
 {

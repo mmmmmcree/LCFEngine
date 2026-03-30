@@ -1,5 +1,7 @@
 project(coroutines_test)
-add_compile_options("/bigobj")
+if(MSVC)
+    add_compile_options("/bigobj")
+endif()
 
 file(GLOB_RECURSE SOURCES "src/*.cpp")
 

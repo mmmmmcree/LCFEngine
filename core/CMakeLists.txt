@@ -42,6 +42,7 @@ target_include_directories(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME}
     PUBLIC
       utilities
+      $<$<AND:$<BOOL:${WIN32}>,$<NOT:$<CXX_COMPILER_ID:MSVC>>>:ws2_32 mswsock>
     PRIVATE
       EnTT::EnTT
       Boost::asio Boost::uuid
