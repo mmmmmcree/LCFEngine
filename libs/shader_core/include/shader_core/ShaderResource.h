@@ -26,6 +26,7 @@ namespace lcf {
         uint32_t getVecSize() const { return m_vecsize; }
         uint32_t getColumns() const { return m_columns; }
         uint32_t getArraySize() const { return m_array_size; }
+        bool isRuntimeArray() const { return m_array_size == 0; }
         uint32_t getOffset() const { return m_offset; }
         uint32_t getSizeInBytes() const { return m_size; }
         MemberList & getMembers() { return m_members; }

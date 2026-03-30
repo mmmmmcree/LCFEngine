@@ -45,7 +45,8 @@ layout(std430, set = 1, binding = 3) readonly buffer MaterialRecords {
 #pragma lcf descriptor_set_strategy(set = 2, strategy = bindless)
 
 layout(set = 2, binding = 0) uniform sampler samplers[2];
-layout(set = 2, binding = 1) uniform texture2D textures[65536]; // descriptor indexing, must be the last binding, here use a literal for cpu-side array size
+// layout(set = 2, binding = 1) uniform texture2D textures[65536]; // descriptor indexing, must be the last binding, here use a literal for cpu-side array size
+layout(set = 2, binding = 1) uniform texture2D textures[];
 
 void main()
 {

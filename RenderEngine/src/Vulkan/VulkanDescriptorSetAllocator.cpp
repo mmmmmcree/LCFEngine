@@ -1,5 +1,6 @@
 #include "Vulkan/VulkanDescriptorSetAllocator.h"
 #include "Vulkan/VulkanContext.h"
+#include "Vulkan/vulkan_constants.h"
 
 using namespace lcf::render;
 
@@ -34,8 +35,7 @@ void VulkanDescriptorSetAllocator::allocate(VulkanDescriptorSet & descriptor_set
     vk::DescriptorSetAllocateInfo alloc_info;
     alloc_info.setDescriptorPool(pool).setSetLayouts(layout_sp->getHandle());
     vk::DescriptorSetVariableDescriptorCountAllocateInfo variable_descriptor_count_info;
-    uint32_t variable_descriptor_count = 100;
-    variable_descriptor_count_info.setDescriptorCounts(variable_descriptor_count);
+    variable_descriptor_count_info.setDescriptorCounts(vkconstants::bindless::k_initial_variable_descriptor_count);
     if (pool_flags & vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind) {
         alloc_info.setPNext(&variable_descriptor_count_info);
     } 

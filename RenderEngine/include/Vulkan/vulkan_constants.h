@@ -40,4 +40,8 @@ namespace lcf::render::vkconstants {
             vk::ShaderStageFlagBits::eFragment
         },
     };
+namespace bindless {
+    static constexpr uint32_t k_max_variable_descriptor_count = 65536;
+    static constexpr uint32_t k_initial_variable_descriptor_count = 256;
+}
 }
