@@ -1,5 +1,5 @@
-#include "vulkan/VulkanDescriptorSet.h"
-#include "vulkan/VulkanContext.h"
+#include "Vulkan/VulkanDescriptorSet.h"
+#include "Vulkan/VulkanContext.h"
 
 using namespace lcf::render;
 

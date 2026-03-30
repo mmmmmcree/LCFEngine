@@ -19,6 +19,7 @@ bool lcf::render::VulkanMaterial::create(const VulkanDescriptorSet::SharedPointe
             case vk::DescriptorType::eSampler: {
                 m_sampler_map[binding].resize(count);
             } break;
+            default: break;
         }
     }
     return this->getDescriptorSet().getHandle();

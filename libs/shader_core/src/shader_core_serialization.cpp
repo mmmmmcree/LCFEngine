@@ -1,5 +1,3 @@
-#pragma once
-
 #include "shader_core/shader_core_serialization.h"
 #include "shader_core/ShaderResource.h"
 #include "enums/enum_name.h"

@@ -6,11 +6,11 @@
 namespace lcf {
     enum class PixelDataType : uint8_t
     {
-        eUint8 = BasicDataType::eUint8,
-        eUint16 = BasicDataType::eUint16,
-        eUint32 = BasicDataType::eUint32,
-        eFloat16 = BasicDataType::eFloat16,
-        eFloat32 = BasicDataType::eFloat32,
+        eUint8 = std::to_underlying(BasicDataType::eUint8),
+        eUint16 = std::to_underlying(BasicDataType::eUint16),
+        eUint32 = std::to_underlying(BasicDataType::eUint32),
+        eFloat16 = std::to_underlying(BasicDataType::eFloat16),
+        eFloat32 = std::to_underlying(BasicDataType::eFloat32),
     };
 
     enum class ImageFileType : uint8_t

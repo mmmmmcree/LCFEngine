@@ -163,7 +163,18 @@ void VulkanContext::setupVulkanInstance()
     }();
 #endif
 #ifndef NDEBUG
-    bool is_renderdoc_env = std::getenv("ENABLE_VULKAN_RENDERDOC_CAPTURE"); //! RenderDoc Environment is contradictory to custom debug callback
+    bool is_renderdoc_env = [] {
+        #ifdef _MSC_VER
+            char* val = nullptr;
+            size_t len = 0;
+            _dupenv_s(&val, &len, "ENABLE_VULKAN_RENDERDOC_CAPTURE");
+            bool result = val != nullptr;
+            free(val);
+            return result;
+        #else
+            return std::getenv("ENABLE_VULKAN_RENDERDOC_CAPTURE") != nullptr;
+        #endif
+    }(); //! RenderDoc Environment is contradictory to custom debug callback
     if (pfnVkCreateDebugUtilsMessengerEXT and pfnVkDestroyDebugUtilsMessengerEXT and not is_renderdoc_env) {
         vk::DebugUtilsMessengerCreateInfoEXT debug_messenger_info;
         debug_messenger_info.setMessageSeverity(vk::FlagTraits<vk::DebugUtilsMessageSeverityFlagBitsEXT>::allFlags)

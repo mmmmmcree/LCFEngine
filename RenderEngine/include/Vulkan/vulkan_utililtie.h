@@ -132,6 +132,7 @@ namespace lcf::render::vkutils {
             case vk::QueueFlagBits::eTransfer: {
                 dependency = get_image_layout_transition_dependency<vk::QueueFlagBits::eTransfer>(current_layout, new_layout);
             } break;
+            default: break;
         }
         return dependency;
     }
@@ -179,6 +180,7 @@ namespace lcf::render::vkutils {
                 dst_stage = vk::PipelineStageFlagBits2KHR::eAllGraphics;
                 access_flags = vk::AccessFlagBits2KHR::eMemoryRead;
             } break;
+            default: break;
         }
         return std::make_tuple(
             vk::PipelineStageFlagBits2KHR::eAllTransfer,
@@ -197,6 +199,7 @@ namespace lcf::render::vkutils {
             case vk::QueueFlagBits::eTransfer: {
                 dependency = get_buffer_copy_dependency<vk::QueueFlagBits::eTransfer>(buffer_usage);
             } break;
+            default: break;
         }
         return dependency;
     }

@@ -29,6 +29,7 @@ bool lcf::gui::SDLWindow::create(const WindowCreateInfo &info)
     SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN; //todo temp
     switch (info.getSurfaceType()) {
         case SurfaceType::eVulkan: { flags |= SDL_WINDOW_VULKAN; } break;
+        default: break;
     }
     m_window_p = SDL_CreateWindow(info.getTitle().c_str(), info.getWidth(), info.getHeight(), flags);
     if (not m_window_p) {
@@ -42,6 +43,7 @@ bool lcf::gui::SDLWindow::create(const WindowCreateInfo &info)
             bridge_sp = VulkanSurfaceBridge::makeShared();
             bridge_sp->createFrontend(m_window_p);
         } break;
+        default: break;
     }
     m_entity.requireComponent<InputCollector>();
     m_state = WindowState::eHidden;
@@ -51,7 +53,6 @@ bool lcf::gui::SDLWindow::create(const WindowCreateInfo &info)
 void lcf::gui::SDLWindow::pollEvents() noexcept
 {
     for (SDL_Event event; SDL_PollEvent(&event);) {
-        event.motion;
         switch (event.type) {
             case SDL_EVENT_QUIT: {
                 m_state = WindowState::eAboutToClose;

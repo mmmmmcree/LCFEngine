@@ -1,4 +1,4 @@
-#include "vulkan/VulkanSamplerManager.h"
+#include "Vulkan/VulkanSamplerManager.h"
 
 using namespace lcf::render;
 

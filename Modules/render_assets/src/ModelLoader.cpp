@@ -65,8 +65,8 @@ struct ModelLoader::Impl
     ~Impl() = default;
     Impl(const Impl &) = delete;
     Impl &operator=(const Impl &) = delete;
-    Impl(Impl &&) = default;
-    Impl &operator=(Impl &&) = default;
+    Impl(Impl &&) = delete;
+    Impl &operator=(Impl &&) = delete;
 
     std::optional<Model> load(const std::filesystem::path & path) noexcept;
     std::expected<Model, std::error_code> analyze(const std::filesystem::path & path) noexcept;

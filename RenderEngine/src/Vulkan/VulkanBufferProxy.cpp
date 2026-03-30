@@ -38,6 +38,7 @@ bool VulkanBufferProxy::create(VulkanContext *context_p, uint64_t size_in_bytes)
         case GPUBufferUsage::eStaging : {
             usage_flags = vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eTransferDst;
         } break;
+        default: break;
     }
     switch (this->getPattern()) {
         case GPUBufferPattern::eDynamic : {

@@ -278,41 +278,51 @@ namespace lcf {
 
     enum class ShadingModel : uint32_t
     {
-        eStandard = MaterialPropertyFlags::eBaseColor |
+        eStandard = std::to_underlying(
+            MaterialPropertyFlags::eBaseColor |
             MaterialPropertyFlags::eRoughness |
             MaterialPropertyFlags::eMetallic |
             MaterialPropertyFlags::eReflectance |
             MaterialPropertyFlags::eAmbientOcclusion |
             MaterialPropertyFlags::eEmissive |
-            MaterialPropertyFlags::eNormal, 
-        eClearCoat = static_cast<MaterialPropertyFlags>(eStandard) |
+            MaterialPropertyFlags::eNormal), 
+        eClearCoat = std::to_underlying(
+            static_cast<MaterialPropertyFlags>(eStandard) |
             MaterialPropertyFlags::eClearCoat |
             MaterialPropertyFlags::eClearCoatRoughness |
-            MaterialPropertyFlags::eClearCoatNormal, //- layout: 4 | 1, 1, 1, 1 | 4 | 3 , 1 | 1, 1 ; 20 bytes
-        eSheen = static_cast<MaterialPropertyFlags>(eStandard) |
+            MaterialPropertyFlags::eClearCoatNormal), //- layout: 4 | 1, 1, 1, 1 | 4 | 3 , 1 | 1, 1 ; 20 bytes
+        eSheen = std::to_underlying(
+            static_cast<MaterialPropertyFlags>(eStandard) |
             MaterialPropertyFlags::eSheenColor |
-            MaterialPropertyFlags::eSheenRoughness,
-        eTransmission = static_cast<MaterialPropertyFlags>(eStandard) |
+            MaterialPropertyFlags::eSheenRoughness),
+        eTransmission = std::to_underlying(
+            static_cast<MaterialPropertyFlags>(eStandard) |
             MaterialPropertyFlags::eTransmission |
             MaterialPropertyFlags::eIOR |
             MaterialPropertyFlags::eThickness |
-            MaterialPropertyFlags::eAbsorption,
-        eAnisotropic = static_cast<MaterialPropertyFlags>(eStandard) |
+            MaterialPropertyFlags::eAbsorption),
+        eAnisotropic = std::to_underlying(
+            static_cast<MaterialPropertyFlags>(eStandard) |
             MaterialPropertyFlags::eAnisotropy |
-            MaterialPropertyFlags::eAnisotropyDirection,
-        eClearCoatAnisotropic = static_cast<MaterialPropertyFlags>(eClearCoat) |
-            static_cast<MaterialPropertyFlags>(eAnisotropic),
-        eUnlit = MaterialPropertyFlags::eBaseColor |
+            MaterialPropertyFlags::eAnisotropyDirection),
+        eClearCoatAnisotropic = std::to_underlying(
+            static_cast<MaterialPropertyFlags>(eClearCoat) |
+            static_cast<MaterialPropertyFlags>(eAnisotropic)),
+        eUnlit = std::to_underlying(
+            MaterialPropertyFlags::eBaseColor |
             MaterialPropertyFlags::eEmissive |
-            MaterialPropertyFlags::ePostLightingColor,
-        eSubsurface = MaterialPropertyFlags::eThickness |
+            MaterialPropertyFlags::ePostLightingColor),
+        eSubsurface = std::to_underlying(
+            MaterialPropertyFlags::eThickness |
             MaterialPropertyFlags::eSubsurfaceColor |
-            MaterialPropertyFlags::eSubsurfacePower, 
-        eSubsurfaceTransmission = static_cast<MaterialPropertyFlags>(eSubsurface) |
+            MaterialPropertyFlags::eSubsurfacePower), 
+        eSubsurfaceTransmission = std::to_underlying(
+            static_cast<MaterialPropertyFlags>(eSubsurface) |
             MaterialPropertyFlags::eTransmission |
-            MaterialPropertyFlags::eIOR,
-        eCloth = MaterialPropertyFlags::eSheenColor |
-            MaterialPropertyFlags::eSubsurfaceColor,
+            MaterialPropertyFlags::eIOR),
+        eCloth = std::to_underlying(
+            MaterialPropertyFlags::eSheenColor |
+            MaterialPropertyFlags::eSubsurfaceColor),
     };
 }
 
@@ -357,21 +367,21 @@ namespace lcf::internal {
 namespace lcf {
     enum class TextureSemantic : std::underlying_type_t<MaterialPropertyFlags>
     {
-        eBaseColor = MaterialPropertyFlags::eBaseColor,
-        eMetallicRoughness = MaterialPropertyFlags::eMetallic | MaterialPropertyFlags::eRoughness,
-        eNormal = MaterialPropertyFlags::eNormal,
-        eOcclusion = MaterialPropertyFlags::eAmbientOcclusion,
-        eEmissive = MaterialPropertyFlags::eEmissive,
-        eClearCoat = MaterialPropertyFlags::eClearCoat,
-        eClearCoatRoughness = MaterialPropertyFlags::eClearCoatRoughness,
-        eClearCoatNormal = MaterialPropertyFlags::eClearCoatNormal,
-        eSheenColor = MaterialPropertyFlags::eSheenColor,
-        eSheenRoughness = MaterialPropertyFlags::eSheenRoughness,
-        eVolumeThickness = MaterialPropertyFlags::eThickness,
-        eTransmission = MaterialPropertyFlags::eTransmission,
-        eSpecular = MaterialPropertyFlags::eSpecularFactor,//todo
-        eSpecularColor = MaterialPropertyFlags::eSpecularColorFactor, //todo
-        eHeight = MaterialPropertyFlags::eMicroThickness, //todo
+        eBaseColor = std::to_underlying(MaterialPropertyFlags::eBaseColor),
+        eMetallicRoughness = std::to_underlying(MaterialPropertyFlags::eMetallic | MaterialPropertyFlags::eRoughness),
+        eNormal = std::to_underlying(MaterialPropertyFlags::eNormal),
+        eOcclusion = std::to_underlying(MaterialPropertyFlags::eAmbientOcclusion),
+        eEmissive = std::to_underlying(MaterialPropertyFlags::eEmissive),
+        eClearCoat = std::to_underlying(MaterialPropertyFlags::eClearCoat),
+        eClearCoatRoughness = std::to_underlying(MaterialPropertyFlags::eClearCoatRoughness),
+        eClearCoatNormal = std::to_underlying(MaterialPropertyFlags::eClearCoatNormal),
+        eSheenColor = std::to_underlying(MaterialPropertyFlags::eSheenColor),
+        eSheenRoughness = std::to_underlying(MaterialPropertyFlags::eSheenRoughness),
+        eVolumeThickness = std::to_underlying(MaterialPropertyFlags::eThickness),
+        eTransmission = std::to_underlying(MaterialPropertyFlags::eTransmission),
+        eSpecular = std::to_underlying(MaterialPropertyFlags::eSpecularFactor),//todo
+        eSpecularColor = std::to_underlying(MaterialPropertyFlags::eSpecularColorFactor), //todo
+        eHeight = std::to_underlying(MaterialPropertyFlags::eMicroThickness), //todo
     };
 
     template <> inline constexpr std::array<TextureSemantic, enum_count_v<internal::TextureSemantic>> enum_values_v<TextureSemantic>

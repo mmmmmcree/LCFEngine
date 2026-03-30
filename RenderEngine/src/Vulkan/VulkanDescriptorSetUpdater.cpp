@@ -1,4 +1,4 @@
-#include "vulkan/VulkanDescriptorSetUpdater.h"
+#include "Vulkan/VulkanDescriptorSetUpdater.h"
 
 using namespace lcf::render;
 

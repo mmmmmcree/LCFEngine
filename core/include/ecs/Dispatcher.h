@@ -14,25 +14,25 @@ namespace lcf::ecs {
         entt::connection connect()
         {
             using Signal = std::decay_t<std::tuple_element_t<0, typename callable_traits<decltype(Candidate)>::arg_types>>;
-            return this->sink<Signal>().connect<Candidate>();
+            return this->sink<Signal>().template connect<Candidate>();
         }
         template<auto Candidate, typename Type>
         entt::connection connect(Type & value_or_instance) 
         {
             using Signal = std::decay_t<std::tuple_element_t<0, typename callable_traits<decltype(Candidate)>::arg_types>>;
-            return this->sink<Signal>().connect<Candidate>(value_or_instance);
+            return this->sink<Signal>().template connect<Candidate>(value_or_instance);
         }
         template<auto Candidate>
         void disconnect()
         {
             using Signal = std::decay_t<std::tuple_element_t<0, typename callable_traits<decltype(Candidate)>::arg_types>>;
-            this->sink<Signal>().disconnect<Candidate>();
+            this->sink<Signal>().template disconnect<Candidate>();
         }
         template<auto Candidate, typename Type>
         void disconnect(Type & value_or_instance)
         {
             using Signal = std::decay_t<std::tuple_element_t<0, typename callable_traits<decltype(Candidate)>::arg_types>>;
-            this->sink<Signal>().disconnect<Candidate>(value_or_instance);
+            this->sink<Signal>().template disconnect<Candidate>(value_or_instance);
         }
     private:
     };

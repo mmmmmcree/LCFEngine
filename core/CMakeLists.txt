@@ -39,11 +39,21 @@ target_include_directories(${PROJECT_NAME}
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(${PROJECT_NAME}  
+target_link_libraries(${PROJECT_NAME}
     PUBLIC
       utilities
     PRIVATE
-      EnTT::EnTT 
+      EnTT::EnTT
       Boost::asio Boost::uuid
       Taskflow::Taskflow
 )
+
+# Taskflow exports /wd4324 which is MSVC-specific and breaks Clang.
+# Strip MSVC-only warning-suppression flags when not using MSVC.
+if(NOT MSVC)
+    get_target_property(_tf_opts Taskflow::Taskflow INTERFACE_COMPILE_OPTIONS)
+    if(_tf_opts)
+        list(FILTER _tf_opts EXCLUDE REGEX "/wd[0-9]+")
+        set_target_properties(Taskflow::Taskflow PROPERTIES INTERFACE_COMPILE_OPTIONS "${_tf_opts}")
+    endif()
+endif()

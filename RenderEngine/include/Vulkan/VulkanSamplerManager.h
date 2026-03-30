@@ -1,6 +1,6 @@
 #pragma once
 
-#include "vulkan/VulkanSampler.h"
+#include "Vulkan/VulkanSampler.h"
 #include <vector>
 #include <unordered_map>
 
