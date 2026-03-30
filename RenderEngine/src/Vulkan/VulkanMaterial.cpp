@@ -6,7 +6,7 @@ using namespace lcf::render;
 bool lcf::render::VulkanMaterial::create(const VulkanDescriptorSet::SharedPointer & descriptor_set_sp)
 {
     m_descriptor_set_sp = descriptor_set_sp;
-     for (const auto & binding_info : m_descriptor_set_sp->getLayout().getBindings()) {
+     for (const auto & binding_info : m_descriptor_set_sp->getBindings()) {
         uint32_t binding = binding_info.binding;
         size_t count = binding_info.descriptorCount;
         switch (binding_info.descriptorType) {
@@ -27,7 +27,7 @@ bool lcf::render::VulkanMaterial::create(const VulkanDescriptorSet::SharedPointe
 
 VulkanMaterial & VulkanMaterial::setTexture(uint32_t binding, uint32_t index, const VulkanImageObject::SharedPointer &texture)
 {
-    auto bindings = m_descriptor_set_sp->getLayout().getBindings();
+    auto bindings = m_descriptor_set_sp->getBindings();
     if (binding >= bindings.size()) { return *this; }
     const auto & binding_info = bindings[binding];
     auto desc_type = binding_info.descriptorType;
@@ -41,7 +41,7 @@ VulkanMaterial & VulkanMaterial::setTexture(uint32_t binding, uint32_t index, co
 
 VulkanMaterial & VulkanMaterial::setSampler(uint32_t binding, uint32_t index, const VulkanSampler::SharedPointer &sampler)
 {
-    auto bindings = m_descriptor_set_sp->getLayout().getBindings();
+    auto bindings = m_descriptor_set_sp->getBindings();
     if (binding >= bindings.size()) { return *this; }
     const auto & binding_info = bindings[binding];
     auto desc_type = binding_info.descriptorType;
@@ -63,7 +63,7 @@ void VulkanMaterial::commitUpdate()
 {
     auto updater = m_descriptor_set_sp->generateUpdater();
     std::unordered_map<uint32_t, std::unordered_map<uint32_t, vk::DescriptorImageInfo>> image_infos;
-    auto bindings = m_descriptor_set_sp->getLayout().getBindings();
+    auto bindings = m_descriptor_set_sp->getBindings();
     for (uint32_t binding = 0; binding < bindings.size(); ++binding) {
         if (not m_dirty_bindings[binding]) { continue; }
         const auto & samplers = m_sampler_map[binding];

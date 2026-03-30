@@ -1,0 +1,14 @@
+#pragma once
+
+#include <vulkan/vulkan.hpp>
+
+namespace lcf::render {
+
+    struct VulkanDescriptorSetBinding : vk::DescriptorSetLayoutBinding
+    {
+        using Base = vk::DescriptorSetLayoutBinding;
+        using Base::Base;
+        bool is_runtime_array = false;
+    };
+
+}

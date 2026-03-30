@@ -39,4 +39,13 @@ namespace lcf::render {
 
     class VulkanSampler;
     LCF_DECLARE_POINTER_DEFS(VulkanSampler, STDPointerDefs);
+
+    struct VulkanDescriptorSetBinding;
+
+    class VulkanDescriptorSet2;
+    class VulkanDescriptorSetLayout2;
+    class VulkanDescriptorSetAllocator2;
+    class PerFramePoolManager;
+    class BindlessPoolManager;
+    class PersistentPoolManager;
 }

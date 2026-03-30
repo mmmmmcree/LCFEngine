@@ -16,6 +16,7 @@ namespace lcf::render {
     {
         friend class VulkanDescriptorSetAllocator;
         using Self = VulkanDescriptorSet;
+        using BindingList = std::vector<vk::DescriptorSetLayoutBinding>;
     public:
         IMPORT_POINTER_DEFS(STDPointerDefs<VulkanDescriptorSet>);
         using BindingReadSpan = std::span<const vk::DescriptorSetLayoutBinding>;
@@ -30,11 +31,14 @@ namespace lcf::render {
         Self & setIndex(uint32_t index) noexcept { m_set_index = index; return *this; }
         uint32_t getIndex() const noexcept { return m_set_index; }
         const vk::DescriptorSet & getHandle() const noexcept { return m_descriptor_set; }
-        const VulkanDescriptorSetLayout & getLayout() const noexcept { return *m_layout_sp; }
+        // const VulkanDescriptorSetLayout & getLayout() const noexcept { return *m_layout_sp; }
+        std::span<const vk::DescriptorSetLayoutBinding> getBindings() const noexcept { return m_binding_list; }
         VulkanDescriptorSetUpdater generateUpdater() const noexcept;
     private:
+        VulkanContext * m_context_p = nullptr;
         VulkanDescriptorSetLayout::SharedPointer m_layout_sp;
         std::optional<vk::DescriptorPool> m_descriptor_pool_opt;
+        BindingList m_binding_list;
         uint32_t m_set_index = 0u;
         vk::DescriptorSet m_descriptor_set;
     };
