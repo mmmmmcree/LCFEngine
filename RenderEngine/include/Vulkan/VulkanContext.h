@@ -6,7 +6,7 @@
 #include "VulkanMemoryAllocator.h"
 #include "VulkanSamplerManager.h"
 #include "VulkanDescriptorSetAllocator.h"
-#include "VulkanDescriptorSetAllocator2.h"
+#include "VulkanDescriptorSetManager.h"
 #include <vulkan/vulkan.hpp>
 #include <vector>
 #include <unordered_map>
@@ -38,7 +38,7 @@ namespace lcf::render {
         const vk::CommandPool & getCommandPool(vk::QueueFlagBits queue_type) const noexcept;
         const VulkanMemoryAllocator & getMemoryAllocator() const noexcept { return m_memory_allocator; }
         const VulkanDescriptorSetAllocator & getDescriptorSetAllocator() const noexcept { return m_descriptor_set_allocator; }
-        const VulkanDescriptorSetAllocator2 & getDescriptorSetAllocator2() const noexcept { return m_descriptor_set_allocator2; }
+        const VulkanDescriptorSetManager & getDescriptorSetManager() const noexcept { return m_descriptor_set_manager; }
         const VulkanSamplerManager & getSamplerManager() const noexcept { return m_sampler_manager; }
     private:
         void setupVulkanInstance();
@@ -59,7 +59,7 @@ namespace lcf::render {
         CommandBufferPoolMap m_command_pools;
         VulkanMemoryAllocator m_memory_allocator;
         VulkanDescriptorSetAllocator m_descriptor_set_allocator;
-        VulkanDescriptorSetAllocator2 m_descriptor_set_allocator2;
+        VulkanDescriptorSetManager m_descriptor_set_manager;
         VulkanSamplerManager m_sampler_manager;
     };
 }

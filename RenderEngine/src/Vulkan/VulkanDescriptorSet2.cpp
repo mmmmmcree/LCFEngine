@@ -1,18 +1,14 @@
 #include "Vulkan/VulkanDescriptorSet2.h"
-#include "Vulkan/VulkanDescriptorSetAllocator2.h"
-#include "Vulkan/VulkanContext.h"
 #include <utility>
 #include <ranges>
 
 using namespace lcf::render;
 
 VulkanDescriptorSet2::VulkanDescriptorSet2(
-    VulkanContext * context_p,
     vk::DescriptorSet handle,
     std::span<const VulkanDescriptorSetBinding> bindings,
     vkenums::DescriptorSetStrategy strategy,
     uint32_t set_index) :
-    m_context_p(context_p),
     m_descriptor_set(handle),
     m_binding_list(bindings.begin(), bindings.end()),
     m_strategy(strategy),
@@ -20,13 +16,7 @@ VulkanDescriptorSet2::VulkanDescriptorSet2(
 {
 }
 
-VulkanDescriptorSet2::~VulkanDescriptorSet2()
-{
-    this->release();
-}
-
 VulkanDescriptorSet2::VulkanDescriptorSet2(Self && other) noexcept :
-    m_context_p(std::exchange(other.m_context_p, nullptr)),
     m_descriptor_set(std::exchange(other.m_descriptor_set, nullptr)),
     m_binding_list(std::move(other.m_binding_list)),
     m_strategy(other.m_strategy),
@@ -38,8 +28,6 @@ VulkanDescriptorSet2::VulkanDescriptorSet2(Self && other) noexcept :
 VulkanDescriptorSet2 & VulkanDescriptorSet2::operator=(Self && other) noexcept
 {
     if (this == &other) { return *this; }
-    this->release();
-    m_context_p = std::exchange(other.m_context_p, nullptr);
     m_descriptor_set = std::exchange(other.m_descriptor_set, nullptr);
     m_binding_list = std::move(other.m_binding_list);
     m_strategy = other.m_strategy;
@@ -47,17 +35,6 @@ VulkanDescriptorSet2 & VulkanDescriptorSet2::operator=(Self && other) noexcept
     m_pending_writes = std::move(other.m_pending_writes);
     return *this;
 }
-
-void VulkanDescriptorSet2::release()
-{
-    if (m_descriptor_set && m_context_p) {
-        m_context_p->getDescriptorSetAllocator2().deallocate(*this);
-        m_descriptor_set = nullptr;
-        m_context_p = nullptr;
-    }
-}
-
-// --- convenience write interface ---
 
 VulkanDescriptorSet2 & VulkanDescriptorSet2::addDescriptorInfo(uint32_t binding, const vk::DescriptorBufferInfo & info)
 {
@@ -81,9 +58,9 @@ VulkanDescriptorSet2 & VulkanDescriptorSet2::addDescriptorInfo(uint32_t binding,
     return *this;
 }
 
-void VulkanDescriptorSet2::commitUpdate()
+void VulkanDescriptorSet2::commitUpdate(vk::Device device)
 {
-    if (m_pending_writes.empty() || not m_context_p) { return; }
+    if (m_pending_writes.empty() || not device) { return; }
 
     auto to_write = [this](PendingWrite & pw) -> vk::WriteDescriptorSet {
         const auto & b = m_binding_list[pw.binding];
@@ -101,6 +78,6 @@ void VulkanDescriptorSet2::commitUpdate()
     };
 
     auto writes = m_pending_writes | std::views::transform(to_write) | std::ranges::to<std::vector>();
-    m_context_p->getDevice().updateDescriptorSets(writes, nullptr);
+    device.updateDescriptorSets(writes, nullptr);
     m_pending_writes.clear();
 }

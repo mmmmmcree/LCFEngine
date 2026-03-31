@@ -46,7 +46,7 @@ void VulkanDescriptorSetLayout2::create(VulkanContext * context_p)
         }
 
         // If binding has eVariableDescriptorCount, set descriptorCount to layout max
-        if (b.flags & vk::DescriptorBindingFlagBits::eVariableDescriptorCount) {
+        if (b.hasFlag(vk::DescriptorBindingFlagBits::eVariableDescriptorCount)) {
             b.descriptorCount = vkconstants::bindless::k_max_variable_descriptor_count;
         }
 

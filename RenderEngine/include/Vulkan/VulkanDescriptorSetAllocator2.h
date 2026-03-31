@@ -2,8 +2,9 @@
 
 #include <vulkan/vulkan.hpp>
 #include "vulkan_enums.h"
-#include "VulkanDescriptorSetBinding.h"
 #include <vector>
+#include <array>
+#include <unordered_map>
 #include <cstdint>
 
 namespace lcf::render {
@@ -12,111 +13,21 @@ namespace lcf::render {
     class VulkanDescriptorSet2;
     class VulkanDescriptorSetLayout2;
 
-namespace detail {
-
-    // ====================================================================
-    //  PerFrame: ring-buffer pools, batch vkResetDescriptorPool per frame
-    // ====================================================================
-    class PerFrameDescriptorSetAllocator
-    {
-    public:
-        PerFrameDescriptorSetAllocator() = default;
-        ~PerFrameDescriptorSetAllocator();
-
-        void create(VulkanContext * context_p);
-        void destroy();
-
-        VulkanDescriptorSet2 allocate(const VulkanDescriptorSetLayout2 & layout);
-        void resetForFrame();
-
-    private:
-        vk::DescriptorPool acquirePool();
-        vk::DescriptorPool createPool();
-
-        VulkanContext * m_context_p = nullptr;
-        std::vector<vk::DescriptorPool> m_available_pools;
-        std::vector<vk::DescriptorPool> m_full_pools;
-    };
-
-    // ====================================================================
-    //  Bindless: eUpdateAfterBind pool, maxSets=1, growth state machine
-    // ====================================================================
-    class BindlessDescriptorSetAllocator
-    {
-    public:
-        enum class GrowthState : uint8_t { eIdle, eBuilding, eSwapPending };
-
-        BindlessDescriptorSetAllocator() = default;
-        ~BindlessDescriptorSetAllocator();
-
-        void create(VulkanContext * context_p);
-        void destroy();
-
-        VulkanDescriptorSet2 allocate(const VulkanDescriptorSetLayout2 & layout,
-                                      uint32_t initial_variable_count);
-        void beginFrame(uint32_t frame_index, uint32_t frames_in_flight);
-        void triggerGrowth(const VulkanDescriptorSetLayout2 & layout);
-
-        GrowthState getGrowthState() const noexcept { return m_growth_state; }
-        uint32_t    currentCapacity() const noexcept { return m_current_capacity; }
-
-    private:
-        vk::DescriptorPool createPool(uint32_t variable_count,
-                                       const VulkanDescriptorSetLayout2 & layout);
-        vk::DescriptorSet  allocateFromPool(vk::DescriptorPool pool,
-                                             const VulkanDescriptorSetLayout2 & layout,
-                                             uint32_t variable_count);
-
-        VulkanContext * m_context_p = nullptr;
-
-        vk::DescriptorPool m_pool;
-        vk::DescriptorSet  m_descriptor_set;
-        uint32_t           m_current_capacity = 0u;
-
-        GrowthState        m_growth_state = GrowthState::eIdle;
-        vk::DescriptorPool m_incoming_pool;
-        vk::DescriptorSet  m_incoming_set;
-        uint32_t           m_incoming_capacity = 0u;
-
-        struct RetiredPool { vk::DescriptorPool pool; uint32_t retire_frame; };
-        std::vector<RetiredPool> m_retired_pools;
-
-        const VulkanDescriptorSetLayout2 * m_layout_p = nullptr;
-    };
-
-    // ====================================================================
-    //  Persistent: eFreeDescriptorSet pool, individual free
-    // ====================================================================
-    class PersistentDescriptorSetAllocator
-    {
-    public:
-        PersistentDescriptorSetAllocator() = default;
-        ~PersistentDescriptorSetAllocator();
-
-        void create(VulkanContext * context_p);
-        void destroy();
-
-        VulkanDescriptorSet2 allocate(const VulkanDescriptorSetLayout2 & layout);
-        void free(vk::DescriptorSet descriptor_set);
-
-    private:
-        vk::DescriptorPool acquirePool();
-        vk::DescriptorPool createPool();
-
-        VulkanContext * m_context_p = nullptr;
-        std::vector<vk::DescriptorPool> m_available_pools;
-        std::vector<vk::DescriptorPool> m_full_pools;
-    };
-
-} // namespace detail
-
-    // ====================================================================
-    //  Public dispatcher — owns the three sub-allocators
-    // ====================================================================
     class VulkanDescriptorSetAllocator2
     {
         using Self = VulkanDescriptorSetAllocator2;
     public:
+        struct PoolGroup
+        {
+            vk::DescriptorPool getCurrentAvailablePool() const noexcept;
+            void setCurrentAvailablePoolFull();
+            void resetAllocatedSets(vk::Device device);
+            void destroyPools(vk::Device device);
+
+            std::vector<vk::DescriptorPool> m_full_pools;
+            std::vector<vk::DescriptorPool> m_available_pools;
+        };
+
         VulkanDescriptorSetAllocator2() = default;
         ~VulkanDescriptorSetAllocator2();
         VulkanDescriptorSetAllocator2(const Self &) = delete;
@@ -126,23 +37,33 @@ namespace detail {
 
         void create(VulkanContext * context_p);
 
+        // Allocate ePerFrame / ePersistent descriptor set
         VulkanDescriptorSet2 allocate(const VulkanDescriptorSetLayout2 & layout);
 
-        /// Deallocate a descriptor set according to its strategy.
-        /// - ePerFrame: no-op (batch reset handles it)
-        /// - ePersistent: individual vkFreeDescriptorSets
-        /// - eBindless: no-op (pool owns the single set)
-        void deallocate(VulkanDescriptorSet2 & ds) const;
+        // Allocate eBindless descriptor set (maxSets=1, eUpdateAfterBind pool).
+        // Pool is created internally and tracked by handle — caller never sees it.
+        VulkanDescriptorSet2 allocateBindless(const VulkanDescriptorSetLayout2 & layout,
+                                              uint32_t variable_count);
 
-        void resetPerFrame();
-        void beginFrame(uint32_t frame_index, uint32_t frames_in_flight);
+        // Deallocate (ePerFrame = no-op, ePersistent = individual free)
+        void deallocate(vk::DescriptorSet handle, vkenums::DescriptorSetStrategy strategy);
+
+        // Deallocate a bindless set — destroys its backing pool via internal mapping
+        void deallocateBindless(vk::DescriptorSet handle);
+
+        // Batch reset pools for a given strategy (caller decides when)
+        void resetPools(vkenums::DescriptorSetStrategy strategy);
 
     private:
-        VulkanContext * m_context_p = nullptr;
+        vk::DescriptorPool acquirePool(vkenums::DescriptorSetStrategy strategy);
+        vk::DescriptorPool createPool(vkenums::DescriptorSetStrategy strategy);
+        PoolGroup & getPoolGroup(vkenums::DescriptorSetStrategy strategy);
 
-        mutable detail::PerFrameDescriptorSetAllocator   m_per_frame;
-        mutable detail::BindlessDescriptorSetAllocator   m_bindless;
-        mutable detail::PersistentDescriptorSetAllocator m_persistent;
+        VulkanContext * m_context_p = nullptr;
+        // [0] = ePerFrame, [1] = ePersistent
+        mutable std::array<PoolGroup, 2> m_pool_groups;
+        // Bindless: each DS has its own pool (maxSets=1), tracked by DS handle
+        std::unordered_map<VkDescriptorSet, vk::DescriptorPool> m_bindless_pool_map;
     };
 
 }

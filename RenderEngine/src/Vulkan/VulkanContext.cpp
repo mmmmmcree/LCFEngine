@@ -37,7 +37,7 @@ void VulkanContext::create()
     this->createCommandPools();
     m_memory_allocator.create(this);
     m_descriptor_set_allocator.create(this);
-    m_descriptor_set_allocator2.create(this);
+    m_descriptor_set_manager.create(this);
     m_sampler_manager.create(this);
     for (auto &render_target : m_surface_render_targets) {
         render_target->create(this, 4);

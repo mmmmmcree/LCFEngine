@@ -45,4 +45,5 @@ namespace lcf::render {
     class VulkanDescriptorSet2;
     class VulkanDescriptorSetLayout2;
     class VulkanDescriptorSetAllocator2;
+    class VulkanDescriptorSetManager;
 }
