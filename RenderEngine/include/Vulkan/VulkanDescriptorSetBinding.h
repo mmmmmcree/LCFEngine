@@ -8,7 +8,7 @@ namespace lcf::render {
     {
         using Base = vk::DescriptorSetLayoutBinding;
         using Base::Base;
-        bool is_runtime_array = false;
+        vk::DescriptorBindingFlags flags = {};  // merged binding flags (set by caller, e.g. ShaderProgram link step)
     };
 
 }

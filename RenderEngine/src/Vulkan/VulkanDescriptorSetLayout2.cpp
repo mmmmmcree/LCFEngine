@@ -27,28 +27,44 @@ void VulkanDescriptorSetLayout2::create(VulkanContext * context_p)
 {
     m_context_p = context_p;
 
+    // --- extract raw bindings and collect per-binding flags ---
     std::vector<vk::DescriptorSetLayoutBinding> raw_bindings;
     raw_bindings.reserve(m_binding_list.size());
-    for (auto & b : m_binding_list) {
+
+    m_binding_flags_list.resize(m_binding_list.size());
+
+    constexpr auto kBindlessBaseFlags = vk::DescriptorBindingFlagBits::eUpdateAfterBind
+                                      | vk::DescriptorBindingFlagBits::ePartiallyBound
+                                      | vk::DescriptorBindingFlagBits::eUpdateUnusedWhilePending;
+
+    for (size_t i = 0; i < m_binding_list.size(); ++i) {
+        auto & b = m_binding_list[i];
+
+        // If strategy is bindless, ensure base bindless flags are present on every binding
+        if (m_strategy == Strategy::eBindless) {
+            b.flags |= kBindlessBaseFlags;
+        }
+
+        // If binding has eVariableDescriptorCount, set descriptorCount to layout max
+        if (b.flags & vk::DescriptorBindingFlagBits::eVariableDescriptorCount) {
+            b.descriptorCount = vkconstants::bindless::k_max_variable_descriptor_count;
+        }
+
+        m_binding_flags_list[i] = b.flags;
         raw_bindings.emplace_back(static_cast<vk::DescriptorSetLayoutBinding>(b));
     }
 
+    // --- create layout ---
     vk::DescriptorSetLayoutCreateInfo layout_info;
     vk::DescriptorSetLayoutBindingFlagsCreateInfo binding_flags_info;
 
-    if (m_strategy == Strategy::eBindless) {
-        m_flags |= vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool;
-        m_binding_flags_list.resize(m_binding_list.size());
-        for (auto & flags : m_binding_flags_list) {
-            flags = vk::DescriptorBindingFlagBits::eUpdateAfterBind
-                  | vk::DescriptorBindingFlagBits::ePartiallyBound
-                  | vk::DescriptorBindingFlagBits::eUpdateUnusedWhilePending;
-        }
-        for (size_t i = 0; i < m_binding_list.size(); ++i) {
-            if (m_binding_list[i].is_runtime_array) {
-                m_binding_flags_list[i] |= vk::DescriptorBindingFlagBits::eVariableDescriptorCount;
-                raw_bindings[i].descriptorCount = vkconstants::bindless::k_max_variable_descriptor_count;
-            }
+    bool has_any_flags = std::ranges::any_of(m_binding_flags_list, [](auto f) {
+        return f != vk::DescriptorBindingFlags{};
+    });
+
+    if (has_any_flags) {
+        if (m_strategy == Strategy::eBindless) {
+            m_flags |= vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool;
         }
         binding_flags_info.setBindingFlags(m_binding_flags_list);
         layout_info.setPNext(&binding_flags_info);
