@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
-#include "vulkan_enums.h"
+#include "Vulkan/vulkan_enums.h"
 #include <vector>
 #include <array>
 #include <unordered_map>

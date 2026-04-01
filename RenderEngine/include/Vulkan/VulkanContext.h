@@ -6,7 +6,7 @@
 #include "VulkanMemoryAllocator.h"
 #include "VulkanSamplerManager.h"
 #include "VulkanDescriptorSetAllocator.h"
-#include "VulkanDescriptorSetManager.h"
+#include "ds/VulkanDescriptorSetManager.h"
 #include <vulkan/vulkan.hpp>
 #include <vector>
 #include <unordered_map>

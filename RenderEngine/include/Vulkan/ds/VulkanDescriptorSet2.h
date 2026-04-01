@@ -1,8 +1,8 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
-#include "vulkan_enums.h"
-#include "VulkanDescriptorSetBinding.h"
+#include "Vulkan/vulkan_enums.h"
+#include "Vulkan/ds/VulkanDescriptorSetBinding.h"
 #include <vector>
 #include <variant>
 #include <span>

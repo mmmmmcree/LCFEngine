@@ -1,6 +1,6 @@
-#include "Vulkan/VulkanDescriptorSetAllocator2.h"
-#include "Vulkan/VulkanDescriptorSet2.h"
-#include "Vulkan/VulkanDescriptorSetLayout2.h"
+#include "Vulkan/ds/VulkanDescriptorSetAllocator2.h"
+#include "Vulkan/ds/VulkanDescriptorSet2.h"
+#include "Vulkan/ds/VulkanDescriptorSetLayout2.h"
 #include "Vulkan/VulkanContext.h"
 #include <algorithm>
 #include <ranges>
