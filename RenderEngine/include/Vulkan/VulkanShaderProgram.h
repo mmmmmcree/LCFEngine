@@ -34,7 +34,7 @@ namespace lcf::render {
         bool hasVertexInput() const noexcept;
         const ShaderStageInfoList & getShaderStageInfoList() const { return m_shader_stage_info_list; }
         const VulkanDescriptorSetLayout::SharedPointer & getDescriptorSetLayoutSharedPtr(uint32_t set_index) const { return m_descriptor_set_layout_sp_list[set_index]; }
-        vk::PipelineLayout getPipelineLayout() const { return m_pipeline_layout.get(); }
+        const vk::PipelineLayout & getPipelineLayout() const { return m_pipeline_layout.get(); }
         const DescriptorSetLayoutBindingList & getDescriptorSetLayoutBindingList(uint32_t set_index) const { return m_descriptor_set_layout_binding_table[set_index]; }
         void setPushConstantData(vk::ShaderStageFlags stage, std::span<const void *> data_list);
         void setPushConstantData(vk::ShaderStageFlags stage, const std::initializer_list<const void *> & data_list);

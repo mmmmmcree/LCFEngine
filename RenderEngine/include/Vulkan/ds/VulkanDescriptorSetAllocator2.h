@@ -4,8 +4,9 @@
 #include "Vulkan/vulkan_enums.h"
 #include <vector>
 #include <array>
+#include <expected>
 #include <unordered_map>
-#include <cstdint>
+#include <tsl/robin_map.h>
 
 namespace lcf::render {
 
@@ -16,54 +17,45 @@ namespace lcf::render {
     class VulkanDescriptorSetAllocator2
     {
         using Self = VulkanDescriptorSetAllocator2;
-    public:
         struct PoolGroup
         {
+            PoolGroup() = default;
+
             vk::DescriptorPool getCurrentAvailablePool() const noexcept;
             void setCurrentAvailablePoolFull();
-            void resetAllocatedSets(vk::Device device);
-            void destroyPools(vk::Device device);
+            void destroyCurrentAvailablePool(vk::Device device);
+            void destroyPools(vk::Device device) noexcept;
+            void addPool(vk::DescriptorPool pool);
 
             std::vector<vk::DescriptorPool> m_full_pools;
             std::vector<vk::DescriptorPool> m_available_pools;
         };
-
+        using PoolGroupMap = tsl::robin_map<vkenums::DescriptorSetStrategy, PoolGroup>;
+        using SetToPoolMap = std::unordered_map<vkenums::DescriptorSetStrategy, std::unordered_map<VkDescriptorSet, vk::DescriptorPool>>;
+    public:
+        using AllocResult = std::expected<VulkanDescriptorSet2, std::error_code>;
+    public:
         VulkanDescriptorSetAllocator2() = default;
-        ~VulkanDescriptorSetAllocator2();
+        ~VulkanDescriptorSetAllocator2() noexcept;
         VulkanDescriptorSetAllocator2(const Self &) = delete;
         Self & operator=(const Self &) = delete;
         VulkanDescriptorSetAllocator2(Self &&) = default;
         Self & operator=(Self &&) = default;
-
-        void create(VulkanContext * context_p);
-
-        // Allocate ePerFrame / ePersistent descriptor set
-        VulkanDescriptorSet2 allocate(const VulkanDescriptorSetLayout2 & layout);
-
-        // Allocate eBindless descriptor set (maxSets=1, eUpdateAfterBind pool).
-        // Pool is created internally and tracked by handle — caller never sees it.
-        VulkanDescriptorSet2 allocateBindless(const VulkanDescriptorSetLayout2 & layout,
-                                              uint32_t variable_count);
-
-        // Deallocate (ePerFrame = no-op, ePersistent = individual free)
-        void deallocate(vk::DescriptorSet handle, vkenums::DescriptorSetStrategy strategy);
-
-        // Deallocate a bindless set — destroys its backing pool via internal mapping
-        void deallocateBindless(vk::DescriptorSet handle);
-
-        // Batch reset pools for a given strategy (caller decides when)
-        void resetPools(vkenums::DescriptorSetStrategy strategy);
-
+    public:
+        void create(vk::Device device) noexcept;
+        AllocResult allocate(const VulkanDescriptorSetLayout2 & layout) noexcept;
+        AllocResult allocateBindless(
+            const VulkanDescriptorSetLayout2 & layout,
+            uint32_t variable_count) noexcept;
+        void deallocate(VulkanDescriptorSet2 && set);
     private:
-        vk::DescriptorPool acquirePool(vkenums::DescriptorSetStrategy strategy);
-        vk::DescriptorPool createPool(vkenums::DescriptorSetStrategy strategy);
-        PoolGroup & getPoolGroup(vkenums::DescriptorSetStrategy strategy);
-
-        VulkanContext * m_context_p = nullptr;
-        // [0] = ePerFrame, [1] = ePersistent
-        mutable std::array<PoolGroup, 2> m_pool_groups;
-        // Bindless: each DS has its own pool (maxSets=1), tracked by DS handle
-        std::unordered_map<VkDescriptorSet, vk::DescriptorPool> m_bindless_pool_map;
+        AllocResult allocate(const VulkanDescriptorSetLayout2 & layout, const vk::DescriptorSetAllocateInfo & alloc_info) noexcept;
+        vk::DescriptorPool tryGetPool(vkenums::DescriptorSetStrategy strategy) noexcept;
+        vk::DescriptorPool createPool(vkenums::DescriptorSetStrategy strategy) noexcept;
+        vk::DescriptorPool createPoolForBindless(const VulkanDescriptorSetLayout2 & layout, uint32_t variable_count) noexcept;
+    private:
+        vk::Device m_device = nullptr;
+        PoolGroupMap m_pool_groups;      
+        SetToPoolMap m_set_to_pool_map;
     };
-
 }

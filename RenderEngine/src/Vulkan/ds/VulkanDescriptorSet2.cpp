@@ -66,9 +66,9 @@ void VulkanDescriptorSet2::commitUpdate(vk::Device device)
         const auto & b = m_binding_list[pw.binding];
         vk::WriteDescriptorSet w;
         w.setDstSet(m_descriptor_set)
-            .setDstBinding(b.binding)
+            .setDstBinding(b.getLayoutBinding().binding)
             .setDstArrayElement(pw.array_index)
-            .setDescriptorType(b.descriptorType);
+            .setDescriptorType(b.getLayoutBinding().descriptorType);
         std::visit([&w](auto & info) {
             using T = std::decay_t<decltype(info)>;
             if constexpr (std::is_same_v<T, vk::DescriptorBufferInfo>) { w.setBufferInfo(info); }

@@ -50,7 +50,7 @@ namespace lcf::render {
     private:
         vk::DescriptorSet m_descriptor_set = nullptr;
         BindingList m_binding_list;
-        vkenums::DescriptorSetStrategy m_strategy = vkenums::DescriptorSetStrategy::ePerFrame;
+        vkenums::DescriptorSetStrategy m_strategy = vkenums::DescriptorSetStrategy::eIndividual;
         uint32_t m_set_index = 0u;
         std::vector<PendingWrite> m_pending_writes;
     };

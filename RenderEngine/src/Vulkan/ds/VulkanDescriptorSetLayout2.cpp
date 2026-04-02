@@ -3,11 +3,11 @@
 #include "Vulkan/vulkan_constants.h"
 
 using namespace lcf::render;
-using Strategy = vkenums::DescriptorSetStrategy;
+namespace stdv = std::views;
 
-VulkanDescriptorSetLayout2 & VulkanDescriptorSetLayout2::setBindings(BindingReadSpan bindings)
+VulkanDescriptorSetLayout2 & VulkanDescriptorSetLayout2::setBindings(BindingReadSpan bindings) noexcept
 {
-    m_binding_list.assign(bindings.begin(), bindings.end());
+    m_binding_list.assign_range(bindings);
     return *this;
 }
 
@@ -17,61 +17,38 @@ VulkanDescriptorSetLayout2 & VulkanDescriptorSetLayout2::setIndex(uint32_t index
     return *this;
 }
 
-VulkanDescriptorSetLayout2 & VulkanDescriptorSetLayout2::setStrategy(Strategy strategy) noexcept
+std::error_code VulkanDescriptorSetLayout2::create(vk::Device device) noexcept
 {
-    m_strategy = strategy;
-    return *this;
-}
-
-void VulkanDescriptorSetLayout2::create(VulkanContext * context_p)
-{
-    m_context_p = context_p;
-
-    // --- extract raw bindings and collect per-binding flags ---
-    std::vector<vk::DescriptorSetLayoutBinding> raw_bindings;
-    raw_bindings.reserve(m_binding_list.size());
-
-    m_binding_flags_list.resize(m_binding_list.size());
-
-    constexpr auto kBindlessBaseFlags = vk::DescriptorBindingFlagBits::eUpdateAfterBind
-                                      | vk::DescriptorBindingFlagBits::ePartiallyBound
-                                      | vk::DescriptorBindingFlagBits::eUpdateUnusedWhilePending;
-
-    for (size_t i = 0; i < m_binding_list.size(); ++i) {
-        auto & b = m_binding_list[i];
-
-        // If strategy is bindless, ensure base bindless flags are present on every binding
-        if (m_strategy == Strategy::eBindless) {
-            b.flags |= kBindlessBaseFlags;
-        }
-
-        // If binding has eVariableDescriptorCount, set descriptorCount to layout max
-        if (b.hasFlag(vk::DescriptorBindingFlagBits::eVariableDescriptorCount)) {
-            b.descriptorCount = vkconstants::bindless::k_max_variable_descriptor_count;
-        }
-
-        m_binding_flags_list[i] = b.flags;
-        raw_bindings.emplace_back(static_cast<vk::DescriptorSetLayoutBinding>(b));
+    if (m_binding_list.empty()) { return std::make_error_code(std::errc::invalid_argument); }
+    std::vector<vk::DescriptorSetLayoutBinding> layout_bindings;
+    std::vector<vk::DescriptorBindingFlags> layout_binding_flags;
+    layout_bindings.reserve(m_binding_list.size());
+    layout_binding_flags.reserve(m_binding_list.size());
+    
+    if (m_binding_list.back().containsFlags(vk::DescriptorBindingFlagBits::eVariableDescriptorCount)) {
+        m_strategy = vkenums::DescriptorSetStrategy::eBindless;
+        constexpr auto k_bindless_base_flags = vk::DescriptorBindingFlagBits::eUpdateAfterBind |
+            vk::DescriptorBindingFlagBits::ePartiallyBound |
+            vk::DescriptorBindingFlagBits::eUpdateUnusedWhilePending;
+        for (auto & binding : m_binding_list) { binding.addFlags(k_bindless_base_flags); }
     }
+    layout_bindings.assign_range(m_binding_list | stdv::transform([](const auto & binding) { return binding.getLayoutBinding(); }));
+    layout_binding_flags.assign_range(m_binding_list | stdv::transform([](const auto & binding) { return binding.getFlags(); }));
 
-    // --- create layout ---
     vk::DescriptorSetLayoutCreateInfo layout_info;
     vk::DescriptorSetLayoutBindingFlagsCreateInfo binding_flags_info;
-
-    bool has_any_flags = std::ranges::any_of(m_binding_flags_list, [](auto f) {
-        return f != vk::DescriptorBindingFlags{};
-    });
-
-    if (has_any_flags) {
-        if (m_strategy == Strategy::eBindless) {
-            m_flags |= vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool;
-        }
-        binding_flags_info.setBindingFlags(m_binding_flags_list);
-        layout_info.setPNext(&binding_flags_info);
+    vk::DescriptorSetLayoutCreateFlags layout_flags {};
+    if (m_strategy == vkenums::DescriptorSetStrategy::eBindless) {
+        layout_flags |= vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool;
     }
-
-    layout_info.setBindings(raw_bindings)
-               .setFlags(m_flags);
-
-    m_layout = m_context_p->getDevice().createDescriptorSetLayoutUnique(layout_info);
+    binding_flags_info.setBindingFlags(layout_binding_flags);
+    layout_info.setBindings(layout_bindings)
+        .setFlags(layout_flags)
+        .setPNext(&binding_flags_info);
+    try {
+        m_layout = device.createDescriptorSetLayoutUnique(layout_info);
+    } catch (const vk::SystemError & e) {
+        return e.code();
+    }
+    return {};
 }

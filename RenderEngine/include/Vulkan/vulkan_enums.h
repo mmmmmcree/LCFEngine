@@ -9,9 +9,8 @@
 namespace lcf::render::vkenums {
     enum class DescriptorSetStrategy : uint8_t //- only 2bits is used
     {
-        ePerFrame,   // Batch reset per frame, no individual free
-        ePersistent,   // Long-lived, individually freeable (reserved, not currently used)
-        eBindless,   // Descriptor indexing, update-after-bind
+        eIndividual = 0,   // Long-lived, individually freeable
+        eBindless = 1,   // Descriptor indexing, update-after-bind
     };
 
 namespace internal {
@@ -24,8 +23,8 @@ namespace internal {
 
     enum class DescriptorSetIndex : uint8_t
     {
-        ePerView          = internal::encode(DescriptorSetStrategy::ePerFrame, 0),
-        eBindlessBuffers  = internal::encode(DescriptorSetStrategy::eBindless, 1),
+        ePerView = internal::encode(DescriptorSetStrategy::eIndividual, 0),
+        eBindlessBuffers = internal::encode(DescriptorSetStrategy::eBindless, 1),
         eBindlessTextures = internal::encode(DescriptorSetStrategy::eBindless, 2),
     };
 
