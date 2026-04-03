@@ -3,16 +3,15 @@
 #include <vulkan/vulkan.hpp>
 #include "Vulkan/vulkan_enums.h"
 #include <vector>
-#include <array>
 #include <expected>
-#include <unordered_map>
 #include <tsl/robin_map.h>
 
 namespace lcf::render {
 
-    class VulkanContext;
     class VulkanDescriptorSet2;
     class VulkanDescriptorSetLayout2;
+
+namespace detail {
 
     class VulkanDescriptorSetAllocator2
     {
@@ -55,7 +54,10 @@ namespace lcf::render {
         vk::DescriptorPool createPoolForBindless(const VulkanDescriptorSetLayout2 & layout, uint32_t variable_count) noexcept;
     private:
         vk::Device m_device = nullptr;
-        PoolGroupMap m_pool_groups;      
+        PoolGroupMap m_pool_groups;
         SetToPoolMap m_set_to_pool_map;
     };
+
+} // namespace detail
+
 }

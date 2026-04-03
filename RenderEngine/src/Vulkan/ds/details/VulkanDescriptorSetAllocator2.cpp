@@ -1,10 +1,11 @@
-#include "Vulkan/ds/VulkanDescriptorSetAllocator2.h"
+#include "Vulkan/ds/details/VulkanDescriptorSetAllocator2.h"
 #include "Vulkan/ds/VulkanDescriptorSet2.h"
 #include "Vulkan/ds/VulkanDescriptorSetLayout2.h"
-#include "Vulkan/VulkanContext.h"
+#include "Vulkan/vulkan_constants.h"
 #include <ranges>
 
 using namespace lcf::render;
+using namespace lcf::render::detail;
 
 VulkanDescriptorSetAllocator2::~VulkanDescriptorSetAllocator2() noexcept
 {
@@ -52,7 +53,7 @@ VulkanDescriptorSetAllocator2::AllocResult VulkanDescriptorSetAllocator2::alloca
     return this->allocate(layout, alloc_info);
 }
 
-void VulkanDescriptorSetAllocator2::deallocate(VulkanDescriptorSet2 &&set)
+void VulkanDescriptorSetAllocator2::deallocate(VulkanDescriptorSet2 && set)
 {
     auto pool = m_set_to_pool_map[set.getStrategy()][set.getHandle()];
     switch (set.getStrategy()) {
@@ -123,7 +124,7 @@ vk::DescriptorPool VulkanDescriptorSetAllocator2::createPool(vkenums::Descriptor
 }
 
 vk::DescriptorPool VulkanDescriptorSetAllocator2::createPoolForBindless(
-    const VulkanDescriptorSetLayout2 &layout,
+    const VulkanDescriptorSetLayout2 & layout,
     uint32_t variable_count) noexcept
 {
     std::vector<vk::DescriptorPoolSize> pool_sizes;
