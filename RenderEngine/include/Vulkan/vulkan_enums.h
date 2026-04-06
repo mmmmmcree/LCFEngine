@@ -28,7 +28,6 @@ namespace internal {
         eBindlessTextures = internal::encode(DescriptorSetStrategy::eBindless, 2),
     };
 
-namespace internal {
     enum class BindlessBufferBinding : uint8_t //- only 3bits is used, reserve 4 bits for future use
     {
         eVertexBufferAddresses,
@@ -43,14 +42,14 @@ namespace internal {
     {
         eSamplers,
         // eTextures3D,
-        // eTexturesCube,
+        eTextureCubes,
         // eTexturesCubeArray,
         // eTextures2DArray,
         // eStorageImages2D,
         // eStorageImages3D,
         eTexture2Ds   // LAST → variable descriptor count
     };
-
+namespace internal {
     inline constexpr uint16_t encode(DescriptorSetIndex index, uint8_t binding_point) noexcept
     {
         return (std::to_underlying(index) << 8) | binding_point;
@@ -71,13 +70,14 @@ namespace internal {
         // Per-view
         eCamera = internal::encode(DescriptorSetIndex::ePerView, 0),
         // Bindless buffers
-        eVertexBufferAddresses = internal::encode(DescriptorSetIndex::eBindlessBuffers, internal::BindlessBufferBinding::eVertexBufferAddresses),
-        eIndexBufferAddresses = internal::encode(DescriptorSetIndex::eBindlessBuffers, internal::BindlessBufferBinding::eIndexBufferAddresses),
-        eTransforms = internal::encode(DescriptorSetIndex::eBindlessBuffers, internal::BindlessBufferBinding::eTransforms),
-        eMaterialRecords = internal::encode(DescriptorSetIndex::eBindlessBuffers, internal::BindlessBufferBinding::eMaterialRecords),
+        eVertexBufferAddresses = internal::encode(DescriptorSetIndex::eBindlessBuffers, BindlessBufferBinding::eVertexBufferAddresses),
+        eIndexBufferAddresses = internal::encode(DescriptorSetIndex::eBindlessBuffers, BindlessBufferBinding::eIndexBufferAddresses),
+        eTransforms = internal::encode(DescriptorSetIndex::eBindlessBuffers, BindlessBufferBinding::eTransforms),
+        eMaterialRecords = internal::encode(DescriptorSetIndex::eBindlessBuffers, BindlessBufferBinding::eMaterialRecords),
         // Bindless textures
-        eSamplers = internal::encode(DescriptorSetIndex::eBindlessTextures, internal::BindlessTextureBinding::eSamplers),
-        eTexture2Ds = internal::encode(DescriptorSetIndex::eBindlessTextures, internal::BindlessTextureBinding::eTexture2Ds),
+        eSamplers = internal::encode(DescriptorSetIndex::eBindlessTextures, BindlessTextureBinding::eSamplers),
+        sTextureCubes = internal::encode(DescriptorSetIndex::eBindlessTextures, BindlessTextureBinding::eTextureCubes),
+        eTexture2Ds = internal::encode(DescriptorSetIndex::eBindlessTextures, BindlessTextureBinding::eTexture2Ds),
     };
 
 namespace decode {

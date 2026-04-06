@@ -31,7 +31,7 @@ namespace lcf::render {
         const vk::DeviceAddress & getDeviceAddress() const noexcept { return m_buffer_proxy.getDeviceAddress(); }
         uint64_t getSizeInBytes() const noexcept { return m_buffer_proxy.getSizeInBytes(); }
         vk::Buffer getHandle() const noexcept { return m_buffer_proxy.getHandle();  }
-        vk::DescriptorBufferInfo generateBufferInfo() const noexcept { return m_buffer_proxy.generateBufferInfo(); }
+        vk::DescriptorBufferInfo generateBufferInfo(vk::DeviceSize offset = 0u, vk::DeviceSize range = vk::WholeSize) const noexcept { return m_buffer_proxy.generateBufferInfo(offset, range); }
     private:
         void prepareResize(VulkanCommandBufferObject & cmd, VulkanBufferWriter & writer) noexcept;
     private:

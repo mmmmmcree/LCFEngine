@@ -88,7 +88,7 @@ void lcf::render::VulkanShaderProgram::createDescriptorSetLayoutBindingTable()
         vk::ShaderStageFlagBits vk_stage = enum_cast<vk::ShaderStageFlagBits>(stage);
         const ShaderResources &resources = shader->getResources();
         for (const auto &resource : resources.uniform_buffers) {
-            resource_info_list.emplace_back(vk_stage, vk::DescriptorType::eUniformBufferDynamic, resource);
+            resource_info_list.emplace_back(vk_stage, vk::DescriptorType::eUniformBuffer, resource);
         }
         for (const auto &resource : resources.sampled_images) {
             resource_info_list.emplace_back(vk_stage, vk::DescriptorType::eCombinedImageSampler, resource);

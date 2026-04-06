@@ -64,6 +64,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     // ! temporary
 
     m_per_view_uniform_buffer.setUsage(GPUBufferUsage::eUniform)
+        .setPattern(GPUBufferPattern::eDynamic)
         .create(m_context_p, size_of_v<Matrix4x4> * 3); // projection, view, projection_view
 
     m_per_renderable_ssbo_group.create(m_context_p, GPUBufferPattern::eDynamic);
@@ -253,23 +254,16 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         .setFrontFace(vk::FrontFace::eCounterClockwise);
     m_skybox_pipeline.create(m_context_p, skybox_pipeline_info);
 
-    auto skybox_ds_sp = VulkanDescriptorSet::makeShared();
-    skybox_ds_sp->create(m_skybox_pipeline.getDescriptorSetLayoutSharedPtr(std::to_underlying(DescriptorSetBindingPoints::ePerMaterial)));
-    m_skybox_material.create(skybox_ds_sp);
-    m_skybox_material.setTexture(1, 0, cube_map_sp)
-        .setSampler(1, 0, sampler_manager.getShared(SamplerPreset::eEnvironmentMap))
-        .commitUpdate();
-
     auto layout_sp = m_graphics_pipeline.getDescriptorSetLayoutSharedPtr(std::to_underlying(DescriptorSetBindingPoints::ePerMaterial));
     auto material_ds_sp = VulkanDescriptorSet::makeShared();
     material_ds_sp->create(layout_sp);
     m_material.create(material_ds_sp);
     for (const auto & [texture_id, texture_sp] : m_texture_map) {
-        m_material.setTexture(1, texture_id, texture_sp);
+        m_material.setTexture(std::to_underlying(vkenums::BindlessTextureBinding::eTexture2Ds), texture_id, texture_sp);
     }
-    m_material.setSampler(0, 0, sampler_manager.getShared(SamplerPreset::eColorMap))
-        .setSampler(0, 1, sampler_manager.getShared(SamplerPreset::eColorMap))
-        // .setParamsSSBO(0, m_per_material_params_ssbo_sp)
+    m_material.setSampler(std::to_underlying(vkenums::BindlessTextureBinding::eSamplers), 0, sampler_manager.getShared(SamplerPreset::eColorMap))
+        .setSampler(std::to_underlying(vkenums::BindlessTextureBinding::eSamplers), 2, sampler_manager.getShared(SamplerPreset::eEnvironmentMap))
+        .setTexture(std::to_underlying(vkenums::BindlessTextureBinding::eTextureCubes), 0, cube_map_sp)
         .commitUpdate();
 }
 
@@ -374,7 +368,7 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
 
     uint32_t dynamic_offset = 0;
     m_graphics_pipeline.bind(cmd);
-    m_graphics_pipeline.bindDescriptorSet(cmd, m_per_view_descriptor_set, dynamic_offset);
+    m_graphics_pipeline.bindDescriptorSet(cmd, m_per_view_descriptor_set);
     m_graphics_pipeline.bindDescriptorSet(cmd, m_per_renderable_descriptor_set);
     m_graphics_pipeline.bindDescriptorSet(cmd, m_material.getDescriptorSet());
     
@@ -384,9 +378,9 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
     
     m_skybox_pipeline.bind(cmd);
 
-    m_skybox_pipeline.bindDescriptorSet(cmd, m_per_view_descriptor_set, dynamic_offset);
-    m_skybox_pipeline.bindDescriptorSet(cmd, m_skybox_material.getDescriptorSet());
-    cmd.draw(36, 1, 0, 0); // draw with const data in shader program
+    m_skybox_pipeline.bindDescriptorSet(cmd, m_per_view_descriptor_set);
+    m_skybox_pipeline.bindDescriptorSet(cmd, m_material.getDescriptorSet());
+    cmd.draw(36, 1, 0, 10); // draw with const data in shader program
     
     current_framebuffer.endRendering(cmd);
 

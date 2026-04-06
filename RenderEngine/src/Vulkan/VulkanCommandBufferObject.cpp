@@ -11,8 +11,8 @@ std::error_code VulkanCommandBufferObject::create(VulkanContext *context_p, vk::
     if (not context_p or not context_p->isCreated()) { return std::make_error_code(std::errc::invalid_argument); }
     m_context_p = context_p;
     m_queue_type = queue_type;
-    m_timeline_semaphore_sp = VulkanTimelineSemaphore::makeShared();
-    m_timeline_semaphore_sp->create(m_context_p);
+    m_timeline_semaphore_sp = std::make_shared<VulkanTimelineSemaphore>();
+    if (auto ec = m_timeline_semaphore_sp->create(m_context_p->getDevice())) { return ec; }
     vk::CommandBufferAllocateInfo command_buffer_info;
     command_buffer_info.setCommandPool(m_context_p->getCommandPool(queue_type))
         .setLevel(vk::CommandBufferLevel::ePrimary)

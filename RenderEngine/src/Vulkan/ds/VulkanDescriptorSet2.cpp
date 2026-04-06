@@ -36,25 +36,14 @@ VulkanDescriptorSet2 & VulkanDescriptorSet2::operator=(Self && other) noexcept
     return *this;
 }
 
-VulkanDescriptorSet2 & VulkanDescriptorSet2::addDescriptorInfo(uint32_t binding, const vk::DescriptorBufferInfo & info)
+VulkanDescriptorSet2 & VulkanDescriptorSet2::addDescriptorInfo(uint32_t binding, const DescriptorInfo & info)
 {
     return this->addDescriptorInfo(binding, 0u, info);
 }
 
-VulkanDescriptorSet2 & VulkanDescriptorSet2::addDescriptorInfo(uint32_t binding, uint32_t array_index, const vk::DescriptorBufferInfo & info)
+VulkanDescriptorSet2 & VulkanDescriptorSet2::addDescriptorInfo(uint32_t binding, uint32_t array_index, const DescriptorInfo & info)
 {
-    m_pending_writes.emplace_back(binding, array_index, DescriptorInfo{info});
-    return *this;
-}
-
-VulkanDescriptorSet2 & VulkanDescriptorSet2::addDescriptorInfo(uint32_t binding, const vk::DescriptorImageInfo & info)
-{
-    return this->addDescriptorInfo(binding, 0u, info);
-}
-
-VulkanDescriptorSet2 & VulkanDescriptorSet2::addDescriptorInfo(uint32_t binding, uint32_t array_index, const vk::DescriptorImageInfo & info)
-{
-    m_pending_writes.emplace_back(binding, array_index, DescriptorInfo{info});
+    m_pending_writes.emplace_back(binding, array_index, info);
     return *this;
 }
 
@@ -62,19 +51,20 @@ void VulkanDescriptorSet2::commitUpdate(vk::Device device)
 {
     if (m_pending_writes.empty() || not device) { return; }
 
-    auto to_write = [this](PendingWrite & pw) -> vk::WriteDescriptorSet {
-        const auto & b = m_binding_list[pw.binding];
-        vk::WriteDescriptorSet w;
-        w.setDstSet(m_descriptor_set)
-            .setDstBinding(b.getLayoutBinding().binding)
-            .setDstArrayElement(pw.array_index)
-            .setDescriptorType(b.getLayoutBinding().descriptorType);
-        std::visit([&w](auto & info) {
+    auto to_write = [this](PendingWrite & pending_write) -> vk::WriteDescriptorSet
+    {
+        const auto & binding = m_binding_list[pending_write.binding];
+        vk::WriteDescriptorSet write;
+        write.setDstSet(m_descriptor_set)
+            .setDstBinding(binding.getLayoutBinding().binding)
+            .setDstArrayElement(pending_write.array_index)
+            .setDescriptorType(binding.getLayoutBinding().descriptorType);
+        std::visit([&write](auto & info) {
             using T = std::decay_t<decltype(info)>;
-            if constexpr (std::is_same_v<T, vk::DescriptorBufferInfo>) { w.setBufferInfo(info); }
-            else { w.setImageInfo(info); }
-        }, pw.info);
-        return w;
+            if constexpr (std::is_same_v<T, vk::DescriptorBufferInfo>) { write.setBufferInfo(info); }
+            else { write.setImageInfo(info); }
+        }, pending_write.info);
+        return write;
     };
 
     auto writes = m_pending_writes | std::views::transform(to_write) | std::ranges::to<std::vector>();

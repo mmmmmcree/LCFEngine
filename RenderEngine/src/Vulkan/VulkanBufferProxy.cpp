@@ -101,7 +101,7 @@ vk::Buffer VulkanBufferProxy::getHandle() const noexcept
     return m_buffer_rp->getHandle();
 }
 
-vk::DescriptorBufferInfo VulkanBufferProxy::generateBufferInfo() const noexcept
+vk::DescriptorBufferInfo VulkanBufferProxy::generateBufferInfo(vk::DeviceSize offset, vk::DeviceSize range) const noexcept
 {
-    return {this->getHandle(), 0u, vk::WholeSize};
+    return {this->getHandle(), offset, range};
 }

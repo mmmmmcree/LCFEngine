@@ -32,7 +32,7 @@ namespace lcf::render {
         Self & setPattern(GPUBufferPattern pattern) noexcept { m_buffer_pattern = pattern; return *this; }
         GPUBufferUsage getUsage() const noexcept { return m_buffer_usage; }
         GPUBufferPattern getPattern() const noexcept { return m_buffer_pattern; }
-        vk::DescriptorBufferInfo generateBufferInfo() const noexcept;
+        vk::DescriptorBufferInfo generateBufferInfo(vk::DeviceSize offset, vk::DeviceSize range) const noexcept;
     private:
         VulkanContext * m_context_p = nullptr;
         ResourcePointer<VulkanBuffer> m_buffer_rp;

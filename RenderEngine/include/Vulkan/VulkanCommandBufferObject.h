@@ -29,7 +29,7 @@ namespace lcf::render {
     private:
         VulkanContext * m_context_p = nullptr;
         vk::QueueFlagBits m_queue_type;
-        VulkanTimelineSemaphoreSharedPointer m_timeline_semaphore_sp;
+        std::shared_ptr<VulkanTimelineSemaphore> m_timeline_semaphore_sp;
         SemaphoreSubmitInfoList m_wait_infos;
         SemaphoreSubmitInfoList m_signal_infos;
         ResourceLeases m_resource_leases;

@@ -45,7 +45,7 @@ namespace lcf::render {
             uint64_t dst_offset_in_bytes = 0u) const noexcept;
     private:
         VulkanContext * m_context_p = nullptr;
-        mutable VulkanTimelineSemaphoreUniquePointer m_timeline_semaphore_up;
+        mutable std::unique_ptr<VulkanTimelineSemaphore> m_timeline_semaphore_up;
         GPUBufferPattern m_pattern = GPUBufferPattern::eDynamic;
         mutable WriteBufferRequestList m_write_requests;
     };

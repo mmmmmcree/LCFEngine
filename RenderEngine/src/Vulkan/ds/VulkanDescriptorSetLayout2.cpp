@@ -17,21 +17,15 @@ VulkanDescriptorSetLayout2 & VulkanDescriptorSetLayout2::setIndex(uint32_t index
     return *this;
 }
 
-std::error_code VulkanDescriptorSetLayout2::create(vk::Device device) noexcept
+std::error_code VulkanDescriptorSetLayout2::create(vk::Device device, vkenums::DescriptorSetStrategy strategy) noexcept
 {
     if (m_binding_list.empty()) { return std::make_error_code(std::errc::invalid_argument); }
+    m_strategy = strategy;
     std::vector<vk::DescriptorSetLayoutBinding> layout_bindings;
     std::vector<vk::DescriptorBindingFlags> layout_binding_flags;
     layout_bindings.reserve(m_binding_list.size());
     layout_binding_flags.reserve(m_binding_list.size());
     
-    if (m_binding_list.back().containsFlags(vk::DescriptorBindingFlagBits::eVariableDescriptorCount)) {
-        m_strategy = vkenums::DescriptorSetStrategy::eBindless;
-        constexpr auto k_bindless_base_flags = vk::DescriptorBindingFlagBits::eUpdateAfterBind |
-            vk::DescriptorBindingFlagBits::ePartiallyBound |
-            vk::DescriptorBindingFlagBits::eUpdateUnusedWhilePending;
-        for (auto & binding : m_binding_list) { binding.addFlags(k_bindless_base_flags); }
-    }
     layout_bindings.assign_range(m_binding_list | stdv::transform([](const auto & binding) { return binding.getLayoutBinding(); }));
     layout_binding_flags.assign_range(m_binding_list | stdv::transform([](const auto & binding) { return binding.getFlags(); }));
 

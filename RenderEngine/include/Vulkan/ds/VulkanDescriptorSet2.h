@@ -34,19 +34,14 @@ namespace lcf::render {
         VulkanDescriptorSet2(const Self &) = delete;
         Self & operator=(const Self &) = delete;
         operator bool() const noexcept { return static_cast<bool>(m_descriptor_set); }
-
     public:
-        Self & addDescriptorInfo(uint32_t binding, const vk::DescriptorBufferInfo & info);
-        Self & addDescriptorInfo(uint32_t binding, uint32_t array_index, const vk::DescriptorBufferInfo & info);
-        Self & addDescriptorInfo(uint32_t binding, const vk::DescriptorImageInfo & info);
-        Self & addDescriptorInfo(uint32_t binding, uint32_t array_index, const vk::DescriptorImageInfo & info);
-        void   commitUpdate(vk::Device device);
-
+        Self & addDescriptorInfo(uint32_t binding, const DescriptorInfo & info);
+        Self & addDescriptorInfo(uint32_t binding, uint32_t array_index, const DescriptorInfo & info);
+        void commitUpdate(vk::Device device);
         const vk::DescriptorSet & getHandle() const noexcept { return m_descriptor_set; }
         uint32_t getIndex() const noexcept { return m_set_index; }
         vkenums::DescriptorSetStrategy getStrategy() const noexcept { return m_strategy; }
         std::span<const VulkanDescriptorSetBinding> getBindings() const noexcept { return m_binding_list; }
-
     private:
         vk::DescriptorSet m_descriptor_set = nullptr;
         BindingList m_binding_list;

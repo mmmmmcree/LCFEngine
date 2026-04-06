@@ -22,7 +22,7 @@ namespace lcf::render {
         VulkanDescriptorSetLayout2(Self &&) = default;
         Self & operator=(Self &&) = default;
     public:
-        std::error_code create(vk::Device device) noexcept;
+        std::error_code create(vk::Device device, vkenums::DescriptorSetStrategy strategy) noexcept;
         Self & setBindings(BindingReadSpan bindings) noexcept;
         Self & setIndex(uint32_t index) noexcept;
         uint32_t getIndex() const noexcept { return m_layout_index; }

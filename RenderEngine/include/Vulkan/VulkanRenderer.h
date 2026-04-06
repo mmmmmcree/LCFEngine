@@ -60,6 +60,5 @@ namespace lcf {
         std::vector<VulkanBufferObject> m_material_params_list;
         std::vector<VulkanBufferObject> m_material_texture_ids_list;
         VulkanMaterial m_material;
-        VulkanMaterial m_skybox_material;
     };
 }

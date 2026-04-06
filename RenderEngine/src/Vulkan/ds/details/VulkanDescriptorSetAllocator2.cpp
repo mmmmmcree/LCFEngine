@@ -131,6 +131,12 @@ vk::DescriptorPool VulkanDescriptorSetAllocator2::createPoolForBindless(
     for (const auto & binding : layout.getBindings()) {
         pool_sizes.emplace_back(binding.getDescriptorType(), binding.getDescriptorCount());
     }
+    if (not layout.getBindings().empty()) {
+        const auto & last_binding = layout.getBindings().back();
+        if (last_binding.containsFlags(vk::DescriptorBindingFlagBits::eVariableDescriptorCount)) {
+            pool_sizes.back().descriptorCount = variable_count;
+        }
+    }
     vk::DescriptorPoolCreateInfo pool_info;
     pool_info.setFlags(vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind)
         .setMaxSets(1)

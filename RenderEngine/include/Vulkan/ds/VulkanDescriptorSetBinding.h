@@ -9,7 +9,7 @@ namespace lcf::render {
         using Self = VulkanDescriptorSetBinding;
     public:
         VulkanDescriptorSetBinding() = default;
-        VulkanDescriptorSetBinding(
+        constexpr VulkanDescriptorSetBinding(
             uint32_t binding_index,
             vk::DescriptorType descriptor_type,
             uint32_t descriptor_count,
