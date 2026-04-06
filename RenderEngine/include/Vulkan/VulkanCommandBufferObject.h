@@ -5,8 +5,6 @@
 #include "VulkanTimelineSemaphore.h"
 #include "resource_utils.h"
 #include <boost/container/vector.hpp>
-#include <boost/container/vector.hpp>
-#include <queue>
 
 namespace lcf::render {
     class VulkanCommandBufferObject : public vk::CommandBuffer
@@ -16,6 +14,8 @@ namespace lcf::render {
         using SemaphoreSubmitInfoList = boost::container::vector<vk::SemaphoreSubmitInfo>;
         using ResourceLeases = boost::container::vector<ResourceLease>;
         VulkanCommandBufferObject() = default;
+        VulkanCommandBufferObject(const Self &) = default;
+        Self & operator=(const Self &) = default;
         ~VulkanCommandBufferObject() noexcept;
         std::error_code create(VulkanContext * context_p, vk::QueueFlagBits queue_type);
         vk::QueueFlagBits getQueueType() const noexcept { return m_queue_type; }

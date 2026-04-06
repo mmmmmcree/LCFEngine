@@ -11,8 +11,7 @@ namespace lcf::render {
     {
         using Self = VulkanDescriptorSetLayout2;
     public:
-        using BindingList      = std::vector<VulkanDescriptorSetBinding>;
-        using BindingFlagsList = std::vector<vk::DescriptorBindingFlags>;
+        using BindingList = std::vector<VulkanDescriptorSetBinding>;
         using BindingReadSpan  = std::span<const VulkanDescriptorSetBinding>;
     public:
         VulkanDescriptorSetLayout2() = default;

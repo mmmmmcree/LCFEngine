@@ -139,15 +139,8 @@ void VulkanPipeline::bind(VulkanCommandBufferObject & cmd) const noexcept
 
 void VulkanPipeline::bindDescriptorSet(
     VulkanCommandBufferObject & cmd,
-    const VulkanDescriptorSet & descriptor_set) const noexcept
+    uint32_t set_index,
+    const vk::DescriptorSet & descriptor_set) const noexcept
 {
-    cmd.bindDescriptorSets(this->getType(), this->getPipelineLayout(), descriptor_set.getIndex(), descriptor_set.getHandle(), nullptr);
-}
-
-void VulkanPipeline::bindDescriptorSet(
-    VulkanCommandBufferObject & cmd,
-    const VulkanDescriptorSet & descriptor_set,
-    uint32_t & dynamic_offset) const noexcept
-{
-    cmd.bindDescriptorSets(this->getType(), this->getPipelineLayout(), descriptor_set.getIndex(), descriptor_set.getHandle(), dynamic_offset);
+    cmd.bindDescriptorSets(this->getType(), this->getPipelineLayout(), set_index, descriptor_set, nullptr);
 }

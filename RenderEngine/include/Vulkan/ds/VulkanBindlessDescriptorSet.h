@@ -1,0 +1,61 @@
+#pragma once
+
+#include "Vulkan/ds/VulkanDescriptorSet2.h"
+#include "Vulkan/ds/VulkanDescriptorSetLayout2.h"
+#include "Vulkan/vulkan_constants.h"
+#include <vulkan/vulkan.hpp>
+#include <memory>
+#include <vector>
+#include <deque>
+#include <tsl/robin_map.h>
+
+namespace lcf::render {
+
+namespace detail {
+    class VulkanBindlessDescriptorSetAllocator;
+}
+
+    class VulkanBindlessDescriptorSet
+    {
+        using Self = VulkanBindlessDescriptorSet;
+        using DescriptorInfo = std::variant<vk::DescriptorBufferInfo, vk::DescriptorImageInfo>;
+        using AuthorityBindingMap = std::vector<tsl::robin_map<uint32_t, DescriptorInfo>>;
+        struct Slot
+        {
+            Slot() = default;
+            Slot(VulkanDescriptorSet2 set, uint32_t variable_count) : set(std::move(set)), variable_count(variable_count) {}
+            VulkanDescriptorSet2 set;
+            uint32_t variable_count = vkconstants::ds::k_initial_variable_descriptor_count >> 1;
+        };
+        using FrameSlots = std::vector<Slot>;
+        using RetiredSlots = std::deque<Slot>;
+    public:
+        VulkanBindlessDescriptorSet() = default;
+        ~VulkanBindlessDescriptorSet() noexcept;
+        VulkanBindlessDescriptorSet(const Self &) = delete;
+        Self & operator=(const Self &) = delete;
+        VulkanBindlessDescriptorSet(Self && other) noexcept = default;
+        Self & operator=(Self && other) noexcept = default;
+        operator bool() const noexcept;
+    public:
+        std::error_code create(
+            vk::Device device,
+            vkenums::BindlessSetType bindless_set_type,
+            uint32_t frame_copies) noexcept;
+        Self & addDescriptorInfo(uint32_t binding, uint32_t array_index, const DescriptorInfo & info);
+        void commitUpdate(vk::Device device) noexcept;
+        const vk::DescriptorSet & getHandle() const noexcept;
+        uint32_t getIndex() const noexcept { return m_layout.getIndex(); }
+        vkenums::DescriptorSetStrategy getStrategy() const noexcept { return m_layout.getStrategy(); }
+        std::span<const VulkanDescriptorSetBinding> getBindings() const noexcept { return m_layout.getBindings(); }
+    private:
+        std::error_code recreateSlot(vk::Device device, Slot & slot);
+    private:
+        std::unique_ptr<detail::VulkanBindlessDescriptorSetAllocator> m_allocator_up;
+        VulkanDescriptorSetLayout2 m_layout;
+        AuthorityBindingMap m_authority_binding_map;
+        FrameSlots m_frame_slots;
+        RetiredSlots m_retired_slots;
+        uint32_t m_current_index = 0u;
+    };
+} // namespace lcf::render

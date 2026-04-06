@@ -24,11 +24,10 @@ namespace lcf::render {
         operator bool() const { return this->isValid(); }
         bool isValid() const { return m_pipeline.get(); } 
         void bind(VulkanCommandBufferObject & cmd) const noexcept;
-        void bindDescriptorSet(VulkanCommandBufferObject & cmd, const VulkanDescriptorSet & descriptor_set) const noexcept;
         void bindDescriptorSet(
             VulkanCommandBufferObject & cmd,
-            const VulkanDescriptorSet & descriptor_set,
-            uint32_t & dynamic_offset) const noexcept;
+            uint32_t set_index,
+            const vk::DescriptorSet & descriptor_set) const noexcept;
         Self & setShaderProgram(const VulkanShaderProgram::SharedPointer &shader_program) { m_shader_program = shader_program; return *this; }
         VulkanShaderProgram * getShaderProgram() const { return m_shader_program.get(); }
         vk::PipelineLayout getPipelineLayout() const { return m_shader_program->getPipelineLayout(); }

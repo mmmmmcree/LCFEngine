@@ -12,7 +12,7 @@ namespace lcf::render {
         using BufferList = std::vector<VulkanBufferObject>;
     public:
         VulkanBufferObjectGroup() = default;
-        ~VulkanBufferObjectGroup() noexcept = default;
+        ~VulkanBufferObjectGroup() noexcept;
         VulkanBufferObjectGroup(const Self &) = delete;
         Self & operator=(const Self &) = delete;
         VulkanBufferObjectGroup(Self &&) = default;

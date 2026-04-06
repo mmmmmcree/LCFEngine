@@ -41,17 +41,13 @@ namespace detail {
         VulkanDescriptorSetAllocator2(Self &&) = default;
         Self & operator=(Self &&) = default;
     public:
-        void create(vk::Device device) noexcept;
+        std::error_code create(vk::Device device) noexcept;
         AllocResult allocate(const VulkanDescriptorSetLayout2 & layout) noexcept;
-        AllocResult allocateBindless(
-            const VulkanDescriptorSetLayout2 & layout,
-            uint32_t variable_count) noexcept;
         void deallocate(VulkanDescriptorSet2 && set);
     private:
         AllocResult allocate(const VulkanDescriptorSetLayout2 & layout, const vk::DescriptorSetAllocateInfo & alloc_info) noexcept;
         vk::DescriptorPool tryGetPool(vkenums::DescriptorSetStrategy strategy) noexcept;
         vk::DescriptorPool createPool(vkenums::DescriptorSetStrategy strategy) noexcept;
-        vk::DescriptorPool createPoolForBindless(const VulkanDescriptorSetLayout2 & layout, uint32_t variable_count) noexcept;
     private:
         vk::Device m_device = nullptr;
         PoolGroupMap m_pool_groups;

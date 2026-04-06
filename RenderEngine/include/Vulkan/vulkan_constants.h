@@ -90,9 +90,16 @@ namespace ds {
             k_bindless_base_flags
         },
         {
+            vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eTextureCubes),
+            vk::DescriptorType::eSampledImage,
+            64u,
+            vk::ShaderStageFlagBits::eFragment,
+            k_bindless_base_flags
+        },
+        {
             vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eTexture2Ds),
             vk::DescriptorType::eSampledImage,
-            k_initial_variable_descriptor_count,
+            k_max_variable_descriptor_count,
             vk::ShaderStageFlagBits::eFragment,
             k_bindless_base_flags | vk::DescriptorBindingFlagBits::eVariableDescriptorCount
         },

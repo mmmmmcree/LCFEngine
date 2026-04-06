@@ -28,6 +28,12 @@ namespace internal {
         eBindlessTextures = internal::encode(DescriptorSetStrategy::eBindless, 2),
     };
 
+    enum class BindlessSetType : uint8_t //- only 1bits is used
+    {
+        eBuffer = 0,
+        eTexture = 1
+    };
+
     enum class BindlessBufferBinding : uint8_t //- only 3bits is used, reserve 4 bits for future use
     {
         eVertexBufferAddresses,
@@ -76,7 +82,7 @@ namespace internal {
         eMaterialRecords = internal::encode(DescriptorSetIndex::eBindlessBuffers, BindlessBufferBinding::eMaterialRecords),
         // Bindless textures
         eSamplers = internal::encode(DescriptorSetIndex::eBindlessTextures, BindlessTextureBinding::eSamplers),
-        sTextureCubes = internal::encode(DescriptorSetIndex::eBindlessTextures, BindlessTextureBinding::eTextureCubes),
+        eTextureCubes = internal::encode(DescriptorSetIndex::eBindlessTextures, BindlessTextureBinding::eTextureCubes),
         eTexture2Ds = internal::encode(DescriptorSetIndex::eBindlessTextures, BindlessTextureBinding::eTexture2Ds),
     };
 

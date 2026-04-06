@@ -17,9 +17,11 @@ VulkanDescriptorSetAllocator2::~VulkanDescriptorSetAllocator2() noexcept
     }
 }
 
-void VulkanDescriptorSetAllocator2::create(vk::Device device) noexcept
+std::error_code VulkanDescriptorSetAllocator2::create(vk::Device device) noexcept
 {
+    if (not device) { return std::make_error_code(std::errc::invalid_argument);  }
     m_device = device;
+    return {};
 }
 
 VulkanDescriptorSetAllocator2::AllocResult VulkanDescriptorSetAllocator2::allocate(const VulkanDescriptorSetLayout2 & layout) noexcept
@@ -32,24 +34,6 @@ VulkanDescriptorSetAllocator2::AllocResult VulkanDescriptorSetAllocator2::alloca
     vk::DescriptorSetAllocateInfo alloc_info;
     alloc_info.setDescriptorPool(pool)
         .setSetLayouts(layout.getHandle());
-    return this->allocate(layout, alloc_info);
-}
-
-VulkanDescriptorSetAllocator2::AllocResult VulkanDescriptorSetAllocator2::allocateBindless(
-    const VulkanDescriptorSetLayout2 & layout,
-    uint32_t variable_count) noexcept
-{
-    auto strategy = layout.getStrategy();
-    if (strategy != vkenums::DescriptorSetStrategy::eBindless) {
-        return std::unexpected(std::make_error_code(std::errc::invalid_argument));
-    }
-    auto pool = this->createPoolForBindless(layout, variable_count);
-    vk::DescriptorSetAllocateInfo alloc_info;
-    vk::DescriptorSetVariableDescriptorCountAllocateInfo variable_descriptor_count_info;
-    variable_descriptor_count_info.setDescriptorCounts(variable_count);
-    alloc_info.setDescriptorPool(pool)
-        .setSetLayouts(layout.getHandle())
-        .setPNext(&variable_descriptor_count_info);
     return this->allocate(layout, alloc_info);
 }
 
@@ -117,31 +101,6 @@ vk::DescriptorPool VulkanDescriptorSetAllocator2::createPool(vkenums::Descriptor
             .setPoolSizes(k_pool_sizes);
     }
     vk::DescriptorPool pool;
-    try {
-        pool = m_device.createDescriptorPool(pool_info);
-    } catch (const vk::SystemError &) {}
-    return pool;
-}
-
-vk::DescriptorPool VulkanDescriptorSetAllocator2::createPoolForBindless(
-    const VulkanDescriptorSetLayout2 & layout,
-    uint32_t variable_count) noexcept
-{
-    std::vector<vk::DescriptorPoolSize> pool_sizes;
-    for (const auto & binding : layout.getBindings()) {
-        pool_sizes.emplace_back(binding.getDescriptorType(), binding.getDescriptorCount());
-    }
-    if (not layout.getBindings().empty()) {
-        const auto & last_binding = layout.getBindings().back();
-        if (last_binding.containsFlags(vk::DescriptorBindingFlagBits::eVariableDescriptorCount)) {
-            pool_sizes.back().descriptorCount = variable_count;
-        }
-    }
-    vk::DescriptorPoolCreateInfo pool_info;
-    pool_info.setFlags(vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind)
-        .setMaxSets(1)
-        .setPoolSizes(pool_sizes);
-    vk::DescriptorPool pool {};
     try {
         pool = m_device.createDescriptorPool(pool_info);
     } catch (const vk::SystemError &) {}

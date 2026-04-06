@@ -3,6 +3,8 @@
 
 using namespace lcf::render;
 
+VulkanBufferObjectGroup::~VulkanBufferObjectGroup() noexcept = default;
+
 bool VulkanBufferObjectGroup::create(VulkanContext *context_p, GPUBufferPattern pattern)
 {
     m_context_p = context_p;

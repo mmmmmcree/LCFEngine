@@ -38,7 +38,7 @@ namespace lcf::render {
         const vk::CommandPool & getCommandPool(vk::QueueFlagBits queue_type) const noexcept;
         const VulkanMemoryAllocator & getMemoryAllocator() const noexcept { return m_memory_allocator; }
         const VulkanDescriptorSetAllocator & getDescriptorSetAllocator() const noexcept { return m_descriptor_set_allocator; }
-        const VulkanDescriptorSetManager & getDescriptorSetManager() const noexcept { return m_descriptor_set_manager; }
+        VulkanDescriptorSetManager & getDescriptorSetManager() noexcept { return m_descriptor_set_manager; }
         const VulkanSamplerManager & getSamplerManager() const noexcept { return m_sampler_manager; }
     private:
         void setupVulkanInstance();
