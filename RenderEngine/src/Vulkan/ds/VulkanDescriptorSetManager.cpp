@@ -13,6 +13,7 @@ std::error_code VulkanDescriptorSetManager::create(VulkanContext & context) noex
     vk::Device device = m_context_p->getDevice();
     m_allocator_up = std::make_unique<detail::VulkanDescriptorSetAllocator2>();
     if (auto ec = m_allocator_up->create(device)) { return ec; }
+    return {};
 }
 
 VulkanDescriptorSet2 VulkanDescriptorSetManager::createSet(const VulkanDescriptorSetLayout2 & layout)
