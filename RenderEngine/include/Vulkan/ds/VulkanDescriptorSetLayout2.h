@@ -26,10 +26,10 @@ namespace lcf::render {
         Self & setIndex(uint32_t index) noexcept;
         uint32_t getIndex() const noexcept { return m_layout_index; }
         vkenums::DescriptorSetStrategy getStrategy() const noexcept { return m_strategy; }
-        BindingReadSpan getBindings() const noexcept { return m_binding_list; }
+        const VulkanDescriptorSetLayoutBindings & getBindings() const noexcept { return m_bindings; }
         const vk::DescriptorSetLayout & getHandle() const noexcept { return m_layout.get(); }
     private:
-        BindingList m_binding_list;
+        VulkanDescriptorSetLayoutBindings m_bindings;
         vkenums::DescriptorSetStrategy m_strategy = vkenums::DescriptorSetStrategy::eIndividual;
         uint32_t m_layout_index = 0u;
         vk::UniqueDescriptorSetLayout m_layout;

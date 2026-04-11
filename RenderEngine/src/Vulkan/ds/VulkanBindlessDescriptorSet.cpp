@@ -62,7 +62,7 @@ void VulkanBindlessDescriptorSet::commitUpdate(vk::Device device) noexcept
     m_current_index = (m_current_index + 1u) % static_cast<uint32_t>(m_frame_slots.size());
     auto & slot = m_frame_slots[m_current_index];
     const auto & bindings = m_layout.getBindings();
-    if (bindings.back().containsFlags(vk::DescriptorBindingFlagBits::eVariableDescriptorCount) and
+    if (bindings.containsFlags(vk::DescriptorBindingFlagBits::eVariableDescriptorCount) and
         m_authority_binding_map.back().size() > slot.variable_count) {
         this->recreateSlot(device, slot);
     }

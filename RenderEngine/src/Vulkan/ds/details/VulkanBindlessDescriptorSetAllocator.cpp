@@ -33,8 +33,11 @@ VulkanBindlessDescriptorSetAllocator::AllocResult VulkanBindlessDescriptorSetAll
     vk::DescriptorSetVariableDescriptorCountAllocateInfo variable_descriptor_count_info;
     variable_descriptor_count_info.setDescriptorCounts(variable_count);
     alloc_info.setDescriptorPool(pool)
-        .setSetLayouts(layout.getHandle())
-        .setPNext(&variable_descriptor_count_info);
+        .setSetLayouts(layout.getHandle());
+    auto bindings = layout.getBindings();
+    if (bindings.containsFlags(vk::DescriptorBindingFlagBits::eVariableDescriptorCount)) {
+        alloc_info.setPNext(&variable_descriptor_count_info);
+    }
     vk::DescriptorSet descriptor_set;
     try {
         descriptor_set = m_device.allocateDescriptorSets(alloc_info).front();
@@ -61,11 +64,8 @@ vk::DescriptorPool VulkanBindlessDescriptorSetAllocator::createPool(
     for (const auto & binding : layout.getBindings()) {
         pool_sizes.emplace_back(binding.getDescriptorType(), binding.getDescriptorCount());
     }
-    if (not layout.getBindings().empty()) {
-        const auto & last_binding = layout.getBindings().back();
-        if (last_binding.containsFlags(vk::DescriptorBindingFlagBits::eVariableDescriptorCount)) {
-            pool_sizes.back().descriptorCount = variable_count;
-        }
+    if (layout.getBindings().containsFlags(vk::DescriptorBindingFlagBits::eVariableDescriptorCount)) {
+        pool_sizes.back().descriptorCount = variable_count;
     }
     vk::DescriptorPoolCreateInfo pool_info;
     pool_info.setFlags(vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind)
