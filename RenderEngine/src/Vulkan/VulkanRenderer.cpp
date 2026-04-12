@@ -12,6 +12,7 @@
 #include "render_assets/Texture2D.h"
 #include "common/glsl_type_traits.h"
 #include "Vulkan/vulkan_enums.h"
+#include "Vulkan/VulkanTextureManager.h"
 
 namespace stdr = std::ranges;
 namespace stdv = std::views;
@@ -75,10 +76,6 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     m_per_renderable_ssbo_group.emplace(200 * size_of_v<Matrix4x4>, GPUBufferUsage::eShaderStorage); // transforms
     m_per_renderable_ssbo_group.emplace(size_of_v<vk::DeviceAddress> * 2 * 100, GPUBufferUsage::eShaderStorage); // material records
 
-    // m_per_material_params_ssbo_sp = VulkanBufferObject::makeShared();
-    // m_per_material_params_ssbo_sp->setUsage(GPUBufferUsage::eShaderStorage)
-    //     .create(m_context_p, size_of_v<vk::DeviceAddress> * 2 * 100);
-
     m_indirect_call_buffer.setUsage(GPUBufferUsage::eIndirect)
         .create(m_context_p, size_of_v<vk::DrawIndirectCommand> + 1 * size_of_v<vk::DrawIndirectCommand>); // uint32_t(for IndirectDrawCount) + padding | vk::DrawIndirectCommand ...
 
@@ -91,8 +88,6 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         .setIndex(std::to_underlying(DescriptorSetBindingPoints::ePerRenderable))
         .create(m_context_p);
     m_per_view_descriptor_set.create(per_view_descriptor_set_layout_sp);
-    m_per_renderable_descriptor_set.create(per_renderable_descriptor_set_layout_sp);
-
     vk::DescriptorBufferInfo per_view_buffer_info;
     per_view_buffer_info.setBuffer(m_per_view_uniform_buffer.getHandle())
         .setOffset(0)
@@ -100,20 +95,27 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     auto ds_updater = m_per_view_descriptor_set.generateUpdater();
     ds_updater.add(std::to_underlying(PerViewBindingPoints::eCamera), per_view_buffer_info)
         .update();
-
-    ds_updater = m_per_renderable_descriptor_set.generateUpdater();
-
-    ds_updater.add(std::to_underlying(PerRenderableBindingPoints::eVertexBuffer), m_per_renderable_ssbo_group[0].generateBufferInfo())
-        .add(std::to_underlying(PerRenderableBindingPoints::eIndexBuffer), m_per_renderable_ssbo_group[1].generateBufferInfo())
-        .add(std::to_underlying(PerRenderableBindingPoints::eTransform), m_per_renderable_ssbo_group[2].generateBufferInfo())
-        .add(vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eMaterialRecords), m_per_renderable_ssbo_group[3].generateBufferInfo())
-        .update();
+    
+    auto & bindless_buffer_ds = descriptor_set_manager.getBindlessBufferSet();
+    bindless_buffer_ds.addDescriptorInfo(
+        std::to_underlying(vkenums::BindlessBufferBinding::eVertexBufferAddresses),
+        m_per_renderable_ssbo_group[0].generateBufferInfo()
+    ).addDescriptorInfo(
+        std::to_underlying(vkenums::BindlessBufferBinding::eIndexBufferAddresses),
+        m_per_renderable_ssbo_group[1].generateBufferInfo()
+    ).addDescriptorInfo(
+        std::to_underlying(vkenums::BindlessBufferBinding::eTransforms),
+        m_per_renderable_ssbo_group[2].generateBufferInfo()
+    ).addDescriptorInfo(
+        std::to_underlying(vkenums::BindlessBufferBinding::eMaterialRecords),
+        m_per_renderable_ssbo_group[3].generateBufferInfo()
+    ).commitUpdate(device);
 
     auto image1_sp = Texture2D::makeShared();
     image1_sp->loadFromFileGpuFriendly({"assets/images/bk.jpg"});
     auto image2_sp = Texture2D::makeShared();
     image2_sp->loadFromFileGpuFriendly({"assets/images/qt256.png"});
-
+    
     static uint32_t s_texture_id = 0;
     std::unordered_map<Texture2D::SharedPointer, uint32_t> texture_id_map;
     auto upload_model_to_gpu = [this, &texture_id_map] (VulkanCommandBufferObject & cmd, Model & model) {
@@ -221,7 +223,6 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         auto descriptor_set_updater = descriptor_set_rp->generateUpdater();
         descriptor_set_updater.add(0, image_info).update();
 
-
         auto [w, h, z] = cube_map_sp->getExtent();
         VulkanFramebufferObjectCreateInfo fbo_info;
         fbo_info.setMaxExtent({w, h});
@@ -285,16 +286,16 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     bindless_texture_ds.addDescriptorInfo(
         std::to_underlying(vkenums::BindlessTextureBinding::eSamplers),
         0,
-        sampler1_info);
-    bindless_texture_ds.addDescriptorInfo(
+        sampler1_info
+    ).addDescriptorInfo(
         std::to_underlying(vkenums::BindlessTextureBinding::eSamplers),
         2,  
-        sampler2_info);
-    bindless_texture_ds.addDescriptorInfo(
+        sampler2_info
+    ).addDescriptorInfo(
         std::to_underlying(vkenums::BindlessTextureBinding::eTextureCubes),
         0,
-        cube_map_info);
-    bindless_texture_ds.commitUpdate(device);
+        cube_map_info
+    ).commitUpdate(device);
 }
 
 void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity & render_target)
@@ -396,11 +397,11 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
 
     current_framebuffer.beginRendering(cmd);
 
+    const auto & bindless_buffer_ds = m_context_p->getDescriptorSetManager().getBindlessBufferSet();
     const auto & bindless_texture_ds = m_context_p->getDescriptorSetManager().getBindlessTextureSet();
     m_graphics_pipeline.bind(cmd);
     m_graphics_pipeline.bindDescriptorSet(cmd, m_per_view_descriptor_set.getIndex(), m_per_view_descriptor_set.getHandle());
-    m_graphics_pipeline.bindDescriptorSet(cmd, m_per_renderable_descriptor_set.getIndex(), m_per_renderable_descriptor_set.getHandle());
-    m_graphics_pipeline.bindDescriptorSet(cmd, m_material.getDescriptorSet().getIndex(), m_material.getDescriptorSet().getHandle());
+    m_graphics_pipeline.bindDescriptorSet(cmd, bindless_buffer_ds.getIndex(), bindless_buffer_ds.getHandle());
     m_graphics_pipeline.bindDescriptorSet(cmd, bindless_texture_ds.getIndex(), bindless_texture_ds.getHandle());
     
     cmd.drawIndirectCount(m_indirect_call_buffer.getHandle(), sizeof(vk::DrawIndirectCommand),
@@ -410,7 +411,7 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
     m_skybox_pipeline.bind(cmd);
 
     m_skybox_pipeline.bindDescriptorSet(cmd, m_per_view_descriptor_set.getIndex(), m_per_view_descriptor_set.getHandle());
-    m_skybox_pipeline.bindDescriptorSet(cmd, m_material.getDescriptorSet().getIndex(), m_material.getDescriptorSet().getHandle());
+    m_skybox_pipeline.bindDescriptorSet(cmd, bindless_texture_ds.getIndex(), bindless_texture_ds.getHandle());
     cmd.draw(36, 1, 0, 10); // draw with const data in shader program
     
     current_framebuffer.endRendering(cmd);

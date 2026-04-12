@@ -42,7 +42,6 @@ namespace lcf {
 
         //! temporary
         VulkanDescriptorSet m_per_view_descriptor_set;
-        VulkanDescriptorSet m_per_renderable_descriptor_set;
 
         VulkanPipeline m_compute_pipeline;
         VulkanPipeline m_graphics_pipeline;
