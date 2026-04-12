@@ -43,6 +43,7 @@ namespace detail {
             vkenums::BindlessSetType bindless_set_type,
             uint32_t frame_copies) noexcept;
         Self & addDescriptorInfo(uint32_t binding, uint32_t array_index, const DescriptorInfo & info);
+        Self & addDescriptorInfo(uint32_t binding, const DescriptorInfo & info) { return this->addDescriptorInfo(binding, 0u, info); }
         void commitUpdate(vk::Device device) noexcept;
         const vk::DescriptorSet & getHandle() const noexcept;
         uint32_t getIndex() const noexcept { return m_layout.getIndex(); }
