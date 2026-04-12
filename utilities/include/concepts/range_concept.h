@@ -5,6 +5,10 @@
 
 namespace lcf {
     template <typename Range, typename T>
-    concept compatible_range_c = std::ranges::input_range<Range> and
-        std::convertible_to<std::ranges::range_reference_t<Range>, T>;
+    concept range_of_c = std::ranges::range<Range> and
+        std::same_as<std::ranges::range_value_t<Range>, T>;
+
+    template <typename Range, typename T>
+    concept convertible_range_of_c = std::ranges::range<Range> and
+        std::convertible_to<std::ranges::range_value_t<Range>, T>;
 }

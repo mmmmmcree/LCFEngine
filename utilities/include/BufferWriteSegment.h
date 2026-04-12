@@ -64,12 +64,11 @@ namespace lcf::impl {
             m_write_segment_upper_bound = std::max(m_write_segment_upper_bound, segment.getEndOffsetInBytes());
             return *this;
         }
-        template <compatible_range_c<BufferWriteSegment> Range>
-        Self & append(Range && range) noexcept
+        Self & append(range_of_c<BufferWriteSegment> auto && range) noexcept
         {
             m_write_segment_lower_bound = std::min(m_write_segment_lower_bound, std::ranges::min(range | std::views::transform([](auto && s) { return s.getBeginOffsetInBytes(); })));
             m_write_segment_upper_bound = std::max(m_write_segment_upper_bound, std::ranges::max(range | std::views::transform([](auto && s) { return s.getEndOffsetInBytes(); })));
-            m_segments.append_range(std::forward<Range>(range));
+            m_segments.append_range(std::forward<decltype(range)>(range));
             return *this;
         }
         Self & addIfAbsent(const BufferWriteSegment& segment) noexcept
@@ -79,12 +78,11 @@ namespace lcf::impl {
             m_write_segment_upper_bound = std::max(m_write_segment_upper_bound, segment.getEndOffsetInBytes());
             return *this;
         }
-        template <compatible_range_c<BufferWriteSegment> Range>
-        Self & appendIfAbsent(Range && range) noexcept
+        Self & appendIfAbsent(range_of_c<BufferWriteSegment> auto && range) noexcept
         {
             m_write_segment_lower_bound = std::min(m_write_segment_lower_bound, std::ranges::min(range | std::views::transform([](auto && s) { return s.getBeginOffsetInBytes(); })));
             m_write_segment_upper_bound = std::max(m_write_segment_upper_bound, std::ranges::max(range | std::views::transform([](auto && s) { return s.getEndOffsetInBytes(); })));
-            m_segments.prepend_range(std::forward<Range>(range));
+            m_segments.prepend_range(std::forward<decltype(range)>(range));
             return *this;
         }
         bool empty() const noexcept { return m_segments.empty(); }
