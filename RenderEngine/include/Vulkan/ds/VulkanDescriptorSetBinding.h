@@ -2,6 +2,7 @@
 
 #include <vulkan/vulkan.hpp>
 #include <vector>
+#include "concepts/range_concept.h"
 
 namespace lcf::render {
 
@@ -80,8 +81,7 @@ namespace lcf::render {
         using BindingList = std::vector<VulkanDescriptorSetBinding>;
     public:
         VulkanDescriptorSetLayoutBindings() = default;
-        template <std::ranges::input_range Range>
-        requires std::convertible_to<std::ranges::range_value_t<Range>, VulkanDescriptorSetBinding>
+        template <convertible_range_of_c<VulkanDescriptorSetBinding> Range>
         VulkanDescriptorSetLayoutBindings(Range && bindings)
         {
             this->assign_range(std::forward<Range>(bindings));
@@ -99,8 +99,7 @@ namespace lcf::render {
         auto size() const noexcept { return m_bindings.size(); }
         bool empty() const noexcept { return m_bindings.empty(); }
         const VulkanDescriptorSetBinding & operator[](size_t index) const noexcept { return m_bindings[index]; }
-        template <std::ranges::input_range Range>
-        requires std::convertible_to<std::ranges::range_value_t<Range>, VulkanDescriptorSetBinding>
+        template <convertible_range_of_c<VulkanDescriptorSetBinding> Range>
         constexpr void assign_range(Range && range)
         {
             m_bindings.assign_range(std::forward<Range>(range));
