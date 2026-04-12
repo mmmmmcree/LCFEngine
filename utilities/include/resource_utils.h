@@ -115,6 +115,8 @@ namespace lcf {
         Resource & operator*() const { return *m_resource_p; }
         operator bool() const noexcept { return m_resource_p; }
         ResourceLease lease() const noexcept { return ResourceLease(m_control_block_p); }
+        Resource * & get() noexcept { return m_resource_p; }
+        const Resource * & get() const noexcept { return m_resource_p; }
     private:
         void create(Resource * resource_p)
         {
@@ -159,4 +161,15 @@ namespace lcf {
     {
         return ResourcePointer<Resource>(new Resource(std::forward<Args>(args)...), std::move(deleter));
     }
+}
+
+namespace std {
+    template <typename T>
+    struct hash<lcf::ResourcePointer<T>>
+    {
+        size_t operator()(const lcf::ResourcePointer<T> & ptr) const noexcept
+        {
+            return std::hash<T *>()(ptr.get());
+        }
+    };
 }
