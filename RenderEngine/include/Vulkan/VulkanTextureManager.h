@@ -27,14 +27,14 @@ namespace lcf::render {
     public:
         const Id & registerTexture(vkenums::BindlessTextureBinding binding, vk::Image texture_handle)
         {
-            auto [id_allocator, texture_to_id_map] = m_table[std::to_underlying(binding)];
+            auto & [id_allocator, texture_to_id_map] = m_table[std::to_underlying(binding)];
             if (texture_to_id_map.contains(texture_handle)) { return texture_to_id_map.at(texture_handle); }
             auto id = id_allocator.allocate();
-            return texture_to_id_map.insert(std::make_pair(texture_handle, id)).first->second;
+            return texture_to_id_map[texture_handle] = id;
         }
         void unregisterTexture(vkenums::BindlessTextureBinding binding, vk::Image texture_handle) noexcept
         {
-            auto [id_allocator, texture_to_id_map] = m_table[std::to_underlying(binding)];
+            auto & [id_allocator, texture_to_id_map] = m_table[std::to_underlying(binding)];
             auto it = texture_to_id_map.find(texture_handle);
             if (it == texture_to_id_map.end()) { return; }
             auto id = it->second;
@@ -45,11 +45,14 @@ namespace lcf::render {
         {
             return m_table[std::to_underlying(binding)].second.contains(texture_handle);
         }
-        Id getTextureId(vkenums::BindlessTextureBinding binding, vk::Image texture_handle) const noexcept
+        const Id & getTextureId(vkenums::BindlessTextureBinding binding, vk::Image texture_handle) const noexcept
         {
-            auto [_, texture_to_id_map] = m_table[std::to_underlying(binding)];
+            const auto & [_, texture_to_id_map] = m_table[std::to_underlying(binding)];
             auto it = texture_to_id_map.find(texture_handle);
-            if (it == texture_to_id_map.end()) { return 0; } // default texture 
+            if (it == texture_to_id_map.end()) {
+                static Id s_default_id = 0;
+                return s_default_id;
+            }
             return it->second;
         }
     private:

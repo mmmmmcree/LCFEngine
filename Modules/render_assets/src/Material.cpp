@@ -26,11 +26,11 @@ Material & Material::setParam(MaterialProperty property, const MaterialParam & p
     return *this;
 }
 
-const Texture2D::SharedPointer &Material::getTextureResource(TextureSemantic semantic) const noexcept
+const Texture2D & Material::getTexture(TextureSemantic semantic) const noexcept
 {
     auto it = m_texture_resources.find(semantic);
-    if (it != m_texture_resources.end()) { return it->second; }
-    return DefaultAssetProvider::getInstance().getTextureResource(semantic);
+    if (it != m_texture_resources.end()) { return *it->second; }
+    return *DefaultAssetProvider::getInstance().getTextureResource(semantic);
 }
 
 const MaterialParam & Material::getMaterialParam(MaterialProperty property) const noexcept

@@ -3,6 +3,7 @@
 #include "Geometry.h"
 #include "Material.h"
 #include <vector>
+#include <ranges>
 
 namespace lcf {
     class RenderPrimitive //- copyable
@@ -28,4 +29,14 @@ namespace lcf {
     };
 
     using RenderPrimitiveList = std::vector<RenderPrimitive>;
+
+    inline constexpr auto view_geometries = std::views::transform(
+    [](const RenderPrimitive & render_primitive) -> const Geometry & {
+        return render_primitive.getGeometry();
+    });
+
+    inline constexpr auto view_materials = std::views::transform(
+    [](const RenderPrimitive & render_primitive) -> const Material & {
+        return render_primitive.getMaterial();
+    });
 }

@@ -116,12 +116,10 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     auto image2_sp = Texture2D::makeShared();
     image2_sp->loadFromFileGpuFriendly({"assets/images/qt256.png"});
     
-    static uint32_t s_texture_id = 0;
-    std::unordered_map<Texture2D::SharedPointer, uint32_t> texture_id_map;
-    auto upload_model_to_gpu = [this, &texture_id_map] (VulkanCommandBufferObject & cmd, Model & model) {
-        auto geometry_range = model.m_render_primitive_list |
-            stdv::transform([](const auto & render_primitive) -> const Geometry & { return render_primitive.getGeometry(); });
-        for (const auto & geometry: geometry_range) {
+    std::unordered_map<const Texture2D *, uint32_t> texture_id_map;
+    VulkanBindlessTextureIdTable bindless_texture_id_table;
+    auto upload_model_to_gpu = [this, &texture_id_map, &bindless_texture_id_table] (VulkanCommandBufferObject & cmd, Model & model) {
+        for (const auto & geometry: model.getRenderPrimitives() | view_geometries) {
             auto & mesh = m_meshes.emplace_back();
             mesh.create(m_context_p, cmd,
                 generate_interleaved_segments<glsl::std140::enum_value_type_mapping_t>(
@@ -130,9 +128,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
                 ), geometry.getIndices());
         }
 
-        auto material_range = model.m_render_primitive_list |
-            stdv::transform([](const auto & render_primitive) -> const Material & { return render_primitive.getMaterial(); });
-        for (const auto & material: material_range) {
+        for (const auto & material: model.getRenderPrimitives() | view_materials) {
             auto & texture_params_buffer = m_material_params_list.emplace_back();
             texture_params_buffer.setUsage(GPUBufferUsage::eShaderStorage)
                 .setPattern(GPUBufferPattern::eStatic)
@@ -142,19 +138,21 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
             texture_ids_buffer.setUsage(GPUBufferUsage::eShaderStorage)
                 .setPattern(GPUBufferPattern::eStatic)
                 .create(m_context_p, 1);
-            for (auto texture_resource : get_texture_resources(material, ShadingModel::eStandard)) {
-                if (texture_id_map.contains(texture_resource)) { continue; }
-                uint32_t texture_id = s_texture_id++;
-                texture_id_map[texture_resource] = texture_id;
-                auto & image_sp = m_texture_map[texture_id] = VulkanImageObject::makeShared();
-                image_sp->setFormat(enum_cast<vk::Format>(texture_resource->getDecodeFormat()))
-                    .setExtent({ texture_resource->getWidth(), texture_resource->getHeight(), 1u })
+            for (const auto & texture_resource : get_textures(material, ShadingModel::eStandard)) {
+                if (texture_id_map.contains(&texture_resource)) { continue; }
+                auto image_sp = VulkanImageObject::makeShared();
+                
+                image_sp->setFormat(enum_cast<vk::Format>(texture_resource.getDecodeFormat()))
+                    .setExtent({ texture_resource.getWidth(), texture_resource.getHeight(), 1u })
                     .setUsage(vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst)
                     .create(m_context_p);
-                image_sp->setData(cmd, texture_resource->getDataSpan());
+                image_sp->setData(cmd, texture_resource.getDataSpan());
+                uint32_t texture_id = bindless_texture_id_table.registerTexture(vkenums::BindlessTextureBinding::eTexture2Ds, image_sp->getHandle());
+                texture_id_map[&texture_resource] = texture_id;
+                m_texture_map[texture_id] = image_sp;
             }
-            for (uint32_t offset = 0; const auto & texture_resource : get_texture_resources(material, ShadingModel::eStandard)) {
-                texture_ids_buffer.addWriteSegment({as_bytes_from_value(texture_id_map[texture_resource]), offset});
+            for (uint32_t offset = 0; const auto & texture_resource : get_textures(material, ShadingModel::eStandard)) {
+                texture_ids_buffer.addWriteSegment({as_bytes_from_value(texture_id_map[&texture_resource]), offset});
                 offset += sizeof(uint32_t);
             }
             texture_params_buffer.commit(cmd);

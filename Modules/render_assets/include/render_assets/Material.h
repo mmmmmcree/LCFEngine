@@ -41,7 +41,7 @@ namespace lcf {
             return std::get<enum_value_t<property>>(this->getMaterialParam(property));
         }
         Self & setTextureResource(TextureSemantic semantic, const Texture2DSharedPointer & texture_resource) noexcept;
-        const Texture2DSharedPointer & getTextureResource(TextureSemantic semantic) const noexcept;
+        const Texture2D & getTexture(TextureSemantic semantic) const noexcept;
         const MaterialParam & getMaterialParam(MaterialProperty property) const noexcept;
     private:
         ParamMap m_params;
@@ -74,10 +74,10 @@ namespace lcf {
         return segments;
     }
 
-    inline auto get_texture_resources(const Material & material, ShadingModel shading_model) noexcept
+    inline auto get_textures(const Material & material, ShadingModel shading_model) noexcept
     {
         return enum_values_v<TextureSemantic> | std::views::filter([shading_model](auto semantic) {
             return contains_flags(enum_decode::get_material_property_flags(shading_model), enum_decode::to_property_flags(semantic));
-        }) | std::views::transform([&material](auto semantic) -> const Texture2DSharedPointer & { return material.getTextureResource(semantic); });
+        }) | std::views::transform([&material](auto semantic) -> const Texture2D & { return material.getTexture(semantic); });
     }
 }

@@ -32,9 +32,8 @@ namespace lcf {
         Model(Model &&) = default;
         Model &operator=(Model &&) = default;
     public:
-        // std::vector<Entity> generateEntities(Registry & registry) const noexcept;
-        // Entity generateEntity(Registry & registry) const noexcept;
-    // private:
+        std::span<const RenderPrimitive> getRenderPrimitives() const noexcept { return m_render_primitive_list; }
+    public:
         RenderPrimitiveList m_render_primitive_list;
         HierarchyNodeList m_hierarchy_node_list;
     };
