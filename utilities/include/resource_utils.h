@@ -233,7 +233,7 @@ namespace lcf {
     public:
         ResourcePointer<Resource> lock() const noexcept
         {
-            if (not m_control_block_p or not not m_control_block_p->tryIncrementStrongCount()) { return {}; }
+            if (not m_control_block_p or not m_control_block_p->tryIncrementStrongCount()) { return {}; }
             ResourcePointer<Resource> result;
             result.m_resource_p = m_resource_p;
             result.m_control_block_p = m_control_block_p;
