@@ -24,6 +24,7 @@ namespace lcf {
                 registry_p->destroy(artifact_id);
             });
             m_control_block_p->increaseRefCount();
+            m_control_block_p->increaseWeakRefCount(); // one collective weak ref for the strong side
         }
         ~ResourceEntity() noexcept { this->tryDestroy(); }
         ResourceEntity(const ResourceEntity & other) noexcept :
@@ -73,7 +74,10 @@ namespace lcf {
             if (not m_control_block_p) { return; }
             auto * control_block_p = std::exchange(m_control_block_p, nullptr);
             if (control_block_p->decreaseRefCountAndShouldDestroy()) {
-                delete control_block_p;
+                control_block_p->destroyResource();
+                if (control_block_p->decreaseWeakRefCountAndShouldDelete()) {
+                    delete control_block_p;
+                }
             }
             m_registry_p = nullptr;
             m_artifact_id = ecs::null;
