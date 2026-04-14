@@ -1,6 +1,6 @@
 #pragma once
 
-#include "vulkan_fwd_decls.h"
+#include "Vulkan/vulkan_fwd_decls.h"
 #include <vulkan/vulkan.hpp>
 #include <vma/vk_mem_alloc.h>
 

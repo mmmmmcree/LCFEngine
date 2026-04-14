@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
-#include "vulkan_fwd_decls.h"
+#include "Vulkan/vulkan_fwd_decls.h"
 #include "resource_utils.h"
 #include "interval/interval_containers.h"
 #include <unordered_map>
@@ -38,6 +38,13 @@ namespace lcf::render {
         VulkanImageProxy(Self &&) noexcept = default;
         Self & operator=(Self &&) noexcept = default;
     public:
+        Self & addImageFlags(vk::ImageCreateFlags flags) noexcept { m_flags |= flags; return *this; }
+        Self & setFormat(vk::Format format) noexcept { m_format = format; return *this; }
+        Self & setExtent(vk::Extent3D extent) noexcept { m_extent = extent; return *this; }
+        Self & setMipmapped(bool mipmapped) noexcept { m_mip_level_count = !mipmapped; return *this; }
+        Self & setArrayLayers(uint16_t array_layers) noexcept { m_array_layers = array_layers; return *this; }
+        Self & setSamples(vk::SampleCountFlagBits samples) noexcept { m_samples = samples; return *this; }
+        Self & setUsage(vk::ImageUsageFlags usage) noexcept { m_usage = usage; return *this; }
         ResourceLease lease() const noexcept { return m_image_rp.lease(); }
         bool isCreated() const noexcept { return m_image_rp and this->getHandle(); }
         vk::Image getHandle() const noexcept;

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "render_assets/render_assets_fwd_decls.h"
-#include "VulkanBufferObject.h"
+#include "memory/VulkanBufferObject.h"
 
 namespace lcf::render {
     class VulkanMesh

@@ -2,7 +2,7 @@
 
 #include <vulkan/vulkan.hpp>
 #include "vulkan_fwd_decls.h"
-#include "VulkanAttachment.h"
+#include "memory/VulkanAttachment.h"
 #include <optional>
 
 namespace lcf::render {

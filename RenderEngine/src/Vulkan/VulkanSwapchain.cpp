@@ -1,6 +1,6 @@
 #include "Vulkan/VulkanSwapchain.h"
 #include "Vulkan/VulkanContext.h"
-#include "Vulkan/VulkanImageObject.h"
+#include "Vulkan/memory/VulkanImageObject.h"
 #include "gui/gui_enums.h"
 #include "gui/SurfaceBridge.h"
 #include "enums/enum_name.h"

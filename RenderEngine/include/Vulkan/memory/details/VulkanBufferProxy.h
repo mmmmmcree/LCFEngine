@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
-#include "vulkan_fwd_decls.h"
+#include "Vulkan/vulkan_fwd_decls.h"
 #include "common/render_enums.h"
 #include "BufferWriteSegment.h"
 #include "resource_utils.h"

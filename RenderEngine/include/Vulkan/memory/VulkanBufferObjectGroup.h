@@ -1,7 +1,7 @@
 #pragma once
 
-#include "vulkan_fwd_decls.h"
-#include "VulkanBufferWriter.h"
+#include "Vulkan/vulkan_fwd_decls.h"
+#include "details/VulkanBufferWriter.h"
 #include "VulkanBufferObject.h"
 #include <vector>
 

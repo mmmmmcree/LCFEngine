@@ -1,7 +1,7 @@
 #include "Vulkan/VulkanFramebufferObject.h"
 #include "Vulkan/VulkanContext.h"
 #include "Vulkan/VulkanCommandBufferObject.h"
-#include "Vulkan/VulkanImageObject.h"
+#include "Vulkan/memory/VulkanImageObject.h"
 #include "log.h"
 
 using namespace lcf::render;
@@ -45,7 +45,7 @@ bool VulkanFramebufferObject::create(VulkanContext *context_p, const VulkanFrame
         VulkanImageObject image;
         image.setUsage(vk::ImageUsageFlagBits::eDepthStencilAttachment)
             .setExtent({m_extent.width, m_extent.height, 1})
-            .setSamples(m_color_attachments.front().getImageProxy().getSamples())
+            .setSamples(m_color_attachments.front().getSamples())
             .setFormat(create_info.getDepthStencilFormat())
             .create(context_p);
         m_depth_stencil_attachment.emplace(image);
@@ -54,7 +54,7 @@ bool VulkanFramebufferObject::create(VulkanContext *context_p, const VulkanFrame
     if (create_info.isEnableMSAA()) {
         VulkanImageObject image;
         image.setUsage(vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eColorAttachment)
-            .setFormat(m_color_attachments.front().getImageProxy().getFormat())
+            .setFormat(m_color_attachments.front().getFormat())
             .setExtent({m_extent.width, m_extent.height, 1})
             .setSamples(vk::SampleCountFlagBits::e1)
             .create(context_p);

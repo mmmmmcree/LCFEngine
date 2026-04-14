@@ -1,7 +1,7 @@
-#include "Vulkan/VulkanBufferObject.h"
+#include "Vulkan/memory/VulkanBufferObject.h"
 #include "Vulkan/VulkanContext.h"
 #include "Vulkan/VulkanCommandBufferObject.h"
-#include "Vulkan/vulkan_memory_resources.h"
+#include "Vulkan/memory/vulkan_memory_resources.h"
 
 using namespace lcf::render;
 

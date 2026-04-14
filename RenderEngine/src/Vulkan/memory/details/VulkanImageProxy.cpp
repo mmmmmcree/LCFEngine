@@ -1,7 +1,7 @@
-#include "Vulkan/VulkanImageProxy.h"
+#include "Vulkan/memory/details/VulkanImageProxy.h"
 #include "Vulkan/VulkanContext.h"
 #include "Vulkan/VulkanCommandBufferObject.h"
-#include "Vulkan/vulkan_memory_resources.h"
+#include "Vulkan/memory/vulkan_memory_resources.h"
 #include "Vulkan/vulkan_utililtie.h"
 #include "log.h"
 

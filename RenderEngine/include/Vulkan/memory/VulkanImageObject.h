@@ -1,11 +1,13 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
-#include "vulkan_fwd_decls.h"
-#include "VulkanImageProxy.h"
+#include "Vulkan/vulkan_fwd_decls.h"
+#include "resource_utils.h"
 #include <memory>
 
 namespace lcf::render {
+    class VulkanImageProxy;
+
     class VulkanImageObject : public VulkanImageObjectPointerDefs
     {
         using Self = VulkanImageObject;
@@ -21,31 +23,31 @@ namespace lcf::render {
         bool create(VulkanContext * context_p, vk::Image external_image);
         void setData(VulkanCommandBufferObject & cmd, std::span<const std::byte> data, uint32_t layer = 0);
         void generateMipmaps(VulkanCommandBufferObject & cmd);
-        Self & addImageFlags(vk::ImageCreateFlags flags) { m_proxy_sp->m_flags |= flags; return *this; }
-        Self & setFormat(vk::Format format) { m_proxy_sp->m_format = format; return *this; }
-        Self & setExtent(vk::Extent3D extent) { m_proxy_sp->m_extent = extent; return *this; }
-        Self & setMipmapped(bool mipmapped) { m_proxy_sp->m_mip_level_count = !mipmapped; return *this; }
-        Self & setArrayLayers(uint16_t array_layers) { m_proxy_sp->m_array_layers = array_layers; return *this; }
-        Self & setSamples(vk::SampleCountFlagBits samples) { m_proxy_sp->m_samples = samples; return *this; }
-        Self & setUsage(vk::ImageUsageFlags usage) { m_proxy_sp->m_usage = usage; return *this; }
-        bool isCreated() const noexcept { return m_proxy_sp and m_proxy_sp->isCreated(); }
-        ResourceLease lease() const noexcept { return m_proxy_sp->lease(); }
-        vk::Image getHandle() const noexcept { return m_proxy_sp->getHandle(); }
-        std::span<std::byte> getMappedMemorySpan() const noexcept { return m_proxy_sp->getMappedMemorySpan(); }
-        vk::ImageView getDefaultView() const { return m_proxy_sp->getDefaultView(); }
-        vk::ImageView getView(const VulkanImageProxy::ImageViewKey & image_view_key) const { return m_proxy_sp->getView(image_view_key); }
-        vk::ImageCreateFlags getImageFlags() const { return m_proxy_sp->getImageFlags(); }
-        vk::ImageType getImageType() const noexcept { return m_proxy_sp->getImageType(); }
-        vk::Format getFormat() const { return m_proxy_sp->getFormat(); }
-        vk::Extent3D getExtent() const { return m_proxy_sp->getExtent(); }
-        uint32_t getMipLevelCount() const noexcept { return m_proxy_sp->getMipLevelCount(); }
-        uint32_t getArrayLayerCount() const { return m_proxy_sp->getArrayLayerCount(); }
-        vk::SampleCountFlagBits getSamples() const { return m_proxy_sp->getSamples(); }
-        vk::ImageAspectFlags getAspectFlags() const noexcept { return m_proxy_sp->getAspectFlags(); }
-        std::optional<vk::ImageLayout> getLayout() const noexcept { return m_proxy_sp->getLayout(); }
-        void transitLayout(VulkanCommandBufferObject & cmd, vk::ImageLayout new_layout) { m_proxy_sp->transitLayout(cmd, new_layout); }
-        void transitLayout(VulkanCommandBufferObject & cmd, const vk::ImageSubresourceRange & subresource_range, vk::ImageLayout new_layout) { m_proxy_sp->transitLayout(cmd, subresource_range, new_layout); }
-        void copyFrom(VulkanCommandBufferObject & cmd, vk::Buffer buffer, std::span<const vk::BufferImageCopy> regions) { m_proxy_sp->copyFrom(cmd, buffer, regions); }
+        Self & addImageFlags(vk::ImageCreateFlags flags) noexcept;
+        Self & setFormat(vk::Format format) noexcept;
+        Self & setExtent(vk::Extent3D extent) noexcept;
+        Self & setMipmapped(bool mipmapped) noexcept;
+        Self & setArrayLayers(uint16_t array_layers) noexcept;
+        Self & setSamples(vk::SampleCountFlagBits samples) noexcept;
+        Self & setUsage(vk::ImageUsageFlags usage) noexcept;
+        bool isCreated() const noexcept;
+        ResourceLease lease() const noexcept;
+        vk::Image getHandle() const noexcept;
+        std::span<std::byte> getMappedMemorySpan() const noexcept;
+        vk::ImageView getDefaultView() const;
+        vk::ImageView getView(const vk::ImageSubresourceRange & subresource_range) const;
+        vk::ImageCreateFlags getImageFlags() const;
+        vk::ImageType getImageType() const noexcept;
+        vk::Format getFormat() const;
+        vk::Extent3D getExtent() const;
+        uint32_t getMipLevelCount() const noexcept;
+        uint32_t getArrayLayerCount() const;
+        vk::SampleCountFlagBits getSamples() const;
+        vk::ImageAspectFlags getAspectFlags() const noexcept;
+        std::optional<vk::ImageLayout> getLayout() const noexcept;
+        void transitLayout(VulkanCommandBufferObject & cmd, vk::ImageLayout new_layout);
+        void transitLayout(VulkanCommandBufferObject & cmd, const vk::ImageSubresourceRange & subresource_range, vk::ImageLayout new_layout);
+        void copyFrom(VulkanCommandBufferObject & cmd, vk::Buffer buffer, std::span<const vk::BufferImageCopy> regions);
     private:
         std::shared_ptr<VulkanImageProxy> m_proxy_sp;
     };

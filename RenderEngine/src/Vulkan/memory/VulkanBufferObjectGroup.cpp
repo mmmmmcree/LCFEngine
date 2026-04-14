@@ -1,4 +1,4 @@
-#include "Vulkan/VulkanBufferObjectGroup.h"
+#include "Vulkan/memory/VulkanBufferObjectGroup.h"
 #include "Vulkan/VulkanCommandBufferObject.h"
 
 using namespace lcf::render;

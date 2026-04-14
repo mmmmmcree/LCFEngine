@@ -1,5 +1,5 @@
-#include "Vulkan/VulkanBufferProxy.h"
-#include "Vulkan/vulkan_memory_resources.h"
+#include "Vulkan/memory/details/VulkanBufferProxy.h"
+#include "Vulkan/memory/vulkan_memory_resources.h"
 #include "Vulkan/VulkanContext.h"
 #include <boost/align.hpp>
 

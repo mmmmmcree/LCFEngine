@@ -1,8 +1,8 @@
 #pragma once
 
-#include "vulkan_fwd_decls.h"
-#include "VulkanBufferWriter.h"
-#include "VulkanBufferProxy.h"
+#include "Vulkan/vulkan_fwd_decls.h"
+#include "details/VulkanBufferWriter.h"
+#include "details/VulkanBufferProxy.h"
 
 //todo use uint64_t m_version to record if buffer has been resized(a diffrent buffer proxy). Descriptor Set use this info to update
 

@@ -1,10 +1,12 @@
-#include "Vulkan/VulkanImageObject.h"
+#include "Vulkan/memory/VulkanImageObject.h"
+#include "Vulkan/memory/details/VulkanImageProxy.h"
 #include "Vulkan/VulkanContext.h"
 #include "Vulkan/VulkanCommandBufferObject.h"
-#include "Vulkan/vulkan_memory_resources.h"
-#include "Vulkan/VulkanBufferObject.h"
+#include "Vulkan/memory/vulkan_memory_resources.h"
+#include "Vulkan/memory/VulkanBufferObject.h"
 #include "log.h"
 
+using namespace lcf;
 using namespace lcf::render;
 
 VulkanImageObject::VulkanImageObject() :
@@ -62,4 +64,136 @@ void VulkanImageObject::generateMipmaps(VulkanCommandBufferObject & cmd)
         src_offsets = dst_offsets;
     }
     m_proxy_sp->transitLayout(cmd, vk::ImageLayout::eShaderReadOnlyOptimal);
+}
+
+VulkanImageObject & VulkanImageObject::addImageFlags(vk::ImageCreateFlags flags) noexcept
+{
+    m_proxy_sp->addImageFlags(flags);
+    return *this;
+}
+
+VulkanImageObject & VulkanImageObject::setFormat(vk::Format format) noexcept
+{
+    m_proxy_sp->setFormat(format);
+    return *this;
+}
+
+VulkanImageObject & VulkanImageObject::setExtent(vk::Extent3D extent) noexcept
+{
+    m_proxy_sp->setExtent(extent);
+    return *this;
+}
+
+VulkanImageObject & VulkanImageObject::setMipmapped(bool mipmapped) noexcept
+{
+    m_proxy_sp->setMipmapped(mipmapped);
+    return *this;
+}
+
+VulkanImageObject & VulkanImageObject::setArrayLayers(uint16_t array_layers) noexcept
+{
+    m_proxy_sp->setArrayLayers(array_layers);
+    return *this;
+}
+
+VulkanImageObject & VulkanImageObject::setSamples(vk::SampleCountFlagBits samples) noexcept
+{
+    m_proxy_sp->setSamples(samples);
+    return *this;
+}
+
+VulkanImageObject & VulkanImageObject::setUsage(vk::ImageUsageFlags usage) noexcept
+{
+    m_proxy_sp->setUsage(usage);
+    return *this;
+}
+
+bool VulkanImageObject::isCreated() const noexcept
+{
+    return m_proxy_sp and m_proxy_sp->isCreated(); 
+}
+
+ResourceLease VulkanImageObject::lease() const noexcept
+{
+    return m_proxy_sp->lease();
+}
+
+vk::Image VulkanImageObject::getHandle() const noexcept
+{
+    return m_proxy_sp->getHandle();
+}
+
+std::span<std::byte> VulkanImageObject::getMappedMemorySpan() const noexcept
+{
+    return m_proxy_sp->getMappedMemorySpan();
+}
+
+vk::ImageView VulkanImageObject::getDefaultView() const
+{
+    return m_proxy_sp->getDefaultView();
+}
+
+vk::ImageView VulkanImageObject::getView(const vk::ImageSubresourceRange & subresource_range) const
+{
+    return m_proxy_sp->getView(subresource_range);
+}
+
+vk::ImageCreateFlags VulkanImageObject::getImageFlags() const
+{
+    return m_proxy_sp->getImageFlags();
+}
+
+vk::ImageType VulkanImageObject::getImageType() const noexcept
+{
+    return m_proxy_sp->getImageType();
+}
+
+vk::Format VulkanImageObject::getFormat() const
+{
+    return m_proxy_sp->getFormat();
+}
+
+vk::Extent3D VulkanImageObject::getExtent() const
+{
+    return m_proxy_sp->getExtent();
+}
+
+uint32_t VulkanImageObject::getMipLevelCount() const noexcept
+{
+    return m_proxy_sp->getMipLevelCount();
+}
+
+uint32_t VulkanImageObject::getArrayLayerCount() const
+{
+    return m_proxy_sp->getArrayLayerCount();
+}
+
+vk::SampleCountFlagBits VulkanImageObject::getSamples() const
+{
+    return m_proxy_sp->getSamples();
+}
+
+vk::ImageAspectFlags VulkanImageObject::getAspectFlags() const noexcept
+{
+    return m_proxy_sp->getAspectFlags();
+}
+
+std::optional<vk::ImageLayout> VulkanImageObject::getLayout() const noexcept
+{
+    return m_proxy_sp->getLayout();
+}
+
+void VulkanImageObject::transitLayout(VulkanCommandBufferObject & cmd, vk::ImageLayout new_layout)
+{
+    m_proxy_sp->transitLayout(cmd, new_layout);
+}
+
+void VulkanImageObject::transitLayout(VulkanCommandBufferObject & cmd, const vk::ImageSubresourceRange & subresource_range, vk::ImageLayout new_layout)
+{
+    m_proxy_sp->transitLayout(cmd, subresource_range, new_layout);
+}
+
+void VulkanImageObject::copyFrom(VulkanCommandBufferObject & cmd, vk::Buffer buffer, std::span<const vk::BufferImageCopy> regions)
+{
+    m_proxy_sp->copyFrom(cmd, buffer, regions);
 }

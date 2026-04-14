@@ -1,8 +1,8 @@
-#include "Vulkan/VulkanBufferWriter.h"
+#include "Vulkan/memory/details/VulkanBufferWriter.h"
 #include "Vulkan/VulkanContext.h"
 #include "Vulkan/VulkanCommandBufferObject.h"
 #include "Vulkan/VulkanTimelineSemaphore.h"
-#include "Vulkan/VulkanBufferProxy.h"
+#include "Vulkan/memory/details/VulkanBufferProxy.h"
 #include "Vulkan/vulkan_utililtie.h"
 
 using namespace lcf::render;

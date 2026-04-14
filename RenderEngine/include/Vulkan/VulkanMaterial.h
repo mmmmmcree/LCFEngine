@@ -2,9 +2,9 @@
 
 #include <vulkan/vulkan.hpp>
 #include "VulkanDescriptorSet.h"
-#include "VulkanImageObject.h"
+#include "memory/VulkanImageObject.h"
 #include "VulkanSampler.h"
-#include "VulkanBufferObject.h"
+#include "memory/VulkanBufferObject.h"
 #include <bitset>
 #include <array>
 

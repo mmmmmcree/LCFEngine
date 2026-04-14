@@ -1,5 +1,6 @@
-#include "Vulkan/VulkanAttachment.h"
-#include "Vulkan/VulkanImageObject.h"
+#include "Vulkan/memory/VulkanAttachment.h"
+#include "Vulkan/memory/details/VulkanImageProxy.h"
+#include "Vulkan/memory/VulkanImageObject.h"
 #include "Vulkan/VulkanCommandBufferObject.h"
 #include "log.h"
 
@@ -37,8 +38,8 @@ void VulkanAttachment::blitTo(VulkanCommandBufferObject & cmd, VulkanAttachment 
     m_proxy_sp->blitTo(cmd,
         vk::ImageSubresourceLayers(m_proxy_sp->getAspectFlags(), m_mip_level, m_layer, m_layer_count),
         src_offsets,
-        dst.getImageProxy(),
-        vk::ImageSubresourceLayers(dst.getImageProxy().getAspectFlags(), dst.getMipLevel(), dst.getLayer(), dst.getLayerCount()),
+        *dst.m_proxy_sp,
+        vk::ImageSubresourceLayers(dst.m_proxy_sp->getAspectFlags(), dst.getMipLevel(), dst.getLayer(), dst.getLayerCount()),
         dst_offsets,
         filter
     );
@@ -64,8 +65,8 @@ void VulkanAttachment::copyTo(VulkanCommandBufferObject & cmd, VulkanAttachment 
     m_proxy_sp->copyTo(cmd,
         vk::ImageSubresourceLayers(m_proxy_sp->getAspectFlags(), m_mip_level, m_layer, m_layer_count),
         src_offset,
-        dst.getImageProxy(),
-        vk::ImageSubresourceLayers(dst.getImageProxy().getAspectFlags(), dst.getMipLevel(), dst.getLayer(), dst.getLayerCount()),
+        *dst.m_proxy_sp,
+        vk::ImageSubresourceLayers(dst.m_proxy_sp->getAspectFlags(), dst.getMipLevel(), dst.getLayer(), dst.getLayerCount()),
         dst_offset,
         extent
     );
@@ -95,4 +96,19 @@ vk::Extent3D VulkanAttachment::getExtent() const noexcept
 std::optional<vk::ImageLayout> VulkanAttachment::getLayout() const noexcept
 {
     return m_proxy_sp->getLayout(m_layer, m_layer_count, m_mip_level, 1);
+}
+
+vk::Format VulkanAttachment::getFormat() const noexcept
+{
+    return m_proxy_sp->getFormat();
+}
+
+vk::SampleCountFlagBits VulkanAttachment::getSamples() const noexcept
+{
+    return m_proxy_sp->getSamples();
+}
+
+vk::ImageAspectFlags VulkanAttachment::getAspectFlags() const noexcept
+{
+    return m_proxy_sp->getAspectFlags();
 }
