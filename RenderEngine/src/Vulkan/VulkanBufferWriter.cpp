@@ -42,7 +42,7 @@ void VulkanBufferWriter::write(VulkanCommandBufferObject &cmd) const noexcept
     }
     for (auto [buffer_proxy_p, segments_p] : m_write_requests) {
         (this->*execute_write_sequence_method)(cmd, *buffer_proxy_p, *segments_p);
-        cmd.acquireResourceLease(buffer_proxy_p->getResource().lease());
+        cmd.acquireResourceLease(buffer_proxy_p->lease());
     }
     m_timeline_semaphore_up->increaseTargetValue();
     cmd.addSignalSubmitInfo(m_timeline_semaphore_up->generateSubmitInfo());
@@ -68,7 +68,7 @@ void VulkanBufferWriter::executeGpuWriteSequence(
     staging_buffer_proxy.setUsage(GPUBufferUsage::eStaging)
         .create(m_context_p, write_size);
     staging_buffer_proxy.writeSegmentsDirectly(segments, -dst_offset);
-    cmd.acquireResourceLease(staging_buffer_proxy.getResource().lease());
+    cmd.acquireResourceLease(staging_buffer_proxy.lease());
     this->copyFromBufferWithBarriers(cmd,
         staging_buffer_proxy.getHandle(), buffer_proxy,
         write_size,

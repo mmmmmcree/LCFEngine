@@ -37,7 +37,7 @@ void VulkanImageObject::setData(VulkanCommandBufferObject &cmd, std::span<const 
     staging_buffer.setUsage(GPUBufferUsage::eStaging)
         .create(m_proxy_sp->m_context_p, data.size_bytes());
     staging_buffer.writeSegmentDirectly(data);
-    cmd.acquireResourceLease(staging_buffer.getResource().lease());
+    cmd.acquireResourceLease(staging_buffer.lease());
     vk::BufferImageCopy region;
     region.setImageSubresource({ m_proxy_sp->getAspectFlags(), 0, 0, 1 })
         .setImageOffset({ 0, 0, 0 })

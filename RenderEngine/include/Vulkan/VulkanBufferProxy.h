@@ -27,7 +27,7 @@ namespace lcf::render {
         vk::Buffer getHandle() const noexcept;
         std::span<std::byte> getMappedMemorySpan() const noexcept;
         const vk::DeviceAddress & getDeviceAddress() const noexcept { return m_device_address; }
-        const ResourcePointer<VulkanBuffer> & getResource() const noexcept { return m_buffer_rp; }
+        ResourceLease lease() noexcept { return m_buffer_rp.lease(); }
         Self & setUsage(GPUBufferUsage usage) noexcept { m_buffer_usage = usage; return *this; }
         Self & setPattern(GPUBufferPattern pattern) noexcept { m_buffer_pattern = pattern; return *this; }
         GPUBufferUsage getUsage() const noexcept { return m_buffer_usage; }
