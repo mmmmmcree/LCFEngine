@@ -21,7 +21,7 @@ bool VulkanFramebufferObject::create(VulkanContext *context_p, const VulkanFrame
         color_attachment_usage |= vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eSampled;
     }
     for (auto color_format : create_info.getColorFormats()) {
-        auto & image = this->addImage();
+        VulkanImageObject image;
         image.setUsage(color_attachment_usage)
             .setExtent({m_max_extent.width, m_max_extent.height, 1u})
             .setSamples(create_info.getSampleCount())
@@ -30,7 +30,7 @@ bool VulkanFramebufferObject::create(VulkanContext *context_p, const VulkanFrame
         m_color_attachments.emplace_back(image);
     }
     if (m_color_attachments.empty()) {
-        auto & image = this->addImage();
+        VulkanImageObject image;
         image.setUsage(vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst)
             .setExtent({m_max_extent.width, m_max_extent.height, 1u})
             .setSamples(vk::SampleCountFlagBits::e1)
@@ -42,19 +42,19 @@ bool VulkanFramebufferObject::create(VulkanContext *context_p, const VulkanFrame
         m_layer_count = std::min(m_layer_count, color_attachment.getLayerCount());
     }
     if (create_info.hasDepthStencilFormat()) {
-        auto & image = this->addImage();
+        VulkanImageObject image;
         image.setUsage(vk::ImageUsageFlagBits::eDepthStencilAttachment)
             .setExtent({m_extent.width, m_extent.height, 1})
-            .setSamples(m_color_attachments.front().getImageObject().getSamples())
+            .setSamples(m_color_attachments.front().getImageProxy().getSamples())
             .setFormat(create_info.getDepthStencilFormat())
             .create(context_p);
         m_depth_stencil_attachment.emplace(image);
         m_depth_stencil_attachment->setClearDepthStencilValue({1.0f, 0});
     }
     if (create_info.isEnableMSAA()) {
-        auto & image = this->addImage();
+        VulkanImageObject image;
         image.setUsage(vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eColorAttachment)
-            .setFormat(m_color_attachments.front().getImageObject().getFormat())
+            .setFormat(m_color_attachments.front().getImageProxy().getFormat())
             .setExtent({m_extent.width, m_extent.height, 1})
             .setSamples(vk::SampleCountFlagBits::e1)
             .create(context_p);
@@ -124,9 +124,4 @@ void VulkanFramebufferObject::setViewportAndScissor(VulkanCommandBufferObject &c
     scissor.setOffset({ 0, 0 }).setExtent(m_extent);
     cmd.setViewport(0, viewport);
     cmd.setScissor(0, scissor);
-}
-
-VulkanImageObject & VulkanFramebufferObject::addImage()
-{
-    return *m_owned_images.emplace_back(std::make_shared<VulkanImageObject>());
 }

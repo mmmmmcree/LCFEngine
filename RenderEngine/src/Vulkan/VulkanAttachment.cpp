@@ -11,7 +11,7 @@ VulkanAttachment::VulkanAttachment(VulkanImageObject & image) :
 }
 
 VulkanAttachment::VulkanAttachment(VulkanImageObject & image, uint32_t mip_level, uint32_t layer, uint32_t layer_count) :
-    m_image_p(&image),
+    m_proxy_sp(image.m_proxy_sp),
     m_mip_level(mip_level),
     m_layer(layer),
     m_layer_count(layer_count)
@@ -21,8 +21,8 @@ VulkanAttachment::VulkanAttachment(VulkanImageObject & image, uint32_t mip_level
         lcf_log_error(error.what());
         throw error;
     }
-    bool is_layer_valid = m_layer + m_layer_count <= m_image_p->getArrayLayerCount();
-    bool is_mip_level_valid = m_mip_level < m_image_p->getMipLevelCount();
+    bool is_layer_valid = m_layer + m_layer_count <= m_proxy_sp->getArrayLayerCount();
+    bool is_mip_level_valid = m_mip_level < m_proxy_sp->getMipLevelCount();
     if (not is_layer_valid or not is_mip_level_valid) {
         std::runtime_error error("Invalid attachment parameters");
         lcf_log_error(error.what());
@@ -34,12 +34,11 @@ VulkanAttachment::~VulkanAttachment() noexcept = default;
 
 void VulkanAttachment::blitTo(VulkanCommandBufferObject & cmd, VulkanAttachment &dst, vk::Filter filter, const Offset3DPair &src_offsets, const Offset3DPair &dst_offsets)
 {
-    auto & dst_image = dst.getImageObject();
-    m_image_p->blitTo(cmd,
-        vk::ImageSubresourceLayers(m_image_p->getAspectFlags(), m_mip_level, m_layer, m_layer_count),
+    m_proxy_sp->blitTo(cmd,
+        vk::ImageSubresourceLayers(m_proxy_sp->getAspectFlags(), m_mip_level, m_layer, m_layer_count),
         src_offsets,
-        dst_image,
-        vk::ImageSubresourceLayers(dst_image.getAspectFlags(), dst.getMipLevel(), dst.getLayer(), dst.getLayerCount()),
+        dst.getImageProxy(),
+        vk::ImageSubresourceLayers(dst.getImageProxy().getAspectFlags(), dst.getMipLevel(), dst.getLayer(), dst.getLayerCount()),
         dst_offsets,
         filter
     );
@@ -47,7 +46,7 @@ void VulkanAttachment::blitTo(VulkanCommandBufferObject & cmd, VulkanAttachment 
 
 bool VulkanAttachment::isValid() const noexcept
 {
-    return m_image_p and m_image_p->isCreated();
+    return m_proxy_sp and m_proxy_sp->isCreated();
 }
 
 void VulkanAttachment::blitTo(VulkanCommandBufferObject &cmd, VulkanAttachment &dst, vk::Filter filter)
@@ -62,12 +61,11 @@ void VulkanAttachment::blitTo(VulkanCommandBufferObject &cmd, VulkanAttachment &
 
 void VulkanAttachment::copyTo(VulkanCommandBufferObject & cmd, VulkanAttachment &dst, const vk::Offset3D &src_offset, const vk::Offset3D &dst_offset, const vk::Extent3D &extent)
 {
-    auto & dst_image = dst.getImageObject();
-    m_image_p->copyTo(cmd,
-        vk::ImageSubresourceLayers(m_image_p->getAspectFlags(), m_mip_level, m_layer, m_layer_count),
+    m_proxy_sp->copyTo(cmd,
+        vk::ImageSubresourceLayers(m_proxy_sp->getAspectFlags(), m_mip_level, m_layer, m_layer_count),
         src_offset,
-        dst_image,
-        vk::ImageSubresourceLayers(dst_image.getAspectFlags(), dst.getMipLevel(), dst.getLayer(), dst.getLayerCount()),
+        dst.getImageProxy(),
+        vk::ImageSubresourceLayers(dst.getImageProxy().getAspectFlags(), dst.getMipLevel(), dst.getLayer(), dst.getLayerCount()),
         dst_offset,
         extent
     );
@@ -75,27 +73,26 @@ void VulkanAttachment::copyTo(VulkanCommandBufferObject & cmd, VulkanAttachment 
 
 vk::ImageSubresourceRange VulkanAttachment::getSubresourceRange() const noexcept
 {
-    return vk::ImageSubresourceRange(m_image_p->getAspectFlags(), m_mip_level, 1, m_layer, m_layer_count);
+    return vk::ImageSubresourceRange(m_proxy_sp->getAspectFlags(), m_mip_level, 1, m_layer, m_layer_count);
 }
 
 vk::ImageView VulkanAttachment::getImageView() const noexcept
 {
-    return m_image_p->getView(this->getSubresourceRange());
+    return m_proxy_sp->getView(this->getSubresourceRange());
 }
 
 void VulkanAttachment::transitLayout(VulkanCommandBufferObject & cmd, vk::ImageLayout new_layout)
 {
-
-    m_image_p->transitLayout(cmd, this->getSubresourceRange(), new_layout);
+    m_proxy_sp->transitLayout(cmd, this->getSubresourceRange(), new_layout);
 }
 
 vk::Extent3D VulkanAttachment::getExtent() const noexcept
 {
-    vk::Extent3D extent = m_image_p->getExtent();
+    vk::Extent3D extent = m_proxy_sp->getExtent();
     return { extent.width >> m_mip_level, extent.height >> m_mip_level, extent.depth };
 }
 
 std::optional<vk::ImageLayout> VulkanAttachment::getLayout() const noexcept
 {
-    return m_image_p->getLayout(m_layer, m_layer_count, m_mip_level, 1);
+    return m_proxy_sp->getLayout(m_layer, m_layer_count, m_mip_level, 1);
 }

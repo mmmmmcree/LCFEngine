@@ -2,102 +2,51 @@
 
 #include <vulkan/vulkan.hpp>
 #include "vulkan_fwd_decls.h"
-#include "resource_utils.h"
-#include "interval/interval_containers.h"
-#include <unordered_map>
+#include "VulkanImageProxy.h"
+#include <memory>
 
 namespace lcf::render {
-    class VulkanAttachment;
-
-    struct MemoryAllocationCreateInfo;
-
     class VulkanImageObject : public VulkanImageObjectPointerDefs
     {
         using Self = VulkanImageObject;
-        struct ImageViewKey
-        {
-            ImageViewKey(const vk::ImageSubresourceRange & range, const vk::ComponentMapping & components = {}) :
-                m_range(range), m_components(components) {}
-            bool operator==(const ImageViewKey & other) const noexcept;
-            vk::ImageSubresourceRange m_range;
-            vk::ComponentMapping m_components;
-        };
-        struct ImageViewKeyHash
-        {
-            std::size_t operator()(const ImageViewKey & key) const noexcept;
-        };
-        using ImageViewMap = std::unordered_map<ImageViewKey, vk::UniqueImageView, ImageViewKeyHash>;
-        using LayoutMap = icl::interval_map<uint16_t, icl::DefaultIntervalWrapper<vk::ImageLayout>>;
-        using LayoutMapInterval = typename LayoutMap::interval_type;
         friend class VulkanAttachment;
     public:
-        VulkanImageObject() = default;
+        VulkanImageObject();
         ~VulkanImageObject();
-        VulkanImageObject(const VulkanImageObject & other) = delete;
-        VulkanImageObject & operator=(const VulkanImageObject & other) = delete;
+        VulkanImageObject(const VulkanImageObject & other) = default;
+        VulkanImageObject & operator=(const VulkanImageObject & other) = default;
         VulkanImageObject(VulkanImageObject && other) noexcept = default;
         VulkanImageObject & operator=(VulkanImageObject && other) noexcept = default;
         bool create(VulkanContext * context_p);
         bool create(VulkanContext * context_p, vk::Image external_image);
         void setData(VulkanCommandBufferObject & cmd, std::span<const std::byte> data, uint32_t layer = 0);
         void generateMipmaps(VulkanCommandBufferObject & cmd);
-        bool isCreated() const noexcept { return this->getHandle(); }
-        void transitLayout(VulkanCommandBufferObject & cmd, vk::ImageLayout new_layout);
-        void transitLayout(VulkanCommandBufferObject & cmd, const vk::ImageSubresourceRange & subresource_range, vk::ImageLayout new_layout);
-        void copyFrom(VulkanCommandBufferObject & cmd, vk::Buffer buffer, std::span<const vk::BufferImageCopy> regions);
-        vk::Image getHandle() const noexcept;
-        std::span<std::byte> getMappedMemorySpan() const noexcept;
-        vk::ImageView getDefaultView() const;
-        vk::ImageView getView(const ImageViewKey & image_view_key) const;
-        Self & addImageFlags(vk::ImageCreateFlags flags) { m_flags |= flags; return *this; }
-        vk::ImageCreateFlags getImageFlags() const { return m_flags; }
-        vk::ImageType getImageType() const noexcept;
-        Self & setFormat(vk::Format format) { m_format = format; return *this; }
-        vk::Format getFormat() const { return m_format; }
-        Self & setExtent(vk::Extent3D extent) { m_extent = extent; return *this; }
-        vk::Extent3D getExtent() const { return m_extent; }
-        Self & setMipmapped(bool mipmapped) { m_mip_level_count = !mipmapped; return *this; }
-        uint32_t getMipLevelCount() const noexcept { return m_mip_level_count; }
-        Self & setArrayLayers(uint16_t array_layers) { m_array_layers = array_layers; return *this; }
-        uint32_t getArrayLayerCount() const { return m_array_layers; }
-        Self & setSamples(vk::SampleCountFlagBits samples) { m_samples = samples; return *this; }
-        vk::SampleCountFlagBits getSamples() const { return m_samples; }
-        Self & setUsage(vk::ImageUsageFlags usage) { m_usage = usage; return *this; }
-        vk::ImageAspectFlags getAspectFlags() const noexcept;
-        std::optional<vk::ImageLayout> getLayout() const noexcept { return this->getLayout(0, m_array_layers, 0, m_mip_level_count); }
+        Self & addImageFlags(vk::ImageCreateFlags flags) { m_proxy_sp->m_flags |= flags; return *this; }
+        Self & setFormat(vk::Format format) { m_proxy_sp->m_format = format; return *this; }
+        Self & setExtent(vk::Extent3D extent) { m_proxy_sp->m_extent = extent; return *this; }
+        Self & setMipmapped(bool mipmapped) { m_proxy_sp->m_mip_level_count = !mipmapped; return *this; }
+        Self & setArrayLayers(uint16_t array_layers) { m_proxy_sp->m_array_layers = array_layers; return *this; }
+        Self & setSamples(vk::SampleCountFlagBits samples) { m_proxy_sp->m_samples = samples; return *this; }
+        Self & setUsage(vk::ImageUsageFlags usage) { m_proxy_sp->m_usage = usage; return *this; }
+        bool isCreated() const noexcept { return m_proxy_sp and m_proxy_sp->isCreated(); }
+        ResourceLease lease() const noexcept { return m_proxy_sp->lease(); }
+        vk::Image getHandle() const noexcept { return m_proxy_sp->getHandle(); }
+        std::span<std::byte> getMappedMemorySpan() const noexcept { return m_proxy_sp->getMappedMemorySpan(); }
+        vk::ImageView getDefaultView() const { return m_proxy_sp->getDefaultView(); }
+        vk::ImageView getView(const VulkanImageProxy::ImageViewKey & image_view_key) const { return m_proxy_sp->getView(image_view_key); }
+        vk::ImageCreateFlags getImageFlags() const { return m_proxy_sp->getImageFlags(); }
+        vk::ImageType getImageType() const noexcept { return m_proxy_sp->getImageType(); }
+        vk::Format getFormat() const { return m_proxy_sp->getFormat(); }
+        vk::Extent3D getExtent() const { return m_proxy_sp->getExtent(); }
+        uint32_t getMipLevelCount() const noexcept { return m_proxy_sp->getMipLevelCount(); }
+        uint32_t getArrayLayerCount() const { return m_proxy_sp->getArrayLayerCount(); }
+        vk::SampleCountFlagBits getSamples() const { return m_proxy_sp->getSamples(); }
+        vk::ImageAspectFlags getAspectFlags() const noexcept { return m_proxy_sp->getAspectFlags(); }
+        std::optional<vk::ImageLayout> getLayout() const noexcept { return m_proxy_sp->getLayout(); }
+        void transitLayout(VulkanCommandBufferObject & cmd, vk::ImageLayout new_layout) { m_proxy_sp->transitLayout(cmd, new_layout); }
+        void transitLayout(VulkanCommandBufferObject & cmd, const vk::ImageSubresourceRange & subresource_range, vk::ImageLayout new_layout) { m_proxy_sp->transitLayout(cmd, subresource_range, new_layout); }
+        void copyFrom(VulkanCommandBufferObject & cmd, vk::Buffer buffer, std::span<const vk::BufferImageCopy> regions) { m_proxy_sp->copyFrom(cmd, buffer, regions); }
     private:
-        bool _create(VulkanContext * context_p, vk::ImageTiling tiling, const MemoryAllocationCreateInfo & memory_info);
-        vk::UniqueImageView generateView(const ImageViewKey & image_view_key) const;
-        vk::ImageViewType deduceImageViewType(const vk::ImageSubresourceRange & subresource_range) const noexcept;
-        vk::ImageSubresourceRange getFullResourceRange() const noexcept;
-        uint32_t getLayoutKey(uint32_t layer, uint32_t mip_level) const noexcept { return layer * this->getMipLevelCount() + mip_level; }
-        std::vector<LayoutMapInterval> getLayoutIntervals(uint32_t base_layer, uint32_t layer_count, uint32_t base_mip_level, uint32_t mip_level_count) const noexcept;
-        std::optional<vk::ImageLayout> getLayout(uint32_t base_layer, uint32_t layer_count, uint32_t base_mip_level, uint32_t mip_level_count) const noexcept;
-        void blitTo(VulkanCommandBufferObject & cmd,
-            const vk::ImageSubresourceLayers & src_subresource,
-            const std::pair<vk::Offset3D, vk::Offset3D> & src_offsets,
-            VulkanImageObject & dst,
-            const vk::ImageSubresourceLayers & dst_subresource,
-            const std::pair<vk::Offset3D, vk::Offset3D> & dst_offsets,
-            vk::Filter filter);
-        void copyTo(VulkanCommandBufferObject & cmd,
-            const vk::ImageSubresourceLayers & src_subresource,
-            const vk::Offset3D & src_offset,
-            VulkanImageObject & dst,
-            const vk::ImageSubresourceLayers & dst_subresource,
-            const vk::Offset3D & dst_offset,
-            const vk::Extent3D & extent);
-    private:
-        VulkanContext * m_context_p;
-        vk::ImageCreateFlags m_flags = {};
-        vk::Format m_format = vk::Format::eUndefined;
-        vk::Extent3D m_extent = {};
-        uint16_t m_mip_level_count = 1u;
-        uint16_t m_array_layers = 1u;
-        vk::SampleCountFlagBits m_samples = vk::SampleCountFlagBits::e1;
-        vk::ImageUsageFlags m_usage = {};
-        ResourcePointer<VulkanImage> m_image_rp;
-        mutable ImageViewMap m_view_map;
-        LayoutMap m_layout_map;
+        std::shared_ptr<VulkanImageProxy> m_proxy_sp;
     };
-};
+}

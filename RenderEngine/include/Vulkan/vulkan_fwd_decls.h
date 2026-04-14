@@ -21,6 +21,8 @@ namespace lcf::render {
 
     class VulkanBufferObjectGroup;
 
+    class VulkanImageProxy;
+
     class VulkanImageObject;
     LCF_DECLARE_POINTER_DEFS(VulkanImageObject, STDPointerDefs);
 

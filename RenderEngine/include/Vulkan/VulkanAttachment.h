@@ -1,17 +1,14 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
+#include "VulkanImageProxy.h"
 #include <optional>
+#include <memory>
 
 namespace lcf::render {
     class VulkanImageObject;
     class VulkanCommandBufferObject;
 
-    /// Non-owning sub-resource view into a VulkanImageObject.
-    /// Selects a specific mip level + layer range, provides convenience
-    /// accessors for image view, layout, extent, and GPU transfer operations.
-    ///
-    /// Lifetime contract: the referenced VulkanImageObject must outlive
     class VulkanAttachment
     {
         using Self = VulkanAttachment;
@@ -34,7 +31,7 @@ namespace lcf::render {
             const vk::Offset3D & src_offset,
             const vk::Offset3D & dst_offset,
             const vk::Extent3D & extent);
-        VulkanImageObject & getImageObject() const noexcept { return *m_image_p; }
+        VulkanImageProxy & getImageProxy() const noexcept { return *m_proxy_sp; }
         vk::ImageSubresourceRange getSubresourceRange() const noexcept;
         vk::ImageView getImageView() const noexcept;
         uint32_t getMipLevel() const noexcept { return m_mip_level; }
@@ -44,7 +41,7 @@ namespace lcf::render {
         vk::Extent3D getExtent() const noexcept;
         std::optional<vk::ImageLayout> getLayout() const noexcept;
     private:
-        VulkanImageObject * m_image_p = nullptr;
+        std::shared_ptr<VulkanImageProxy> m_proxy_sp;
         uint32_t m_mip_level = 0;
         uint32_t m_layer = 0;
         uint32_t m_layer_count = 1;

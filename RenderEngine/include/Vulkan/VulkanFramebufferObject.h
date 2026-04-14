@@ -3,18 +3,15 @@
 #include <vulkan/vulkan.hpp>
 #include "vulkan_fwd_decls.h"
 #include "VulkanAttachment.h"
-#include "VulkanImageObject.h"
-#include "resource_utils.h"
 #include <optional>
-#include <deque>
 
 namespace lcf::render {
+    class VulkanImageObject;
     struct VulkanFramebufferObjectCreateInfo;
 
     class VulkanFramebufferObject
     {
         using Self = VulkanFramebufferObject;
-        using OwnedImages = std::vector<std::shared_ptr<VulkanImageObject>>;
     public:
         class Attachment : public VulkanAttachment
         {
@@ -31,7 +28,7 @@ namespace lcf::render {
             vk::AttachmentLoadOp getLoadOp() const noexcept { return m_load_op; }
             vk::AttachmentStoreOp getStoreOp() const noexcept { return m_store_op; }
             vk::ResolveModeFlagBits getResolveMode() const noexcept { return m_resolve_mode; }
-        private: 
+        private:
             vk::ClearValue m_clear_value = {};
             vk::AttachmentLoadOp m_load_op = vk::AttachmentLoadOp::eClear;
             vk::AttachmentStoreOp m_store_op = vk::AttachmentStoreOp::eStore;
@@ -51,14 +48,10 @@ namespace lcf::render {
         void endRendering(VulkanCommandBufferObject & cmd) noexcept;
         void setViewportAndScissor(VulkanCommandBufferObject & cmd) noexcept;
     private:
-        VulkanImageObject & addImage();
-    private:
         vk::Extent2D m_max_extent = {std::numeric_limits<uint32_t>::max(), std::numeric_limits<uint32_t>::max()};
         vk::Extent2D m_extent = {std::numeric_limits<uint32_t>::max(), std::numeric_limits<uint32_t>::max()};
         uint32_t m_layer_count = std::numeric_limits<uint32_t>::max();
         vk::Format m_depth_stencil_format = vk::Format::eUndefined;
-        OwnedImages m_owned_images; // outlives attachments
-        std::vector<ResourceLease> m_image_leases; // keep external images alive
         AttachmentList m_color_attachments;
         OptionalAttachment m_depth_stencil_attachment;
         OptionalAttachment m_msaa_resolve_attachment;
