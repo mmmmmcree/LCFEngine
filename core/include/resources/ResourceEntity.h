@@ -27,36 +27,20 @@ namespace lcf {
             m_control_block_p->increaseWeakRefCount(); // one collective weak ref for the strong side
         }
         ~ResourceEntity() noexcept { this->tryDestroy(); }
-        ResourceEntity(const ResourceEntity & other) noexcept :
-            m_registry_p(other.m_registry_p),
-            m_control_block_p(other.m_control_block_p),
-            m_artifact_id(other.m_artifact_id)
-        {
-            m_control_block_p->increaseRefCount();
-        }
+        ResourceEntity(const ResourceEntity & other) noexcept { this->copyFrom(other); }
         ResourceEntity & operator=(const ResourceEntity & other) noexcept
         {
             if (this == &other) { return *this; }
             this->tryDestroy();
-            m_registry_p = other.m_registry_p;
-            m_control_block_p = other.m_control_block_p;
-            m_artifact_id = other.m_artifact_id;
-            m_control_block_p->increaseRefCount();
+            this->copyFrom(other);
             return *this;
         }
-        ResourceEntity(ResourceEntity && other) noexcept :
-            m_registry_p(std::exchange(other.m_registry_p, nullptr)),
-            m_control_block_p(std::exchange(other.m_control_block_p, nullptr)),
-            m_artifact_id(std::exchange(other.m_artifact_id, ecs::null))
-        {
-        }
+        ResourceEntity(ResourceEntity && other) noexcept { this->stealFrom(std::move(other)); }
         ResourceEntity & operator=(ResourceEntity && other) noexcept
         {
             if (this == &other) { return *this; }
             this->tryDestroy();
-            m_registry_p = std::exchange(other.m_registry_p, nullptr);
-            m_control_block_p = std::exchange(other.m_control_block_p, nullptr);
-            m_artifact_id = std::exchange(other.m_artifact_id, ecs::null);
+            this->stealFrom(std::move(other));
             return *this;
         }
         operator bool() const noexcept { return this->isValid(); }
@@ -67,7 +51,6 @@ namespace lcf {
         const ResourceArtifactID & getArtifactID() const noexcept { return m_artifact_id; }
         const ResourceState & getState() const noexcept { return m_registry_p->get<ResourceState>(m_artifact_id); }
         ResourceLease lease() const noexcept { return ResourceLease(m_control_block_p); }
-    
     private:
         void tryDestroy() noexcept
         {
@@ -81,6 +64,19 @@ namespace lcf {
             }
             m_registry_p = nullptr;
             m_artifact_id = ecs::null;
+        }
+        void copyFrom(const ResourceEntity & other) noexcept
+        {
+            m_registry_p = other.m_registry_p;
+            m_control_block_p = other.m_control_block_p;
+            m_artifact_id = other.m_artifact_id;
+            m_control_block_p->increaseRefCount();
+        }
+        void stealFrom(ResourceEntity & other) noexcept
+        {
+            m_registry_p = std::exchange(other.m_registry_p, nullptr);
+            m_control_block_p = std::exchange(other.m_control_block_p, nullptr);
+            m_artifact_id = std::exchange(other.m_artifact_id, ecs::null);
         }
     private:
         ResourceRegistry * m_registry_p = nullptr;
