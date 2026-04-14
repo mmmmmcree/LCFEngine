@@ -37,7 +37,7 @@ void VulkanContext::create()
     this->findQueueFamilies();
     this->createLogicalDevice();
     this->createCommandPools();
-    m_memory_allocator.create(this);
+    m_memory_allocator.create(this->getInstance(), this->getPhysicalDevice(), this->getDevice());
     m_descriptor_set_allocator.create(this);
     m_descriptor_set_manager.create(*this);
     m_sampler_manager.create(this);

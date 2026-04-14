@@ -1,5 +1,4 @@
-#include "Vulkan/VulkanMemoryAllocator.h"
-#include "Vulkan/VulkanContext.h"
+#include "Vulkan/memory/details/VulkanMemoryAllocator.h"
 #include "Vulkan/memory/vulkan_memory_resources.h"
 #define VMA_IMPLEMENTATION
 #include <vma/vk_mem_alloc.h>
@@ -12,7 +11,7 @@ VulkanMemoryAllocator::~VulkanMemoryAllocator()
     vmaDestroyAllocator(m_allocator);
 }
 
-bool VulkanMemoryAllocator::create(VulkanContext * context)
+std::error_code VulkanMemoryAllocator::create(vk::Instance instance, vk::PhysicalDevice physical_device, vk::Device device) noexcept
 {
     VmaVulkanFunctions vulkan_functions = {
         .vkGetInstanceProcAddr = &vkGetInstanceProcAddr,
@@ -20,13 +19,16 @@ bool VulkanMemoryAllocator::create(VulkanContext * context)
     };
     VmaAllocatorCreateInfo allocator_info = {
         .flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
-        .physicalDevice = context->getPhysicalDevice(),
-        .device = context->getDevice(),
+        .physicalDevice = physical_device,
+        .device = device,
         .pVulkanFunctions = &vulkan_functions,
-        .instance = context->getInstance(),
-        .vulkanApiVersion = VK_API_VERSION_1_3,
+        .instance = instance,
+        .vulkanApiVersion = VK_API_VERSION_1_4,
     };
-    return vmaCreateAllocator(&allocator_info, &m_allocator) == VK_SUCCESS;
+    if (vmaCreateAllocator(&allocator_info, &m_allocator) != VK_SUCCESS) {
+        return std::make_error_code(std::errc::invalid_argument);
+    }
+    return {};
 }
 
 std::unique_ptr<VulkanImage> VulkanMemoryAllocator::createImage(
