@@ -3,6 +3,8 @@
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <type_traits>
+#include <utility>
 
 namespace lcf {
     class ResourceControlBlock
@@ -95,7 +97,12 @@ namespace lcf {
     class ResourcePointer
     {
         template <typename R>
+        friend class ResourcePointer;
+        template <typename R>
         friend class ResourceWeakPointer;
+        template <typename R>
+        requires (not std::is_same_v<R, Resource> and std::is_convertible_v<R *, Resource *>)
+        using ConvertibleResourcePointer = ResourcePointer<R>;
     public:
         using deleter_t = std::function<void(Resource *)>;
     public:
@@ -114,6 +121,33 @@ namespace lcf {
             this->copyFrom(other);
             return *this;
         }
+        ResourcePointer(ResourcePointer && other) noexcept { this->stealFrom(std::move(other)); }
+        ResourcePointer & operator=(ResourcePointer && other) noexcept
+        {
+            if (this == &other) { return *this; }
+            this->tryDestroy();
+            this->stealFrom(std::move(other));
+            return *this;
+        }
+        // --- converting copy/move (e.g. ResourcePointer<T> → ResourcePointer<const T>) ---
+        template <typename R>
+        ResourcePointer(const ConvertibleResourcePointer<R> & other) noexcept { this->copyFrom(other); }
+        template <typename R>
+        ResourcePointer & operator=(const ConvertibleResourcePointer<R> & other) noexcept
+        {
+            this->tryDestroy();
+            this->copyFrom(other);
+            return *this;
+        }
+        template <typename R>
+        ResourcePointer(ConvertibleResourcePointer<R> && other) noexcept { this->stealFrom(std::move(other)); }
+        template <typename R>
+        ResourcePointer & operator=(ConvertibleResourcePointer<R> && other) noexcept
+        {
+            this->tryDestroy();
+            this->stealFrom(std::move(other));
+            return *this;
+        }
         ResourcePointer & operator=(Resource && resource)
         {
             return this->operator=(ResourcePointer(std::forward<Resource>(resource)));
@@ -121,19 +155,6 @@ namespace lcf {
         ResourcePointer & operator=(std::unique_ptr<Resource> resource_up)
         {
             return this->operator=(ResourcePointer(resource_up.release()));
-        }
-        ResourcePointer(ResourcePointer && other) noexcept :
-            m_resource_p(std::exchange(other.m_resource_p, nullptr)),
-            m_control_block_p(std::exchange(other.m_control_block_p, nullptr))
-        {
-        }
-        ResourcePointer & operator=(ResourcePointer && other) noexcept
-        {
-            if (this == &other) { return *this; }
-            this->tryDestroy();
-            m_resource_p = std::exchange(other.m_resource_p, nullptr);
-            m_control_block_p = std::exchange(other.m_control_block_p, nullptr);
-            return *this;
         }
         Resource * operator->() const { return m_resource_p; }
         Resource & operator*() const { return *m_resource_p; }
@@ -160,11 +181,20 @@ namespace lcf {
                 m_control_block_p->increaseWeakRefCount();
             }
         }
-        void copyFrom(const ResourcePointer & other) noexcept
+        template <typename R>
+        requires std::is_convertible_v<R *, Resource *>
+        void copyFrom(const ResourcePointer<R> & other) noexcept
         {
             m_resource_p = other.m_resource_p;
             m_control_block_p = other.m_control_block_p;
             if (m_control_block_p) { m_control_block_p->increaseRefCount(); }
+        }
+        template <typename R>
+        requires std::is_convertible_v<R *, Resource *>
+        void stealFrom(ResourcePointer<R> && other) noexcept
+        {
+            m_resource_p = std::exchange(other.m_resource_p, nullptr);
+            m_control_block_p = std::exchange(other.m_control_block_p, nullptr);
         }
         void tryDestroy() noexcept
         {
@@ -186,47 +216,68 @@ namespace lcf {
     template <typename Resource>
     class ResourceWeakPointer
     {
+        template <typename R>
+        friend class ResourceWeakPointer;
+        template <typename R>
+        requires (not std::is_same_v<R, Resource> and std::is_convertible_v<R *, Resource *>)
+        using ConvertibleResourcePointer = ResourcePointer<R>;
+        template <typename R>
+        requires (not std::is_same_v<R, Resource> and std::is_convertible_v<R *, Resource *>)
+        using ConvertibleResourceWeakPointer = ResourceWeakPointer<R>;
     public:
         ResourceWeakPointer() = default;
-        ResourceWeakPointer(const ResourcePointer<Resource> & strong) noexcept
-            : m_resource_p(strong.m_resource_p), m_control_block_p(strong.m_control_block_p)
-        {
-            if (m_control_block_p) { m_control_block_p->increaseWeakRefCount(); }
-        }
         ~ResourceWeakPointer() noexcept { this->releaseWeak(); }
-        ResourceWeakPointer(const ResourceWeakPointer & other) noexcept
-            : m_resource_p(other.m_resource_p), m_control_block_p(other.m_control_block_p)
+        // --- from ResourcePointer (same-type + converting) ---
+        ResourceWeakPointer(const ResourcePointer<Resource> & strong) noexcept { this->copyFrom(strong.m_resource_p, strong.m_control_block_p); }
+        ResourceWeakPointer & operator=(const ResourcePointer<Resource> & strong) noexcept
         {
-            if (m_control_block_p) { m_control_block_p->increaseWeakRefCount(); }
+            this->releaseWeak();
+            this->copyFrom(strong.m_resource_p, strong.m_control_block_p);
+            return *this;
         }
+        template <typename R>
+        ResourceWeakPointer(const ConvertibleResourcePointer<R> & strong) noexcept { this->copyFrom(strong.m_resource_p, strong.m_control_block_p); }
+        template <typename R>
+        ResourceWeakPointer & operator=(const ConvertibleResourcePointer<R> & strong) noexcept
+        {
+            this->releaseWeak();
+            this->copyFrom(strong.m_resource_p, strong.m_control_block_p);
+            return *this;
+        }
+        // --- same-type copy/move (non-template, required by the standard) ---
+        ResourceWeakPointer(const ResourceWeakPointer & other) noexcept { this->copyFrom(other.m_resource_p, other.m_control_block_p); }
         ResourceWeakPointer & operator=(const ResourceWeakPointer & other) noexcept
         {
             if (this == &other) { return *this; }
             this->releaseWeak();
-            m_resource_p = other.m_resource_p;
-            m_control_block_p = other.m_control_block_p;
-            if (m_control_block_p) { m_control_block_p->increaseWeakRefCount(); }
+            this->copyFrom(other.m_resource_p, other.m_control_block_p);
             return *this;
         }
-        ResourceWeakPointer(ResourceWeakPointer && other) noexcept
-            : m_resource_p(std::exchange(other.m_resource_p, nullptr)),
-              m_control_block_p(std::exchange(other.m_control_block_p, nullptr))
-        {
-        }
+        ResourceWeakPointer(ResourceWeakPointer && other) noexcept { this->stealFrom(other); }
         ResourceWeakPointer & operator=(ResourceWeakPointer && other) noexcept
         {
             if (this == &other) { return *this; }
             this->releaseWeak();
-            m_resource_p = std::exchange(other.m_resource_p, nullptr);
-            m_control_block_p = std::exchange(other.m_control_block_p, nullptr);
+            this->stealFrom(other);
             return *this;
         }
-        ResourceWeakPointer & operator=(const ResourcePointer<Resource> & strong) noexcept
+        // --- converting copy/move from ResourceWeakPointer<R> ---
+        template <typename R>
+        ResourceWeakPointer(const ConvertibleResourceWeakPointer<R> & other) noexcept { this->copyFrom(other.m_resource_p, other.m_control_block_p); }
+        template <typename R>
+        ResourceWeakPointer & operator=(const ConvertibleResourceWeakPointer<R> & other) noexcept
         {
             this->releaseWeak();
-            m_resource_p = strong.m_resource_p;
-            m_control_block_p = strong.m_control_block_p;
-            if (m_control_block_p) { m_control_block_p->increaseWeakRefCount(); }
+            this->copyFrom(other.m_resource_p, other.m_control_block_p);
+            return *this;
+        }
+        template <typename R>
+        ResourceWeakPointer(ConvertibleResourceWeakPointer<R> && other) noexcept { this->stealFrom(other); }
+        template <typename R>
+        ResourceWeakPointer & operator=(ConvertibleResourceWeakPointer<R> && other) noexcept
+        {
+            this->releaseWeak();
+            this->stealFrom(other);
             return *this;
         }
         operator bool() const noexcept { return not expired(); }
@@ -247,10 +298,23 @@ namespace lcf {
         void reset() noexcept
         {
             this->releaseWeak();
-            m_resource_p = nullptr;
-            m_control_block_p = nullptr;
         }
     private:
+        template <typename R>
+        requires std::is_convertible_v<R *, Resource *>
+        void copyFrom(R * resource_p, ResourceControlBlock * control_block_p) noexcept
+        {
+            m_resource_p = resource_p;
+            m_control_block_p = control_block_p;
+            if (m_control_block_p) { m_control_block_p->increaseWeakRefCount(); }
+        }
+        template <typename R>
+        requires std::is_convertible_v<R *, Resource *>
+        void stealFrom(ResourceWeakPointer<R> & other) noexcept
+        {
+            m_resource_p = std::exchange(other.m_resource_p, nullptr);
+            m_control_block_p = std::exchange(other.m_control_block_p, nullptr);
+        }
         void releaseWeak() noexcept
         {
             if (not m_control_block_p) { return; }
