@@ -48,6 +48,7 @@ bool VulkanImageObject::create(VulkanContext *context_p, vk::Image external_imag
 
 void VulkanImageObject::setData(VulkanCommandBufferObject &cmd, std::span<const std::byte> data, uint32_t layer)
 {
+    cmd.acquireResourceLease(m_image_rp.lease());
     VulkanBufferProxy staging_buffer;
     staging_buffer.setUsage(GPUBufferUsage::eStaging)
         .create(m_context_p, data.size_bytes());
@@ -64,6 +65,7 @@ void VulkanImageObject::setData(VulkanCommandBufferObject &cmd, std::span<const 
 
 void VulkanImageObject::generateMipmaps(VulkanCommandBufferObject & cmd)
 {
+    cmd.acquireResourceLease(m_image_rp.lease());
     using Offset3DPair = std::pair<vk::Offset3D, vk::Offset3D>;
     Offset3DPair src_offsets = {{0, 0, 0}, {static_cast<int32_t>(m_extent.width), static_cast<int32_t>(m_extent.height), 1}};
     auto aspect_flags = this->getAspectFlags();
@@ -83,6 +85,7 @@ void VulkanImageObject::transitLayout(VulkanCommandBufferObject & cmd, vk::Image
 
 void VulkanImageObject::transitLayout(VulkanCommandBufferObject & cmd, const vk::ImageSubresourceRange &subresource_range, vk::ImageLayout new_layout)
 {
+    cmd.acquireResourceLease(m_image_rp.lease());
     auto from_interval = [this](const LayoutMapInterval &interval) {
         uint32_t base_layer = interval.lower() / m_mip_level_count;
         uint32_t layer_count = (interval.upper() - 1) / m_mip_level_count - base_layer + 1;
@@ -119,6 +122,7 @@ void VulkanImageObject::transitLayout(VulkanCommandBufferObject & cmd, const vk:
 
 void VulkanImageObject::copyFrom(VulkanCommandBufferObject &cmd, vk::Buffer buffer, std::span<const vk::BufferImageCopy> regions)
 {
+    cmd.acquireResourceLease(m_image_rp.lease());
     this->transitLayout(cmd, vk::ImageLayout::eTransferDstOptimal);
     cmd.copyBufferToImage(buffer, this->getHandle(), vk::ImageLayout::eTransferDstOptimal, regions);
 }
@@ -274,6 +278,8 @@ void VulkanImageObject::blitTo(VulkanCommandBufferObject &cmd,
     const std::pair<vk::Offset3D, vk::Offset3D> & dst_offsets,
     vk::Filter filter)
 {
+    cmd.acquireResourceLease(m_image_rp.lease());
+    if (&dst != this) { cmd.acquireResourceLease(dst.m_image_rp.lease()); }
     this->transitLayout(cmd, {this->getAspectFlags(), src_subresource.mipLevel, 1, src_subresource.baseArrayLayer, src_subresource.layerCount}, vk::ImageLayout::eTransferSrcOptimal);
     dst.transitLayout(cmd, {dst.getAspectFlags(), dst_subresource.mipLevel, 1, dst_subresource.baseArrayLayer, dst_subresource.layerCount}, vk::ImageLayout::eTransferDstOptimal);
     vk::ImageBlit2 blit_region2 = {};

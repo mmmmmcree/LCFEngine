@@ -225,7 +225,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         VulkanFramebufferObjectCreateInfo fbo_info;
         fbo_info.setMaxExtent({w, h});
         VulkanFramebufferObject fbo;
-        fbo.addColorAttachment(cube_map_sp)
+        fbo.addColorAttachment(*cube_map_sp)
             .create(m_context_p, fbo_info);
         cmd.acquireResourceLease(descriptor_set_rp.lease());
         cmd.bindPipeline(stc_pipeline.getType(), stc_pipeline.getHandle());
@@ -415,18 +415,18 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
     current_framebuffer.endRendering(cmd);
 
     auto & render_target_resources = render_target_sp->getCurrentFrameResources();
-    auto & target_image_sp = render_target_resources.getImageSharedPointer();
+    auto & target_image = *render_target_resources.getImageSharedPointer();
     // blit to target
     auto msaa_attachment = current_framebuffer.getMSAAResolveAttachment();
     if (msaa_attachment) {
-        VulkanAttachment target_attachment(target_image_sp);
-        auto [w, h, z] = target_image_sp->getExtent();
+        VulkanAttachment target_attachment(target_image);
+        auto [w, h, z] = target_image.getExtent();
         msaa_attachment->blitTo(cmd, target_attachment, vk::Filter::eLinear,
             {{0, 0, 0}, {static_cast<int32_t>(width), static_cast<int32_t>(height), 1}},
             {{0, 0, 0}, {static_cast<int32_t>(w), static_cast<int32_t>(h), 1}});
     }
 
-    target_image_sp->transitLayout(cmd, vk::ImageLayout::ePresentSrcKHR);
+    target_image.transitLayout(cmd, vk::ImageLayout::ePresentSrcKHR);
     cmd.end();
 
     vk::SemaphoreSubmitInfo wait_info;

@@ -21,44 +21,44 @@ bool VulkanFramebufferObject::create(VulkanContext *context_p, const VulkanFrame
         color_attachment_usage |= vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eSampled;
     }
     for (auto color_format : create_info.getColorFormats()) {
-        auto image_sp = VulkanImageObject::makeShared();
-        image_sp->setUsage(color_attachment_usage)
+        auto & image = this->addImage();
+        image.setUsage(color_attachment_usage)
             .setExtent({m_max_extent.width, m_max_extent.height, 1u})
             .setSamples(create_info.getSampleCount())
             .setFormat(color_format)
             .create(context_p);
-        m_color_attachments.emplace_back(image_sp);
+        m_color_attachments.emplace_back(image);
     }
     if (m_color_attachments.empty()) {
-        auto image_sp = VulkanImageObject::makeShared();
-        image_sp->setUsage(vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst)
+        auto & image = this->addImage();
+        image.setUsage(vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst)
             .setExtent({m_max_extent.width, m_max_extent.height, 1u})
             .setSamples(vk::SampleCountFlagBits::e1)
             .setFormat(vk::Format::eR8G8B8A8Srgb)
             .create(context_p);
-        m_color_attachments.emplace_back(image_sp);
+        m_color_attachments.emplace_back(image);
     }
     for (const auto & color_attachment : m_color_attachments) {
         m_layer_count = std::min(m_layer_count, color_attachment.getLayerCount());
     }
     if (create_info.hasDepthStencilFormat()) {
-        auto image_sp = VulkanImageObject::makeShared();
-        image_sp->setUsage(vk::ImageUsageFlagBits::eDepthStencilAttachment)
+        auto & image = this->addImage();
+        image.setUsage(vk::ImageUsageFlagBits::eDepthStencilAttachment)
             .setExtent({m_extent.width, m_extent.height, 1})
-            .setSamples(m_color_attachments.front().getImageSharedPointer()->getSamples())
+            .setSamples(m_color_attachments.front().getImageObject().getSamples())
             .setFormat(create_info.getDepthStencilFormat())
             .create(context_p);
-        m_depth_stencil_attachment.emplace(image_sp);
+        m_depth_stencil_attachment.emplace(image);
         m_depth_stencil_attachment->setClearDepthStencilValue({1.0f, 0});
     }
     if (create_info.isEnableMSAA()) {
-        auto image_sp = VulkanImageObject::makeShared();
-        image_sp->setUsage(vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eColorAttachment)
-            .setFormat(m_color_attachments.front().getImageSharedPointer()->getFormat())
+        auto & image = this->addImage();
+        image.setUsage(vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eColorAttachment)
+            .setFormat(m_color_attachments.front().getImageObject().getFormat())
             .setExtent({m_extent.width, m_extent.height, 1})
             .setSamples(vk::SampleCountFlagBits::e1)
             .create(context_p);
-        m_msaa_resolve_attachment.emplace(image_sp);
+        m_msaa_resolve_attachment.emplace(image);
         m_msaa_resolve_attachment->setResolveMode(create_info.getResolveMode());
     }
     return true;
@@ -112,7 +112,7 @@ void VulkanFramebufferObject::endRendering(VulkanCommandBufferObject & cmd) noex
     cmd.endRendering();
 }
 
-void lcf::render::VulkanFramebufferObject::setViewportAndScissor(VulkanCommandBufferObject &cmd) noexcept
+void VulkanFramebufferObject::setViewportAndScissor(VulkanCommandBufferObject &cmd) noexcept
 {
     auto [w, h] = m_extent;
     vk::Viewport viewport;
@@ -124,4 +124,9 @@ void lcf::render::VulkanFramebufferObject::setViewportAndScissor(VulkanCommandBu
     scissor.setOffset({ 0, 0 }).setExtent(m_extent);
     cmd.setViewport(0, viewport);
     cmd.setScissor(0, scissor);
+}
+
+VulkanImageObject & VulkanFramebufferObject::addImage()
+{
+    return *m_owned_images.emplace_back(std::make_shared<VulkanImageObject>());
 }
