@@ -40,7 +40,7 @@ bool VulkanImageObject::create(VulkanContext * context_p)
 bool VulkanImageObject::create(VulkanContext *context_p, vk::Image external_image)
 {
     m_context_p = context_p;
-    m_image_sp = VulkanImage::makeShared(external_image);
+    m_image_rp = make_resource_ptr<VulkanImage>(external_image);
     auto interval = LayoutMapInterval::right_open(0, this->getMipLevelCount() * m_array_layers);
     m_layout_map.set(std::make_pair(interval, vk::ImageLayout::eUndefined));
     return this->isCreated();
@@ -125,12 +125,12 @@ void VulkanImageObject::copyFrom(VulkanCommandBufferObject &cmd, vk::Buffer buff
 
 vk::Image VulkanImageObject::getHandle() const noexcept
 {
-    return m_image_sp->getHandle();
+    return m_image_rp->getHandle();
 }
 
 std::span<std::byte> VulkanImageObject::getMappedMemorySpan() const noexcept
 {
-    return m_image_sp->getMappedMemorySpan();
+    return m_image_rp->getMappedMemorySpan();
 }
 
 vk::ImageView VulkanImageObject::getDefaultView() const
@@ -176,7 +176,7 @@ bool VulkanImageObject::_create(VulkanContext *context_p, vk::ImageTiling tiling
         .setUsage(m_usage)
         .setInitialLayout(vk::ImageLayout::eUndefined)
         .setSharingMode(vk::SharingMode::eExclusive);
-    m_image_sp = m_context_p->getMemoryAllocator().createImage(image_info, memory_info);
+    m_image_rp = m_context_p->getMemoryAllocator().createImage(image_info, memory_info);
     auto interval = LayoutMapInterval::right_open(0, this->getMipLevelCount() * this->getArrayLayerCount());
     m_layout_map.set(std::make_pair(interval, image_info.initialLayout));
     return this->isCreated();

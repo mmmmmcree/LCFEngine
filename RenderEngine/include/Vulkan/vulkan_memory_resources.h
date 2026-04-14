@@ -12,7 +12,7 @@ namespace lcf::render {
         vk::MemoryPropertyFlags memory_flags;
     };
 
-    class VulkanImage : public VulkanImagePointerDefs
+    class VulkanImage
     {
         using Self = VulkanImage;
     public:
@@ -39,7 +39,7 @@ namespace lcf::render {
         vk::DeviceSize m_size = 0;
     };
 
-    class VulkanBuffer : public VulkanBufferPointerDefs
+    class VulkanBuffer
     {
         using Self = VulkanBuffer;
     public:

@@ -2,8 +2,9 @@
 
 #include <vulkan/vulkan.hpp>
 #include "vulkan_fwd_decls.h"
-#include <unordered_map>
+#include "resource_utils.h"
 #include "interval/interval_containers.h"
+#include <unordered_map>
 
 namespace lcf::render {
     class VulkanAttachment;
@@ -95,8 +96,8 @@ namespace lcf::render {
         uint16_t m_array_layers = 1u;
         vk::SampleCountFlagBits m_samples = vk::SampleCountFlagBits::e1;
         vk::ImageUsageFlags m_usage = {};
-        VulkanImageSharedPointer m_image_sp;
+        ResourcePointer<VulkanImage> m_image_rp;
         mutable ImageViewMap m_view_map;
         LayoutMap m_layout_map;
     };
-}
+};

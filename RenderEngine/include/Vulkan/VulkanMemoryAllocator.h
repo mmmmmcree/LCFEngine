@@ -15,8 +15,8 @@ namespace lcf::render {
         VulkanMemoryAllocator & operator=(const VulkanMemoryAllocator &) = delete;
         ~VulkanMemoryAllocator();
         bool create(VulkanContext * context);
-        VulkanImageUniquePointer createImage(const vk::ImageCreateInfo & image_info, const MemoryAllocationCreateInfo & mem_alloc_info) const;
-        VulkanBufferUniquePointer createBuffer(const vk::BufferCreateInfo & buffer_info, const MemoryAllocationCreateInfo & mem_alloc_info) const;
+        std::unique_ptr<VulkanImage> createImage(const vk::ImageCreateInfo & image_info, const MemoryAllocationCreateInfo & mem_alloc_info) const;
+        std::unique_ptr<VulkanBuffer> createBuffer(const vk::BufferCreateInfo & buffer_info, const MemoryAllocationCreateInfo & mem_alloc_info) const;
     private:
         VmaAllocator m_allocator = nullptr;
     };

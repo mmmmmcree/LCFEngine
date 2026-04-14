@@ -29,7 +29,7 @@ bool VulkanMemoryAllocator::create(VulkanContext * context)
     return vmaCreateAllocator(&allocator_info, &m_allocator) == VK_SUCCESS;
 }
 
-VulkanImage::UniquePointer VulkanMemoryAllocator::createImage(
+std::unique_ptr<VulkanImage> VulkanMemoryAllocator::createImage(
     const vk::ImageCreateInfo &image_info,
     const MemoryAllocationCreateInfo &mem_alloc_info) const
 {
@@ -55,10 +55,10 @@ VulkanImage::UniquePointer VulkanMemoryAllocator::createImage(
         lcf_log_error(error.what());
         throw error;
     }
-    return VulkanImage::makeUnique(m_allocator, allocation, image, allocation_info.size, allocation_info.pMappedData);
+    return std::make_unique<VulkanImage>(m_allocator, allocation, image, allocation_info.size, allocation_info.pMappedData);
 }
 
-VulkanBuffer::UniquePointer VulkanMemoryAllocator::createBuffer(
+std::unique_ptr<VulkanBuffer> VulkanMemoryAllocator::createBuffer(
     const vk::BufferCreateInfo &buffer_info,
     const MemoryAllocationCreateInfo &mem_alloc_info) const
 {
@@ -84,5 +84,5 @@ VulkanBuffer::UniquePointer VulkanMemoryAllocator::createBuffer(
         lcf_log_error(error.what());
         throw error;
     }
-    return VulkanBuffer::makeUnique(m_allocator, allocation, buffer, allocation_info.size, allocation_info.pMappedData);
+    return std::make_unique<VulkanBuffer>(m_allocator, allocation, buffer, allocation_info.size, allocation_info.pMappedData);
 }
