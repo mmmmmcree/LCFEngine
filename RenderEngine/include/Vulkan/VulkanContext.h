@@ -1,6 +1,5 @@
 #pragma once
 
-#include "common/Context.h"
 #include "ecs/Entity.h"
 #include "VulkanSwapchain.h"
 #include "memory/details/VulkanMemoryAllocator.h"
@@ -12,7 +11,7 @@
 #include <unordered_map>
 
 namespace lcf::render {
-    class VulkanContext : public Context
+    class VulkanContext
     {
         using Self = VulkanContext;
     public:
