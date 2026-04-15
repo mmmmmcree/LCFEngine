@@ -12,7 +12,7 @@ VulkanBindlessDescriptorSet::~VulkanBindlessDescriptorSet() noexcept = default;
 
 VulkanBindlessDescriptorSet::operator bool() const noexcept
 {
-    return std::ranges::all_of(m_frame_slots, [](const auto & slot) { return bool(slot.set); });
+    return std::ranges::all_of(m_frame_slots, [](const auto & slot) { return bool(slot.m_set); });
 }
 
 std::error_code VulkanBindlessDescriptorSet::create(
@@ -34,7 +34,6 @@ std::error_code VulkanBindlessDescriptorSet::create(
     }
     if (auto ec = m_layout.create(device, vkenums::DescriptorSetStrategy::eBindless)) { return ec; }
     m_authority_binding_map.resize(m_layout.getBindings().size());
-    m_authority_lease_map.resize(m_layout.getBindings().size());
     m_frame_slots.resize(frame_copies);
     for (auto & slot : m_frame_slots) {
         if (auto ec = this->recreateSlot(device, slot)) { return ec; }
@@ -51,9 +50,9 @@ VulkanBindlessDescriptorSet & VulkanBindlessDescriptorSet::addDescriptorInfo(
         array_index >= layout_binding.getDescriptorCount()) {
         return *this;
     }
-    m_authority_binding_map[binding][array_index] = info;
+    m_authority_binding_map[binding][array_index].descriptor_info = info;
     for (auto & slot : m_frame_slots) {
-        slot.set.addDescriptorInfo(binding, array_index, info);
+        slot.addDescriptorInfo(binding, array_index, info);
     }
     return *this;
 }
@@ -61,14 +60,9 @@ VulkanBindlessDescriptorSet & VulkanBindlessDescriptorSet::addDescriptorInfo(
 VulkanBindlessDescriptorSet & VulkanBindlessDescriptorSet::addDescriptorInfo(
     uint32_t binding, uint32_t array_index, const DescriptorInfo & info, ResourceLease lease)
 {
+    if (binding >= this->getBindings().size()) { return *this; }
     this->addDescriptorInfo(binding, array_index, info);
-    if (binding < m_authority_lease_map.size()) {
-        m_authority_lease_map[binding][array_index] = std::move(lease);
-        uint64_t key = (static_cast<uint64_t>(binding) << 32) | static_cast<uint64_t>(array_index);
-        for (auto & slot : m_frame_slots) {
-            slot.resource_leases[key] = m_authority_lease_map[binding][array_index];
-        }
-    }
+    m_authority_binding_map[binding][array_index].lease = std::move(lease);
     return *this;
 }
 
@@ -78,39 +72,59 @@ void VulkanBindlessDescriptorSet::commitUpdate(vk::Device device) noexcept
     auto & slot = m_frame_slots[m_current_index];
     const auto & bindings = m_layout.getBindings();
     if (bindings.containsFlags(vk::DescriptorBindingFlagBits::eVariableDescriptorCount) and
-        m_authority_binding_map.back().size() > slot.variable_count) {
+        m_authority_binding_map.back().size() > slot.m_variable_count) {
         this->recreateSlot(device, slot);
     }
-    slot.set.commitUpdate(device);
+    slot.commitUpdate(device);
     while (m_retired_slots.size() > m_frame_slots.size()) {
         auto & oldest = m_retired_slots.front();
-        if (oldest.set) { m_allocator_up->deallocate(std::move(oldest.set)); }
+        if (oldest.m_set) { m_allocator_up->deallocate(std::move(oldest.m_set)); }
         m_retired_slots.pop_front();
     }
 }
 
 const vk::DescriptorSet & VulkanBindlessDescriptorSet::getHandle() const noexcept
 {
-    return m_frame_slots[m_current_index].set.getHandle();
+    return m_frame_slots[m_current_index].m_set.getHandle();
 }
 
 std::error_code lcf::render::VulkanBindlessDescriptorSet::recreateSlot(vk::Device device, Slot & slot)
 {
-    uint32_t variable_count = slot.variable_count << 1;
+    uint32_t variable_count = slot.m_variable_count << 1;
     auto result = m_allocator_up->allocate(m_layout, variable_count);
     if (not result) { return result.error(); }
     m_retired_slots.emplace_back(std::move(slot));
     slot = Slot { std::move(*result), variable_count };
     for (uint32_t binding = 0u; binding < m_authority_binding_map.size(); ++binding) {
-        for (const auto & [array_index, info] : m_authority_binding_map[binding]) {
-            slot.set.addDescriptorInfo(binding, array_index, info);
-        }
-    }
-    for (uint32_t binding = 0u; binding < m_authority_lease_map.size(); ++binding) {
-        for (const auto & [array_index, lease] : m_authority_lease_map[binding]) {
-            uint64_t key = (static_cast<uint64_t>(binding) << 32) | static_cast<uint64_t>(array_index);
-            slot.resource_leases[key] = lease;
+        for (const auto & [array_index, auth_binding] : m_authority_binding_map[binding]) {
+            const auto & [descriptor_info, lease] = auth_binding;
+            slot.addDescriptorInfo(binding, array_index, auth_binding.descriptor_info);
+            slot.addLease(binding, array_index, lease);
         }
     }
     return {};
+}
+
+VulkanBindlessDescriptorSet::Slot::Slot(VulkanDescriptorSet2 set, uint32_t variable_count) :
+    m_set(std::move(set)),
+    m_variable_count(variable_count)
+{
+}
+
+void VulkanBindlessDescriptorSet::Slot::addDescriptorInfo(uint32_t binding, uint32_t array_index, const DescriptorInfo &info)
+{
+    m_set.addDescriptorInfo(binding, array_index, info);
+}
+
+void VulkanBindlessDescriptorSet::Slot::addLease(uint32_t binding, uint32_t array_index, ResourceLease lease)
+{
+    uint64_t key = (static_cast<uint64_t>(binding) << 32) | static_cast<uint64_t>(array_index);
+    m_pending_resource_leases[key] = std::move(lease);
+}
+
+void VulkanBindlessDescriptorSet::Slot::commitUpdate(vk::Device device)
+{
+    m_set.commitUpdate(device);
+    m_in_use_resource_leases.insert_range(std::move(m_pending_resource_leases));
+    m_pending_resource_leases.clear();
 }

@@ -20,15 +20,29 @@ namespace detail {
     {
         using Self = VulkanBindlessDescriptorSet;
         using DescriptorInfo = std::variant<vk::DescriptorBufferInfo, vk::DescriptorImageInfo>;
-        using AuthorityBindingMap = std::vector<tsl::robin_map<uint32_t, DescriptorInfo>>;
-        using AuthorityLeaseMap = std::vector<tsl::robin_map<uint32_t, ResourceLease>>;
+        struct AuthorityBinding
+        {
+            DescriptorInfo descriptor_info;
+            ResourceLease lease;
+        };
+        using AuthorityBindingMap = std::vector<tsl::robin_map<uint32_t, AuthorityBinding>>;
         struct Slot
         {
+            using LeaseMap = std::unordered_map<uint64_t, ResourceLease>;
             Slot() = default;
-            Slot(VulkanDescriptorSet2 set, uint32_t variable_count) : set(std::move(set)), variable_count(variable_count) {}
-            VulkanDescriptorSet2 set;
-            uint32_t variable_count = vkconstants::ds::k_initial_variable_descriptor_count >> 1;
-            tsl::robin_map<uint64_t, ResourceLease> resource_leases;
+            Slot(VulkanDescriptorSet2 set, uint32_t variable_count);
+            ~Slot() noexcept = default;
+            Slot(const Slot &) = default;
+            Slot(Slot &&) noexcept = default;
+            Slot & operator=(const Slot &) = default;
+            Slot & operator=(Slot &&) noexcept = default;
+            void addDescriptorInfo(uint32_t binding, uint32_t array_index, const DescriptorInfo & info);
+            void addLease(uint32_t binding, uint32_t array_index, ResourceLease lease);
+            void commitUpdate(vk::Device device);
+            VulkanDescriptorSet2 m_set;
+            uint32_t m_variable_count = vkconstants::ds::k_initial_variable_descriptor_count >> 1;
+            LeaseMap m_in_use_resource_leases;
+            LeaseMap m_pending_resource_leases;
         };
         using FrameSlots = std::vector<Slot>;
         using RetiredSlots = std::deque<Slot>;
@@ -59,7 +73,6 @@ namespace detail {
         std::unique_ptr<detail::VulkanBindlessDescriptorSetAllocator> m_allocator_up;
         VulkanDescriptorSetLayout2 m_layout;
         AuthorityBindingMap m_authority_binding_map;
-        AuthorityLeaseMap m_authority_lease_map;
         FrameSlots m_frame_slots;
         RetiredSlots m_retired_slots;
         uint32_t m_current_index = 0u;
