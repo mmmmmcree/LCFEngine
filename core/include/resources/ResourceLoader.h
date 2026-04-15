@@ -17,17 +17,17 @@ namespace lcf {
             m_registry_p(&registry),
             m_load_func(std::move(load_func))
         {}
-        ResourceEntity<Resource> load(Args... args) const noexcept
+        TypedResourceEntity<Resource> load(Args... args) const noexcept
         {
             auto opt_resource = m_load_func(std::move(args)...);
             if (not opt_resource) { return {}; }
-            ResourceEntity<Resource> res_entity {*m_registry_p};
+            ResourceEntity res_entity {*m_registry_p};
             m_registry_p->emplace<Resource>(res_entity.getArtifactID(), std::move(opt_resource.value()));
             auto & state = m_registry_p->emplace<ResourceState>(res_entity.getArtifactID());
             state = ResourceState::eLoaded;
-            return res_entity;
+            return TypedResourceEntity<Resource>(res_entity);
         }
-        // ResourceEntity<Resource> loadAsync(TaskScheduler & scheduler) const
+        // TypedResourceEntity<Resource> loadAsync(TaskScheduler & scheduler) const
         // {
         //     return {};
         // }

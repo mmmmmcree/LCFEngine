@@ -6,6 +6,7 @@
 #include "ecs/signals.h"
 #include "Transform.h"
 #include "TransformSystem.h"
+#include "ResourceSystem.h"
 #include "TrackballController.h"
 #include "log.h"
 #include "tracy_profiling.h"

@@ -3,7 +3,7 @@
 #include "log.h"
 #include "image/Image.h"
 #include "resources/ResourceRegistry.h"
-#include "resources/ResourceHandle.h"
+#include "resources/ResourceEntity.h"
 #include "resources/ResourceLoader.h"
 #include "resources/resources_signals.h"
 #include "ResourceSystem.h"
@@ -23,9 +23,9 @@ struct SomeResource
     int a = 1;
 };
 
-void on_resource_released(const ResourceReleasedSignal<SomeResource> & signal)
+void on_resource_released(const ResourceReleasedSignal & signal)
 {
-    lcf_log_info("Resource released: {}", 1);
+    lcf_log_info("Resource released: {}", static_cast<uint32_t>(signal.m_artifact_id));
 }
 
 int main()
@@ -51,7 +51,7 @@ int main()
     };
 
     resource_system.registerLoader(std::move(load_image));
-    auto img_res_entity = resource_system.load<Image>(std::filesystem::path("a.jpg"));
+    auto img_res_entity = resource_system.load<Image>(std::filesystem::path("assets/images/bk.jpg"));
     auto img_cpy_res_entity = resource_system.registerResource(std::move(*img_res_entity));
     if (img_res_entity) {
         lcf_log_info("Image loaded: {}x{}", img_res_entity->getWidth(), img_res_entity->getHeight());

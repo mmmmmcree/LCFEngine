@@ -16,7 +16,7 @@ namespace lcf::ecs {
             return this->registerLoader(make_resource_loader(m_resource_registry, std::forward<Loader>(loader)));
         }
         template <typename Resource, typename... Args>
-        ResourceEntity<Resource> load(Args &&... args) noexcept
+        TypedResourceEntity<Resource> load(Args &&... args) noexcept
         {
             using Loader = ResourceLoader<Resource, Args...>;
             if (not m_resource_registry.ctx().contains<Loader>()) { return {}; }
@@ -24,13 +24,13 @@ namespace lcf::ecs {
             return loader.load(std::forward<Args>(args)...);
         }
         template <typename Resource>
-        ResourceEntity<Resource> registerResource(Resource && resource) noexcept
+        TypedResourceEntity<Resource> registerResource(Resource && resource) noexcept
         {
-            ResourceEntity<Resource> handle {m_resource_registry};
-            m_resource_registry.emplace<Resource>(handle.getArtifactID(), std::forward<Resource>(resource));
-            auto & state = m_resource_registry.emplace<ResourceState>(handle.getArtifactID());
+            ResourceEntity resource_entity {m_resource_registry};
+            m_resource_registry.emplace<Resource>(resource_entity.getArtifactID(), std::forward<Resource>(resource));
+            auto & state = m_resource_registry.emplace<ResourceState>(resource_entity.getArtifactID());
             state = ResourceState::eLoaded;
-            return handle;
+            return TypedResourceEntity<Resource>(resource_entity);
         }
     private:
         template <typename Resource, typename... Args>
