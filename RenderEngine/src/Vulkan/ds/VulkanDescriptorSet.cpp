@@ -1,10 +1,10 @@
-#include "Vulkan/ds/VulkanDescriptorSet2.h"
+#include "Vulkan/ds/VulkanDescriptorSet.h"
 #include <utility>
 #include <ranges>
 
 using namespace lcf::render;
 
-VulkanDescriptorSet2::VulkanDescriptorSet2(
+VulkanDescriptorSet::VulkanDescriptorSet(
     vk::DescriptorSet handle,
     std::span<const VulkanDescriptorSetBinding> bindings,
     vkenums::DescriptorSetStrategy strategy,
@@ -16,7 +16,7 @@ VulkanDescriptorSet2::VulkanDescriptorSet2(
 {
 }
 
-VulkanDescriptorSet2::VulkanDescriptorSet2(Self && other) noexcept :
+VulkanDescriptorSet::VulkanDescriptorSet(Self && other) noexcept :
     m_descriptor_set(std::exchange(other.m_descriptor_set, nullptr)),
     m_binding_list(std::move(other.m_binding_list)),
     m_strategy(other.m_strategy),
@@ -25,7 +25,7 @@ VulkanDescriptorSet2::VulkanDescriptorSet2(Self && other) noexcept :
 {
 }
 
-VulkanDescriptorSet2 & VulkanDescriptorSet2::operator=(Self && other) noexcept
+VulkanDescriptorSet & VulkanDescriptorSet::operator=(Self && other) noexcept
 {
     if (this == &other) { return *this; }
     m_descriptor_set = std::exchange(other.m_descriptor_set, nullptr);
@@ -36,18 +36,18 @@ VulkanDescriptorSet2 & VulkanDescriptorSet2::operator=(Self && other) noexcept
     return *this;
 }
 
-VulkanDescriptorSet2 & VulkanDescriptorSet2::addDescriptorInfo(uint32_t binding, const DescriptorInfo & info)
+VulkanDescriptorSet & VulkanDescriptorSet::addDescriptorInfo(uint32_t binding, const DescriptorInfo & info)
 {
     return this->addDescriptorInfo(binding, 0u, info);
 }
 
-VulkanDescriptorSet2 & VulkanDescriptorSet2::addDescriptorInfo(uint32_t binding, uint32_t array_index, const DescriptorInfo & info)
+VulkanDescriptorSet & VulkanDescriptorSet::addDescriptorInfo(uint32_t binding, uint32_t array_index, const DescriptorInfo & info)
 {
     m_pending_writes.emplace_back(binding, array_index, info);
     return *this;
 }
 
-void VulkanDescriptorSet2::commitUpdate(vk::Device device)
+void VulkanDescriptorSet::commitUpdate(vk::Device device)
 {
     if (m_pending_writes.empty() || not device) { return; }
 

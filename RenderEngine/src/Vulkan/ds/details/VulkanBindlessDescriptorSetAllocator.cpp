@@ -1,6 +1,6 @@
 #include "Vulkan/ds/details/VulkanBindlessDescriptorSetAllocator.h"
-#include "Vulkan/ds/VulkanDescriptorSet2.h"
-#include "Vulkan/ds/VulkanDescriptorSetLayout2.h"
+#include "Vulkan/ds/VulkanDescriptorSet.h"
+#include "Vulkan/ds/VulkanDescriptorSetLayout.h"
 
 using namespace lcf::render;
 using namespace lcf::render::detail;
@@ -21,7 +21,7 @@ std::error_code VulkanBindlessDescriptorSetAllocator::create(vk::Device device) 
 }
 
 VulkanBindlessDescriptorSetAllocator::AllocResult VulkanBindlessDescriptorSetAllocator::allocate(
-    const VulkanDescriptorSetLayout2 &layout,
+    const VulkanDescriptorSetLayout &layout,
     uint32_t variable_count) noexcept
 {
     auto strategy = layout.getStrategy();
@@ -45,10 +45,10 @@ VulkanBindlessDescriptorSetAllocator::AllocResult VulkanBindlessDescriptorSetAll
         return std::unexpected(e.code());
     }
     m_set_to_pool_map[descriptor_set] = alloc_info.descriptorPool;
-    return VulkanDescriptorSet2 { descriptor_set, layout.getBindings(), layout.getStrategy(), layout.getIndex() };
+    return VulkanDescriptorSet { descriptor_set, layout.getBindings(), layout.getStrategy(), layout.getIndex() };
 }
 
-void VulkanBindlessDescriptorSetAllocator::deallocate(VulkanDescriptorSet2 &&set) noexcept
+void VulkanBindlessDescriptorSetAllocator::deallocate(VulkanDescriptorSet &&set) noexcept
 {
     if (set.getStrategy() != vkenums::DescriptorSetStrategy::eBindless) { return; }
     auto pool = m_set_to_pool_map[set.getHandle()];
@@ -57,7 +57,7 @@ void VulkanBindlessDescriptorSetAllocator::deallocate(VulkanDescriptorSet2 &&set
 }
 
 vk::DescriptorPool VulkanBindlessDescriptorSetAllocator::createPool(
-    const VulkanDescriptorSetLayout2 &layout,
+    const VulkanDescriptorSetLayout &layout,
     uint32_t variable_count) noexcept
 {
     std::vector<vk::DescriptorPoolSize> pool_sizes;

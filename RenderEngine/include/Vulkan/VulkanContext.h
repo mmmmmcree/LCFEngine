@@ -4,7 +4,6 @@
 #include "VulkanSwapchain.h"
 #include "memory/details/VulkanMemoryAllocator.h"
 #include "VulkanSamplerManager.h"
-#include "VulkanDescriptorSetAllocator.h"
 #include "ds/VulkanDescriptorSetManager.h"
 #include <vulkan/vulkan.hpp>
 #include <vector>
@@ -36,7 +35,6 @@ namespace lcf::render {
         std::span<const vk::Queue> getSubQueues(vk::QueueFlagBits type) const noexcept;
         const vk::CommandPool & getCommandPool(vk::QueueFlagBits queue_type) const noexcept;
         const VulkanMemoryAllocator & getMemoryAllocator() const noexcept { return m_memory_allocator; }
-        const VulkanDescriptorSetAllocator & getDescriptorSetAllocator() const noexcept { return m_descriptor_set_allocator; }
         VulkanDescriptorSetManager & getDescriptorSetManager() noexcept { return m_descriptor_set_manager; }
         const VulkanSamplerManager & getSamplerManager() const noexcept { return m_sampler_manager; }
     private:
@@ -57,7 +55,6 @@ namespace lcf::render {
         QueueListMap m_queue_lists;
         CommandBufferPoolMap m_command_pools;
         VulkanMemoryAllocator m_memory_allocator;
-        VulkanDescriptorSetAllocator m_descriptor_set_allocator;
         VulkanDescriptorSetManager m_descriptor_set_manager;
         VulkanSamplerManager m_sampler_manager;
     };

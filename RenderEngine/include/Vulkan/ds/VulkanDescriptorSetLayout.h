@@ -7,18 +7,18 @@
 #include <vector>
 
 namespace lcf::render {
-    class VulkanDescriptorSetLayout2
+    class VulkanDescriptorSetLayout
     {
-        using Self = VulkanDescriptorSetLayout2;
+        using Self = VulkanDescriptorSetLayout;
     public:
         using BindingList = std::vector<VulkanDescriptorSetBinding>;
         using BindingReadSpan  = std::span<const VulkanDescriptorSetBinding>;
     public:
-        VulkanDescriptorSetLayout2() = default;
-        ~VulkanDescriptorSetLayout2() = default;
-        VulkanDescriptorSetLayout2(const Self &) = delete;
+        VulkanDescriptorSetLayout() = default;
+        ~VulkanDescriptorSetLayout() = default;
+        VulkanDescriptorSetLayout(const Self &) = delete;
         Self & operator=(const Self &) = delete;
-        VulkanDescriptorSetLayout2(Self &&) = default;
+        VulkanDescriptorSetLayout(Self &&) = default;
         Self & operator=(Self &&) = default;
     public:
         std::error_code create(vk::Device device, vkenums::DescriptorSetStrategy strategy) noexcept;

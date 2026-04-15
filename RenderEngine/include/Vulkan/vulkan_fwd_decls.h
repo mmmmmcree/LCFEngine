@@ -41,7 +41,7 @@ namespace lcf::render {
     LCF_DECLARE_POINTER_DEFS(VulkanSampler, STDPointerDefs);
 
     class VulkanDescriptorSetBinding;
-    class VulkanDescriptorSet2;
+    class VulkanDescriptorSet;
     class VulkanDescriptorSetLayout2;
     class VulkanBindlessDescriptorSet;
     class VulkanDescriptorSetManager;

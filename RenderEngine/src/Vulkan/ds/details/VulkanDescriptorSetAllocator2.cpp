@@ -1,13 +1,13 @@
-#include "Vulkan/ds/details/VulkanDescriptorSetAllocator2.h"
-#include "Vulkan/ds/VulkanDescriptorSet2.h"
-#include "Vulkan/ds/VulkanDescriptorSetLayout2.h"
+#include "Vulkan/ds/details/VulkanDescriptorSetAllocator.h"
+#include "Vulkan/ds/VulkanDescriptorSet.h"
+#include "Vulkan/ds/VulkanDescriptorSetLayout.h"
 #include "Vulkan/vulkan_constants.h"
 #include <ranges>
 
 using namespace lcf::render;
 using namespace lcf::render::detail;
 
-VulkanDescriptorSetAllocator2::~VulkanDescriptorSetAllocator2() noexcept
+VulkanDescriptorSetAllocator::~VulkanDescriptorSetAllocator() noexcept
 {
     for (auto & [_, pool_group] : m_pool_groups) {
         const_cast<PoolGroup &>(pool_group).destroyPools(m_device);
@@ -17,14 +17,14 @@ VulkanDescriptorSetAllocator2::~VulkanDescriptorSetAllocator2() noexcept
     }
 }
 
-std::error_code VulkanDescriptorSetAllocator2::create(vk::Device device) noexcept
+std::error_code VulkanDescriptorSetAllocator::create(vk::Device device) noexcept
 {
     if (not device) { return std::make_error_code(std::errc::invalid_argument);  }
     m_device = device;
     return {};
 }
 
-VulkanDescriptorSetAllocator2::AllocResult VulkanDescriptorSetAllocator2::allocate(const VulkanDescriptorSetLayout2 & layout) noexcept
+VulkanDescriptorSetAllocator::AllocResult VulkanDescriptorSetAllocator::allocate(const VulkanDescriptorSetLayout & layout) noexcept
 {
     auto strategy = layout.getStrategy();
     if (strategy == vkenums::DescriptorSetStrategy::eBindless) {
@@ -37,7 +37,7 @@ VulkanDescriptorSetAllocator2::AllocResult VulkanDescriptorSetAllocator2::alloca
     return this->allocate(layout, alloc_info);
 }
 
-void VulkanDescriptorSetAllocator2::deallocate(VulkanDescriptorSet2 && set)
+void VulkanDescriptorSetAllocator::deallocate(VulkanDescriptorSet && set)
 {
     auto pool = m_set_to_pool_map[set.getStrategy()][set.getHandle()];
     switch (set.getStrategy()) {
@@ -51,8 +51,8 @@ void VulkanDescriptorSetAllocator2::deallocate(VulkanDescriptorSet2 && set)
     m_set_to_pool_map[set.getStrategy()].erase(set.getHandle());
 }
 
-VulkanDescriptorSetAllocator2::AllocResult VulkanDescriptorSetAllocator2::allocate(
-    const VulkanDescriptorSetLayout2 & layout,
+VulkanDescriptorSetAllocator::AllocResult VulkanDescriptorSetAllocator::allocate(
+    const VulkanDescriptorSetLayout & layout,
     const vk::DescriptorSetAllocateInfo & alloc_info) noexcept
 {
     vk::DescriptorSet descriptor_set;
@@ -62,10 +62,10 @@ VulkanDescriptorSetAllocator2::AllocResult VulkanDescriptorSetAllocator2::alloca
         return std::unexpected(e.code());
     }
     m_set_to_pool_map[layout.getStrategy()][descriptor_set] = alloc_info.descriptorPool;
-    return VulkanDescriptorSet2 { descriptor_set, layout.getBindings(), layout.getStrategy(), layout.getIndex() };
+    return VulkanDescriptorSet { descriptor_set, layout.getBindings(), layout.getStrategy(), layout.getIndex() };
 }
 
-vk::DescriptorPool VulkanDescriptorSetAllocator2::tryGetPool(vkenums::DescriptorSetStrategy strategy) noexcept
+vk::DescriptorPool VulkanDescriptorSetAllocator::tryGetPool(vkenums::DescriptorSetStrategy strategy) noexcept
 {
     auto & pool_group = m_pool_groups[strategy];
     auto pool = pool_group.getCurrentAvailablePool();
@@ -77,7 +77,7 @@ vk::DescriptorPool VulkanDescriptorSetAllocator2::tryGetPool(vkenums::Descriptor
     return pool;
 }
 
-vk::DescriptorPool VulkanDescriptorSetAllocator2::createPool(vkenums::DescriptorSetStrategy strategy) noexcept
+vk::DescriptorPool VulkanDescriptorSetAllocator::createPool(vkenums::DescriptorSetStrategy strategy) noexcept
 {
     vk::DescriptorPoolCreateInfo pool_info;
     pool_info.setMaxSets(vkconstants::ds::k_max_sets_per_pool);
@@ -111,12 +111,12 @@ vk::DescriptorPool VulkanDescriptorSetAllocator2::createPool(vkenums::Descriptor
 //  PoolGroup
 // ============================================================================
 
-vk::DescriptorPool VulkanDescriptorSetAllocator2::PoolGroup::getCurrentAvailablePool() const noexcept
+vk::DescriptorPool VulkanDescriptorSetAllocator::PoolGroup::getCurrentAvailablePool() const noexcept
 {
     return m_available_pools.empty() ? nullptr : m_available_pools.back();
 }
 
-void VulkanDescriptorSetAllocator2::PoolGroup::setCurrentAvailablePoolFull()
+void VulkanDescriptorSetAllocator::PoolGroup::setCurrentAvailablePoolFull()
 {
     if (not m_available_pools.empty()) {
         m_full_pools.emplace_back(m_available_pools.back());
@@ -124,7 +124,7 @@ void VulkanDescriptorSetAllocator2::PoolGroup::setCurrentAvailablePoolFull()
     }
 }
 
-void VulkanDescriptorSetAllocator2::PoolGroup::destroyCurrentAvailablePool(vk::Device device)
+void VulkanDescriptorSetAllocator::PoolGroup::destroyCurrentAvailablePool(vk::Device device)
 {
     if (not m_available_pools.empty()) {
         device.destroyDescriptorPool(m_available_pools.back());
@@ -132,7 +132,7 @@ void VulkanDescriptorSetAllocator2::PoolGroup::destroyCurrentAvailablePool(vk::D
     }
 }
 
-void VulkanDescriptorSetAllocator2::PoolGroup::destroyPools(vk::Device device) noexcept
+void VulkanDescriptorSetAllocator::PoolGroup::destroyPools(vk::Device device) noexcept
 {
     for (auto pool : m_available_pools) { device.destroyDescriptorPool(pool); }
     for (auto pool : m_full_pools) { device.destroyDescriptorPool(pool); }
@@ -140,7 +140,7 @@ void VulkanDescriptorSetAllocator2::PoolGroup::destroyPools(vk::Device device) n
     m_full_pools.clear();
 }
 
-void VulkanDescriptorSetAllocator2::PoolGroup::addPool(vk::DescriptorPool pool)
+void VulkanDescriptorSetAllocator::PoolGroup::addPool(vk::DescriptorPool pool)
 {
     m_available_pools.emplace_back(pool);
 }

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Vulkan/ds/VulkanDescriptorSet2.h"
-#include "Vulkan/ds/VulkanDescriptorSetLayout2.h"
+#include "Vulkan/ds/VulkanDescriptorSet.h"
+#include "Vulkan/ds/VulkanDescriptorSetLayout.h"
 #include "Vulkan/vulkan_constants.h"
 #include "resource_utils.h"
 #include <vulkan/vulkan.hpp>
@@ -30,7 +30,7 @@ namespace detail {
         {
             using LeaseMap = std::unordered_map<uint64_t, ResourceLease>;
             Slot() = default;
-            Slot(VulkanDescriptorSet2 set, uint32_t variable_count);
+            Slot(VulkanDescriptorSet set, uint32_t variable_count);
             ~Slot() noexcept = default;
             Slot(const Slot &) = default;
             Slot(Slot &&) noexcept = default;
@@ -39,7 +39,7 @@ namespace detail {
             void addDescriptorInfo(uint32_t binding, uint32_t array_index, const DescriptorInfo & info);
             void addLease(uint32_t binding, uint32_t array_index, ResourceLease lease);
             void commitUpdate(vk::Device device);
-            VulkanDescriptorSet2 m_set;
+            VulkanDescriptorSet m_set;
             uint32_t m_variable_count = vkconstants::ds::k_initial_variable_descriptor_count >> 1;
             LeaseMap m_in_use_resource_leases;
             LeaseMap m_pending_resource_leases;
@@ -71,7 +71,7 @@ namespace detail {
         std::error_code recreateSlot(vk::Device device, Slot & slot);
     private:
         std::unique_ptr<detail::VulkanBindlessDescriptorSetAllocator> m_allocator_up;
-        VulkanDescriptorSetLayout2 m_layout;
+        VulkanDescriptorSetLayout m_layout;
         AuthorityBindingMap m_authority_binding_map;
         FrameSlots m_frame_slots;
         RetiredSlots m_retired_slots;

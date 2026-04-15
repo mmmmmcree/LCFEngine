@@ -1,23 +1,23 @@
-#include "Vulkan/ds/VulkanDescriptorSetLayout2.h"
+#include "Vulkan/ds/VulkanDescriptorSetLayout.h"
 #include "Vulkan/vulkan_constants.h"
 #include <ranges>
 
 using namespace lcf::render;
 namespace stdv = std::views;
 
-VulkanDescriptorSetLayout2 & VulkanDescriptorSetLayout2::setBindings(BindingReadSpan bindings) noexcept
+VulkanDescriptorSetLayout & VulkanDescriptorSetLayout::setBindings(BindingReadSpan bindings) noexcept
 {
     m_bindings.assign_range(bindings);
     return *this;
 }
 
-VulkanDescriptorSetLayout2 & VulkanDescriptorSetLayout2::setIndex(uint32_t index) noexcept
+VulkanDescriptorSetLayout & VulkanDescriptorSetLayout::setIndex(uint32_t index) noexcept
 {
     m_layout_index = index;
     return *this;
 }
 
-std::error_code VulkanDescriptorSetLayout2::create(vk::Device device, vkenums::DescriptorSetStrategy strategy) noexcept
+std::error_code VulkanDescriptorSetLayout::create(vk::Device device, vkenums::DescriptorSetStrategy strategy) noexcept
 {
     m_strategy = strategy;
     if (m_bindings.empty()) {

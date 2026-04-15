@@ -83,7 +83,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     m_indirect_call_buffer.setUsage(GPUBufferUsage::eIndirect)
         .create(m_context_p, size_of_v<vk::DrawIndirectCommand> + 1 * size_of_v<vk::DrawIndirectCommand>); // uint32_t(for IndirectDrawCount) + padding | vk::DrawIndirectCommand ...
 
-    VulkanDescriptorSetLayout2 per_view_descriptor_set_layout;
+    VulkanDescriptorSetLayout per_view_descriptor_set_layout;
     per_view_descriptor_set_layout.setBindings(vkconstants::ds::k_per_view_bindings)
         .setIndex(std::to_underlying(DescriptorSetBindingPoints::ePerView))
         .create(device, vkenums::DescriptorSetStrategy::eIndividual);
@@ -229,7 +229,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
             .setSampler(sampler_manager.getShared(SamplerPreset::eEnvironmentMap)->getHandle());
 
         const auto & stc_layout = stc_pipeline.getDescriptorSetLayout(0);
-        auto descriptor_set_rp = make_resource_ptr<VulkanDescriptorSet2>(descriptor_set_manager.createSet(stc_layout));
+        auto descriptor_set_rp = make_resource_ptr<VulkanDescriptorSet>(descriptor_set_manager.createSet(stc_layout));
         descriptor_set_rp->addDescriptorInfo(0, image_info).commitUpdate(device);
         //todo this descriptor_set_rp is never freed
 

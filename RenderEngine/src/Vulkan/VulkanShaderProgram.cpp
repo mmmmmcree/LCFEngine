@@ -143,7 +143,7 @@ void VulkanShaderProgram::createDescriptorSetLayouts()
     uint32_t bindless_buffer_index = vkenums::decode::get_index(vkenums::DescriptorSetIndex::eBindlessBuffers);
     for (uint32_t set = 0; set < m_descriptor_set_layout_binding_table.size(); ++set) {
         const auto & bindings = m_descriptor_set_layout_binding_table[set];
-        auto layout_sp = std::make_shared<VulkanDescriptorSetLayout2>();
+        auto layout_sp = std::make_shared<VulkanDescriptorSetLayout>();
         std::vector<VulkanDescriptorSetBinding> ds_bindings(bindings.begin(), bindings.end());
         auto strategy = vkenums::DescriptorSetStrategy::eIndividual;
         // set=1 (bindless buffers): no variable count, but needs eUpdateAfterBindPool

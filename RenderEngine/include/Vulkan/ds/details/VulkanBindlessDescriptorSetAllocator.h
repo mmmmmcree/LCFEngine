@@ -8,8 +8,8 @@
 
 namespace lcf::render {
 
-    class VulkanDescriptorSet2;
-    class VulkanDescriptorSetLayout2;
+    class VulkanDescriptorSet;
+    class VulkanDescriptorSetLayout;
 
 namespace detail {
     class VulkanBindlessDescriptorSetAllocator
@@ -17,7 +17,7 @@ namespace detail {
         using Self = VulkanBindlessDescriptorSetAllocator;
         using SetToPoolMap = std::unordered_map<VkDescriptorSet, vk::DescriptorPool>;
     public:
-        using AllocResult = std::expected<VulkanDescriptorSet2, std::error_code>;
+        using AllocResult = std::expected<VulkanDescriptorSet, std::error_code>;
     public:
         VulkanBindlessDescriptorSetAllocator() = default;
         ~VulkanBindlessDescriptorSetAllocator() noexcept;
@@ -27,10 +27,10 @@ namespace detail {
         Self & operator=(Self &&) = default;
     public:
         std::error_code create(vk::Device device) noexcept;
-        AllocResult allocate(const VulkanDescriptorSetLayout2 & layout, uint32_t variable_count) noexcept;
-        void deallocate(VulkanDescriptorSet2 && set) noexcept;
+        AllocResult allocate(const VulkanDescriptorSetLayout & layout, uint32_t variable_count) noexcept;
+        void deallocate(VulkanDescriptorSet && set) noexcept;
     private:
-        vk::DescriptorPool createPool(const VulkanDescriptorSetLayout2 & layout, uint32_t variable_count) noexcept;
+        vk::DescriptorPool createPool(const VulkanDescriptorSetLayout & layout, uint32_t variable_count) noexcept;
     private:
         vk::Device m_device = nullptr;
         SetToPoolMap m_set_to_pool_map;

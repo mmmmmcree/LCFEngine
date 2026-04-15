@@ -11,7 +11,7 @@
 #include "memory/VulkanBufferObjectGroup.h"
 #include "VulkanMesh.h"
 #include "VulkanSampler.h"
-#include "ds/VulkanDescriptorSet2.h"
+#include "ds/VulkanDescriptorSet.h"
 #include <unordered_map>
 
 namespace lcf {
@@ -44,7 +44,7 @@ namespace ecf {
         uint32_t m_current_frame_index = 0;
 
         //! temporary
-        VulkanDescriptorSet2 m_per_view_descriptor_set;
+        VulkanDescriptorSet m_per_view_descriptor_set;
 
         VulkanPipeline m_compute_pipeline;
         VulkanPipeline m_graphics_pipeline;

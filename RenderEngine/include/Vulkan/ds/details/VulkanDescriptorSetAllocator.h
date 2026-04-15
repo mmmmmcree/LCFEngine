@@ -8,14 +8,14 @@
 
 namespace lcf::render {
 
-    class VulkanDescriptorSet2;
-    class VulkanDescriptorSetLayout2;
+    class VulkanDescriptorSet;
+    class VulkanDescriptorSetLayout;
 
 namespace detail {
 
-    class VulkanDescriptorSetAllocator2
+    class VulkanDescriptorSetAllocator
     {
-        using Self = VulkanDescriptorSetAllocator2;
+        using Self = VulkanDescriptorSetAllocator;
         struct PoolGroup
         {
             PoolGroup() = default;
@@ -32,20 +32,20 @@ namespace detail {
         using PoolGroupMap = tsl::robin_map<vkenums::DescriptorSetStrategy, PoolGroup>;
         using SetToPoolMap = std::unordered_map<vkenums::DescriptorSetStrategy, std::unordered_map<VkDescriptorSet, vk::DescriptorPool>>;
     public:
-        using AllocResult = std::expected<VulkanDescriptorSet2, std::error_code>;
+        using AllocResult = std::expected<VulkanDescriptorSet, std::error_code>;
     public:
-        VulkanDescriptorSetAllocator2() = default;
-        ~VulkanDescriptorSetAllocator2() noexcept;
-        VulkanDescriptorSetAllocator2(const Self &) = delete;
+        VulkanDescriptorSetAllocator() = default;
+        ~VulkanDescriptorSetAllocator() noexcept;
+        VulkanDescriptorSetAllocator(const Self &) = delete;
         Self & operator=(const Self &) = delete;
-        VulkanDescriptorSetAllocator2(Self &&) = default;
+        VulkanDescriptorSetAllocator(Self &&) = default;
         Self & operator=(Self &&) = default;
     public:
         std::error_code create(vk::Device device) noexcept;
-        AllocResult allocate(const VulkanDescriptorSetLayout2 & layout) noexcept;
-        void deallocate(VulkanDescriptorSet2 && set);
+        AllocResult allocate(const VulkanDescriptorSetLayout & layout) noexcept;
+        void deallocate(VulkanDescriptorSet && set);
     private:
-        AllocResult allocate(const VulkanDescriptorSetLayout2 & layout, const vk::DescriptorSetAllocateInfo & alloc_info) noexcept;
+        AllocResult allocate(const VulkanDescriptorSetLayout & layout, const vk::DescriptorSetAllocateInfo & alloc_info) noexcept;
         vk::DescriptorPool tryGetPool(vkenums::DescriptorSetStrategy strategy) noexcept;
         vk::DescriptorPool createPool(vkenums::DescriptorSetStrategy strategy) noexcept;
     private:

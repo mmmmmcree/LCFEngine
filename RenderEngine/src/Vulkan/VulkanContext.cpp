@@ -1,6 +1,6 @@
 #include "Vulkan/VulkanContext.h"
 #include "Vulkan/ds/details/VulkanBindlessDescriptorSetAllocator.h"
-#include "Vulkan/ds/details/VulkanDescriptorSetAllocator2.h"
+#include "Vulkan/ds/details/VulkanDescriptorSetAllocator.h"
 #include "gui/gui_types.h"
 #include "log.h"
 #include <set>
@@ -38,7 +38,6 @@ void VulkanContext::create()
     this->createLogicalDevice();
     this->createCommandPools();
     m_memory_allocator.create(this->getInstance(), this->getPhysicalDevice(), this->getDevice());
-    m_descriptor_set_allocator.create(this);
     m_descriptor_set_manager.create(*this);
     m_sampler_manager.create(this);
     for (auto &render_target : m_surface_render_targets) {

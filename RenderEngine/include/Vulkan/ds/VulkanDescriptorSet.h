@@ -10,9 +10,9 @@
 
 namespace lcf::render {
 
-    class VulkanDescriptorSet2
+    class VulkanDescriptorSet
     {
-        using Self = VulkanDescriptorSet2;
+        using Self = VulkanDescriptorSet;
         using BindingList = std::vector<VulkanDescriptorSetBinding>;
         using DescriptorInfo = std::variant<vk::DescriptorBufferInfo, vk::DescriptorImageInfo>;
         struct PendingWrite
@@ -22,16 +22,16 @@ namespace lcf::render {
             DescriptorInfo info;
         };
     public:
-        VulkanDescriptorSet2() = default;
-        VulkanDescriptorSet2(
+        VulkanDescriptorSet() = default;
+        VulkanDescriptorSet(
             vk::DescriptorSet handle,
             std::span<const VulkanDescriptorSetBinding> bindings,
             vkenums::DescriptorSetStrategy strategy,
             uint32_t set_index);
-        ~VulkanDescriptorSet2() = default;
-        VulkanDescriptorSet2(Self && other) noexcept;
+        ~VulkanDescriptorSet() = default;
+        VulkanDescriptorSet(Self && other) noexcept;
         Self & operator=(Self && other) noexcept;
-        VulkanDescriptorSet2(const Self &) = delete;
+        VulkanDescriptorSet(const Self &) = delete;
         Self & operator=(const Self &) = delete;
         operator bool() const noexcept { return static_cast<bool>(m_descriptor_set); }
     public:

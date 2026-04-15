@@ -1,6 +1,6 @@
 #include "Vulkan/ds/VulkanBindlessDescriptorSet.h"
 #include "Vulkan/ds/details/VulkanBindlessDescriptorSetAllocator.h"
-#include "Vulkan/ds/VulkanDescriptorSetLayout2.h"
+#include "Vulkan/ds/VulkanDescriptorSetLayout.h"
 #include "Vulkan/vulkan_constants.h"
 #include <utility>
 #include <ranges>
@@ -105,7 +105,7 @@ std::error_code lcf::render::VulkanBindlessDescriptorSet::recreateSlot(vk::Devic
     return {};
 }
 
-VulkanBindlessDescriptorSet::Slot::Slot(VulkanDescriptorSet2 set, uint32_t variable_count) :
+VulkanBindlessDescriptorSet::Slot::Slot(VulkanDescriptorSet set, uint32_t variable_count) :
     m_set(std::move(set)),
     m_variable_count(variable_count)
 {
