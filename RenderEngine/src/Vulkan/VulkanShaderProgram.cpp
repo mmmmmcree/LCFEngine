@@ -140,12 +140,17 @@ void VulkanShaderProgram::createDescriptorSetLayouts()
         strategy_map.insert_range(read_strategy(shader->getPragmas()));
     }
     for (uint32_t set = 0; set < m_descriptor_set_layout_binding_table.size(); ++set) {
-        const auto & bindings = m_descriptor_set_layout_binding_table[set];
+        auto bindings = m_descriptor_set_layout_binding_table[set]; // copy — may be modified
         auto layout_sp = VulkanDescriptorSetLayout::makeShared();
         if (strategy_map.contains(set)) {
             auto strategy = strategy_map.at(set);
             lcf_log_info("set has strategy");
         }
+        uint32_t bindless_buffer_index = vkenums::decode::get_index(vkenums::DescriptorSetIndex::eBindlessBuffers);
+        if (set == bindless_buffer_index and not bindings.empty()) {
+            layout_sp->setFlags(vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool);
+        }
+
         layout_sp->setBindings(bindings)
             .setIndex(set)
             .create(m_context_p);

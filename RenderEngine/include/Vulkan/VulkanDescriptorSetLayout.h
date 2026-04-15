@@ -29,6 +29,7 @@ namespace lcf::render {
         Self & operator=(Self &&) = default;
     public:
         Self & setBindings(BindingReadSpan bindings) noexcept { m_binding_list.assign(bindings.begin(), bindings.end()); return *this; }
+        Self & setFlags(vk::DescriptorSetLayoutCreateFlags flags) noexcept { m_flags = flags; return *this; }
         Self & setIndex(uint32_t index) noexcept { m_layout_index = index; return *this; }
         uint32_t getIndex() const noexcept { return m_layout_index; }
         void create(VulkanContext * context_p);
