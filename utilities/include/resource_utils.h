@@ -32,7 +32,7 @@ namespace lcf {
             }
             return false;
         }
-        uint32_t getStrongCount() const noexcept { return m_strong_count.load(std::memory_order_acquire); }
+        uint32_t getRefCount() const noexcept { return m_strong_count.load(std::memory_order_acquire); }
         void destroyResource() noexcept { m_deleter(); }
         void increaseWeakRefCount() noexcept { m_weak_count.fetch_add(1, std::memory_order_relaxed); }
         bool decreaseWeakRefCountAndShouldDelete() noexcept { return m_weak_count.fetch_sub(1, std::memory_order_acq_rel) == 1; }
@@ -293,7 +293,7 @@ namespace lcf {
         bool expired() const noexcept
         {
             if (not m_control_block_p) { return true; }
-            return m_control_block_p->getStrongCount() == 0;
+            return m_control_block_p->getRefCount() == 0;
         }
         void reset() noexcept
         {
