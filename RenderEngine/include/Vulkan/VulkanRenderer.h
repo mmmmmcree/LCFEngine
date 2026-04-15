@@ -11,11 +11,13 @@
 #include "memory/VulkanBufferObjectGroup.h"
 #include "VulkanMesh.h"
 #include "VulkanSampler.h"
-#include "VulkanMaterial.h"
 #include "VulkanDescriptorSet.h"
 #include <unordered_map>
 
 namespace lcf {
+namespace ecf {
+    class Registry;
+}
     using namespace lcf::render;
 
     class VulkanRenderer
@@ -25,10 +27,11 @@ namespace lcf {
         VulkanRenderer(const VulkanRenderer&) = delete;
         VulkanRenderer& operator=(const VulkanRenderer&) = delete;
         ~VulkanRenderer();
-        void create(VulkanContext * context_p, const std::pair<uint32_t, uint32_t> & max_extent);
+        void create(VulkanContext * context_p, const std::pair<uint32_t, uint32_t> & max_extent, ecs::Registry & registry);
         void render(const ecs::Entity & camera, const ecs::Entity & render_target);
     private:
         VulkanContext * m_context_p;
+        ecs::Registry * m_registry_p;
         struct FrameResources
         {
             FrameResources() = default;
@@ -55,9 +58,7 @@ namespace lcf {
         
         VulkanMesh m_mesh;
         std::vector<VulkanMesh> m_meshes;
-        std::unordered_map<uint32_t, VulkanImageObjectSharedPointer> m_texture_map;
         std::vector<VulkanBufferObject> m_material_params_list;
         std::vector<VulkanBufferObject> m_material_texture_ids_list;
-        VulkanMaterial m_material;
     };
 }

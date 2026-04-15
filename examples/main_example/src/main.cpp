@@ -34,8 +34,10 @@ int main(int argc, char *argv[])
     context.registerWindow(window_up->getEntity())
         .create();
 
+    registry.ctx().emplace<lcf::ecs::ResourceSystem>(registry);
+
     lcf::VulkanRenderer renderer;
-    renderer.create(&context, lcf::gui::WindowSystem::getInstance().getPrimaryDisplayerInfo().getDesktopModeInfo().getRenderExtent());
+    renderer.create(&context, lcf::gui::WindowSystem::getInstance().getPrimaryDisplayerInfo().getDesktopModeInfo().getRenderExtent(), registry);
 
     lcf::ecs::TransformSystem transform_system(registry);
     lcf::ecs::Entity camera_entity(registry);

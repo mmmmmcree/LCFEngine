@@ -34,6 +34,7 @@ std::error_code VulkanBindlessDescriptorSet::create(
     }
     if (auto ec = m_layout.create(device, vkenums::DescriptorSetStrategy::eBindless)) { return ec; }
     m_authority_binding_map.resize(m_layout.getBindings().size());
+    m_authority_lease_map.resize(m_layout.getBindings().size());
     m_frame_slots.resize(frame_copies);
     for (auto & slot : m_frame_slots) {
         if (auto ec = this->recreateSlot(device, slot)) { return ec; }
@@ -53,6 +54,20 @@ VulkanBindlessDescriptorSet & VulkanBindlessDescriptorSet::addDescriptorInfo(
     m_authority_binding_map[binding][array_index] = info;
     for (auto & slot : m_frame_slots) {
         slot.set.addDescriptorInfo(binding, array_index, info);
+    }
+    return *this;
+}
+
+VulkanBindlessDescriptorSet & VulkanBindlessDescriptorSet::addDescriptorInfo(
+    uint32_t binding, uint32_t array_index, const DescriptorInfo & info, ResourceLease lease)
+{
+    this->addDescriptorInfo(binding, array_index, info);
+    if (binding < m_authority_lease_map.size()) {
+        m_authority_lease_map[binding][array_index] = std::move(lease);
+        uint64_t key = (static_cast<uint64_t>(binding) << 32) | static_cast<uint64_t>(array_index);
+        for (auto & slot : m_frame_slots) {
+            slot.resource_leases[key] = m_authority_lease_map[binding][array_index];
+        }
     }
     return *this;
 }
@@ -89,6 +104,12 @@ std::error_code lcf::render::VulkanBindlessDescriptorSet::recreateSlot(vk::Devic
     for (uint32_t binding = 0u; binding < m_authority_binding_map.size(); ++binding) {
         for (const auto & [array_index, info] : m_authority_binding_map[binding]) {
             slot.set.addDescriptorInfo(binding, array_index, info);
+        }
+    }
+    for (uint32_t binding = 0u; binding < m_authority_lease_map.size(); ++binding) {
+        for (const auto & [array_index, lease] : m_authority_lease_map[binding]) {
+            uint64_t key = (static_cast<uint64_t>(binding) << 32) | static_cast<uint64_t>(array_index);
+            slot.resource_leases[key] = lease;
         }
     }
     return {};

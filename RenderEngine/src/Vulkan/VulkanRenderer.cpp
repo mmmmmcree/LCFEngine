@@ -13,6 +13,8 @@
 #include "common/glsl_type_traits.h"
 #include "Vulkan/vulkan_enums.h"
 #include "Vulkan/VulkanTextureManager.h"
+#include "ResourceSystem.h"
+#include "ecs/Registry.h"
 
 namespace stdr = std::ranges;
 namespace stdv = std::views;
@@ -23,9 +25,11 @@ lcf::VulkanRenderer::~VulkanRenderer()
     device.waitIdle();
 }
 
-void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint32_t, uint32_t> & max_extent)
+void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint32_t, uint32_t> & max_extent, ecs::Registry & registry)
 {
     m_context_p = context_p;
+    m_registry_p = &registry;
+    auto & resource_system = m_registry_p->ctx().get<ecs::ResourceSystem>();
     const auto & sampler_manager = context_p->getSamplerManager();
     m_frame_resources.resize(3); //todo remove constant, frame count
     auto & descriptor_set_manager = context_p->getDescriptorSetManager();
@@ -118,7 +122,8 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     
     std::unordered_map<const Texture2D *, uint32_t> texture_id_map;
     VulkanBindlessTextureIdTable bindless_texture_id_table;
-    auto upload_model_to_gpu = [this, &texture_id_map, &bindless_texture_id_table] (VulkanCommandBufferObject & cmd, Model & model) {
+    std::vector<std::pair<uint32_t, TypedResourceEntity<VulkanImageObject>>> texture_re_list;
+    auto upload_model_to_gpu = [this, &texture_id_map, &bindless_texture_id_table, &resource_system, &texture_re_list] (VulkanCommandBufferObject & cmd, Model & model) {
         for (const auto & geometry: model.getRenderPrimitives() | view_geometries) {
             auto & mesh = m_meshes.emplace_back();
             mesh.create(m_context_p, cmd,
@@ -140,16 +145,16 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
                 .create(m_context_p, 1);
             for (const auto & texture_resource : get_textures(material, ShadingModel::eStandard)) {
                 if (texture_id_map.contains(&texture_resource)) { continue; }
-                auto image_sp = VulkanImageObject::makeShared();
-                
-                image_sp->setFormat(enum_cast<vk::Format>(texture_resource.getDecodeFormat()))
+                VulkanImageObject image_obj;
+                image_obj.setFormat(enum_cast<vk::Format>(texture_resource.getDecodeFormat()))
                     .setExtent({ texture_resource.getWidth(), texture_resource.getHeight(), 1u })
                     .setUsage(vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst)
                     .create(m_context_p);
-                image_sp->setData(cmd, texture_resource.getDataSpan());
-                uint32_t texture_id = bindless_texture_id_table.registerTexture(vkenums::BindlessTextureBinding::eTexture2Ds, image_sp->getHandle());
+                image_obj.setData(cmd, texture_resource.getDataSpan());
+                auto texture_re = resource_system.registerResource(std::move(image_obj));
+                uint32_t texture_id = bindless_texture_id_table.registerTexture(vkenums::BindlessTextureBinding::eTexture2Ds, texture_re->getHandle());
                 texture_id_map[&texture_resource] = texture_id;
-                m_texture_map[texture_id] = image_sp;
+                texture_re_list.emplace_back(texture_id, std::move(texture_re));
             }
             for (uint32_t offset = 0; const auto & texture_resource : get_textures(material, ShadingModel::eStandard)) {
                 texture_ids_buffer.addWriteSegment({as_bytes_from_value(texture_id_map[&texture_resource]), offset});
@@ -169,31 +174,40 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         upload_model_to_gpu(cmd, model);
     });
     
-    VulkanImageObject::SharedPointer cube_map_sp;
-    VulkanImageObject::SharedPointer texture1_sp;
-    VulkanImageObject::SharedPointer texture2_sp;
+    TypedResourceEntity<VulkanImageObject> cube_map_re;
+    TypedResourceEntity<VulkanImageObject> texture1_re;
+    TypedResourceEntity<VulkanImageObject> texture2_re;
     VulkanSampler::SharedPointer sampler_sp;
 
-    texture1_sp = VulkanImageObject::makeShared();
-    texture1_sp->setFormat(enum_cast<vk::Format>(image1_sp->getDecodeFormat()))
-        .setUsage(vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst)
-        .setMipmapped(true)
-        .setExtent({ image1_sp->getWidth(), image1_sp->getHeight(), 1u })
-        .create(m_context_p);
-    texture2_sp = VulkanImageObject::makeShared();
-    texture2_sp->setFormat(enum_cast<vk::Format>(image2_sp->getDecodeFormat()))
-        .setUsage(vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst)
-        .setMipmapped(true)
-        .setExtent({ image2_sp->getWidth(), image2_sp->getHeight(), 1u })
-        .create(m_context_p);
+    {
+        VulkanImageObject texture1;
+        texture1.setFormat(enum_cast<vk::Format>(image1_sp->getDecodeFormat()))
+            .setUsage(vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst)
+            .setMipmapped(true)
+            .setExtent({ image1_sp->getWidth(), image1_sp->getHeight(), 1u })
+            .create(m_context_p);
+        texture1_re = resource_system.registerResource(std::move(texture1));
+    }
+    {
+        VulkanImageObject texture2;
+        texture2.setFormat(enum_cast<vk::Format>(image2_sp->getDecodeFormat()))
+            .setUsage(vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst)
+            .setMipmapped(true)
+            .setExtent({ image2_sp->getWidth(), image2_sp->getHeight(), 1u })
+            .create(m_context_p);
+        texture2_re = resource_system.registerResource(std::move(texture2));
+    }
 
-    uint32_t cube_width = 1024;
-    cube_map_sp = VulkanImageObject::makeShared();
-    cube_map_sp->addImageFlags(vk::ImageCreateFlagBits::eCubeCompatible)
-        .setUsage(vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst  | vk::ImageUsageFlagBits::eColorAttachment)
-        .setFormat(vk::Format::eR8G8B8A8Unorm)
-        .setExtent({ cube_width, cube_width, 1u })
-        .create(m_context_p);
+    {
+        uint32_t cube_width = 1024;
+        VulkanImageObject cube_map;
+        cube_map.addImageFlags(vk::ImageCreateFlagBits::eCubeCompatible)
+            .setUsage(vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst  | vk::ImageUsageFlagBits::eColorAttachment)
+            .setFormat(vk::Format::eR8G8B8A8Unorm)
+            .setExtent({ cube_width, cube_width, 1u })
+            .create(m_context_p);
+        cube_map_re = resource_system.registerResource(std::move(cube_map));
+    }
 
     VulkanShaderProgram::SharedPointer stc_shader_program = std::make_shared<VulkanShaderProgram>(m_context_p);
     stc_shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::eVertex, "assets/shaders/sphere_to_cube.vert")
@@ -207,12 +221,12 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     stc_pipeline.create(m_context_p, stc_pipeline_info);
 
     vkutils::immediate_submit(m_context_p, vk::QueueFlagBits::eGraphics, [&](VulkanCommandBufferObject & cmd) {
-        texture1_sp->setData(cmd, image1_sp->getDataSpan());
-        texture1_sp->generateMipmaps(cmd);
+        texture1_re->setData(cmd, image1_sp->getDataSpan());
+        texture1_re->generateMipmaps(cmd);
 
         vk::DescriptorImageInfo image_info;
-        image_info.setImageLayout(*texture1_sp->getLayout())
-            .setImageView(texture1_sp->getDefaultView())
+        image_info.setImageLayout(*texture1_re->getLayout())
+            .setImageView(texture1_re->getDefaultView())
             .setSampler(sampler_manager.getShared(SamplerPreset::eEnvironmentMap)->getHandle());
 
         const auto & layout_sp = stc_pipeline.getDescriptorSetLayoutSharedPtr(0);
@@ -221,11 +235,11 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         auto descriptor_set_updater = descriptor_set_rp->generateUpdater();
         descriptor_set_updater.add(0, image_info).update();
 
-        auto [w, h, z] = cube_map_sp->getExtent();
+        auto [w, h, z] = cube_map_re->getExtent();
         VulkanFramebufferObjectCreateInfo fbo_info;
         fbo_info.setMaxExtent({w, h});
         VulkanFramebufferObject fbo;
-        fbo.addColorAttachment(*cube_map_sp)
+        fbo.addColorAttachment(*cube_map_re)
             .create(m_context_p, fbo_info);
         cmd.acquireResourceLease(descriptor_set_rp.lease());
         cmd.bindPipeline(stc_pipeline.getType(), stc_pipeline.getHandle());
@@ -234,10 +248,10 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         fbo.beginRendering(cmd);
         cmd.draw(36, 1, 0, 0); // draw with const data in shader program
         fbo.endRendering(cmd);
-        cube_map_sp->transitLayout(cmd, vk::ImageLayout::eShaderReadOnlyOptimal);
+        cube_map_re->transitLayout(cmd, vk::ImageLayout::eShaderReadOnlyOptimal);
 
-        texture2_sp->setData(cmd, image2_sp->getDataSpan());
-        texture2_sp->generateMipmaps(cmd);
+        texture2_re->setData(cmd, image2_sp->getDataSpan());
+        texture2_re->generateMipmaps(cmd);
     });
 
     auto skybox_shader_program = VulkanShaderProgram::makeShared(m_context_p);
@@ -255,32 +269,24 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         .setFrontFace(vk::FrontFace::eCounterClockwise);
     m_skybox_pipeline.create(m_context_p, skybox_pipeline_info);
 
-    auto layout_sp = m_graphics_pipeline.getDescriptorSetLayoutSharedPtr(std::to_underlying(DescriptorSetBindingPoints::ePerMaterial));
-    auto material_ds_sp = VulkanDescriptorSet::makeShared();
-    material_ds_sp->create(layout_sp);
-    m_material.create(material_ds_sp);
-    auto & bindless_texture_ds = descriptor_set_manager.getBindlessTextureSet();
-    for (const auto & [texture_id, texture_sp] : m_texture_map) {
-        m_material.setTexture(std::to_underlying(vkenums::BindlessTextureBinding::eTexture2Ds), texture_id, texture_sp);
 
+    auto & bindless_texture_ds = descriptor_set_manager.getBindlessTextureSet();
+    for (const auto & [texture_id, texture_re] : texture_re_list) {
         vk::DescriptorImageInfo image_info;
-        image_info.setImageLayout(*texture_sp->getLayout())
-            .setImageView(texture_sp->getDefaultView());
+        image_info.setImageLayout(*texture_re->getLayout())
+            .setImageView(texture_re->getDefaultView());
         bindless_texture_ds.addDescriptorInfo(
             std::to_underlying(vkenums::BindlessTextureBinding::eTexture2Ds),
             texture_id,
-            image_info);
+            image_info,
+            texture_re.lease());
     }
-    m_material.setSampler(std::to_underlying(vkenums::BindlessTextureBinding::eSamplers), 0, sampler_manager.getShared(SamplerPreset::eColorMap))
-        .setSampler(std::to_underlying(vkenums::BindlessTextureBinding::eSamplers), 2, sampler_manager.getShared(SamplerPreset::eEnvironmentMap))
-        .setTexture(std::to_underlying(vkenums::BindlessTextureBinding::eTextureCubes), 0, cube_map_sp)
-        .commitUpdate();
 
     vk::DescriptorImageInfo sampler1_info, sampler2_info, cube_map_info;
     sampler1_info.setSampler(sampler_manager.getShared(SamplerPreset::eColorMap)->getHandle());
     sampler2_info.setSampler(sampler_manager.getShared(SamplerPreset::eEnvironmentMap)->getHandle());
-    cube_map_info.setImageLayout(*cube_map_sp->getLayout())
-        .setImageView(cube_map_sp->getDefaultView());
+    cube_map_info.setImageLayout(*cube_map_re->getLayout())
+        .setImageView(cube_map_re->getDefaultView());
     bindless_texture_ds.addDescriptorInfo(
         std::to_underlying(vkenums::BindlessTextureBinding::eSamplers),
         0,
@@ -292,7 +298,8 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     ).addDescriptorInfo(
         std::to_underlying(vkenums::BindlessTextureBinding::eTextureCubes),
         0,
-        cube_map_info
+        cube_map_info,
+        cube_map_re.lease()
     ).commitUpdate(device);
 }
 

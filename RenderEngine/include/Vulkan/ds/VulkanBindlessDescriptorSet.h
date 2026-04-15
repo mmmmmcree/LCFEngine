@@ -3,6 +3,7 @@
 #include "Vulkan/ds/VulkanDescriptorSet2.h"
 #include "Vulkan/ds/VulkanDescriptorSetLayout2.h"
 #include "Vulkan/vulkan_constants.h"
+#include "resource_utils.h"
 #include <vulkan/vulkan.hpp>
 #include <memory>
 #include <vector>
@@ -20,12 +21,14 @@ namespace detail {
         using Self = VulkanBindlessDescriptorSet;
         using DescriptorInfo = std::variant<vk::DescriptorBufferInfo, vk::DescriptorImageInfo>;
         using AuthorityBindingMap = std::vector<tsl::robin_map<uint32_t, DescriptorInfo>>;
+        using AuthorityLeaseMap = std::vector<tsl::robin_map<uint32_t, ResourceLease>>;
         struct Slot
         {
             Slot() = default;
             Slot(VulkanDescriptorSet2 set, uint32_t variable_count) : set(std::move(set)), variable_count(variable_count) {}
             VulkanDescriptorSet2 set;
             uint32_t variable_count = vkconstants::ds::k_initial_variable_descriptor_count >> 1;
+            tsl::robin_map<uint64_t, ResourceLease> resource_leases;
         };
         using FrameSlots = std::vector<Slot>;
         using RetiredSlots = std::deque<Slot>;
@@ -43,6 +46,7 @@ namespace detail {
             vkenums::BindlessSetType bindless_set_type,
             uint32_t frame_copies) noexcept;
         Self & addDescriptorInfo(uint32_t binding, uint32_t array_index, const DescriptorInfo & info);
+        Self & addDescriptorInfo(uint32_t binding, uint32_t array_index, const DescriptorInfo & info, ResourceLease lease);
         Self & addDescriptorInfo(uint32_t binding, const DescriptorInfo & info) { return this->addDescriptorInfo(binding, 0u, info); }
         void commitUpdate(vk::Device device) noexcept;
         const vk::DescriptorSet & getHandle() const noexcept;
@@ -55,6 +59,7 @@ namespace detail {
         std::unique_ptr<detail::VulkanBindlessDescriptorSetAllocator> m_allocator_up;
         VulkanDescriptorSetLayout2 m_layout;
         AuthorityBindingMap m_authority_binding_map;
+        AuthorityLeaseMap m_authority_lease_map;
         FrameSlots m_frame_slots;
         RetiredSlots m_retired_slots;
         uint32_t m_current_index = 0u;

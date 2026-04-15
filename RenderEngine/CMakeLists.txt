@@ -35,6 +35,7 @@ target_link_libraries(${PROJECT_NAME}
         Boost::container Boost::functional Boost::align
         shader_core
         render_assets
+        Systems
     PRIVATE
 )  
 
