@@ -9,6 +9,7 @@
 #include "type_traits/lcf_type_traits.h"
 #include "BufferWriteSegment.h"
 #include "StructureLayout.h"
+#include "concepts/range_concept.h"
 #include "PointerDefs.h"
 #include <vector>
 #include <array>
@@ -151,9 +152,7 @@ namespace lcf {
         FaceList m_faces;
     };
 
-    template <typename Mapping = enum_value_type_mapping_traits<VectorType>::type, std::ranges::forward_range GeometryRange>
-    requires std::is_reference_v<std::ranges::range_reference_t<GeometryRange>> and
-        std::is_same_v<typename std::ranges::iterator_t<GeometryRange>::value_type, Geometry>
+    template <typename Mapping = enum_value_type_mapping_traits<VectorType>::type, range_of_c<Geometry> GeometryRange>
     BufferWriteSegments generate_interleaved_segments(GeometryRange && geometry_range, VertexAttributeFlags enabled_flags) noexcept
     {
         auto attributes = enum_values_v<VertexAttribute> | std::views::filter([enabled_flags](auto attribute) {
@@ -197,10 +196,7 @@ namespace lcf {
         return generate_interleaved_segments<Mapping>(std::span(&geometry, 1), enabled_flags);
     }
 
-    template <std::ranges::forward_range GeometryRange>
-    requires std::is_reference_v<std::ranges::range_reference_t<GeometryRange>> and
-        std::is_same_v<typename std::ranges::iterator_t<GeometryRange>::value_type, Geometry>
-    Geometry::IndexList generate_merged_indices(GeometryRange && geometry_range) noexcept
+    Geometry::IndexList generate_merged_indices(range_of_c<Geometry> auto && geometry_range) noexcept
     {
         Geometry::IndexList indices;
         size_t index_count = 0;
