@@ -52,6 +52,17 @@ namespace ds {
             vk::DescriptorBindingFlagBits::ePartiallyBound |
             vk::DescriptorBindingFlagBits::eUpdateUnusedWhilePending;
 
+    static constexpr VulkanDescriptorSetBinding  k_per_view_bindings[]
+    {
+        {
+            std::to_underlying(PerViewBindingPoints::eCamera),
+            // vk::DescriptorType::eUniformBufferDynamic,
+            vk::DescriptorType::eUniformBuffer,
+            1u,
+            vk::ShaderStageFlagBits::eVertex
+        },
+    };
+
     static constexpr VulkanDescriptorSetBinding k_bindless_buffer_bindings[]
     {
         {

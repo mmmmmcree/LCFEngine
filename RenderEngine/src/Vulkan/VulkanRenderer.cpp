@@ -83,22 +83,21 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     m_indirect_call_buffer.setUsage(GPUBufferUsage::eIndirect)
         .create(m_context_p, size_of_v<vk::DrawIndirectCommand> + 1 * size_of_v<vk::DrawIndirectCommand>); // uint32_t(for IndirectDrawCount) + padding | vk::DrawIndirectCommand ...
 
-    auto per_view_descriptor_set_layout_sp = VulkanDescriptorSetLayout::makeShared();
-    per_view_descriptor_set_layout_sp->setBindings(vkconstants::per_view_bindings)
+    VulkanDescriptorSetLayout2 per_view_descriptor_set_layout;
+    per_view_descriptor_set_layout.setBindings(vkconstants::ds::k_per_view_bindings)
         .setIndex(std::to_underlying(DescriptorSetBindingPoints::ePerView))
-        .create(m_context_p);
-    auto per_renderable_descriptor_set_layout_sp = VulkanDescriptorSetLayout::makeShared();
-    per_renderable_descriptor_set_layout_sp->setBindings(vkconstants::per_renderable_bindings)
-        .setIndex(std::to_underlying(DescriptorSetBindingPoints::ePerRenderable))
-        .create(m_context_p);
-    m_per_view_descriptor_set.create(per_view_descriptor_set_layout_sp);
+        .create(device, vkenums::DescriptorSetStrategy::eIndividual);
+    
+    
+    m_per_view_descriptor_set = descriptor_set_manager.createSet(per_view_descriptor_set_layout);
     vk::DescriptorBufferInfo per_view_buffer_info;
     per_view_buffer_info.setBuffer(m_per_view_uniform_buffer.getHandle())
         .setOffset(0)
         .setRange(m_per_view_uniform_buffer.getSizeInBytes());
-    auto ds_updater = m_per_view_descriptor_set.generateUpdater();
-    ds_updater.add(std::to_underlying(PerViewBindingPoints::eCamera), per_view_buffer_info)
-        .update();
+    m_per_view_descriptor_set.addDescriptorInfo(
+        std::to_underlying(PerViewBindingPoints::eCamera),
+        per_view_buffer_info
+    ).commitUpdate(device);
     
     auto & bindless_buffer_ds = descriptor_set_manager.getBindlessBufferSet();
     bindless_buffer_ds.addDescriptorInfo(
@@ -232,6 +231,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         const auto & stc_layout = stc_pipeline.getDescriptorSetLayout(0);
         auto descriptor_set_rp = make_resource_ptr<VulkanDescriptorSet2>(descriptor_set_manager.createSet(stc_layout));
         descriptor_set_rp->addDescriptorInfo(0, image_info).commitUpdate(device);
+        //todo this descriptor_set_rp is never freed
 
         auto [w, h, z] = cube_map_re->getExtent();
         VulkanFramebufferObjectCreateInfo fbo_info;
