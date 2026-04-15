@@ -21,7 +21,6 @@ std::error_code VulkanDescriptorSetLayout2::create(vk::Device device, vkenums::D
 {
     m_strategy = strategy;
     if (m_bindings.empty()) {
-        // empty set placeholder (e.g. skybox shader has no set=1)
         vk::DescriptorSetLayoutCreateInfo empty_info;
         try {
             m_layout = device.createDescriptorSetLayoutUnique(empty_info);
