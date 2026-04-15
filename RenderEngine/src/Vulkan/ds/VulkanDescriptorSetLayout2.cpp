@@ -19,13 +19,22 @@ VulkanDescriptorSetLayout2 & VulkanDescriptorSetLayout2::setIndex(uint32_t index
 
 std::error_code VulkanDescriptorSetLayout2::create(vk::Device device, vkenums::DescriptorSetStrategy strategy) noexcept
 {
-    if (m_bindings.empty()) { return std::make_error_code(std::errc::invalid_argument); }
     m_strategy = strategy;
+    if (m_bindings.empty()) {
+        // empty set placeholder (e.g. skybox shader has no set=1)
+        vk::DescriptorSetLayoutCreateInfo empty_info;
+        try {
+            m_layout = device.createDescriptorSetLayoutUnique(empty_info);
+        } catch (const vk::SystemError & e) {
+            return e.code();
+        }
+        return {};
+    }
     std::vector<vk::DescriptorSetLayoutBinding> layout_bindings;
     std::vector<vk::DescriptorBindingFlags> layout_binding_flags;
     layout_bindings.reserve(m_bindings.size());
     layout_binding_flags.reserve(m_bindings.size());
-    
+
     layout_bindings.assign_range(m_bindings | stdv::transform([](const auto & binding) { return binding.getLayoutBinding(); }));
     layout_binding_flags.assign_range(m_bindings | stdv::transform([](const auto & binding) { return binding.getFlags(); }));
 
@@ -34,6 +43,15 @@ std::error_code VulkanDescriptorSetLayout2::create(vk::Device device, vkenums::D
     vk::DescriptorSetLayoutCreateFlags layout_flags {};
     if (m_strategy == vkenums::DescriptorSetStrategy::eBindless) {
         layout_flags |= vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool;
+        // magic number detection: last binding descriptorCount == 0 means runtime array
+        if (layout_bindings.back().descriptorCount == 0) {
+            layout_bindings.back().descriptorCount = vkconstants::ds::k_max_variable_descriptor_count;
+            std::ranges::fill(layout_binding_flags,
+                vk::DescriptorBindingFlagBits::ePartiallyBound |
+                vk::DescriptorBindingFlagBits::eUpdateAfterBind |
+                vk::DescriptorBindingFlagBits::eUpdateUnusedWhilePending);
+            layout_binding_flags.back() = vk::FlagTraits<vk::DescriptorBindingFlagBits>::allFlags;
+        }
     }
     binding_flags_info.setBindingFlags(layout_binding_flags);
     layout_info.setBindings(layout_bindings)

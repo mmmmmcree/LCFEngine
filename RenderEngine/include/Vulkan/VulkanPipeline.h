@@ -32,7 +32,7 @@ namespace lcf::render {
         VulkanShaderProgram * getShaderProgram() const { return m_shader_program.get(); }
         vk::PipelineLayout getPipelineLayout() const { return m_shader_program->getPipelineLayout(); }
         vk::Pipeline getHandle() const { return m_pipeline.get(); }
-        const VulkanDescriptorSetLayout::SharedPointer & getDescriptorSetLayoutSharedPtr(uint32_t set_index) const { return m_shader_program->getDescriptorSetLayoutSharedPtr(set_index); }
+        const VulkanDescriptorSetLayout2 & getDescriptorSetLayout(uint32_t set_index) const { return m_shader_program->getDescriptorSetLayout(set_index); }
         vk::PipelineBindPoint getType() const { return m_type; }
     private:
         VulkanContext * m_context_p = nullptr;

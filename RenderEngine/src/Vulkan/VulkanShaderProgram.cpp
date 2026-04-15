@@ -139,21 +139,24 @@ void VulkanShaderProgram::createDescriptorSetLayouts()
     for (const auto &[stage, shader] : m_stage_to_shader_map) {
         strategy_map.insert_range(read_strategy(shader->getPragmas()));
     }
+    auto device = m_context_p->getDevice();
+    uint32_t bindless_buffer_index = vkenums::decode::get_index(vkenums::DescriptorSetIndex::eBindlessBuffers);
     for (uint32_t set = 0; set < m_descriptor_set_layout_binding_table.size(); ++set) {
-        auto bindings = m_descriptor_set_layout_binding_table[set]; // copy — may be modified
-        auto layout_sp = VulkanDescriptorSetLayout::makeShared();
-        if (strategy_map.contains(set)) {
-            auto strategy = strategy_map.at(set);
-            lcf_log_info("set has strategy");
+        const auto & bindings = m_descriptor_set_layout_binding_table[set];
+        auto layout_sp = std::make_shared<VulkanDescriptorSetLayout2>();
+        std::vector<VulkanDescriptorSetBinding> ds_bindings(bindings.begin(), bindings.end());
+        auto strategy = vkenums::DescriptorSetStrategy::eIndividual;
+        // set=1 (bindless buffers): no variable count, but needs eUpdateAfterBindPool
+        if (set == bindless_buffer_index and not ds_bindings.empty()) {
+            strategy = vkenums::DescriptorSetStrategy::eBindless;
         }
-        uint32_t bindless_buffer_index = vkenums::decode::get_index(vkenums::DescriptorSetIndex::eBindlessBuffers);
-        if (set == bindless_buffer_index and not bindings.empty()) {
-            layout_sp->setFlags(vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool);
+        // descriptorCount == 0 from reflection means runtime array → bindless
+        if (not ds_bindings.empty() and ds_bindings.back().getDescriptorCount() == 0) {
+            strategy = vkenums::DescriptorSetStrategy::eBindless;
         }
-
-        layout_sp->setBindings(bindings)
+        layout_sp->setBindings(ds_bindings)
             .setIndex(set)
-            .create(m_context_p);
+            .create(device, strategy);
         m_descriptor_set_layout_sp_list.emplace_back(std::move(layout_sp));
     }
 }

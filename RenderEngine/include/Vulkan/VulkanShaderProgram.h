@@ -3,7 +3,7 @@
 #include "shader_core/shader_core_fwd_decls.h"
 #include "shader_core/shader_core_enums.h"
 #include "vulkan_fwd_decls.h"
-#include "VulkanDescriptorSetLayout.h"
+#include "ds/VulkanDescriptorSetLayout2.h"
 #include "VulkanShader.h"
 #include "VulkanPushConstant.h"
 #include <vector>
@@ -20,7 +20,7 @@ namespace lcf::render {
         using ShaderStageInfoList = std::vector<vk::PipelineShaderStageCreateInfo>;
         using DescriptorSetLayoutBindingList = std::vector<vk::DescriptorSetLayoutBinding>;
         using DescriptorSetLayoutBindingTable = std::vector<DescriptorSetLayoutBindingList>; // [set][binding]
-        using DescriptorSetLayoutSharedPtrList = std::vector<typename VulkanDescriptorSetLayout::SharedPointer>;
+        using DescriptorSetLayoutSharedPtrList = std::vector<std::shared_ptr<VulkanDescriptorSetLayout2>>;
         using PushConstantMap = std::unordered_map<uint32_t, VulkanPushConstant>; // [stage]
         VulkanShaderProgram(VulkanContext * context);
         VulkanShaderProgram(const VulkanShaderProgram &) = delete;
@@ -33,7 +33,7 @@ namespace lcf::render {
         VulkanShader::SharedPointer getShader(ShaderTypeFlagBits stage) const { return m_stage_to_shader_map.at(stage); }
         bool hasVertexInput() const noexcept;
         const ShaderStageInfoList & getShaderStageInfoList() const { return m_shader_stage_info_list; }
-        const VulkanDescriptorSetLayout::SharedPointer & getDescriptorSetLayoutSharedPtr(uint32_t set_index) const { return m_descriptor_set_layout_sp_list[set_index]; }
+        const VulkanDescriptorSetLayout2 & getDescriptorSetLayout(uint32_t set_index) const { return *m_descriptor_set_layout_sp_list[set_index]; }
         const vk::PipelineLayout & getPipelineLayout() const { return m_pipeline_layout.get(); }
         const DescriptorSetLayoutBindingList & getDescriptorSetLayoutBindingList(uint32_t set_index) const { return m_descriptor_set_layout_binding_table[set_index]; }
         void setPushConstantData(vk::ShaderStageFlags stage, std::span<const void *> data_list);

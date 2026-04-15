@@ -229,11 +229,9 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
             .setImageView(texture1_re->getDefaultView())
             .setSampler(sampler_manager.getShared(SamplerPreset::eEnvironmentMap)->getHandle());
 
-        const auto & layout_sp = stc_pipeline.getDescriptorSetLayoutSharedPtr(0);
-        auto descriptor_set_rp = make_resource_ptr<VulkanDescriptorSet>();
-        descriptor_set_rp->create(layout_sp);
-        auto descriptor_set_updater = descriptor_set_rp->generateUpdater();
-        descriptor_set_updater.add(0, image_info).update();
+        const auto & stc_layout = stc_pipeline.getDescriptorSetLayout(0);
+        auto descriptor_set_rp = make_resource_ptr<VulkanDescriptorSet2>(descriptor_set_manager.createSet(stc_layout));
+        descriptor_set_rp->addDescriptorInfo(0, image_info).commitUpdate(device);
 
         auto [w, h, z] = cube_map_re->getExtent();
         VulkanFramebufferObjectCreateInfo fbo_info;
