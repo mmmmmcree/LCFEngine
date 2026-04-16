@@ -1,4 +1,7 @@
 #include "Vulkan/VulkanContext.h"
+#include "Vulkan/configs/api_dispatch.h"
+#include "Vulkan/configs/ext_functions.h"
+#include "Vulkan/configs/requirements.h"
 #include "Vulkan/ds/details/VulkanBindlessDescriptorSetAllocator.h"
 #include "Vulkan/ds/details/VulkanDescriptorSetAllocator.h"
 #include "gui/gui_types.h"
@@ -65,27 +68,7 @@ const vk::CommandPool &VulkanContext::getCommandPool(vk::QueueFlagBits queue_typ
     return m_command_pools.at(queue_type).get();
 }
 
-#if !defined(NDEBUG) && !VULKAN_HPP_DISPATCH_LOADER_DYNAMIC
-PFN_vkCreateDebugUtilsMessengerEXT  pfnVkCreateDebugUtilsMessengerEXT;
-PFN_vkDestroyDebugUtilsMessengerEXT pfnVkDestroyDebugUtilsMessengerEXT;
-
-VKAPI_ATTR VkResult VKAPI_CALL vkCreateDebugUtilsMessengerEXT(
-    VkInstance instance,
-    const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
-    const VkAllocationCallbacks* pAllocator,
-    VkDebugUtilsMessengerEXT* pMessenger)
-{
-  return pfnVkCreateDebugUtilsMessengerEXT(instance, pCreateInfo, pAllocator, pMessenger);
-}
-
-VKAPI_ATTR void VKAPI_CALL vkDestroyDebugUtilsMessengerEXT(
-    VkInstance instance,
-    VkDebugUtilsMessengerEXT messenger,
-    const VkAllocationCallbacks * pAllocator)
-{
-  return pfnVkDestroyDebugUtilsMessengerEXT(instance, messenger, pAllocator);
-}
-
+#ifndef NDEBUG
 VKAPI_ATTR vk::Bool32 VKAPI_CALL debug_callback(
     vk::DebugUtilsMessageSeverityFlagBitsEXT severity_flags,
     vk::DebugUtilsMessageTypeFlagsEXT type_flags,
@@ -95,23 +78,14 @@ VKAPI_ATTR vk::Bool32 VKAPI_CALL debug_callback(
 
 void VulkanContext::setupVulkanInstance()
 {
-#if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC
-    static bool s_vulkan_loaded = []() -> bool {
-        VULKAN_HPP_DEFAULT_DISPATCHER.init();
-        return true;
-    }();
-#endif
+    vkdispatch::initialize_loader();
     vk::ApplicationInfo app_info;
     app_info.setPApplicationName("LCFEngine")
         .setPEngineName("LCFEngine")
         .setApplicationVersion(vk::makeVersion(1, 0, 0))
         .setEngineVersion(vk::makeVersion(1, 0, 0))
         .setApiVersion(VK_HEADER_VERSION_COMPLETE);
-    std::set<std::string> required_extensions = {
-    #ifndef NDEBUG
-        VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
-    #endif
-    };
+    std::set<std::string> required_extensions(vkreq::get_instance_extensions().begin(), vkreq::get_instance_extensions().end());
     auto win_sys_required_extensions = lcf::gui::WindowSystem::getInstance().getRequiredVulkanExtensions();
     required_extensions.insert(win_sys_required_extensions.begin(), win_sys_required_extensions.end());
     if (required_extensions.contains(VK_KHR_SURFACE_EXTENSION_NAME)) {
@@ -128,11 +102,7 @@ void VulkanContext::setupVulkanInstance()
             extensions.push_back(extension.extensionName.data());
         }
     }
-    std::set<std::string> required_layers = {
-    #ifndef NDEBUG
-        "VK_LAYER_KHRONOS_validation",
-    #endif
-    };
+    std::set<std::string> required_layers(vkreq::get_instance_layers().begin(), vkreq::get_instance_layers().end());
     auto available_layers = vk::enumerateInstanceLayerProperties();
     std::vector<const char*> layers;
     for (const auto &layer : available_layers) {
@@ -152,38 +122,28 @@ void VulkanContext::setupVulkanInstance()
     instance_info.setPNext(&validation_features);
 #endif
     m_instance = vk::createInstanceUnique(instance_info);
-#if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC
-    VULKAN_HPP_DEFAULT_DISPATCHER.init(this->getInstance());
-#else
-    static bool s_dynamic_loaded = [this]() -> bool
-    {
-    #ifndef NDEBUG
-        pfnVkCreateDebugUtilsMessengerEXT = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(m_instance->getProcAddr("vkCreateDebugUtilsMessengerEXT"));
-        pfnVkDestroyDebugUtilsMessengerEXT = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(m_instance->getProcAddr("vkDestroyDebugUtilsMessengerEXT"));
-    #endif
-        return true;
-    }();
-#endif
+    vkdispatch::initialize_instance(this->getInstance());
+    vkext::load_instance_extensions(this->getInstance());
 #ifndef NDEBUG
     bool is_renderdoc_env = [] {
-        #ifdef _MSC_VER
-            char* val = nullptr;
-            size_t len = 0;
-            _dupenv_s(&val, &len, "ENABLE_VULKAN_RENDERDOC_CAPTURE");
-            bool result = val != nullptr;
-            free(val);
-            return result;
-        #else
-            return std::getenv("ENABLE_VULKAN_RENDERDOC_CAPTURE") != nullptr;
-        #endif
+    #ifdef _MSC_VER
+        char* val = nullptr;
+        size_t len = 0;
+        _dupenv_s(&val, &len, "ENABLE_VULKAN_RENDERDOC_CAPTURE");
+        bool result = val != nullptr;
+        free(val);
+        return result;
+    #else
+        return std::getenv("ENABLE_VULKAN_RENDERDOC_CAPTURE") != nullptr;
+    #endif
     }(); //! RenderDoc Environment is contradictory to custom debug callback
-    if (pfnVkCreateDebugUtilsMessengerEXT and pfnVkDestroyDebugUtilsMessengerEXT and not is_renderdoc_env) {
-        vk::DebugUtilsMessengerCreateInfoEXT debug_messenger_info;
-        debug_messenger_info.setMessageSeverity(vk::FlagTraits<vk::DebugUtilsMessageSeverityFlagBitsEXT>::allFlags)
-            .setMessageType(vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral |
-                vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation |
-                vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance)
-            .setPfnUserCallback(&debug_callback);
+    vk::DebugUtilsMessengerCreateInfoEXT debug_messenger_info;
+    debug_messenger_info.setMessageSeverity(vk::FlagTraits<vk::DebugUtilsMessageSeverityFlagBitsEXT>::allFlags)
+        .setMessageType(vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral |
+            vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation |
+            vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance)
+        .setPfnUserCallback(&debug_callback);
+    if (not is_renderdoc_env) {
         m_debug_messenger = m_instance->createDebugUtilsMessengerEXTUnique(debug_messenger_info);
     }
 #endif
@@ -248,18 +208,11 @@ void VulkanContext::findQueueFamilies()
 
 void VulkanContext::createLogicalDevice()
 {
-    std::vector<const char *> required_extensions = {
-        VK_KHR_MAINTENANCE1_EXTENSION_NAME,
-        VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME,
-        VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME,
-        VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME,
-    };
+    auto core_exts = vkreq::get_device_extensions();
+    std::vector<const char *> required_extensions(core_exts.begin(), core_exts.end());
     if (not m_surface_render_targets.empty()) {
-        std::vector<const char *> extensions = {
-            VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-            VK_EXT_SWAPCHAIN_MAINTENANCE_1_EXTENSION_NAME,
-        };
-        required_extensions.insert(required_extensions.end(), extensions.begin(), extensions.end());
+        auto pres_exts = vkreq::get_presentation_device_extensions();
+        required_extensions.insert(required_extensions.end(), pres_exts.begin(), pres_exts.end());
     }
     std::set<std::string> required_extensions_set(required_extensions.begin(), required_extensions.end());
     auto available_extensions = m_physical_device.enumerateDeviceExtensionProperties();
@@ -326,6 +279,7 @@ void VulkanContext::createLogicalDevice()
     } catch (const vk::SystemError &e) {
         lcf_log_error(e.what());
     }
+    vkdispatch::initialize_device(this->getDevice());
 
     for (auto [queue_type, queue_index] : m_queue_family_indices) {
         auto & queue_list = m_queue_lists[queue_type];
@@ -351,7 +305,7 @@ void VulkanContext::createCommandPools()
     }
 }
 
-#if !defined(NDEBUG) && !VULKAN_HPP_DISPATCH_LOADER_DYNAMIC
+#ifndef NDEBUG
 VKAPI_ATTR vk::Bool32 VKAPI_CALL debug_callback(
     vk::DebugUtilsMessageSeverityFlagBitsEXT severity_flags,
     vk::DebugUtilsMessageTypeFlagsEXT type_flags,

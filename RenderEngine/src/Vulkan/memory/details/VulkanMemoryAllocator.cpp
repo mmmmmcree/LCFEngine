@@ -14,8 +14,13 @@ VulkanMemoryAllocator::~VulkanMemoryAllocator()
 std::error_code VulkanMemoryAllocator::create(vk::Instance instance, vk::PhysicalDevice physical_device, vk::Device device) noexcept
 {
     VmaVulkanFunctions vulkan_functions = {
+#if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC
+        .vkGetInstanceProcAddr = VULKAN_HPP_DEFAULT_DISPATCHER.vkGetInstanceProcAddr,
+        .vkGetDeviceProcAddr = VULKAN_HPP_DEFAULT_DISPATCHER.vkGetDeviceProcAddr,
+#else
         .vkGetInstanceProcAddr = &vkGetInstanceProcAddr,
         .vkGetDeviceProcAddr = &vkGetDeviceProcAddr,
+#endif
     };
     VmaAllocatorCreateInfo allocator_info = {
         .flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,

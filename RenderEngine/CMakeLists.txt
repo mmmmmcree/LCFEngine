@@ -42,9 +42,18 @@ target_link_libraries(${PROJECT_NAME}
 if(USE_VULKAN)
     find_package(Vulkan REQUIRED)
     find_package(VulkanMemoryAllocator CONFIG REQUIRED)
-    target_link_libraries(${PROJECT_NAME}
-        PRIVATE
-            Vulkan::Vulkan
-            GPUOpen::VulkanMemoryAllocator 
-    )
+    if(DYNAMIC_LOAD_GRAPHICS_API)
+        target_compile_definitions(${PROJECT_NAME} PUBLIC
+            VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
+            VK_NO_PROTOTYPES
+        )
+        target_compile_definitions(${PROJECT_NAME} PRIVATE
+            VMA_STATIC_VULKAN_FUNCTIONS=0
+            VMA_DYNAMIC_VULKAN_FUNCTIONS=1
+        )
+        target_link_libraries(${PROJECT_NAME} PRIVATE Vulkan::Headers)
+    else()
+        target_link_libraries(${PROJECT_NAME} PRIVATE Vulkan::Vulkan)
+    endif()
+    target_link_libraries(${PROJECT_NAME} PRIVATE GPUOpen::VulkanMemoryAllocator)
 endif()
