@@ -31,11 +31,6 @@ namespace detail {
             using LeaseMap = std::unordered_map<uint64_t, ResourceLease>;
             Slot() = default;
             Slot(VulkanDescriptorSet set, uint32_t variable_count);
-            ~Slot() noexcept = default;
-            Slot(const Slot &) = default;
-            Slot(Slot &&) noexcept = default;
-            Slot & operator=(const Slot &) = default;
-            Slot & operator=(Slot &&) noexcept = default;
             void addDescriptorInfo(uint32_t binding, uint32_t array_index, const DescriptorInfo & info);
             void addLease(uint32_t binding, uint32_t array_index, ResourceLease lease);
             void commitUpdate(vk::Device device);
