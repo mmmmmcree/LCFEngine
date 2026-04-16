@@ -90,8 +90,8 @@ void VulkanContext::setupVulkanInstance()
         }
     }
 
-    auto win_exts = lcf::gui::WindowSystem::getInstance().getRequiredVulkanExtensions();
-    extensions.append_range(win_exts);
+    auto window_exts = lcf::gui::WindowSystem::getInstance().getRequiredVulkanExtensions();
+    extensions.append_range(window_exts);
 
     auto & required_layers = vkreq::get_instance_layers();
     auto available_layers = vk::enumerateInstanceLayerProperties();
@@ -124,9 +124,10 @@ void VulkanContext::pickPhysicalDevice()
         return score;
     };
     using DeviceScorePair = std::pair<vk::PhysicalDevice, uint32_t>;
-    auto devices_with_score = m_instance->enumeratePhysicalDevices() | std::views::transform([&calc_physical_device_score](const auto &device) {
-        return std::make_pair(device, calc_physical_device_score(device));
-    }) | std::ranges::to<std::vector<DeviceScorePair>>();
+    auto devices_with_score = m_instance->enumeratePhysicalDevices() |
+        std::views::transform([&calc_physical_device_score](const auto &device) {
+            return std::make_pair(device, calc_physical_device_score(device));
+        }) | std::ranges::to<std::vector<DeviceScorePair>>();
     if (devices_with_score.empty()) {
         std::runtime_error error("No physical devices found");
         lcf_log_error(error.what());
