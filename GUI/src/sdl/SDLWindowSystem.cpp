@@ -48,15 +48,11 @@ SDLWindow::UniquePointer lcf::gui::SDLWindowSystem::allocateWindow()
     return SDLWindow::UniquePointer(window_p);
 }
 
-std::vector<std::string> lcf::gui::SDLWindowSystem::getRequiredVulkanExtensions() const
+std::span<const char * const> lcf::gui::SDLWindowSystem::getRequiredVulkanExtensions() const
 {
-    std::vector<std::string> extensions;
     uint32_t count;
     auto sdl_extensions = SDL_Vulkan_GetInstanceExtensions(&count);
-    for (uint32_t i = 0; i < count; ++i) {
-        extensions.emplace_back(sdl_extensions[i]);
-    }
-    return extensions;
+    return { sdl_extensions, count };
 }
 
 void lcf::gui::SDLWindowSystem::deallocateWindow(SDLWindow * window_p)

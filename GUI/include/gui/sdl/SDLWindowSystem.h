@@ -3,7 +3,7 @@
 #include "gui/gui_fwd_decls.h"
 #include "gui/sdl/SDLWindow.h"
 #include <vector>
-#include <string>
+#include <span>
 #include <set>
 
 namespace lcf::gui {
@@ -18,7 +18,7 @@ namespace lcf::gui {
         DisplayerInfoList getDisplayerInfoList() const;
         DisplayerInfo getPrimaryDisplayerInfo() const;
         SDLWindow::UniquePointer allocateWindow();
-        std::vector<std::string> getRequiredVulkanExtensions() const;
+        std::span<const char * const> getRequiredVulkanExtensions() const;
     private:
         SDLWindowSystem();
         void deallocateWindow(SDLWindow * window_p);

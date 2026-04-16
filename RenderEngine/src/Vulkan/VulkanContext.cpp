@@ -11,6 +11,8 @@
 #include <algorithm>
 
 using namespace lcf::render;
+namespace stdv = std::views;
+namespace stdr = std::ranges;
 
 VulkanContext::VulkanContext()
 {
@@ -21,6 +23,7 @@ VulkanContext::~VulkanContext()
 {
     m_surface_render_targets.clear();
     m_device->waitIdle();
+    vkext::release_instance_extensions_resources();
 }
 
 VulkanContext & VulkanContext::registerWindow(ecs::Entity &window_entity)
@@ -59,7 +62,7 @@ const vk::Queue & VulkanContext::getQueue(vk::QueueFlagBits type) const noexcept
 }
 
 std::span<const vk::Queue> VulkanContext::getSubQueues(vk::QueueFlagBits type) const noexcept
-{ 
+{
     return std::span(m_queue_lists.at(type)).subspan(1);
 }
 
@@ -67,14 +70,6 @@ const vk::CommandPool &VulkanContext::getCommandPool(vk::QueueFlagBits queue_typ
 {
     return m_command_pools.at(queue_type).get();
 }
-
-#ifndef NDEBUG
-VKAPI_ATTR vk::Bool32 VKAPI_CALL debug_callback(
-    vk::DebugUtilsMessageSeverityFlagBitsEXT severity_flags,
-    vk::DebugUtilsMessageTypeFlagsEXT type_flags,
-    const vk::DebugUtilsMessengerCallbackDataEXT * callback_data,
-    void * user_data);
-#endif
 
 void VulkanContext::setupVulkanInstance()
 {
@@ -85,68 +80,36 @@ void VulkanContext::setupVulkanInstance()
         .setApplicationVersion(vk::makeVersion(1, 0, 0))
         .setEngineVersion(vk::makeVersion(1, 0, 0))
         .setApiVersion(VK_HEADER_VERSION_COMPLETE);
-    std::set<std::string> required_extensions(vkreq::get_instance_extensions().begin(), vkreq::get_instance_extensions().end());
-    auto win_sys_required_extensions = lcf::gui::WindowSystem::getInstance().getRequiredVulkanExtensions();
-    required_extensions.insert(win_sys_required_extensions.begin(), win_sys_required_extensions.end());
-    if (required_extensions.contains(VK_KHR_SURFACE_EXTENSION_NAME)) {
-        std::vector<std::string> surface_required_extensions = {
-            VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME,
-            VK_EXT_SURFACE_MAINTENANCE_1_EXTENSION_NAME,
-        };
-        required_extensions.insert(surface_required_extensions.begin(), surface_required_extensions.end());
-    }
+
+    auto & required_extensions = vkreq::get_instance_extensions();
     auto available_extensions = vk::enumerateInstanceExtensionProperties();
     std::vector<const char*> extensions;
-    for (const auto &extension : available_extensions) {
-        if (required_extensions.contains(extension.extensionName.data())) {
-            extensions.push_back(extension.extensionName.data());
+    for (const auto & ext : available_extensions) {
+        if (required_extensions.contains(ext.extensionName.data())) {
+            extensions.push_back(ext.extensionName.data());
         }
     }
-    std::set<std::string> required_layers(vkreq::get_instance_layers().begin(), vkreq::get_instance_layers().end());
+
+    auto win_exts = lcf::gui::WindowSystem::getInstance().getRequiredVulkanExtensions();
+    extensions.append_range(win_exts);
+
+    auto & required_layers = vkreq::get_instance_layers();
     auto available_layers = vk::enumerateInstanceLayerProperties();
     std::vector<const char*> layers;
-    for (const auto &layer : available_layers) {
+    for (const auto & layer : available_layers) {
         if (required_layers.contains(layer.layerName.data())) {
             layers.push_back(layer.layerName.data());
         }
     }
+
     vk::InstanceCreateInfo instance_info;
     instance_info.setPApplicationInfo(&app_info)
         .setPEnabledExtensionNames(extensions)
         .setPEnabledLayerNames(layers);
-#ifndef NDEBUG
-    std::vector<vk::ValidationFeatureEnableEXT> enabled_validation_features = {
-        vk::ValidationFeatureEnableEXT::eDebugPrintf
-    };
-    vk::ValidationFeaturesEXT validation_features;
-    instance_info.setPNext(&validation_features);
-#endif
+
     m_instance = vk::createInstanceUnique(instance_info);
     vkdispatch::initialize_instance(this->getInstance());
     vkext::load_instance_extensions(this->getInstance());
-#ifndef NDEBUG
-    bool is_renderdoc_env = [] {
-    #ifdef _MSC_VER
-        char* val = nullptr;
-        size_t len = 0;
-        _dupenv_s(&val, &len, "ENABLE_VULKAN_RENDERDOC_CAPTURE");
-        bool result = val != nullptr;
-        free(val);
-        return result;
-    #else
-        return std::getenv("ENABLE_VULKAN_RENDERDOC_CAPTURE") != nullptr;
-    #endif
-    }(); //! RenderDoc Environment is contradictory to custom debug callback
-    vk::DebugUtilsMessengerCreateInfoEXT debug_messenger_info;
-    debug_messenger_info.setMessageSeverity(vk::FlagTraits<vk::DebugUtilsMessageSeverityFlagBitsEXT>::allFlags)
-        .setMessageType(vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral |
-            vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation |
-            vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance)
-        .setPfnUserCallback(&debug_callback);
-    if (not is_renderdoc_env) {
-        m_debug_messenger = m_instance->createDebugUtilsMessengerEXTUnique(debug_messenger_info);
-    }
-#endif
 }
 
 void VulkanContext::pickPhysicalDevice()
@@ -170,7 +133,7 @@ void VulkanContext::pickPhysicalDevice()
         throw error;
     }
     std::ranges::sort(devices_with_score, {}, &DeviceScorePair::second);
-    m_physical_device = devices_with_score.back().first; 
+    m_physical_device = devices_with_score.back().first;
 }
 
 void VulkanContext::findQueueFamilies()
@@ -208,18 +171,17 @@ void VulkanContext::findQueueFamilies()
 
 void VulkanContext::createLogicalDevice()
 {
-    auto core_exts = vkreq::get_device_extensions();
-    std::vector<const char *> required_extensions(core_exts.begin(), core_exts.end());
+    constexpr auto to_cstr = [](std::string_view sv) { return sv.data(); };
+    auto required_extensions = vkreq::get_device_extensions() | stdv::transform(to_cstr) | stdr::to<std::vector>();
     if (not m_surface_render_targets.empty()) {
-        auto pres_exts = vkreq::get_presentation_device_extensions();
-        required_extensions.insert(required_extensions.end(), pres_exts.begin(), pres_exts.end());
+        required_extensions.append_range(vkreq::get_presentation_device_extensions() | stdv::transform(to_cstr));
     }
-    std::set<std::string> required_extensions_set(required_extensions.begin(), required_extensions.end());
     auto available_extensions = m_physical_device.enumerateDeviceExtensionProperties();
+    auto missing_extensions = required_extensions | stdr::to<std::set<std::string>>();
     for (const auto &available_extension : available_extensions) {
-        required_extensions_set.erase(available_extension.extensionName.data());
+        missing_extensions.erase(available_extension.extensionName.data());
     }
-    for (const auto &extension : required_extensions_set) {
+    for (const auto &extension : missing_extensions) {
         lcf_log_warn("Required extension not available: {}", extension);
     }
 
@@ -233,7 +195,7 @@ void VulkanContext::createLogicalDevice()
     device_info.get<vk::PhysicalDeviceVulkan13Features>().setSynchronization2(true)
         .setDynamicRendering(true);
     device_info.get<vk::PhysicalDeviceVulkan12Features>().setBufferDeviceAddress(true)
-        .setDescriptorIndexing(true) 
+        .setDescriptorIndexing(true)
         .setDescriptorBindingVariableDescriptorCount(true)
         .setDescriptorBindingPartiallyBound(true)
         .setDescriptorBindingUpdateUnusedWhilePending(true)
@@ -304,63 +266,3 @@ void VulkanContext::createCommandPools()
         }
     }
 }
-
-#ifndef NDEBUG
-VKAPI_ATTR vk::Bool32 VKAPI_CALL debug_callback(
-    vk::DebugUtilsMessageSeverityFlagBitsEXT severity_flags,
-    vk::DebugUtilsMessageTypeFlagsEXT type_flags,
-    const vk::DebugUtilsMessengerCallbackDataEXT * callback_data,
-    void * user_data)
-{
-    if (not callback_data->pMessage) { return false; }
-    std::string log_output = std::format(
-        "{:=^80}\n"
-        "[Type] {}\n"
-        "[Message ID] (0x{:x}) {}\n"
-        "[Message] {}\n",
-        "Vulkan Validation Layer",
-        vk::to_string(type_flags),
-        static_cast<uint32_t>(callback_data->messageIdNumber),
-        callback_data->pMessageIdName,
-        callback_data->pMessage);
-    if (callback_data->queueLabelCount > 0) {
-        log_output += std::format("<Queue Labels>\n");
-        for (uint32_t i = 0; i < callback_data->queueLabelCount; ++i) {
-            const auto & label = callback_data->pQueueLabels[i];
-            log_output += std::format(
-                "  [{}] Name: {}, Color: [{:.3f}, {:.3f}, {:.3f}, {:.3f}]\n",
-                i,
-                label.pLabelName ? label.pLabelName : "Unnamed",
-                label.color[0], label.color[1], label.color[2], label.color[3]);
-        }
-    }
-    if (callback_data->cmdBufLabelCount > 0) {
-        log_output += std::format("<Command Buffer Labels>\n");
-        for (uint32_t i = 0; i < callback_data->cmdBufLabelCount; ++i) {
-            const auto & label = callback_data->pCmdBufLabels[i];
-            log_output += std::format(
-                "  [{}] Name: {}, Color: [{:.3f}, {:.3f}, {:.3f}, {:.3f}]\n",
-                i,
-                label.pLabelName ? label.pLabelName : "Unnamed",
-                label.color[0], label.color[1], label.color[2], label.color[3]);
-        }
-    }
-    if (callback_data->objectCount > 0) {
-        log_output += std::format("<Related Objects>\n");
-        for (uint32_t i = 0; i < callback_data->objectCount; ++i) {
-            const auto & obj = callback_data->pObjects[i];
-            log_output += std::format(
-                "  [{}] Type: {}, Handle: 0x{:x}, Name: {}\n",
-                i,
-                vk::to_string(obj.objectType),
-                obj.objectHandle,
-                obj.pObjectName ? obj.pObjectName : "Unnamed");
-        }
-    }
-    if (severity_flags & vk::DebugUtilsMessageSeverityFlagBitsEXT::eError) { lcf_log_error(log_output); }
-    else if (severity_flags & vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning) { lcf_log_warn(log_output); }
-    // else if (severity_flags & vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo) { lcf_log_info(log_output); }
-    // else if (severity_flags & vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose) { lcf_log_trace(log_output); }
-    return false;
-}
-#endif
