@@ -12,11 +12,11 @@
 
 
 namespace lcf::render {
-    class VulkanShaderProgram : public STDPointerDefs<VulkanShaderProgram>
+    class VulkanShaderProgram
     {
         using Self = VulkanShaderProgram;
     public:
-        using StageToShaderMap = std::unordered_map<ShaderTypeFlagBits, VulkanShader::SharedPointer>;
+        using StageToShaderMap = std::unordered_map<ShaderTypeFlagBits, std::shared_ptr<VulkanShader>>;
         using ShaderStageInfoList = std::vector<vk::PipelineShaderStageCreateInfo>;
         using DescriptorSetLayoutBindingList = std::vector<vk::DescriptorSetLayoutBinding>;
         using DescriptorSetLayoutBindingTable = std::vector<DescriptorSetLayoutBindingList>; // [set][binding]
@@ -30,7 +30,7 @@ namespace lcf::render {
         bool isLinked() const { return m_pipeline_layout.get(); }
         std::error_code link();
         bool containsStage(ShaderTypeFlagBits stage) const { return m_stage_to_shader_map.contains(stage); }
-        VulkanShader::SharedPointer getShader(ShaderTypeFlagBits stage) const { return m_stage_to_shader_map.at(stage); }
+        std::shared_ptr<VulkanShader> getShader(ShaderTypeFlagBits stage) const { return m_stage_to_shader_map.at(stage); }
         bool hasVertexInput() const noexcept;
         const ShaderStageInfoList & getShaderStageInfoList() const { return m_shader_stage_info_list; }
         const VulkanDescriptorSetLayout & getDescriptorSetLayout(uint32_t set_index) const { return *m_descriptor_set_layout_sp_list[set_index]; }

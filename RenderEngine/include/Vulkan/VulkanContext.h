@@ -14,7 +14,7 @@ namespace lcf::render {
     {
         using Self = VulkanContext;
     public:
-        using SurfaceRenderTargetList = std::vector<VulkanSwapchain::SharedPointer>;
+        using SurfaceRenderTargetList = std::vector<std::shared_ptr<VulkanSwapchain>>;
         using QueueFamilyIndexMap = std::unordered_map<vk::QueueFlagBits, uint32_t>;
         using QueueList = std::vector<vk::Queue>;
         using QueueListMap = std::unordered_map<vk::QueueFlagBits, QueueList>;

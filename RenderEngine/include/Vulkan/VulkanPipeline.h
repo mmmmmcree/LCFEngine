@@ -11,7 +11,7 @@ namespace lcf::render {
     class ComputePipelineCreateInfo;
     class GraphicPipelineCreateInfo;
 
-    class VulkanPipeline : public STDPointerDefs<VulkanPipeline>
+    class VulkanPipeline
     {
         using Self = VulkanPipeline;
     public:
@@ -28,7 +28,7 @@ namespace lcf::render {
             VulkanCommandBufferObject & cmd,
             uint32_t set_index,
             const vk::DescriptorSet & descriptor_set) const noexcept;
-        Self & setShaderProgram(const VulkanShaderProgram::SharedPointer &shader_program) { m_shader_program = shader_program; return *this; }
+        Self & setShaderProgram(const std::shared_ptr<VulkanShaderProgram> &shader_program) { m_shader_program = shader_program; return *this; }
         VulkanShaderProgram * getShaderProgram() const { return m_shader_program.get(); }
         vk::PipelineLayout getPipelineLayout() const { return m_shader_program->getPipelineLayout(); }
         vk::Pipeline getHandle() const { return m_pipeline.get(); }
@@ -38,18 +38,18 @@ namespace lcf::render {
         VulkanContext * m_context_p = nullptr;
         vk::PipelineBindPoint m_type;
         vk::UniquePipeline m_pipeline;
-        VulkanShaderProgram::SharedPointer m_shader_program;
+        std::shared_ptr<VulkanShaderProgram> m_shader_program;
     };
 
     class ComputePipelineCreateInfo
     {
         using Self = ComputePipelineCreateInfo;
     public:
-        ComputePipelineCreateInfo(const VulkanShaderProgram::SharedPointer & shader_program = nullptr) : m_shader_program(shader_program) { }
-        Self & setShaderProgram(const VulkanShaderProgram::SharedPointer & shader_program) { m_shader_program = shader_program; return *this; }
-        const VulkanShaderProgram::SharedPointer & getShaderProgram() const { return m_shader_program; }
+        ComputePipelineCreateInfo(const std::shared_ptr<VulkanShaderProgram> & shader_program = nullptr) : m_shader_program(shader_program) { }
+        Self & setShaderProgram(const std::shared_ptr<VulkanShaderProgram> & shader_program) { m_shader_program = shader_program; return *this; }
+        const std::shared_ptr<VulkanShaderProgram> & getShaderProgram() const { return m_shader_program; }
     private:
-        VulkanShaderProgram::SharedPointer m_shader_program;
+        std::shared_ptr<VulkanShaderProgram> m_shader_program;
     };
 
     class GraphicPipelineCreateInfo
@@ -57,7 +57,7 @@ namespace lcf::render {
         using Self = GraphicPipelineCreateInfo;
     public:
         GraphicPipelineCreateInfo(
-            const VulkanShaderProgram::SharedPointer & shader_program = nullptr,
+            const std::shared_ptr<VulkanShaderProgram> & shader_program = nullptr,
             uint32_t scissor_count = 1,
             vk::PrimitiveTopology topology = vk::PrimitiveTopology::eTriangleList,
             const std::vector<vk::Format> & color_attachment_formats = {},
@@ -78,7 +78,7 @@ namespace lcf::render {
             m_cull_mode(cull_mode),
             m_front_face(front_face)
         { }
-        Self & setShaderProgram(const VulkanShaderProgram::SharedPointer & shader_program) { m_shader_program = shader_program; return *this; }
+        Self & setShaderProgram(const std::shared_ptr<VulkanShaderProgram> & shader_program) { m_shader_program = shader_program; return *this; }
         Self & addColorAttachmentFormat(vk::Format format) { m_color_attachment_formats.emplace_back(format); return *this; }
         Self & addColorAttachmentFormats(const std::span<const vk::Format> & formats) { m_color_attachment_formats.insert(m_color_attachment_formats.end(), formats.begin(), formats.end()); return *this; }
         Self & setDepthTestEnabled(bool enable) { m_depth_test_enable = enable; return *this; }
@@ -88,7 +88,7 @@ namespace lcf::render {
         Self & setRasterizationSamples(vk::SampleCountFlagBits samples) { m_rasterization_samples = samples; return *this; }
         Self & setCullMode(vk::CullModeFlags cull_mode) { m_cull_mode = cull_mode; return *this; }
         Self & setFrontFace(vk::FrontFace front_face) { m_front_face = front_face; return *this; }
-        const VulkanShaderProgram::SharedPointer & getShaderProgram() const noexcept { return m_shader_program; }
+        const std::shared_ptr<VulkanShaderProgram> & getShaderProgram() const noexcept { return m_shader_program; }
         const std::vector<vk::Format> & getColorAttachmentFormats() const noexcept { return m_color_attachment_formats; }
         bool isDepthTestEnabled() const noexcept { return m_depth_test_enable; }
         bool isDepthWriteEnabled() const noexcept { return m_depth_write_enable; }
@@ -98,7 +98,7 @@ namespace lcf::render {
         vk::CullModeFlags getCullMode() const noexcept { return m_cull_mode; }
         vk::FrontFace getFrontFace() const noexcept { return m_front_face; }
     private:
-        VulkanShaderProgram::SharedPointer m_shader_program;
+        std::shared_ptr<VulkanShaderProgram> m_shader_program;
         std::vector<vk::Format> m_color_attachment_formats;
         vk::Format m_depth_attachment_format;
         bool m_depth_test_enable;

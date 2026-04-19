@@ -19,7 +19,7 @@ lcf::render::VulkanShaderProgram::~VulkanShaderProgram()
 
 VulkanShaderProgram & lcf::render::VulkanShaderProgram::addShaderFromGlslFile(ShaderTypeFlagBits stage, std::string_view file_path)
 {
-    VulkanShader::SharedPointer shader = VulkanShader::makeShared(m_context_p, stage);
+    auto shader = std::make_shared<VulkanShader>(m_context_p, stage);
     auto error_code = shader->compileGlslFile(file_path);
     if (error_code) { return *this; }
     m_stage_to_shader_map[shader->getStage()] = shader;

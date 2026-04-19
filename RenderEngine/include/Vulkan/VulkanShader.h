@@ -7,7 +7,7 @@
 #include "JSON.h"
 
 namespace lcf::render {
-	class VulkanShader : public VulkanShaderPointerDefs
+	class VulkanShader
 	{
 	public:
 		VulkanShader(VulkanContext * context, ShaderTypeFlagBits type, std::string_view entry_point = "main");

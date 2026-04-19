@@ -38,14 +38,14 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
 
     auto [max_width, max_height] = max_extent;
 
-    VulkanShaderProgram::SharedPointer compute_shader_program = std::make_shared<VulkanShaderProgram>(m_context_p);
+    auto compute_shader_program = std::make_shared<VulkanShaderProgram>(m_context_p);
     compute_shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::eCompute, "assets/shaders/gradient.comp");
     compute_shader_program->link();
 
     ComputePipelineCreateInfo compute_pipeline_info(compute_shader_program);
     m_compute_pipeline.create(m_context_p, compute_pipeline_info);
 
-    VulkanShaderProgram::SharedPointer shader_program = std::make_shared<VulkanShaderProgram>(m_context_p);
+    auto shader_program = std::make_shared<VulkanShaderProgram>(m_context_p);
     shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::eVertex, "assets/shaders/vertex_buffer_test.vert")
         .addShaderFromGlslFile(ShaderTypeFlagBits::eFragment, "assets/shaders/vertex_buffer_test.frag")
         .link();
@@ -176,7 +176,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     TypedResourceEntity<VulkanImageObject> cube_map_re;
     TypedResourceEntity<VulkanImageObject> texture1_re;
     TypedResourceEntity<VulkanImageObject> texture2_re;
-    VulkanSampler::SharedPointer sampler_sp;
+    std::shared_ptr<VulkanSampler> sampler_sp;
 
     {
         VulkanImageObject texture1;
@@ -208,7 +208,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         cube_map_re = resource_system.registerResource(std::move(cube_map));
     }
 
-    VulkanShaderProgram::SharedPointer stc_shader_program = std::make_shared<VulkanShaderProgram>(m_context_p);
+    auto stc_shader_program = std::make_shared<VulkanShaderProgram>(m_context_p);
     stc_shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::eVertex, "assets/shaders/sphere_to_cube.vert")
         .addShaderFromGlslFile(ShaderTypeFlagBits::eGeometry, "assets/shaders/sphere_to_cube.geom")
         .addShaderFromGlslFile(ShaderTypeFlagBits::eFragment, "assets/shaders/sphere_to_cube.frag")
@@ -252,7 +252,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         texture2_re->generateMipmaps(cmd);
     });
 
-    auto skybox_shader_program = VulkanShaderProgram::makeShared(m_context_p);
+    auto skybox_shader_program = std::make_shared<VulkanShaderProgram>(m_context_p);
     skybox_shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::eVertex, "assets/shaders/skybox.vert")
         .addShaderFromGlslFile(ShaderTypeFlagBits::eFragment, "assets/shaders/skybox.frag")
         .link();
@@ -309,7 +309,7 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
     VulkanCommandBufferObject & cmd = current_frame_resources.command_buffer; 
     cmd.waitUntilAvailable();
 
-    auto render_target_wp = render_target.getComponent<VulkanSwapchain::WeakPointer>();
+    auto render_target_wp = render_target.getComponent<std::weak_ptr<VulkanSwapchain>>();
     if (render_target_wp.expired()) { return; }
     const auto & render_target_sp = render_target_wp.lock();
     if (not render_target_sp->prepareForRender()) { return; }

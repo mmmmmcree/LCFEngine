@@ -17,17 +17,17 @@ const VulkanSampler &lcf::render::VulkanSamplerManager::get(SamplerPreset preset
     return this->get(VulkanSamplerParams::from_preset(preset));
 }
 
-const VulkanSampler::SharedPointer &lcf::render::VulkanSamplerManager::getShared(const VulkanSamplerParams &params) const
+const std::shared_ptr<VulkanSampler> &lcf::render::VulkanSamplerManager::getShared(const VulkanSamplerParams &params) const
 {
     uint64_t hash_value = Hasher{}(params);
     auto it = m_sampler_sp_map.find(hash_value);
     if (it != m_sampler_sp_map.end()) { return it->second; }
-    auto sampler_sp = VulkanSampler::makeShared();
+    auto sampler_sp = std::make_shared<VulkanSampler>();
     sampler_sp->create(m_context_p, params.toCreateInfo());
     return m_sampler_sp_map[hash_value] = sampler_sp;
 }
 
-const VulkanSampler::SharedPointer &lcf::render::VulkanSamplerManager::getShared(SamplerPreset preset) const
+const std::shared_ptr<VulkanSampler> &lcf::render::VulkanSamplerManager::getShared(SamplerPreset preset) const
 {
     return this->getShared(VulkanSamplerParams::from_preset(preset));
 }

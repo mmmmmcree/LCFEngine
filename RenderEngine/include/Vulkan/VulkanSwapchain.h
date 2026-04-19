@@ -10,12 +10,12 @@
 namespace lcf::render {
     class VulkanContext;
 
-    class VulkanSwapchain : public RenderTarget, public VulkanSwapchainPointerDefs
+    class VulkanSwapchain : public RenderTarget
     {
         struct FrameResources;
         struct PendingRecycleResources;
+        using VulkanImageObjectSharedPointer = std::shared_ptr<VulkanImageObject>;
     public:
-        IMPORT_POINTER_DEFS(STDPointerDefs<VulkanSwapchain>);
         using OptionalFrameResources = std::optional<FrameResources>;
         using FencePool = std::queue<vk::UniqueFence>;
         using SemaphorePool = std::queue<vk::UniqueSemaphore>;
@@ -72,7 +72,7 @@ namespace lcf::render {
             void collect(vk::UniqueSwapchainKHR && swapchain) noexcept { m_swapchains.emplace_back(std::move(swapchain)); }
             vk::UniqueFence m_present_fence;
             std::vector<vk::UniqueSemaphore> m_semaphores;
-            std::vector<VulkanImageObjectSharedPointer> m_images;
+            std::vector<std::shared_ptr<VulkanImageObject>> m_images;
             std::vector<vk::UniqueSwapchainKHR> m_swapchains;
         };
     private:

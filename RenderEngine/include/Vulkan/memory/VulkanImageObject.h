@@ -8,7 +8,7 @@
 namespace lcf::render {
     class VulkanImageProxy;
 
-    class VulkanImageObject : public VulkanImageObjectPointerDefs
+    class VulkanImageObject
     {
         using Self = VulkanImageObject;
         friend class VulkanAttachment;

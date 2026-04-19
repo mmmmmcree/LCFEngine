@@ -7,7 +7,7 @@
 //todo use uint64_t m_version to record if buffer has been resized(a diffrent buffer proxy). Descriptor Set use this info to update
 
 namespace lcf::render {
-    class VulkanBufferObject : public VulkanBufferObjectPointerDefs
+    class VulkanBufferObject
     {
         friend class VulkanBufferObjectGroup;
         using Self = VulkanBufferObject;

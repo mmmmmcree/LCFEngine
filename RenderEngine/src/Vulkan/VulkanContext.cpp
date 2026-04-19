@@ -30,9 +30,9 @@ VulkanContext & VulkanContext::registerWindow(ecs::Entity &window_entity)
 {
     auto & bridge_sp = window_entity.getComponent<gui::VulkanSurfaceBridge::SharedPointer>();
     bridge_sp->createBackend(this->getInstance());
-    auto render_target = VulkanSwapchain::makeShared(bridge_sp);
+    auto render_target = std::make_shared<VulkanSwapchain>(bridge_sp);
     m_surface_render_targets.emplace_back(render_target);
-    window_entity.emplaceComponent<VulkanSwapchain::WeakPointer>(render_target); //? maybe variant for headless mode
+    window_entity.emplaceComponent<std::weak_ptr<VulkanSwapchain>>(render_target); //? maybe variant for headless mode
     return *this;
 }
 

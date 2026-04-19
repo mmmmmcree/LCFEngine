@@ -88,7 +88,7 @@ namespace lcf::render {
         bool m_unnormalized_coordinates;
     };
 
-    class VulkanSampler : public VulkanSamplerPointerDefs
+    class VulkanSampler
     {
         using Self = VulkanSampler;
     public:
