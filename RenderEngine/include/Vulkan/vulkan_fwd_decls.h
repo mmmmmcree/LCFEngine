@@ -30,6 +30,8 @@ namespace lcf::render {
 
     class VulkanShaderProgram;
 
+    class VulkanPipeline;
+
     class VulkanSampler;
 
     class VulkanDescriptorSetBinding;
