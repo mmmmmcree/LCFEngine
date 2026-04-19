@@ -34,6 +34,7 @@ namespace lcf::render {
         VulkanDescriptorSet(const Self &) = delete;
         Self & operator=(const Self &) = delete;
         operator bool() const noexcept { return static_cast<bool>(m_descriptor_set); }
+        operator vk::DescriptorSet() const noexcept { return this->getHandle(); }
     public:
         Self & addDescriptorInfo(uint32_t binding, const DescriptorInfo & info);
         Self & addDescriptorInfo(uint32_t binding, uint32_t array_index, const DescriptorInfo & info);

@@ -20,6 +20,7 @@ namespace lcf::render {
         Self & operator=(const Self &) = delete;
         VulkanDescriptorSetLayout(Self &&) = default;
         Self & operator=(Self &&) = default;
+        operator vk::DescriptorSetLayout() const noexcept { return this->getHandle(); }
     public:
         std::error_code create(vk::Device device, vkenums::DescriptorSetStrategy strategy) noexcept;
         Self & setBindings(BindingReadSpan bindings) noexcept;
