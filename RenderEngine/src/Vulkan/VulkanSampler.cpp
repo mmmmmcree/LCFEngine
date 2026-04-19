@@ -4,17 +4,15 @@
 
 using namespace lcf::render;
 
-bool VulkanSampler::create(VulkanContext * context_p, const vk::SamplerCreateInfo &create_info)
+std::error_code VulkanSampler::create(vk::Device device, const vk::SamplerCreateInfo &create_info) noexcept
 {
-    auto device = context_p->getDevice();
-    vk::SamplerCreateInfo sampler_info = create_info;
-    if (sampler_info.anisotropyEnable) {
-        auto limits = context_p->getPhysicalDevice().getProperties().limits;
-        sampler_info.maxAnisotropy = std::min(create_info.maxAnisotropy, limits.maxSamplerAnisotropy);
+    m_params = VulkanSamplerParams {create_info};
+    try {
+        m_sampler = device.createSamplerUnique(create_info);;
+    } catch (const vk::SystemError &err) {
+        return err.code();
     }
-    m_params = VulkanSamplerParams {sampler_info};
-    m_sampler = device.createSamplerUnique(sampler_info);
-    return this->isCreated();
+    return {};
 }
 
 lcf::render::VulkanSamplerParams::VulkanSamplerParams(

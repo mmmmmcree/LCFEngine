@@ -1,6 +1,5 @@
 #pragma once
 
-#include "vulkan_fwd_decls.h"
 #include <vulkan/vulkan.hpp>
 #include "common/render_enums.h"
 
@@ -39,6 +38,7 @@ namespace lcf::render {
         Self & operator=(Self && other) = default;
         bool operator==(const Self & other) const noexcept;
         bool operator!=(const Self & other) const noexcept;
+    public:
         vk::SamplerCreateInfo toCreateInfo() const noexcept;
         Self & setMinFilter(vk::Filter filter) noexcept { m_min_filter = filter; return *this; }
         Self & setMagFilter(vk::Filter filter) noexcept { m_mag_filter = filter; return *this; }
@@ -98,7 +98,9 @@ namespace lcf::render {
         Self & operator=(const Self & other) = delete;
         VulkanSampler(Self && other) = default;
         Self & operator=(Self && other) = default;
-        bool create(VulkanContext * context_p, const vk::SamplerCreateInfo & create_info);
+        operator vk::Sampler() const noexcept { return this->getHandle(); }
+    public:
+        std::error_code create(vk::Device device, const vk::SamplerCreateInfo & create_info) noexcept;
         bool isCreated() const noexcept { return static_cast<bool>(m_sampler); }
         const vk::Sampler & getHandle() const noexcept { return m_sampler.get(); }
         const VulkanSamplerParams & getParams() const noexcept { return m_params; }

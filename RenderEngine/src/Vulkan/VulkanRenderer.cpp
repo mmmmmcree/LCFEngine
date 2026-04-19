@@ -226,7 +226,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         vk::DescriptorImageInfo image_info;
         image_info.setImageLayout(*texture1_re->getLayout())
             .setImageView(texture1_re->getDefaultView())
-            .setSampler(sampler_manager.getShared(SamplerPreset::eEnvironmentMap)->getHandle());
+            .setSampler(sampler_manager.get(SamplerPreset::eEnvironmentMap));
 
         const auto & stc_layout = stc_pipeline.getDescriptorSetLayout(0);
         auto descriptor_set_rp = make_resource_ptr<VulkanDescriptorSet>(descriptor_set_manager.createSet(stc_layout));
@@ -281,8 +281,8 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     }
 
     vk::DescriptorImageInfo sampler1_info, sampler2_info, cube_map_info;
-    sampler1_info.setSampler(sampler_manager.getShared(SamplerPreset::eColorMap)->getHandle());
-    sampler2_info.setSampler(sampler_manager.getShared(SamplerPreset::eEnvironmentMap)->getHandle());
+    sampler1_info.setSampler(sampler_manager.get(SamplerPreset::eColorMap));
+    sampler2_info.setSampler(sampler_manager.get(SamplerPreset::eEnvironmentMap));
     cube_map_info.setImageLayout(*cube_map_re->getLayout())
         .setImageView(cube_map_re->getDefaultView());
     bindless_texture_ds.addDescriptorInfo(

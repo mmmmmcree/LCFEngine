@@ -1,4 +1,5 @@
 #include "Vulkan/VulkanSamplerManager.h"
+#include "Vulkan/VulkanContext.h"
 
 using namespace lcf::render;
 
@@ -9,7 +10,17 @@ void lcf::render::VulkanSamplerManager::create(VulkanContext *context_p)
 
 const VulkanSampler & lcf::render::VulkanSamplerManager::get(const VulkanSamplerParams &params) const
 {
-    return *(this->getShared(params));
+    auto sampler_info = params.toCreateInfo();
+    if (sampler_info.anisotropyEnable) {
+        auto limits = m_context_p->getPhysicalDevice().getProperties().limits;
+        sampler_info.maxAnisotropy = std::min(sampler_info.maxAnisotropy, limits.maxSamplerAnisotropy);
+    }
+    uint64_t hash_value = Hasher{}(params);
+    auto it = m_sampler_map.find(hash_value);
+    if (it != m_sampler_map.end()) { return it->second; }
+    VulkanSampler sampler;
+    sampler.create(m_context_p->getDevice(), params.toCreateInfo());
+    return m_sampler_map.emplace(hash_value, std::move(sampler)).first->second;
 }
 
 const VulkanSampler &lcf::render::VulkanSamplerManager::get(SamplerPreset preset) const
@@ -17,22 +28,7 @@ const VulkanSampler &lcf::render::VulkanSamplerManager::get(SamplerPreset preset
     return this->get(VulkanSamplerParams::from_preset(preset));
 }
 
-const std::shared_ptr<VulkanSampler> &lcf::render::VulkanSamplerManager::getShared(const VulkanSamplerParams &params) const
-{
-    uint64_t hash_value = Hasher{}(params);
-    auto it = m_sampler_sp_map.find(hash_value);
-    if (it != m_sampler_sp_map.end()) { return it->second; }
-    auto sampler_sp = std::make_shared<VulkanSampler>();
-    sampler_sp->create(m_context_p, params.toCreateInfo());
-    return m_sampler_sp_map[hash_value] = sampler_sp;
-}
-
-const std::shared_ptr<VulkanSampler> &lcf::render::VulkanSamplerManager::getShared(SamplerPreset preset) const
-{
-    return this->getShared(VulkanSamplerParams::from_preset(preset));
-}
-
 bool lcf::render::VulkanSamplerManager::contains(const VulkanSamplerParams &params) const noexcept
 {
-    return m_sampler_sp_map.contains(Hasher{}(params));
+    return m_sampler_map.contains(Hasher{}(params));
 }
