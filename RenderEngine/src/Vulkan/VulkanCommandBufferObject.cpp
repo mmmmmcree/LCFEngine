@@ -1,6 +1,8 @@
 #include "Vulkan/VulkanCommandBufferObject.h"
 #include "Vulkan/VulkanContext.h"
 #include "Vulkan/VulkanTimelineSemaphore.h"
+#include "Vulkan/VulkanPipeline.h"
+#include "Vulkan/ds/VulkanDescriptorSet.h"
 
 using namespace lcf::render;
 
@@ -59,4 +61,19 @@ vk::SemaphoreSubmitInfo VulkanCommandBufferObject::submit()
 void VulkanCommandBufferObject::acquireResourceLease(ResourceLease resource_lease)
 {
     m_resource_leases.emplace_back(std::move(resource_lease));
+}
+
+void VulkanCommandBufferObject::bindPipeline(const VulkanPipeline &pipeline) const noexcept
+{
+    Base::bindPipeline(pipeline.getType(), pipeline.getHandle());
+}
+
+void VulkanCommandBufferObject::bindDescriptorSet(const VulkanPipeline &pipeline, const VulkanDescriptorSet &descriptor_set) const noexcept
+{
+    Base::bindDescriptorSets(pipeline.getType(), pipeline.getPipelineLayout(), descriptor_set.getIndex(), descriptor_set.getHandle(), nullptr);
+}
+
+void VulkanCommandBufferObject::bindDescriptorSet(const VulkanPipeline &pipeline, const VulkanBindlessDescriptorSet &descriptor_set) const noexcept
+{
+    Base::bindDescriptorSets(pipeline.getType(), pipeline.getPipelineLayout(), descriptor_set.getIndex(), descriptor_set.getHandle(), nullptr);
 }

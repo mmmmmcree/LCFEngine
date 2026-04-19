@@ -240,8 +240,8 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         fbo.addColorAttachment(*cube_map_re)
             .create(m_context_p, fbo_info);
         cmd.acquireResourceLease(descriptor_set_rp.lease());
-        cmd.bindPipeline(stc_pipeline.getType(), stc_pipeline.getHandle());
-        cmd.bindDescriptorSets(stc_pipeline.getType(), stc_pipeline.getPipelineLayout(), descriptor_set_rp->getIndex(), descriptor_set_rp->getHandle(), nullptr);
+        cmd.bindPipeline(stc_pipeline);
+        cmd.bindDescriptorSet(stc_pipeline, *descriptor_set_rp);
         fbo.setViewportAndScissor(cmd);
         fbo.beginRendering(cmd);
         cmd.draw(36, 1, 0, 0); // draw with const data in shader program
@@ -402,19 +402,18 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
 
     const auto & bindless_buffer_ds = m_context_p->getDescriptorSetManager().getBindlessBufferSet();
     const auto & bindless_texture_ds = m_context_p->getDescriptorSetManager().getBindlessTextureSet();
-    m_graphics_pipeline.bind(cmd);
-    m_graphics_pipeline.bindDescriptorSet(cmd, m_per_view_descriptor_set.getIndex(), m_per_view_descriptor_set.getHandle());
-    m_graphics_pipeline.bindDescriptorSet(cmd, bindless_buffer_ds.getIndex(), bindless_buffer_ds.getHandle());
-    m_graphics_pipeline.bindDescriptorSet(cmd, bindless_texture_ds.getIndex(), bindless_texture_ds.getHandle());
+    cmd.bindPipeline(m_graphics_pipeline);
+    cmd.bindDescriptorSet(m_graphics_pipeline, m_per_view_descriptor_set);
+    cmd.bindDescriptorSet(m_graphics_pipeline, bindless_buffer_ds);
+    cmd.bindDescriptorSet(m_graphics_pipeline, bindless_texture_ds);
     
     cmd.drawIndirectCount(m_indirect_call_buffer.getHandle(), sizeof(vk::DrawIndirectCommand),
         m_indirect_call_buffer.getHandle(), 0,
         indirect_call_count, sizeof(vk::DrawIndirectCommand));
     
-    m_skybox_pipeline.bind(cmd);
-
-    m_skybox_pipeline.bindDescriptorSet(cmd, m_per_view_descriptor_set.getIndex(), m_per_view_descriptor_set.getHandle());
-    m_skybox_pipeline.bindDescriptorSet(cmd, bindless_texture_ds.getIndex(), bindless_texture_ds.getHandle());
+    cmd.bindPipeline(m_skybox_pipeline);
+    cmd.bindDescriptorSet(m_skybox_pipeline, m_per_view_descriptor_set);
+    cmd.bindDescriptorSet(m_skybox_pipeline, bindless_texture_ds);
     cmd.draw(36, 1, 0, 10); // draw with const data in shader program
     
     current_framebuffer.endRendering(cmd);

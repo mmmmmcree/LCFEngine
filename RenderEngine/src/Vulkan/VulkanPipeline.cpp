@@ -131,16 +131,3 @@ bool VulkanPipeline::create(VulkanContext *context, const GraphicPipelineCreateI
     m_pipeline = std::move(pipeline);
     return create_result == vk::Result::eSuccess;
 }
-
-void VulkanPipeline::bind(VulkanCommandBufferObject & cmd) const noexcept
-{
-    cmd.bindPipeline(this->getType(), this->getHandle());
-}
-
-void VulkanPipeline::bindDescriptorSet(
-    VulkanCommandBufferObject & cmd,
-    uint32_t set_index,
-    const vk::DescriptorSet & descriptor_set) const noexcept
-{
-    cmd.bindDescriptorSets(this->getType(), this->getPipelineLayout(), set_index, descriptor_set, nullptr);
-}

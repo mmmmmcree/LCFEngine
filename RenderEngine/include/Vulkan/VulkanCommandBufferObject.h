@@ -9,6 +9,7 @@
 namespace lcf::render {
     class VulkanCommandBufferObject : public vk::CommandBuffer
     {
+        using Base = vk::CommandBuffer;
         using Self = VulkanCommandBufferObject;
     public:
         using SemaphoreSubmitInfoList = boost::container::vector<vk::SemaphoreSubmitInfo>;
@@ -26,6 +27,9 @@ namespace lcf::render {
         Self & addSignalSubmitInfo(const vk::SemaphoreSubmitInfo & signal_info) { m_signal_infos.emplace_back(signal_info); return *this; }
         vk::SemaphoreSubmitInfo submit();
         void acquireResourceLease(ResourceLease resource_lease);
+        void bindPipeline(const VulkanPipeline & pipeline) const noexcept;
+        void bindDescriptorSet(const VulkanPipeline & pipeline, const VulkanDescriptorSet & descriptor_set) const noexcept;
+        void bindDescriptorSet(const VulkanPipeline & pipeline, const VulkanBindlessDescriptorSet & descriptor_set) const noexcept;
     private:
         VulkanContext * m_context_p = nullptr;
         vk::QueueFlagBits m_queue_type;
