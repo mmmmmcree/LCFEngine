@@ -340,6 +340,9 @@ namespace lcf {
     };
 
     template <typename Resource>
+    class ResourceStrongRef;
+
+    template <typename Resource>
     class ResourceRef
     {
         template <typename R>
@@ -347,6 +350,8 @@ namespace lcf {
         template <typename R>
         requires (not std::is_same_v<R, Resource> and std::is_convertible_v<R &, Resource &>)
         using ConvertibleResourceRef = ResourceRef<R>;
+        template <typename R>
+        friend class ResourceStrongRef;
     public:
         ResourceRef(Resource & resource, const ResourceLease & lease = {}) :
             m_resource(resource),
@@ -369,6 +374,52 @@ namespace lcf {
         Resource * operator->() const noexcept { return &m_resource; }
     public:
         bool isStrongRef() const noexcept { return m_lease; }
+    private:
+        const ResourceLease & lease() const noexcept { return m_lease; }
+    private:
+        Resource & m_resource;
+        ResourceLease m_lease;
+    };
+
+    template <typename Resource>
+    class ResourceStrongRef
+    {
+        template <typename R>
+        friend class ResourceStrongRef;
+        template <typename R>
+        requires (not std::is_same_v<R, Resource> and std::is_convertible_v<R &, Resource &>)
+        using ConvertibleResourceStrongRef = ResourceStrongRef<R>;
+    public:
+        ResourceStrongRef(Resource & resource, const ResourceLease & lease) :
+            m_resource(resource),
+            m_lease(lease)
+        {
+            this->checkStrongRef();
+        }
+        template <typename R>
+        ResourceStrongRef(const ConvertibleResourceStrongRef<R> & other) :
+            m_resource(other.m_resource),
+            m_lease(other.m_lease)
+        {
+            this->checkStrongRef();
+        }
+        ResourceStrongRef(resource_pointer_like_c<Resource> auto && rp) :
+            m_resource(*rp),
+            m_lease(rp.lease())
+        {
+            this->checkStrongRef();
+        }
+        ResourceStrongRef(const ResourceStrongRef & other) noexcept = default;
+        ResourceStrongRef(ResourceStrongRef && other) noexcept = default;
+        ResourceStrongRef & operator=(const ResourceStrongRef & other) noexcept = default;
+        ResourceStrongRef & operator=(ResourceStrongRef && other) noexcept = default;
+        Resource & operator*() const noexcept { return m_resource; }
+        Resource * operator->() const noexcept { return &m_resource; }
+    private:
+        void checkStrongRef() const
+        {
+            if (not m_lease) { throw std::logic_error("not a strong reference"); }    
+        }
     private:
         Resource & m_resource;
         ResourceLease m_lease;
