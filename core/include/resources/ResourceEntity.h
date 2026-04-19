@@ -101,6 +101,8 @@ namespace lcf {
     class TypedResourceEntity
     {
     public:
+        using resource_type = T;
+    public:
         TypedResourceEntity() = default;
         TypedResourceEntity(const ResourceEntity & entity) noexcept :
             m_registry_p(entity.m_registry_p),
