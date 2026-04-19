@@ -7,23 +7,6 @@
 namespace lcf::render {
     class VulkanContext;
 
-    class VulkanSamplerGroup
-    {
-        using Self = VulkanSamplerGroup;
-    public:
-        using SamplerSharedPtrList = std::vector<std::shared_ptr<VulkanSampler>>;
-        VulkanSamplerGroup() = default;
-        ~VulkanSamplerGroup() = default;
-        VulkanSamplerGroup(const Self &) = default;
-        Self & operator=(const Self &) = default;
-        VulkanSamplerGroup(Self &&) = default;
-        Self & operator=(Self &&) = default;
-        Self & add(const std::shared_ptr<VulkanSampler> & sampler_sp) { m_sampler_sp_list.emplace_back(sampler_sp); return *this; }
-        const VulkanSampler & get(size_t index) const { return *m_sampler_sp_list.at(index); }
-    private:
-        SamplerSharedPtrList m_sampler_sp_list;
-    };
-
     class VulkanSamplerManager
     {
         using Self = VulkanSamplerManager;
