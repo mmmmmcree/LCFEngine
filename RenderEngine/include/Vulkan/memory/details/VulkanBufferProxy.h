@@ -35,7 +35,7 @@ namespace lcf::render {
         vk::DescriptorBufferInfo generateBufferInfo(vk::DeviceSize offset, vk::DeviceSize range) const noexcept;
     private:
         VulkanContext * m_context_p = nullptr;
-        ResourcePointer<VulkanBuffer> m_buffer_rp;
+        ResourcePtr<VulkanBuffer> m_buffer_rp;
         vk::DeviceAddress m_device_address;
         GPUBufferUsage m_buffer_usage = GPUBufferUsage::eUndefined;
         GPUBufferPattern m_buffer_pattern = GPUBufferPattern::eDynamic;

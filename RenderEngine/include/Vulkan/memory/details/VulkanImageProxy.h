@@ -94,7 +94,7 @@ namespace lcf::render {
         uint16_t m_array_layers = 1u;
         vk::SampleCountFlagBits m_samples = vk::SampleCountFlagBits::e1;
         vk::ImageUsageFlags m_usage = {};
-        ResourcePointer<VulkanImage> m_image_rp;
+        ResourcePtr<VulkanImage> m_image_rp;
         mutable ImageViewMap m_view_map;
         LayoutMap m_layout_map;
     };
