@@ -2,8 +2,6 @@
 
 #include <vulkan/vulkan.hpp>
 #include "VulkanShaderProgram.h"
-#include "VulkanCommandBufferObject.h"
-#include "PointerDefs.h"
 
 namespace lcf::render {
     class VulkanContext;
