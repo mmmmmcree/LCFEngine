@@ -74,6 +74,7 @@ namespace lcf {
             m_control_block_p = std::exchange(other.m_control_block_p, nullptr);
             return *this;
         }
+        operator bool() const noexcept { return m_control_block_p; }
     private:
         void tryDestroy() noexcept
         {
@@ -105,6 +106,7 @@ namespace lcf {
         using ConvertibleResourcePointer = ResourcePointer<R>;
     public:
         using deleter_t = std::function<void(Resource *)>;
+        using resource_type = Resource;
     public:
         ResourcePointer() = default;
         ResourcePointer(Resource * resource_p) { this->create(resource_p); }
@@ -225,6 +227,8 @@ namespace lcf {
         requires (not std::is_same_v<R, Resource> and std::is_convertible_v<R *, Resource *>)
         using ConvertibleResourceWeakPointer = ResourceWeakPointer<R>;
     public:
+        using resource_type = Resource;
+    public:
         ResourceWeakPointer() = default;
         ~ResourceWeakPointer() noexcept { this->releaseWeak(); }
         // --- from ResourcePointer (same-type + converting) ---
@@ -327,6 +331,47 @@ namespace lcf {
     private:
         Resource * m_resource_p = nullptr;
         ResourceControlBlock * m_control_block_p = nullptr;
+    };
+
+    template <typename ResourcePointerLike, typename Resource>
+    concept resource_pointer_like_c = requires(ResourcePointerLike rp) {
+        { rp.lease() } -> std::convertible_to<ResourceLease>;
+        { *rp } -> std::convertible_to<Resource &>;
+    };
+
+    template <typename Resource>
+    class ResourceRef
+    {
+        template <typename R>
+        friend class ResourceRef;
+        template <typename R>
+        requires (not std::is_same_v<R, Resource> and std::is_convertible_v<R &, Resource &>)
+        using ConvertibleResourceRef = ResourceRef<R>;
+    public:
+        ResourceRef(Resource & resource, const ResourceLease & lease = {}) :
+            m_resource(resource),
+            m_lease(lease)
+        {}
+        template <typename R>
+        ResourceRef(const ConvertibleResourceRef<R> & other) :
+            m_resource(other.m_resource),
+            m_lease(other.m_lease)
+        {}
+        ResourceRef(resource_pointer_like_c<Resource> auto && rp) :
+            m_resource(*rp),
+            m_lease(rp.lease())
+        {}
+        ResourceRef(const ResourceRef & other) noexcept = default;
+        ResourceRef(ResourceRef && other) noexcept = default;
+        ResourceRef & operator=(const ResourceRef & other) noexcept = default;
+        ResourceRef & operator=(ResourceRef && other) noexcept = default;
+        Resource & operator*() const noexcept { return m_resource; }
+        Resource * operator->() const noexcept { return &m_resource; }
+    public:
+        bool isStrongRef() const noexcept { return m_lease; }
+    private:
+        Resource & m_resource;
+        ResourceLease m_lease;
     };
 
     template <typename Resource, typename... Args>
