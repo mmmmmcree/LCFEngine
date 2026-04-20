@@ -3,6 +3,8 @@
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <optional>
+#include <stdexcept>
 #include <type_traits>
 #include <utility>
 
@@ -44,11 +46,19 @@ namespace lcf {
 
     class ResourceLease
     {
+        template <typename R>
+        friend class ResourceWeakRef;
     public:
         ResourceLease() = default;
-        explicit ResourceLease(ResourceControlBlock * control_block_p) : m_control_block_p(control_block_p)
+        // Attempts to acquire a strong reference on the control block. If the
+        // resource has already been destroyed (strong count == 0), the lease
+        // becomes empty. Callers that already hold a strong reference (e.g.
+        // ResourcePtr::lease()) are guaranteed to succeed.
+        explicit ResourceLease(ResourceControlBlock * control_block_p) noexcept
         {
-            if (m_control_block_p) { m_control_block_p->increaseRefCount(); }
+            if (control_block_p and control_block_p->tryIncrementStrongCount()) {
+                m_control_block_p = control_block_p;
+            }
         }
         ~ResourceLease() noexcept { this->tryDestroy(); }
         ResourceLease(const ResourceLease & other) noexcept : m_control_block_p(other.m_control_block_p)
@@ -100,7 +110,9 @@ namespace lcf {
         template <typename R>
         friend class ResourcePtr;
         template <typename R>
-        friend class ResourceWeakPointer;
+        friend class ResourceWeakPtr;
+        template <typename R>
+        friend class ResourceWeakRef;
         template <typename R>
         requires (not std::is_same_v<R, Resource> and std::is_convertible_v<R *, Resource *>)
         using ConvertibleResourcePointer = ResourcePtr<R>;
@@ -162,8 +174,8 @@ namespace lcf {
         Resource & operator*() const { return *m_resource_p; }
         operator bool() const noexcept { return m_resource_p; }
         ResourceLease lease() const noexcept { return ResourceLease(m_control_block_p); }
-        Resource * & get() noexcept { return m_resource_p; }
-        const Resource * & get() const noexcept { return m_resource_p; }
+        Resource * get() noexcept { return m_resource_p; }
+        const Resource * get() const noexcept { return m_resource_p; }
     private:
         void create(Resource * resource_p)
         {
@@ -219,7 +231,9 @@ namespace lcf {
     class ResourceWeakPtr
     {
         template <typename R>
-        friend class ResourceWeakPointer;
+        friend class ResourceWeakPtr;
+        template <typename R>
+        friend class ResourcePtr;
         template <typename R>
         requires (not std::is_same_v<R, Resource> and std::is_convertible_v<R *, Resource *>)
         using ConvertibleResourcePointer = ResourcePtr<R>;
@@ -231,7 +245,6 @@ namespace lcf {
     public:
         ResourceWeakPtr() = default;
         ~ResourceWeakPtr() noexcept { this->releaseWeak(); }
-        // --- from ResourcePtr (same-type + converting) ---
         ResourceWeakPtr(const ResourcePtr<Resource> & strong) noexcept { this->copyFrom(strong.m_resource_p, strong.m_control_block_p); }
         ResourceWeakPtr & operator=(const ResourcePtr<Resource> & strong) noexcept
         {
@@ -248,7 +261,6 @@ namespace lcf {
             this->copyFrom(strong.m_resource_p, strong.m_control_block_p);
             return *this;
         }
-        // --- same-type copy/move (non-template, required by the standard) ---
         ResourceWeakPtr(const ResourceWeakPtr & other) noexcept { this->copyFrom(other.m_resource_p, other.m_control_block_p); }
         ResourceWeakPtr & operator=(const ResourceWeakPtr & other) noexcept
         {
@@ -265,7 +277,6 @@ namespace lcf {
             this->stealFrom(other);
             return *this;
         }
-        // --- converting copy/move from ResourceWeakPointer<R> ---
         template <typename R>
         ResourceWeakPtr(const ConvertibleResourceWeakPointer<R> & other) noexcept { this->copyFrom(other.m_resource_p, other.m_control_block_p); }
         template <typename R>
@@ -292,6 +303,7 @@ namespace lcf {
             ResourcePtr<Resource> result;
             result.m_resource_p = m_resource_p;
             result.m_control_block_p = m_control_block_p;
+            m_control_block_p->increaseWeakRefCount();
             return result;
         }
         bool expired() const noexcept
@@ -343,10 +355,15 @@ namespace lcf {
     class ResourceStrongRef;
 
     template <typename Resource>
+    class ResourceWeakRef;
+
+    template <typename Resource>
     class ResourceRef
     {
         template <typename R>
         friend class ResourceRef;
+        template <typename R>
+        friend class ResourceWeakRef;
         template <typename R>
         requires (not std::is_same_v<R, Resource> and std::is_convertible_v<R &, Resource &>)
         using ConvertibleResourceRef = ResourceRef<R>;
@@ -368,8 +385,8 @@ namespace lcf {
         {}
         ResourceRef(const ResourceRef & other) noexcept = default;
         ResourceRef(ResourceRef && other) noexcept = default;
-        ResourceRef & operator=(const ResourceRef & other) noexcept = default;
-        ResourceRef & operator=(ResourceRef && other) noexcept = default;
+        ResourceRef & operator=(const ResourceRef & other) = delete;
+        ResourceRef & operator=(ResourceRef && other) = delete;
         Resource & operator*() const noexcept { return m_resource; }
         Resource * operator->() const noexcept { return &m_resource; }
     public:
@@ -386,6 +403,8 @@ namespace lcf {
     {
         template <typename R>
         friend class ResourceStrongRef;
+        template <typename R>
+        friend class ResourceWeakRef;
         template <typename R>
         requires (not std::is_same_v<R, Resource> and std::is_convertible_v<R &, Resource &>)
         using ConvertibleResourceStrongRef = ResourceStrongRef<R>;
@@ -411,18 +430,92 @@ namespace lcf {
         }
         ResourceStrongRef(const ResourceStrongRef & other) noexcept = default;
         ResourceStrongRef(ResourceStrongRef && other) noexcept = default;
-        ResourceStrongRef & operator=(const ResourceStrongRef & other) noexcept = default;
-        ResourceStrongRef & operator=(ResourceStrongRef && other) noexcept = default;
+        ResourceStrongRef & operator=(const ResourceStrongRef & other) = delete;
+        ResourceStrongRef & operator=(ResourceStrongRef && other) = delete;
         Resource & operator*() const noexcept { return m_resource; }
         Resource * operator->() const noexcept { return &m_resource; }
     private:
         void checkStrongRef() const
         {
-            if (not m_lease) { throw std::logic_error("not a strong reference"); }    
+            if (not m_lease) { throw std::logic_error("not a strong reference"); }
         }
     private:
         Resource & m_resource;
         ResourceLease m_lease;
+    };
+
+    template <typename Resource>
+    class ResourceWeakRef
+    {
+        template <typename R>
+        friend class ResourceWeakRef;
+        template <typename R>
+        requires (not std::is_same_v<R, Resource> and std::is_convertible_v<R &, Resource &>)
+        using ConvertibleResourceWeakRef = ResourceWeakRef<R>;
+    public:
+        ResourceWeakRef(const ResourcePtr<Resource> & strong) noexcept :
+            m_resource(*strong)
+        {
+            this->copyFrom(strong.m_control_block_p);
+        }
+        ResourceWeakRef(const ResourceStrongRef<Resource> & strong) noexcept :
+            m_resource(strong.m_resource)
+        {
+            this->copyFrom(strong.m_lease.m_control_block_p);
+        }
+        ResourceWeakRef(const ResourceRef<Resource> & ref) noexcept :
+            m_resource(ref.m_resource)
+        {
+            this->copyFrom(ref.isStrongRef() ? ref.m_lease.m_control_block_p : nullptr);
+        }
+        template <typename R>
+        ResourceWeakRef(const ConvertibleResourceWeakRef<R> & other) noexcept :
+            m_resource(other.m_resource)
+        {
+            this->copyFrom(other.m_control_block_p);
+        }
+        ResourceWeakRef(const ResourceWeakRef & other) noexcept :
+            m_resource(other.m_resource)
+        {
+            this->copyFrom(other.m_control_block_p);
+        }
+        ResourceWeakRef(ResourceWeakRef && other) noexcept :
+            m_resource(other.m_resource),
+            m_control_block_p(std::exchange(other.m_control_block_p, nullptr))
+        {}
+        ResourceWeakRef & operator=(const ResourceWeakRef & other) = delete;
+        ResourceWeakRef & operator=(ResourceWeakRef && other) = delete;
+        ~ResourceWeakRef() noexcept { this->releaseWeak(); }
+    public:
+        bool expired() const noexcept
+        {
+            if (not m_control_block_p) { return true; }
+            return m_control_block_p->getRefCount() == 0;
+        }
+        operator bool() const noexcept { return not this->expired(); }
+        std::optional<ResourceStrongRef<Resource>> lock() const noexcept
+        {
+            ResourceLease lease(m_control_block_p);
+            if (not lease) { return std::nullopt; }
+            return ResourceStrongRef<Resource>(m_resource, std::move(lease));
+        }
+    private:
+        void copyFrom(ResourceControlBlock * control_block_p) noexcept
+        {
+            m_control_block_p = control_block_p;
+            if (m_control_block_p) { m_control_block_p->increaseWeakRefCount(); }
+        }
+        void releaseWeak() noexcept
+        {
+            if (not m_control_block_p) { return; }
+            if (m_control_block_p->decreaseWeakRefCountAndShouldDelete()) {
+                delete m_control_block_p;
+            }
+            m_control_block_p = nullptr;
+        }
+    private:
+        Resource & m_resource;
+        ResourceControlBlock * m_control_block_p = nullptr;
     };
 
     template <typename Resource, typename... Args>
