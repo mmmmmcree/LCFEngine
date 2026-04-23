@@ -2,34 +2,43 @@
 
 #include "shader_core/shader_core_fwd_decls.h"
 #include "shader_core/ShaderResource.h"
+#include "shader_core/ShaderCompiler.h" //todo remove this include, SpvCode is currently defined in shader_core/ShaderCompiler.h
 #include "vulkan_fwd_decls.h"
+#include "Vulkan/ds/VulkanDescriptorSetLayout.h"
 #include <vulkan/vulkan.hpp>
-#include "JSON.h"
+#include <filesystem>
+#include <unordered_map>
 
 namespace lcf::render {
 	class VulkanShader
 	{
+		using Self = VulkanShader;
+		using LayoutMap = std::unordered_map<uint32_t, VulkanDescriptorSetLayout>;
 	public:
-		VulkanShader(VulkanContext * context, ShaderTypeFlagBits type, std::string_view entry_point = "main");
-		~VulkanShader();
+		VulkanShader() = default;
+		~VulkanShader() noexcept = default;
 		VulkanShader(const VulkanShader & other) = delete;
 		VulkanShader& operator=(const VulkanShader & other) = delete;
 		VulkanShader(VulkanShader && other) noexcept = default;
 		VulkanShader& operator=(VulkanShader && other) noexcept = default;
-		operator bool() const;
+		operator bool() const noexcept { return this->isCreated(); }
+	public:
+		Self & compileGlslFile(
+			ShaderTypeFlagBits type,
+			const std::filesystem::path & file_path,
+			std::string_view entry_point = "main") noexcept;
+		std::error_code create(vk::Device device) noexcept;
+		bool isCreated() const noexcept { return m_module.get(); }
         ShaderTypeFlagBits getStage() const noexcept { return m_stage; }
-		const ShaderResources & getResources() const { return m_resources; }
-		const JSON & getPragmas() const { return m_pragmas; }
-		std::error_code compileGlslFile(const std::filesystem::path & file_path);
-		bool isCompiled() const;
-		vk::PipelineShaderStageCreateInfo getShaderStageInfo() const;
+		const ShaderResources & getResources() const noexcept { return m_resources; }
+		const LayoutMap & getDescriptorLayouts() const noexcept { return m_layout_map; }
+		vk::PipelineShaderStageCreateInfo getShaderStageInfo() const noexcept;
 	private:
-		VulkanContext * m_context_p = nullptr;
         ShaderTypeFlagBits m_stage;
 		std::string m_entry_point;
+		SpvCode m_spv_code;
 		ShaderResources m_resources;
-		JSON m_pragmas;
+		LayoutMap m_layout_map;
 		vk::UniqueShaderModule m_module;
-		std::vector<vk::DescriptorSetLayout> m_descriptor_set_layout_list;
 	};
 }

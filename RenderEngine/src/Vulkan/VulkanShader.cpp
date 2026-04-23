@@ -1,33 +1,25 @@
 #include "Vulkan/VulkanShader.h"
-#include "Vulkan/VulkanContext.h"
 #include "shader_core/ShaderCompiler.h"
 #include "Vulkan/vulkan_enums.h"
 #include "log.h"
 #include "file_utils.h"
+#include <ranges>
 
+using namespace lcf;
 using namespace lcf::render;
+namespace stdr = std::ranges;
+namespace stdv = std::views;
 
-VulkanShader::VulkanShader(VulkanContext * context, ShaderTypeFlagBits type, std::string_view entry_point) :
-    m_context_p(context),
-    m_stage(type),
-    m_entry_point(entry_point)
-{
-}
+static std::unordered_map<uint32_t, VulkanDescriptorSetLayout> from_shader_resources_to_layouts(
+    vk::ShaderStageFlagBits shader_type, const ShaderResources & resources);
 
-VulkanShader::~VulkanShader()
+VulkanShader & VulkanShader::compileGlslFile(
+    ShaderTypeFlagBits type,
+    const std::filesystem::path & file_path,
+    std::string_view entry_point) noexcept
 {
-    for (auto & layout : m_descriptor_set_layout_list) {
-        m_context_p->getDevice().destroyDescriptorSetLayout(layout);
-    }
-}
-
-VulkanShader::operator bool() const
-{
-    return this->isCompiled();
-}
-
-std::error_code VulkanShader::compileGlslFile(const std::filesystem::path & file_path)
-{
+    m_stage = type;
+    m_entry_point = entry_point;
     ShaderCompiler compiler;
     compiler.addMacroDefinition("VULKAN_SHADER");
     auto include_dir = file_path.parent_path() / "include";
@@ -35,32 +27,78 @@ std::error_code VulkanShader::compileGlslFile(const std::filesystem::path & file
     auto expected_file_content = read_file_as_string(file_path);
     if (not expected_file_content) {
         lcf_log_info("Error reading file: {}", expected_file_content.error().message());
-        return expected_file_content.error();
+        return *this;
     }
     const auto & file_content = expected_file_content.value();
-    auto spirv_code = compiler.compileGlslSourceToSpv(
+    m_spv_code = compiler.compileGlslSourceToSpv(
         m_stage,
         file_content,
         file_path.filename().string(),
         m_entry_point, false);
-    m_resources = compiler.analyzeSpvCode(spirv_code);
-    m_pragmas = compiler.extractPragmas(file_content);
+    return *this;
+}
+
+std::error_code VulkanShader::create(vk::Device device) noexcept
+{
     vk::ShaderModuleCreateInfo module_info;
-    module_info.setCode(spirv_code);
+    module_info.setCode(m_spv_code);
     try {
-        m_module = m_context_p->getDevice().createShaderModuleUnique(module_info);
-    } catch (const vk::Error& e) {
+        m_module = device.createShaderModuleUnique(module_info);
+    } catch (const vk::SystemError & e) {
         lcf_log_debug(e.what());
+        return e.code();
     }
+    m_resources = analyze_spv_code(m_spv_code);
+    m_layout_map = from_shader_resources_to_layouts(enum_cast<vk::ShaderStageFlagBits>(m_stage), m_resources);
+    for (auto & [_, layout] : m_layout_map) {
+        if (auto ec = layout.create(device, vkenums::DescriptorSetStrategy::eIndividual)) { return ec; }
+    }
+    std::exchange(m_spv_code, {}); //clear
     return {};
 }
 
-bool VulkanShader::isCompiled() const
+vk::PipelineShaderStageCreateInfo VulkanShader::getShaderStageInfo() const noexcept
 {
-    return m_module.get();
+    return vk::PipelineShaderStageCreateInfo(
+        {},
+        enum_cast<vk::ShaderStageFlagBits>(m_stage),
+        m_module.get(),
+        m_entry_point.c_str());
 }
 
-vk::PipelineShaderStageCreateInfo VulkanShader::getShaderStageInfo() const
+std::unordered_map<uint32_t, VulkanDescriptorSetLayout> from_shader_resources_to_layouts(
+    vk::ShaderStageFlagBits shader_type, const ShaderResources &resources)
 {
-    return vk::PipelineShaderStageCreateInfo({}, enum_cast<vk::ShaderStageFlagBits>(m_stage), m_module.get(), m_entry_point.c_str());
+    using ResourceInfo = std::pair<vk::DescriptorType, const ShaderResource &>;
+    std::vector<ResourceInfo> resource_info_list;
+    for (const auto &resource : resources.uniform_buffers) {
+        resource_info_list.emplace_back(vk::DescriptorType::eUniformBuffer, resource);
+    }
+    for (const auto &resource : resources.sampled_images) {
+        resource_info_list.emplace_back(vk::DescriptorType::eCombinedImageSampler, resource);
+    }
+    for (const auto &resource : resources.separate_images) {
+        resource_info_list.emplace_back(vk::DescriptorType::eSampledImage, resource);
+    }
+    for (const auto &resource : resources.separate_samplers) {
+        resource_info_list.emplace_back(vk::DescriptorType::eSampler, resource);
+    }
+    for (const auto &resource : resources.storage_images) {
+        resource_info_list.emplace_back(vk::DescriptorType::eStorageImage, resource);
+    }
+    for (const auto &resource : resources.storage_buffers) {
+        resource_info_list.emplace_back(vk::DescriptorType::eStorageBuffer, resource);
+    }
+    std::unordered_map<uint32_t, VulkanDescriptorSetLayout> layout_map;
+    for (const auto & resource_info : resource_info_list) {
+        const auto & shader_resource = resource_info.second;
+        auto & layout = layout_map[shader_resource.getSet()];
+        VulkanDescriptorSetBinding binding;
+        binding.setDescriptorType(resource_info.first)
+           .setDescriptorCount(shader_resource.getArraySize())
+           .setStageFlags(shader_type)
+           .setBindingIndex(shader_resource.getBinding());
+        layout.addBinding(binding);
+    }
+    return layout_map;
 }

@@ -7,7 +7,13 @@ namespace stdv = std::views;
 
 VulkanDescriptorSetLayout & VulkanDescriptorSetLayout::setBindings(BindingReadSpan bindings) noexcept
 {
-    m_bindings.assign_range(bindings);
+    m_bindings.assignRange(bindings);
+    return *this;
+}
+
+ VulkanDescriptorSetLayout & VulkanDescriptorSetLayout::addBinding(const VulkanDescriptorSetBinding &binding) noexcept
+{
+    m_bindings.pushBack(binding);
     return *this;
 }
 
@@ -42,15 +48,6 @@ std::error_code VulkanDescriptorSetLayout::create(vk::Device device, vkenums::De
     vk::DescriptorSetLayoutCreateFlags layout_flags {};
     if (m_strategy == vkenums::DescriptorSetStrategy::eBindless) {
         layout_flags |= vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool;
-        // magic number detection: last binding descriptorCount == 0 means runtime array
-        if (layout_bindings.back().descriptorCount == 0) {
-            layout_bindings.back().descriptorCount = vkconstants::ds::k_max_variable_descriptor_count;
-            std::ranges::fill(layout_binding_flags,
-                vk::DescriptorBindingFlagBits::ePartiallyBound |
-                vk::DescriptorBindingFlagBits::eUpdateAfterBind |
-                vk::DescriptorBindingFlagBits::eUpdateUnusedWhilePending);
-            layout_binding_flags.back() = vk::FlagTraits<vk::DescriptorBindingFlagBits>::allFlags;
-        }
     }
     binding_flags_info.setBindingFlags(layout_binding_flags);
     layout_info.setBindings(layout_bindings)

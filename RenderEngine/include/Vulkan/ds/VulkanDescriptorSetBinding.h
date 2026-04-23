@@ -35,6 +35,8 @@ namespace lcf::render {
         VulkanDescriptorSetBinding(Self &&) noexcept = default;
         Self & operator=(const Self &) = default;
         Self & operator=(Self &&) noexcept = default;
+        bool operator==(const Self & other) const noexcept;
+    public:
         Self & addFlags(vk::DescriptorBindingFlags flags) noexcept
         {
             m_flags |= flags;
@@ -64,6 +66,10 @@ namespace lcf::render {
             m_binding.setStageFlags(flags);
             return *this;
         }
+        Self & addStageFlags(vk::ShaderStageFlags flags) noexcept
+        {
+            return this->setStageFlags(this->getStageFlags() | flags);
+        }
         const uint32_t & getBindingIndex() const noexcept { return m_binding.binding; }
         const vk::DescriptorType & getDescriptorType() const noexcept { return m_binding.descriptorType; }
         const uint32_t & getDescriptorCount() const noexcept { return m_binding.descriptorCount; }
@@ -84,14 +90,18 @@ namespace lcf::render {
         template <convertible_range_of_c<VulkanDescriptorSetBinding> Range>
         VulkanDescriptorSetLayoutBindings(Range && bindings)
         {
-            this->assign_range(std::forward<Range>(bindings));
+            this->assignRange(std::forward<Range>(bindings));
         }
         ~VulkanDescriptorSetLayoutBindings() noexcept = default;
         VulkanDescriptorSetLayoutBindings(const Self &) = default;
         VulkanDescriptorSetLayoutBindings(Self &&) noexcept = default;
         Self & operator=(const Self &) = default;
         Self & operator=(Self &&) noexcept = default;
+        bool operator==(const Self & other) const noexcept;
+        bool operator!=(const Self & other) const noexcept { return !(*this == other); }
     public:
+        auto begin() noexcept { return m_bindings.begin(); }
+        auto end() noexcept { return m_bindings.end(); }
         auto begin() const noexcept { return m_bindings.begin(); }
         auto end() const noexcept { return m_bindings.end(); }
         auto cbegin() const noexcept { return m_bindings.cbegin(); }
@@ -100,10 +110,15 @@ namespace lcf::render {
         bool empty() const noexcept { return m_bindings.empty(); }
         const VulkanDescriptorSetBinding & operator[](size_t index) const noexcept { return m_bindings[index]; }
         template <convertible_range_of_c<VulkanDescriptorSetBinding> Range>
-        constexpr void assign_range(Range && range)
+        constexpr void assignRange(Range && range)
         {
             m_bindings.assign_range(std::forward<Range>(range));
             for (const auto & binding : m_bindings) { m_flags |= binding.getFlags(); }
+        }
+        constexpr void pushBack(const VulkanDescriptorSetBinding & binding)
+        {
+            m_bindings.push_back(binding);
+            m_flags |= binding.getFlags();
         }
         bool containsFlags(vk::DescriptorBindingFlagBits flags) const noexcept
         {

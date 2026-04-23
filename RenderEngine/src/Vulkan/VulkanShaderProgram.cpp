@@ -1,5 +1,4 @@
 #include "Vulkan/VulkanShaderProgram.h"
-#include "Vulkan/VulkanContext.h"
 #include "Vulkan/vulkan_enums.h"
 #include "log.h"
 #include <format>
@@ -8,31 +7,33 @@ using namespace lcf::render;
 namespace stdr = std::ranges;
 namespace stdv = std::views;
 
-lcf::render::VulkanShaderProgram::VulkanShaderProgram(VulkanContext *context) :
-    m_context_p(context)
-{
-}
-
 lcf::render::VulkanShaderProgram::~VulkanShaderProgram()
 {
 }
 
 VulkanShaderProgram & lcf::render::VulkanShaderProgram::addShaderFromGlslFile(ShaderTypeFlagBits stage, std::string_view file_path)
 {
-    auto shader = std::make_shared<VulkanShader>(m_context_p, stage);
-    auto error_code = shader->compileGlslFile(file_path);
-    if (error_code) { return *this; }
+    auto shader = std::make_shared<VulkanShader>();
+    shader->compileGlslFile(stage, file_path);
     m_stage_to_shader_map[shader->getStage()] = shader;
     return *this;
 }
 
-std::error_code lcf::render::VulkanShaderProgram::link()
+VulkanShaderProgram & lcf::render::VulkanShaderProgram::specifyDescriptorSetLayout(ResourceRef<const VulkanDescriptorSetLayout> layout)
+{
+    m_descriptor_set_layout_ref_map.emplace(std::make_pair(layout->getIndex(), layout));
+    return *this;
+}
+
+std::error_code lcf::render::VulkanShaderProgram::link(vk::Device device) noexcept
 {
     if (this->isLinked()) { return std::make_error_code(std::errc::invalid_argument); }
-    this->createShaderStageInfoList();
-    this->createDescriptorSetLayoutBindingTable();
-    this->createDescriptorSetLayouts();
-    this->createPipelineLayout();
+    for (const auto &[stage, shader] : m_stage_to_shader_map) {
+        if (auto ec = shader->create(device)) { return ec; }
+        m_shader_stage_info_list.emplace_back(shader->getShaderStageInfo());
+    }
+    if (auto ec = this->createDescriptorSetLayouts(device)) { return ec; }
+    if (auto ec = this->createPipelineLayout(device)) { return ec; }
     return {};
 }
 
@@ -66,102 +67,33 @@ void lcf::render::VulkanShaderProgram::bindPushConstants(vk::CommandBuffer cmd)
     }
 }
 
-void lcf::render::VulkanShaderProgram::createShaderStageInfoList()
+std::error_code VulkanShaderProgram::createDescriptorSetLayouts(vk::Device device) noexcept
 {
-    for (const auto &[stage, shader] : m_stage_to_shader_map) {
-        m_shader_stage_info_list.emplace_back(shader->getShaderStageInfo());
+    for (const auto & [stage, shader] : m_stage_to_shader_map) {
+        for (const auto & [set, layout] : shader->getDescriptorLayouts()) {
+            if (not m_descriptor_set_layout_ref_map.contains(set)) {
+                m_descriptor_set_layout_ref_map.emplace(std::make_pair(set, ResourceRef<const VulkanDescriptorSetLayout>(layout)));
+                continue;
+            }
+            const auto & bindings = layout.getBindings();
+            const auto & exist_bindings = m_descriptor_set_layout_ref_map.at(set)->getBindings();
+            if (bindings != exist_bindings) { continue; }
+            auto & program_layout = m_descriptor_set_layout_map[set];
+            VulkanDescriptorSetLayoutBindings new_bindings = exist_bindings;    
+            for (auto & binding : new_bindings) {
+                binding.addStageFlags(enum_cast<vk::ShaderStageFlagBits>(stage));
+            }
+            program_layout.setBindings(new_bindings);
+        }
     }
+    for (auto &[set, layout] : m_descriptor_set_layout_map) {
+        if (auto ec = layout.create(device, vkenums::DescriptorSetStrategy::eIndividual)) { return ec; }
+        m_descriptor_set_layout_ref_map.emplace(std::make_pair(set, ResourceRef<const VulkanDescriptorSetLayout>(layout)));
+    }
+    return {};
 }
 
-void lcf::render::VulkanShaderProgram::createDescriptorSetLayoutBindingTable()
-{
-    struct ResourceInfo
-    {
-        ResourceInfo(vk::ShaderStageFlagBits s, vk::DescriptorType t, const ShaderResource &r) :
-            stage(s), descriptor_type(t), shader_resource(r) {}
-        vk::ShaderStageFlagBits stage;
-        vk::DescriptorType descriptor_type;
-        const ShaderResource &shader_resource;
-    };
-    std::vector<ResourceInfo> resource_info_list;
-    for (const auto &[stage, shader] : m_stage_to_shader_map) {
-        vk::ShaderStageFlagBits vk_stage = enum_cast<vk::ShaderStageFlagBits>(stage);
-        const ShaderResources &resources = shader->getResources();
-        for (const auto &resource : resources.uniform_buffers) {
-            resource_info_list.emplace_back(vk_stage, vk::DescriptorType::eUniformBuffer, resource);
-        }
-        for (const auto &resource : resources.sampled_images) {
-            resource_info_list.emplace_back(vk_stage, vk::DescriptorType::eCombinedImageSampler, resource);
-        }
-        for (const auto &resource : resources.separate_images) {
-            resource_info_list.emplace_back(vk_stage, vk::DescriptorType::eSampledImage, resource);
-        }
-        for (const auto &resource : resources.separate_samplers) {
-            resource_info_list.emplace_back(vk_stage, vk::DescriptorType::eSampler, resource);
-        }
-        for (const auto &resource : resources.storage_images) {
-            resource_info_list.emplace_back(vk_stage, vk::DescriptorType::eStorageImage, resource);
-        }
-        for (const auto &resource : resources.storage_buffers) {
-            resource_info_list.emplace_back(vk_stage, vk::DescriptorType::eStorageBuffer, resource);
-        }
-        // todo add other resource types
-    }
-    if (resource_info_list.empty()) { return ; }
-    std::map<uint32_t, uint32_t> set_to_max_binding_map;
-    for (const auto &resource_info : resource_info_list) {
-        const auto &shader_resource = resource_info.shader_resource;
-        uint32_t &max_binding = set_to_max_binding_map[shader_resource.getSet()];
-        max_binding = std::max(max_binding, shader_resource.getBinding());
-    }
-    uint32_t max_set = set_to_max_binding_map.rbegin()->first;
-    m_descriptor_set_layout_binding_table.resize(max_set + 1);
-    for (uint32_t set = 0; set <= max_set; ++set) {
-        if (not set_to_max_binding_map.contains(set)) { continue; }
-        m_descriptor_set_layout_binding_table[set].resize(set_to_max_binding_map[set] + 1);
-    }
-    for (const auto &resource_info : resource_info_list) {
-        const auto &shader_resource = resource_info.shader_resource;
-        auto &descriptor_set_layout_binding = m_descriptor_set_layout_binding_table[shader_resource.getSet()][shader_resource.getBinding()];
-        descriptor_set_layout_binding.setDescriptorType(resource_info.descriptor_type)
-           .setDescriptorCount(shader_resource.getArraySize())
-           .setStageFlags(descriptor_set_layout_binding.stageFlags | resource_info.stage)
-           .setBinding(shader_resource.getBinding());
-    }
-
-}
-
-static std::unordered_map<uint32_t, vkenums::DescriptorSetStrategy> read_strategy(const lcf::JSON & pragmas);
-
-void VulkanShaderProgram::createDescriptorSetLayouts()
-{
-    std::unordered_map<uint32_t, vkenums::DescriptorSetStrategy> strategy_map;
-    for (const auto &[stage, shader] : m_stage_to_shader_map) {
-        strategy_map.insert_range(read_strategy(shader->getPragmas()));
-    }
-    auto device = m_context_p->getDevice();
-    uint32_t bindless_buffer_index = vkenums::decode::get_index(vkenums::DescriptorSetIndex::eBindlessBuffers);
-    for (uint32_t set = 0; set < m_descriptor_set_layout_binding_table.size(); ++set) {
-        const auto & bindings = m_descriptor_set_layout_binding_table[set];
-        auto layout_sp = std::make_shared<VulkanDescriptorSetLayout>();
-        std::vector<VulkanDescriptorSetBinding> ds_bindings(bindings.begin(), bindings.end());
-        auto strategy = vkenums::DescriptorSetStrategy::eIndividual;
-        // set=1 (bindless buffers): no variable count, but needs eUpdateAfterBindPool
-        if (set == bindless_buffer_index and not ds_bindings.empty()) {
-            strategy = vkenums::DescriptorSetStrategy::eBindless;
-        }
-        // descriptorCount == 0 from reflection means runtime array → bindless
-        if (not ds_bindings.empty() and ds_bindings.back().getDescriptorCount() == 0) {
-            strategy = vkenums::DescriptorSetStrategy::eBindless;
-        }
-        layout_sp->setBindings(ds_bindings)
-            .setIndex(set)
-            .create(device, strategy);
-        m_descriptor_set_layout_sp_list.emplace_back(std::move(layout_sp));
-    }
-}
-
-void lcf::render::VulkanShaderProgram::createPipelineLayout()
+std::error_code lcf::render::VulkanShaderProgram::createPipelineLayout(vk::Device device) noexcept
 {
     //! push constants with same name are regarded as the same range
     /**
@@ -208,39 +140,18 @@ void lcf::render::VulkanShaderProgram::createPipelineLayout()
         push_constant_range_list.emplace_back(std::move(push_constant_range));
     } // step4
 
-    auto device = m_context_p->getDevice();
     vk::PipelineLayoutCreateInfo pipeline_layout_info;
     std::vector<vk::DescriptorSetLayout> descriptor_set_layout_list;
-    for (const auto & layout_sp : m_descriptor_set_layout_sp_list) {
-        descriptor_set_layout_list.emplace_back(layout_sp->getHandle());
+    for (const auto & [_, layout_ref] : m_descriptor_set_layout_ref_map) {
+        descriptor_set_layout_list.emplace_back(layout_ref->getHandle());
     }
     pipeline_layout_info.setSetLayouts(descriptor_set_layout_list)
         .setPushConstantRanges(push_constant_range_list);
     try {
         m_pipeline_layout = device.createPipelineLayoutUnique(pipeline_layout_info);
     } catch (const vk::SystemError &e) {
-        std::runtime_error error(std::format("failed to create pipeline layout: {}", e.what()));
-        lcf_log_error(error.what());
-        throw error;
+        lcf_log_error(e.what());
+        return e.code();
     }
-}
-
-static std::unordered_map<uint32_t, vkenums::DescriptorSetStrategy> read_strategy(const lcf::JSON & pragmas)
-{
-    constexpr std::string_view pragma_name = "descriptor_set_strategy";
-    constexpr std::string_view set_key = "set";
-    constexpr std::string_view strategy_key = "strategy";
-    constexpr std::string_view bindless_strategy = "bindless";
-    if (not pragmas.contains(pragma_name)) { return {}; }
-    const auto & pragma_list = pragmas.at(pragma_name);
-    std::unordered_map<uint32_t, vkenums::DescriptorSetStrategy> strategy_map;
-    for (const auto &pragma : pragma_list) {
-        if (not pragma.contains(set_key) or not pragma.contains(strategy_key)) { continue; }
-        uint32_t set = std::stoul(pragma.at(set_key).get<std::string>());
-        const auto &strategy = pragma.at(strategy_key).get<std::string>();
-        if (strategy == bindless_strategy) {
-            strategy_map[set] = vkenums::DescriptorSetStrategy::eBindless;
-        }
-    }
-    return strategy_map;
+    return {};
 }

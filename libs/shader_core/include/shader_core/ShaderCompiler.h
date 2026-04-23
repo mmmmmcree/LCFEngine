@@ -10,6 +10,10 @@
 namespace lcf {
     using SpvCode = std::vector<uint32_t>;
 
+    lcf::JSON extract_pragmas(std::string_view source_code);
+
+    ShaderResources analyze_spv_code(const SpvCode & spv_code) noexcept;
+
     class ShaderCompiler
     {
     public:
@@ -29,13 +33,6 @@ namespace lcf {
             const std::string & shader_name,
             const std::string & entry_point = "main",
             bool optimize = false);
-        ShaderResources analyzeSpvCode(const SpvCode &spv_code);
-    private:
-        ShaderResource parseBufferResource(const spirv_cross::Compiler &spv_compiler, const spirv_cross::Resource &resource);
-        ShaderResource parseResource(const spirv_cross::Compiler &spv_compiler, const spirv_cross::Resource &resource);
-        void parseResourceMembers(ShaderResourceMember &resource, const spirv_cross::Compiler &spv_compiler, spirv_cross::TypeID type_id);
-        ShaderResource parseInputResource(const spirv_cross::Compiler &spv_compiler, const spirv_cross::Resource &resource);
-        void parseInputResourceMembers(ShaderResourceMember &resource, const spirv_cross::Compiler &spv_compiler, spirv_cross::TypeID type_id);
     private:
         std::vector<std::string> m_macro_definitions;
         std::vector<std::string> m_include_directories;

@@ -21,9 +21,11 @@ namespace lcf::render {
         VulkanDescriptorSetLayout(Self &&) = default;
         Self & operator=(Self &&) = default;
         operator vk::DescriptorSetLayout() const noexcept { return this->getHandle(); }
+        operator bool() const noexcept { return bool(this->getHandle()); }
     public:
         std::error_code create(vk::Device device, vkenums::DescriptorSetStrategy strategy) noexcept;
         Self & setBindings(BindingReadSpan bindings) noexcept;
+        Self & addBinding(const VulkanDescriptorSetBinding & binding) noexcept;
         Self & setIndex(uint32_t index) noexcept;
         uint32_t getIndex() const noexcept { return m_layout_index; }
         vkenums::DescriptorSetStrategy getStrategy() const noexcept { return m_strategy; }

@@ -62,6 +62,7 @@ namespace detail {
         uint32_t getIndex() const noexcept { return m_layout.getIndex(); }
         vkenums::DescriptorSetStrategy getStrategy() const noexcept { return m_layout.getStrategy(); }
         std::span<const VulkanDescriptorSetBinding> getBindings() const noexcept { return m_layout.getBindings(); }
+        const VulkanDescriptorSetLayout & getLayout() const noexcept { return m_layout; }
     private:
         std::error_code recreateSlot(vk::Device device, Slot & slot);
     private:

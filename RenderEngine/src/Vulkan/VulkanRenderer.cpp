@@ -38,17 +38,19 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
 
     auto [max_width, max_height] = max_extent;
 
-    auto compute_shader_program = std::make_shared<VulkanShaderProgram>(m_context_p);
+    auto compute_shader_program = std::make_shared<VulkanShaderProgram>();
     compute_shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::eCompute, "assets/shaders/gradient.comp");
-    compute_shader_program->link();
+    compute_shader_program->link(m_context_p->getDevice());
 
     ComputePipelineCreateInfo compute_pipeline_info(compute_shader_program);
     m_compute_pipeline.create(m_context_p, compute_pipeline_info);
 
-    auto shader_program = std::make_shared<VulkanShaderProgram>(m_context_p);
+    auto shader_program = std::make_shared<VulkanShaderProgram>();
     shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::eVertex, "assets/shaders/vertex_buffer_test.vert")
         .addShaderFromGlslFile(ShaderTypeFlagBits::eFragment, "assets/shaders/vertex_buffer_test.frag")
-        .link();
+        .specifyDescriptorSetLayout(descriptor_set_manager.getBindlessBufferSet().getLayout())
+        .specifyDescriptorSetLayout(descriptor_set_manager.getBindlessTextureSet().getLayout())
+        .link(m_context_p->getDevice());
     GraphicPipelineCreateInfo graphic_pipeline_info;
     graphic_pipeline_info.setShaderProgram(shader_program)
         .setDepthAttachmentFormat(vk::Format::eD32Sfloat)
@@ -208,11 +210,11 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         cube_map_re = resource_system.registerResource(std::move(cube_map));
     }
 
-    auto stc_shader_program = std::make_shared<VulkanShaderProgram>(m_context_p);
+    auto stc_shader_program = std::make_shared<VulkanShaderProgram>();
     stc_shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::eVertex, "assets/shaders/sphere_to_cube.vert")
         .addShaderFromGlslFile(ShaderTypeFlagBits::eGeometry, "assets/shaders/sphere_to_cube.geom")
         .addShaderFromGlslFile(ShaderTypeFlagBits::eFragment, "assets/shaders/sphere_to_cube.frag")
-        .link();
+        .link(m_context_p->getDevice());
     GraphicPipelineCreateInfo stc_pipeline_info;
     stc_pipeline_info.setShaderProgram(stc_shader_program)
         .addColorAttachmentFormat(vk::Format::eR8G8B8A8Unorm);
@@ -252,10 +254,12 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         texture2_re->generateMipmaps(cmd);
     });
 
-    auto skybox_shader_program = std::make_shared<VulkanShaderProgram>(m_context_p);
+    auto skybox_shader_program = std::make_shared<VulkanShaderProgram>();
     skybox_shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::eVertex, "assets/shaders/skybox.vert")
         .addShaderFromGlslFile(ShaderTypeFlagBits::eFragment, "assets/shaders/skybox.frag")
-        .link();
+        .specifyDescriptorSetLayout(descriptor_set_manager.getBindlessBufferSet().getLayout())
+        .specifyDescriptorSetLayout(descriptor_set_manager.getBindlessTextureSet().getLayout())
+        .link(m_context_p->getDevice());
     GraphicPipelineCreateInfo skybox_pipeline_info;
     skybox_pipeline_info.setShaderProgram(skybox_shader_program)
         .addColorAttachmentFormat(vk::Format::eR16G16B16A16Sfloat)
@@ -412,8 +416,8 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
         indirect_call_count, sizeof(vk::DrawIndirectCommand));
     
     cmd.bindPipeline(m_skybox_pipeline);
-    cmd.bindDescriptorSet(m_skybox_pipeline, m_per_view_descriptor_set);
-    cmd.bindDescriptorSet(m_skybox_pipeline, bindless_texture_ds);
+    // cmd.bindDescriptorSet(m_skybox_pipeline, m_per_view_descriptor_set);
+    // cmd.bindDescriptorSet(m_skybox_pipeline, bindless_texture_ds);
     cmd.draw(36, 1, 0, 10); // draw with const data in shader program
     
     current_framebuffer.endRendering(cmd);
