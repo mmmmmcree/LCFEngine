@@ -2,7 +2,7 @@
 
 #include "shader_core/shader_core_fwd_decls.h"
 #include "shader_core/ShaderResource.h"
-#include "shader_core/ShaderCompiler.h" //todo remove this include, SpvCode is currently defined in shader_core/ShaderCompiler.h
+#include "shader_core/shader_utils.h"
 #include "vulkan_fwd_decls.h"
 #include "Vulkan/ds/VulkanDescriptorSetLayout.h"
 #include <vulkan/vulkan.hpp>
@@ -36,7 +36,7 @@ namespace lcf::render {
 	private:
         ShaderTypeFlagBits m_stage;
 		std::string m_entry_point;
-		SpvCode m_spv_code;
+		spirv::Code m_spv_code;
 		ShaderResources m_resources;
 		LayoutMap m_layout_map;
 		vk::UniqueShaderModule m_module;

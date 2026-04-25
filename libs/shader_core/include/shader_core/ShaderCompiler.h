@@ -1,19 +1,14 @@
 #pragma once
 
-#include <spirv_cross/spirv_cross.hpp>
-#include "ShaderResource.h"
+#include "shader_utils.h"
+#include "shader_core_enums.h"
 #include "JSON.h"
 #include <filesystem>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace lcf {
-    using SpvCode = std::vector<uint32_t>;
-
-    lcf::JSON extract_pragmas(std::string_view source_code);
-
-    ShaderResources analyze_spv_code(const SpvCode & spv_code) noexcept;
-
     class ShaderCompiler
     {
     public:
@@ -27,7 +22,7 @@ namespace lcf {
         void addMacroDefinition(std::string_view macro_definition);
         void addIncludeDirectory(std::string_view include_directory);
         lcf::JSON extractPragmas(std::string_view source_code);
-        SpvCode compileGlslSourceToSpv(
+        spirv::Code compileGlslSourceToSpv(
             ShaderTypeFlagBits type,
             const std::string & source_code,
             const std::string & shader_name,

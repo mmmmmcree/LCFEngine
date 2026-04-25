@@ -27,9 +27,8 @@ std::error_code VulkanDescriptorSetLayout::create(vk::Device device, vkenums::De
 {
     m_strategy = strategy;
     if (m_bindings.empty()) {
-        vk::DescriptorSetLayoutCreateInfo empty_info;
         try {
-            m_layout = device.createDescriptorSetLayoutUnique(empty_info);
+            m_layout = device.createDescriptorSetLayoutUnique({});
         } catch (const vk::SystemError & e) {
             return e.code();
         }
