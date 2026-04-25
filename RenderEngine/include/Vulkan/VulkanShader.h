@@ -2,7 +2,7 @@
 
 #include "shader_core/shader_core_fwd_decls.h"
 #include "shader_core/ShaderResource.h"
-#include "shader_core/shader_utils.h"
+#include "shader_core/SpvCode.h"
 #include "vulkan_fwd_decls.h"
 #include "Vulkan/ds/VulkanDescriptorSetLayout.h"
 #include <vulkan/vulkan.hpp>
