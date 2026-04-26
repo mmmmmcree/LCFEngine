@@ -113,7 +113,13 @@ bool VulkanPipeline::create(VulkanContext *context, const GraphicPipelineCreateI
     vk::PipelineRenderingCreateInfo rendering_info;
     rendering_info.setColorAttachmentFormats(create_info.getColorAttachmentFormats())
         .setDepthAttachmentFormat(create_info.getDepthAttachmentFormat());
-    
+
+    vk::PipelineCreateFlags2CreateInfo flags_2_info;
+    if (create_info.getPipelineCreateFlags2()) {
+        flags_2_info.setFlags(create_info.getPipelineCreateFlags2());
+        rendering_info.setPNext(&flags_2_info);
+    }
+
     vk::GraphicsPipelineCreateInfo graphics_pipeline_info;
     graphics_pipeline_info.setStages(m_shader_program->getShaderStageInfoList())
         .setPVertexInputState(&vertex_input_info)

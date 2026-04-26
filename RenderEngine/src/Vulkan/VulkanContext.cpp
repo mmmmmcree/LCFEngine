@@ -23,6 +23,7 @@ VulkanContext::~VulkanContext()
 {
     m_surface_render_targets.clear();
     m_device->waitIdle();
+    vkext::release_device_extensions_resources();
     vkext::release_instance_extensions_resources();
 }
 
@@ -191,7 +192,9 @@ void VulkanContext::createLogicalDevice()
         vk::PhysicalDeviceVulkan11Features,
         vk::PhysicalDeviceVulkan12Features,
         vk::PhysicalDeviceVulkan13Features,
-        vk::PhysicalDeviceSwapchainMaintenance1FeaturesEXT> device_info;
+        vk::PhysicalDeviceSwapchainMaintenance1FeaturesEXT,
+        vk::PhysicalDeviceDeviceGeneratedCommandsFeaturesEXT> device_info;
+    device_info.get<vk::PhysicalDeviceDeviceGeneratedCommandsFeaturesEXT>().setDeviceGeneratedCommands(true);
     device_info.get<vk::PhysicalDeviceSwapchainMaintenance1FeaturesEXT>().setSwapchainMaintenance1(true);
     device_info.get<vk::PhysicalDeviceVulkan13Features>().setSynchronization2(true)
         .setDynamicRendering(true);
@@ -243,6 +246,7 @@ void VulkanContext::createLogicalDevice()
         lcf_log_error(e.what());
     }
     vkdispatch::initialize_device(this->getDevice());
+    vkext::load_device_extensions(this->getDevice());
 
     for (auto [queue_type, queue_index] : m_queue_family_indices) {
         auto & queue_list = m_queue_lists[queue_type];

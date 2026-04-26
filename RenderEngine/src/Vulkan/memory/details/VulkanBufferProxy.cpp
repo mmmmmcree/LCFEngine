@@ -11,7 +11,8 @@ VulkanBufferProxy::~VulkanBufferProxy() = default;
 bool VulkanBufferProxy::create(VulkanContext *context_p, uint64_t size_in_bytes)
 {
     m_context_p = context_p;
-    vk::BufferUsageFlags usage_flags;
+    vk::BufferUsageFlags usage_flags {};
+    vk::BufferUsageFlags2 usage_flags2 {};
     vk::MemoryPropertyFlags memory_flags;
     switch (this->getUsage()) {
         case GPUBufferUsage::eVertex : {
@@ -38,6 +39,11 @@ bool VulkanBufferProxy::create(VulkanContext *context_p, uint64_t size_in_bytes)
         case GPUBufferUsage::eStaging : {
             usage_flags = vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eTransferDst;
         } break;
+        case GPUBufferUsage::ePreprocess : {
+            usage_flags2 = vk::BufferUsageFlagBits2::ePreprocessBufferEXT |
+                vk::BufferUsageFlagBits2::eIndirectBuffer |
+                vk::BufferUsageFlagBits2::eShaderDeviceAddress;
+        } break;
         default: break;
     }
     switch (this->getPattern()) {
@@ -50,12 +56,19 @@ bool VulkanBufferProxy::create(VulkanContext *context_p, uint64_t size_in_bytes)
     }
     size_in_bytes = boost::alignment::align_up(size_in_bytes, 4u);
     vk::BufferCreateInfo buffer_info {{}, size_in_bytes, usage_flags, vk::SharingMode::eExclusive};
+    vk::BufferUsageFlags2CreateInfo usage_flags_2_info;
+    if (usage_flags2) {
+        usage_flags_2_info.setUsage(usage_flags2);
+        buffer_info.setPNext(&usage_flags_2_info);
+    }
     MemoryAllocationCreateInfo memory_info {memory_flags};
     auto device = m_context_p->getDevice();
     auto & memory_allocator = m_context_p->getMemoryAllocator();
     m_buffer_rp = memory_allocator.createBuffer(buffer_info, memory_info);
     if (not m_buffer_rp) { return false; }
-    if (buffer_info.usage & vk::BufferUsageFlagBits::eShaderDeviceAddress) {
+    bool needs_device_address = (usage_flags & vk::BufferUsageFlagBits::eShaderDeviceAddress) or
+        (usage_flags2 & vk::BufferUsageFlagBits2::eShaderDeviceAddress);
+    if (needs_device_address) {
         m_device_address = device.getBufferAddress(m_buffer_rp->getHandle());
     }
     return true;

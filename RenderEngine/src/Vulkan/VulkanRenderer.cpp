@@ -55,7 +55,8 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     graphic_pipeline_info.setShaderProgram(shader_program)
         .setDepthAttachmentFormat(vk::Format::eD32Sfloat)
         .setRasterizationSamples(vk::SampleCountFlagBits::e4)
-        .addColorAttachmentFormat(vk::Format::eR16G16B16A16Sfloat);
+        .addColorAttachmentFormat(vk::Format::eR16G16B16A16Sfloat)
+        .addPipelineCreateFlags2(vk::PipelineCreateFlagBits2::eIndirectBindableEXT);
     m_graphics_pipeline.create(m_context_p, graphic_pipeline_info);
 
     for (auto &resources : m_frame_resources) {
@@ -83,7 +84,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     m_per_renderable_ssbo_group.emplace(size_of_v<vk::DeviceAddress> * 2 * 100, GPUBufferUsage::eShaderStorage); // material records
 
     m_indirect_call_buffer.setUsage(GPUBufferUsage::eIndirect)
-        .create(m_context_p, size_of_v<vk::DrawIndirectCommand> + 1 * size_of_v<vk::DrawIndirectCommand>); // uint32_t(for IndirectDrawCount) + padding | vk::DrawIndirectCommand ...
+        .create(m_context_p, size_of_v<vk::DrawIndirectCommand> + 10 * size_of_v<vk::DrawIndirectCommand>); // uint32_t(for IndirectDrawCount) + padding | vk::DrawIndirectCommand ...
 
     VulkanDescriptorSetLayout per_view_descriptor_set_layout;
     per_view_descriptor_set_layout.setBindings(vkconstants::ds::k_per_view_bindings)
@@ -268,7 +269,8 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         .setDepthWriteEnabled(false)
         .setDepthCompareOp(vk::CompareOp::eLessOrEqual)
         .setCullMode(vk::CullModeFlagBits::eFront)
-        .setFrontFace(vk::FrontFace::eCounterClockwise);
+        .setFrontFace(vk::FrontFace::eCounterClockwise)
+        .addPipelineCreateFlags2(vk::PipelineCreateFlagBits2::eIndirectBindableEXT);
     m_skybox_pipeline.create(m_context_p, skybox_pipeline_info);
 
 
@@ -303,6 +305,69 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         cube_map_info,
         cube_map_re.lease()
     ).commitUpdate(device);
+    //- init indirect_execution_set
+    {
+        std::vector<vk::WriteIndirectExecutionSetPipelineEXT> indirect_execution_pipeline_writes(2);
+        indirect_execution_pipeline_writes[0].setIndex(0)
+            .setPipeline(m_graphics_pipeline);
+        indirect_execution_pipeline_writes[1].setIndex(1)
+            .setPipeline(m_skybox_pipeline);
+        vk::IndirectExecutionSetPipelineInfoEXT indirect_execution_pipeline_info;
+        indirect_execution_pipeline_info.setInitialPipeline(m_graphics_pipeline)
+            .setMaxPipelineCount(indirect_execution_pipeline_writes.size());
+        vk::IndirectExecutionSetCreateInfoEXT indirect_execution_set_info;
+        indirect_execution_set_info.setType(vk::IndirectExecutionSetInfoTypeEXT::ePipelines)
+            .setInfo(&indirect_execution_pipeline_info);
+        m_indirect_execution_set = device.createIndirectExecutionSetEXTUnique(indirect_execution_set_info);
+        device.updateIndirectExecutionSetPipelineEXT(m_indirect_execution_set.get(), indirect_execution_pipeline_writes);
+    }
+    //- init indirect_command_layout
+    {
+        vk::IndirectCommandsExecutionSetTokenEXT execution_set_token_data;
+        execution_set_token_data.setType(vk::IndirectExecutionSetInfoTypeEXT::ePipelines)
+            .setShaderStages(vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment);
+
+        std::array<vk::IndirectCommandsLayoutTokenEXT, 2> tokens;
+
+        tokens[0].setType(vk::IndirectCommandsTokenTypeEXT::eExecutionSet)
+            .setOffset(offsetof(DrawSequence, pipeline_index))
+            .setData(vk::IndirectCommandsTokenDataEXT { &execution_set_token_data });
+
+        tokens[1].setType(vk::IndirectCommandsTokenTypeEXT::eDrawCount)
+            .setOffset(offsetof(DrawSequence, draw_call));
+
+        vk::IndirectCommandsLayoutCreateInfoEXT layout_info;
+        layout_info.setFlags({})
+            .setShaderStages(vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment)
+            .setIndirectStride(sizeof(DrawSequence))
+            .setPipelineLayout(m_graphics_pipeline.getPipelineLayout())
+            .setTokens(tokens);
+
+        m_indirect_commands_layout = device.createIndirectCommandsLayoutEXTUnique(layout_info);
+    }
+    //-sequence buffer and preprocess buffer
+    {
+        constexpr uint32_t k_sequence_count   = 2;    // [0] = mesh bin, [1] = skybox bin
+        constexpr uint32_t k_max_mesh_draws   = 128;  // upper bound used to size preprocess
+
+        m_sequence_buffer.setUsage(GPUBufferUsage::eIndirect)
+            .setPattern(GPUBufferPattern::eStatic)
+            .create(m_context_p, sizeof(DrawSequence) * k_sequence_count);
+
+        vk::GeneratedCommandsMemoryRequirementsInfoEXT mem_req_info;
+        mem_req_info.setIndirectExecutionSet(m_indirect_execution_set.get())
+                    .setIndirectCommandsLayout(m_indirect_commands_layout.get())
+                    .setMaxSequenceCount(k_sequence_count)
+                    .setMaxDrawCount(k_max_mesh_draws);
+
+        vk::MemoryRequirements2 mem_req;
+        device.getGeneratedCommandsMemoryRequirementsEXT(&mem_req_info, &mem_req);
+        const uint64_t preprocess_size = mem_req.memoryRequirements.size;
+
+        m_preprocess_buffer.setUsage(GPUBufferUsage::ePreprocess)
+            .setPattern(GPUBufferPattern::eStatic)
+            .create(m_context_p, preprocess_size);
+    }
 }
 
 void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity & render_target)
@@ -393,12 +458,36 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
         per_renderable_material_records.addWriteSegment({as_bytes_from_value(material_params_buffer.getDeviceAddress()), params_offset})
             .addWriteSegment({as_bytes_from_value(texture_ids_buffer.getDeviceAddress()), texture_ids_offset});
     }
+    uint32_t mesh_indirect_call_count = static_cast<uint32_t>(indirect_calls.size());
 
-    uint32_t indirect_call_count = static_cast<uint32_t>(indirect_calls.size());
-    m_indirect_call_buffer.addWriteSegment({as_bytes_from_value(indirect_call_count), 0})
+    vk::DrawIndirectCommand skybox_draw_call;
+    skybox_draw_call.setFirstVertex(0)
+        .setVertexCount(36)
+        .setFirstInstance(0)
+        .setInstanceCount(1);
+    indirect_calls.emplace_back(skybox_draw_call);
+
+    m_indirect_call_buffer.addWriteSegment({as_bytes_from_value(mesh_indirect_call_count), 0})
         .addWriteSegment({as_bytes(indirect_calls), size_of_v<vk::DrawIndirectCommand>});
+//- device generated command
+    constexpr uint32_t k_sequence_count = 2;
+    constexpr uint32_t k_max_mesh_draws = 128;
+    std::array<DrawSequence, k_sequence_count> sequences;
+    // [0] meshes
+    sequences[0].pipeline_index = 0;
+    sequences[0].draw_call.setBufferAddress(m_indirect_call_buffer.getDeviceAddress() + size_of_v<vk::DrawIndirectCommand> )  // 跳过头部 count+padding
+        .setStride(size_of_v<vk::DrawIndirectCommand>)
+        .setCommandCount(mesh_indirect_call_count);
+    // [1] skybox
+    sequences[1].pipeline_index = 1;
+    sequences[1].draw_call.setBufferAddress(m_indirect_call_buffer.getDeviceAddress() + size_of_v<vk::DrawIndirectCommand>  + size_of_v<vk::DrawIndirectCommand> * mesh_indirect_call_count)
+        .setStride(size_of_v<vk::DrawIndirectCommand>)
+        .setCommandCount(1);
+    m_sequence_buffer.addWriteSegment({as_bytes(sequences), 0 });
+//-
 
     m_indirect_call_buffer.commit(cmd);
+    m_sequence_buffer.commit(cmd);
     m_per_view_uniform_buffer.commit(cmd);
     m_per_renderable_ssbo_group.commitAll(cmd);
 
@@ -411,14 +500,31 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
     cmd.bindDescriptorSet(m_graphics_pipeline, bindless_buffer_ds);
     cmd.bindDescriptorSet(m_graphics_pipeline, bindless_texture_ds);
     
-    cmd.drawIndirectCount(m_indirect_call_buffer.getHandle(), sizeof(vk::DrawIndirectCommand),
-        m_indirect_call_buffer.getHandle(), 0,
-        indirect_call_count, sizeof(vk::DrawIndirectCommand));
+    // cmd.drawIndirectCount(m_indirect_call_buffer.getHandle(), sizeof(vk::DrawIndirectCommand),
+    //     m_indirect_call_buffer.getHandle(), 0,
+    //     mesh_indirect_call_count, sizeof(vk::DrawIndirectCommand));
     
-    cmd.bindPipeline(m_skybox_pipeline);
-    // cmd.bindDescriptorSet(m_skybox_pipeline, m_per_view_descriptor_set);
-    // cmd.bindDescriptorSet(m_skybox_pipeline, bindless_texture_ds);
-    cmd.draw(36, 1, 0, 10); // draw with const data in shader program
+    // cmd.bindPipeline(m_skybox_pipeline);
+    // // // cmd.bindDescriptorSet(m_skybox_pipeline, m_per_view_descriptor_set);
+    // // // cmd.bindDescriptorSet(m_skybox_pipeline, bindless_texture_ds);
+    // // cmd.draw(36, 1, 0, 10); // draw with const data in shader program
+    // cmd.drawIndirectCount(m_indirect_call_buffer.getHandle(), sizeof(vk::DrawIndirectCommand) + size_of_v<vk::DrawIndirectCommand> * mesh_indirect_call_count,
+    //     m_indirect_call_buffer.getHandle(), 0,
+    //     1, sizeof(vk::DrawIndirectCommand));
+
+    vk::GeneratedCommandsInfoEXT gen_info;
+    gen_info.setShaderStages(vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment)
+            .setIndirectExecutionSet(m_indirect_execution_set.get())
+            .setIndirectCommandsLayout(m_indirect_commands_layout.get())
+            .setIndirectAddress(m_sequence_buffer.getDeviceAddress())
+            .setIndirectAddressSize(m_sequence_buffer.getSizeInBytes())
+            .setPreprocessAddress(m_preprocess_buffer.getDeviceAddress())
+            .setPreprocessSize(m_preprocess_buffer.getSizeInBytes())
+            .setMaxSequenceCount(k_sequence_count)
+            .setMaxDrawCount(k_max_mesh_draws)
+            .setSequenceCountAddress(0);
+
+    cmd.executeGeneratedCommandsEXT(false, gen_info);
     
     current_framebuffer.endRendering(cmd);
 

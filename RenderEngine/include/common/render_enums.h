@@ -18,6 +18,7 @@ namespace lcf::render {
         eShaderStorage,
         eIndirect,
         eStaging,
+        ePreprocess
     };
 
     enum class DescriptorSetBindingPoints : uint8_t

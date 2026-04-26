@@ -60,5 +60,16 @@ namespace ecf {
         std::vector<VulkanMesh> m_meshes;
         std::vector<VulkanBufferObject> m_material_params_list;
         std::vector<VulkanBufferObject> m_material_texture_ids_list;
+
+        //- device generated ext 
+        struct DrawSequence 
+        {
+            uint32_t pipeline_index;
+            vk::DrawIndirectCountIndirectCommandEXT draw_call;
+        };
+        vk::UniqueIndirectExecutionSetEXT m_indirect_execution_set;
+        vk::UniqueIndirectCommandsLayoutEXT m_indirect_commands_layout;
+        VulkanBufferObject m_preprocess_buffer;
+        VulkanBufferObject m_sequence_buffer;
     };
 }

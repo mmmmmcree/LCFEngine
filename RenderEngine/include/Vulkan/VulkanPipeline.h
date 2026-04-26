@@ -20,6 +20,8 @@ namespace lcf::render {
         bool create(VulkanContext * context, const ComputePipelineCreateInfo & create_info);
         bool create(VulkanContext * context, const GraphicPipelineCreateInfo & create_info);
         operator bool() const { return this->isValid(); }
+        operator vk::Pipeline() const { return this->getHandle(); }
+    public:
         bool isValid() const { return m_pipeline.get(); } 
         Self & setShaderProgram(const std::shared_ptr<VulkanShaderProgram> &shader_program) { m_shader_program = shader_program; return *this; }
         VulkanShaderProgram * getShaderProgram() const { return m_shader_program.get(); }
@@ -60,7 +62,8 @@ namespace lcf::render {
             vk::CompareOp depth_compare_op = vk::CompareOp::eLess,
             vk::SampleCountFlagBits rasterization_samples = vk::SampleCountFlagBits::e1,
             vk::CullModeFlags cull_mode = vk::CullModeFlagBits::eNone,
-            vk::FrontFace front_face = vk::FrontFace::eCounterClockwise
+            vk::FrontFace front_face = vk::FrontFace::eCounterClockwise,
+            vk::PipelineCreateFlags2 pipeline_create_flags_2 = {}
         ) : m_shader_program(shader_program),
             m_color_attachment_formats(color_attachment_formats),
             m_depth_attachment_format(depth_attachment_format),
@@ -69,7 +72,8 @@ namespace lcf::render {
             m_depth_compare_op(depth_compare_op),
             m_rasterization_samples(rasterization_samples),
             m_cull_mode(cull_mode),
-            m_front_face(front_face)
+            m_front_face(front_face),
+            m_pipeline_create_flags_2(pipeline_create_flags_2)
         { }
         Self & setShaderProgram(const std::shared_ptr<VulkanShaderProgram> & shader_program) { m_shader_program = shader_program; return *this; }
         Self & addColorAttachmentFormat(vk::Format format) { m_color_attachment_formats.emplace_back(format); return *this; }
@@ -81,6 +85,8 @@ namespace lcf::render {
         Self & setRasterizationSamples(vk::SampleCountFlagBits samples) { m_rasterization_samples = samples; return *this; }
         Self & setCullMode(vk::CullModeFlags cull_mode) { m_cull_mode = cull_mode; return *this; }
         Self & setFrontFace(vk::FrontFace front_face) { m_front_face = front_face; return *this; }
+        Self & setPipelineCreateFlags2(vk::PipelineCreateFlags2 flags) noexcept { m_pipeline_create_flags_2 = flags; return *this; }
+        Self & addPipelineCreateFlags2(vk::PipelineCreateFlags2 flags) noexcept { m_pipeline_create_flags_2 |= flags; return *this; }
         const std::shared_ptr<VulkanShaderProgram> & getShaderProgram() const noexcept { return m_shader_program; }
         const std::vector<vk::Format> & getColorAttachmentFormats() const noexcept { return m_color_attachment_formats; }
         bool isDepthTestEnabled() const noexcept { return m_depth_test_enable; }
@@ -90,6 +96,7 @@ namespace lcf::render {
         vk::SampleCountFlagBits getRasterizationSamples() const noexcept { return m_rasterization_samples; }
         vk::CullModeFlags getCullMode() const noexcept { return m_cull_mode; }
         vk::FrontFace getFrontFace() const noexcept { return m_front_face; }
+        vk::PipelineCreateFlags2 getPipelineCreateFlags2() const noexcept { return m_pipeline_create_flags_2; }
     private:
         std::shared_ptr<VulkanShaderProgram> m_shader_program;
         std::vector<vk::Format> m_color_attachment_formats;
@@ -100,5 +107,6 @@ namespace lcf::render {
         vk::SampleCountFlagBits m_rasterization_samples;
         vk::CullModeFlags m_cull_mode;
         vk::FrontFace m_front_face;
+        vk::PipelineCreateFlags2 m_pipeline_create_flags_2 {};
     };
 }

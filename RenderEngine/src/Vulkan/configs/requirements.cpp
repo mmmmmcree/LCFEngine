@@ -33,7 +33,7 @@ static constexpr const char * k_device_extensions[] = {
     VK_KHR_MAINTENANCE1_EXTENSION_NAME,
     VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME,
     VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME,
-    VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME,
+    VK_EXT_DEVICE_GENERATED_COMMANDS_EXTENSION_NAME
 };
 
 // ============================================================================
