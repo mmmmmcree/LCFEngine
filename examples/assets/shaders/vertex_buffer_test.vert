@@ -11,6 +11,7 @@ struct Vertex
     vec3 position;
     vec3 normal;
     vec2 uv;
+    vec3 tangent;
 };
 
 layout(buffer_reference, std430) readonly buffer VertexBufferAddress
@@ -38,9 +39,13 @@ layout(std430, set = 1, binding = 2) readonly buffer TransformBuffer {
 };
 
 layout(location = 0) out VS_OUT {
-    vec3 color;
     vec2 uv;
     flat uint material_id;
+    vec3 world_position;
+    vec3 world_normal;
+    vec3 world_tangent;
+    vec3 world_bitangent;
+    vec3 view_direction;
 } vs_out;
 
 void main()
@@ -51,14 +56,27 @@ void main()
     uint vertex_id = index_buffer[object_id].indices[gl_VertexIndex];
     Vertex vertex = vertex_buffer[object_id].vertices[vertex_id];
 
-    gl_Position = projection_view * transforms[instance_id] * vec4(vertex.position, 1.0);
+    mat4 model = transforms[instance_id];
+    mat3 model_3x3 = mat3(model);
+    mat3 normal_matrix = transpose(inverse(model_3x3));
 
-    vs_out.color = normalize(vertex.position);
+    vec4 world_pos = model * vec4(vertex.position, 1.0);
+
+    gl_Position = projection_view * world_pos;
+
     vs_out.uv = vertex.uv;
     vs_out.material_id = object_id;
-    // if (vertex_id == 0) {
-        // debugPrintfEXT("Position = %v4f\n", gl_Position);
-    //     debugPrintfEXT("gl_DrawID = %u\n", gl_DrawID);
-    //     debugPrintfEXT("texture_id = %u\n", vs_out.texture_id);
-    // }
+    vs_out.world_position = world_pos.xyz;
+
+    // Transform normal and tangent to world space
+    vec3 N = normalize(normal_matrix * vertex.normal);
+    vec3 T = normalize(model_3x3 * vertex.tangent);
+    // Orthonormalize T with respect to N (Gram-Schmidt)
+    T = normalize(T - dot(T, N) * N);
+    vec3 B = cross(N, T);
+
+    vs_out.world_normal = N;
+    vs_out.world_tangent = T;
+    vs_out.world_bitangent = B;
+    vs_out.view_direction = normalize(camera_position - world_pos.xyz);
 }

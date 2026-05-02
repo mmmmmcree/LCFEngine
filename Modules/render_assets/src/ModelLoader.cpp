@@ -236,7 +236,8 @@ void process_mesh(Geometry & geometry, const aiMesh & ai_mesh)
     }
     geometry.setIndices(std::move(indices))
         .setAttributes<VertexAttribute::ePosition>(std::span(ai_mesh.mVertices, vertex_num))
-        .setAttributes<VertexAttribute::eNormal>(std::span(ai_mesh.mNormals, vertex_num));
+        .setAttributes<VertexAttribute::eNormal>(std::span(ai_mesh.mNormals, vertex_num))
+        .setAttributes<VertexAttribute::eTangent>(std::span(ai_mesh.mTangents, vertex_num));
     for (auto i : {0, 1}) {
         if (not ai_mesh.HasTextureCoords(i)) { break; }
         auto span = std::span(ai_mesh.mTextureCoords[0], vertex_num);

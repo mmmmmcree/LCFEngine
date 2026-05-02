@@ -75,7 +75,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
 
     m_per_view_uniform_buffer.setUsage(GPUBufferUsage::eUniform)
         .setPattern(GPUBufferPattern::eDynamic)
-        .create(m_context_p, size_of_v<Matrix4x4> * 3); // projection, view, projection_view
+        .create(m_context_p, size_of_v<Matrix4x4> * 3 + size_of_v<Vector4D<float>>); // projection, view, projection_view, camera_pos
 
     m_per_renderable_ssbo_group.create(m_context_p, GPUBufferPattern::eDynamic);
     m_per_renderable_ssbo_group.emplace(100 * size_of_v<vk::DeviceAddress>, GPUBufferUsage::eShaderStorage); // vertex buffer addresses
@@ -96,7 +96,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     vk::DescriptorBufferInfo per_view_buffer_info;
     per_view_buffer_info.setBuffer(m_per_view_uniform_buffer.getHandle())
         .setOffset(0)
-        .setRange(m_per_view_uniform_buffer.getSizeInBytes());
+        .setRange(vk::WholeSize);
     m_per_view_descriptor_set.addDescriptorInfo(
         std::to_underlying(PerViewBindingPoints::eCamera),
         per_view_buffer_info
@@ -131,7 +131,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
             mesh.create(m_context_p, cmd,
                 generate_interleaved_segments<glsl::std140::enum_value_type_mapping_t>(
                     geometry,
-                    VertexAttributeFlags::ePosition | VertexAttributeFlags::eNormal | VertexAttributeFlags::eTexCoord0
+                    VertexAttributeFlags::ePosition | VertexAttributeFlags::eNormal | VertexAttributeFlags::eTexCoord0 | VertexAttributeFlags::eTangent
                 ), geometry.getIndices());
         }
 
@@ -407,9 +407,11 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
     auto &camera_transform = camera.getComponent<Transform>();
     const auto & camera_view = camera.getComponent<TransformInvertedWorldMatrix>();
     projection_view = projection * camera_view.getMatrix();
+    auto camera_pos = camera_transform.getTranslation();
     m_per_view_uniform_buffer.addWriteSegment({as_bytes_from_value(projection), 0u})
         .addWriteSegment({as_bytes_from_value(camera_view.getMatrix()), sizeof(Matrix4x4)})
-        .addWriteSegment({as_bytes_from_value(projection_view), 2 * sizeof(Matrix4x4)});
+        .addWriteSegment({as_bytes_from_value(projection_view), 2 * sizeof(Matrix4x4)})
+        .addWriteSegment({as_bytes_from_value(camera_pos), 3 * sizeof(Matrix4x4)});
     static uint64_t frame_count = 0;
     ++frame_count;
     float angle = 0.1f * frame_count;
