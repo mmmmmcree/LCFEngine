@@ -39,6 +39,7 @@ namespace internal {
         eVertexBufferAddresses,
         eIndexBufferAddresses,
         eTransforms,
+        eVisibleInstances,
         eMaterialRecords,
         // eUniformBufferAddresses, 
         // eStorageBufferAddresses
@@ -79,6 +80,7 @@ namespace internal {
         eVertexBufferAddresses = internal::encode(DescriptorSetIndex::eBindlessBuffers, BindlessBufferBinding::eVertexBufferAddresses),
         eIndexBufferAddresses = internal::encode(DescriptorSetIndex::eBindlessBuffers, BindlessBufferBinding::eIndexBufferAddresses),
         eTransforms = internal::encode(DescriptorSetIndex::eBindlessBuffers, BindlessBufferBinding::eTransforms),
+        eVisibleInstances = internal::encode(DescriptorSetIndex::eBindlessBuffers, BindlessBufferBinding::eVisibleInstances),
         eMaterialRecords = internal::encode(DescriptorSetIndex::eBindlessBuffers, BindlessBufferBinding::eMaterialRecords),
         // Bindless textures
         eSamplers = internal::encode(DescriptorSetIndex::eBindlessTextures, BindlessTextureBinding::eSamplers),

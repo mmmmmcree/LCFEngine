@@ -84,6 +84,12 @@ namespace ds {
             vk::ShaderStageFlagBits::eVertex
         },
         {
+            vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eVisibleInstances),
+            vk::DescriptorType::eStorageBuffer,
+            1u,
+            vk::ShaderStageFlagBits::eVertex
+        },
+        {
             vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eMaterialRecords),
             vk::DescriptorType::eStorageBuffer,
             1u,

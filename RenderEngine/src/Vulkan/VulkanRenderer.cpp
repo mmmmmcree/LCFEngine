@@ -25,6 +25,22 @@ lcf::VulkanRenderer::~VulkanRenderer()
     device.waitIdle();
 }
 
+struct VertexRecord
+{
+    VertexRecord() = default;
+    VertexRecord(vk::DeviceAddress vb_address, vk::DeviceAddress ib_address) :
+        m_vb_address(vb_address), m_ib_address(ib_address) {}
+    vk::DeviceAddress m_vb_address = 0;
+    vk::DeviceAddress m_ib_address = 0;
+};
+
+struct DrawMetaInfo
+{
+    DrawMetaInfo() = default;
+    DrawMetaInfo(uint32_t object_id) : m_object_id(object_id) {}
+    uint32_t m_object_id = 0; //- visit vertex records, equal to material id
+};
+
 void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint32_t, uint32_t> & max_extent, ecs::Registry & registry)
 {
     m_context_p = context_p;
@@ -81,6 +97,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     m_per_renderable_ssbo_group.emplace(100 * size_of_v<vk::DeviceAddress>, GPUBufferUsage::eShaderStorage); // vertex buffer addresses
     m_per_renderable_ssbo_group.emplace(100 * size_of_v<vk::DeviceAddress>, GPUBufferUsage::eShaderStorage); // index buffer addresses
     m_per_renderable_ssbo_group.emplace(200 * size_of_v<Matrix4x4>, GPUBufferUsage::eShaderStorage); // transforms
+    m_per_renderable_ssbo_group.emplace(100 * size_of_v<uint32_t>, GPUBufferUsage::eShaderStorage); // visible instances
     m_per_renderable_ssbo_group.emplace(size_of_v<vk::DeviceAddress> * 2 * 100, GPUBufferUsage::eShaderStorage); // material records
 
     m_indirect_call_buffer.setUsage(GPUBufferUsage::eIndirect)
@@ -105,16 +122,19 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     auto & bindless_buffer_ds = descriptor_set_manager.getBindlessBufferSet();
     bindless_buffer_ds.addDescriptorInfo(
         std::to_underlying(vkenums::BindlessBufferBinding::eVertexBufferAddresses),
-        m_per_renderable_ssbo_group[0].generateBufferInfo()
+        m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eVertexBufferAddresses)].generateBufferInfo()
     ).addDescriptorInfo(
         std::to_underlying(vkenums::BindlessBufferBinding::eIndexBufferAddresses),
-        m_per_renderable_ssbo_group[1].generateBufferInfo()
+        m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eIndexBufferAddresses)].generateBufferInfo()
     ).addDescriptorInfo(
         std::to_underlying(vkenums::BindlessBufferBinding::eTransforms),
-        m_per_renderable_ssbo_group[2].generateBufferInfo()
+        m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eTransforms)].generateBufferInfo()
+    ).addDescriptorInfo(
+        std::to_underlying(vkenums::BindlessBufferBinding::eVisibleInstances),
+        m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eVisibleInstances)].generateBufferInfo()
     ).addDescriptorInfo(
         std::to_underlying(vkenums::BindlessBufferBinding::eMaterialRecords),
-        m_per_renderable_ssbo_group[3].generateBufferInfo()
+        m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eMaterialRecords)].generateBufferInfo()
     ).commitUpdate(device);
 
     auto image1_sp = Texture2D::makeShared();
@@ -422,23 +442,29 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
         model_matrices[i + 1].translateLocalX(10.0f);
     }
 
-    auto & per_renderable_vertex_buffer_ssbo = m_per_renderable_ssbo_group[0];
-    auto & per_renderable_index_buffer_ssbo = m_per_renderable_ssbo_group[1];
-    auto & per_renderable_transform_ssbo = m_per_renderable_ssbo_group[2];
-    auto & per_renderable_material_records = m_per_renderable_ssbo_group[3];
+    auto & per_renderable_vertex_records_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eVertexBufferAddresses)];
+    auto & draw_meta_info_buffer_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eIndexBufferAddresses)];
+    auto & visible_instances_buffer_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eVisibleInstances)];
+    auto & per_renderable_transform_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eTransforms)];
+    auto & per_renderable_material_records = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eMaterialRecords)];
 
+    auto to_vertex_record = [](const VulkanMesh & mesh) {
+        return VertexRecord { mesh.getVertexBufferAddress(), mesh.getIndexBufferAddress() };
+    };
     for (uint32_t i = 0; i < m_meshes.size(); ++i) {
         const auto & vertex_buffer_address = m_meshes[i].getVertexBufferAddress();
         const auto & index_buffer_address = m_meshes[i].getIndexBufferAddress();
-        size_t offset = i * size_of_v<vk::DeviceAddress>;
-        per_renderable_vertex_buffer_ssbo.addWriteSegment({as_bytes_from_value(vertex_buffer_address), offset});
-        per_renderable_index_buffer_ssbo.addWriteSegment({as_bytes_from_value(index_buffer_address), offset});
+        size_t record_offset = i * size_of_v<VertexRecord>;
+        per_renderable_vertex_records_ssbo.addWriteSegment({as_bytes_from_value(vertex_buffer_address), record_offset});
+        per_renderable_vertex_records_ssbo.addWriteSegment({as_bytes_from_value(index_buffer_address), record_offset + size_of_v<vk::DeviceAddress>});
+        // size_t draw_info_offset
     }
     per_renderable_transform_ssbo.addWriteSegment({as_bytes(model_matrices), 0u});
 
+    std::vector<DrawMetaInfo> draw_meta_infos(m_meshes.size());
     uint32_t instance_count = 0;
-    std::vector<vk::DrawIndirectCommand> indirect_calls(m_meshes.size());
-    for (int i = 0; i < indirect_calls.size(); ++i) {
+    std::vector<vk::DrawIndirectCommand> indirect_calls(draw_meta_infos.size());
+    for (int i = 0; i < draw_meta_infos.size(); ++i) {
         /**
          * @brief 
          * indiret call index: draw index, use as geometry index to locate vertex buffer and index buffer
@@ -450,8 +476,13 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
             .setVertexCount(mesh.getIndexCount())
             .setFirstInstance(instance_count)
             .setInstanceCount(2);
+        draw_meta_infos[i].m_object_id = i;
         instance_count += indirect_call.instanceCount;
     }
+    auto visible_instances = stdv::iota(uint32_t(0), instance_count) | stdr::to<std::vector>();
+    draw_meta_info_buffer_ssbo.addWriteSegment({as_bytes(draw_meta_infos), 0u});
+    visible_instances_buffer_ssbo.addWriteSegment({as_bytes_from_value(instance_count), 0u})
+        .addWriteSegment({as_bytes(visible_instances), size_of_v<uint32_t>});
     for (int i = 0; i < indirect_calls.size(); ++i) {
         const auto & material_params_buffer = m_material_params_list[i];
         const auto & texture_ids_buffer = m_material_texture_ids_list[i];

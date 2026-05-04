@@ -41,7 +41,7 @@ struct MaterialRecord {
     MaterialTextureIdsAddress material_texture_ids;
 };
 
-layout(std430, set = 1, binding = 3) readonly buffer MaterialRecords {
+layout(std430, set = 1, binding = 4) readonly buffer MaterialRecords {
     MaterialRecord material_records[];
 };
 

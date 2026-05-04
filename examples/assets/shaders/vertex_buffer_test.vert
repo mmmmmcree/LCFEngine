@@ -24,14 +24,33 @@ layout(buffer_reference, std430) readonly buffer IndexBufferAddress
 	uint indices[];
 };
 
-#pragma lcf descriptor_set_strategy(set = 1, strategy = bindless);
-
-layout(std430, set = 1, binding = 0) readonly buffer VertexBufferAddresses {
-    VertexBufferAddress vertex_buffer[];
+struct VertexRecord
+{
+    VertexBufferAddress vertex_buffer;
+    IndexBufferAddress index_buffer;
 };
 
-layout(std430, set = 1, binding = 1) readonly buffer IndexBufferAddresses {
-    IndexBufferAddress index_buffer[];
+struct DrawMetaInfo
+{
+    // uint index_count;
+    // uint instance_count;
+    // uint first_index;
+    // int  vertex_offset;
+    // uint first_instance;
+    uint object_id;
+};
+
+layout(std430, set = 1, binding = 1) readonly buffer DrawMetaInfoBuffer {
+    DrawMetaInfo draw_meta_infos[];
+};
+
+layout(std430, set = 1, binding = 3) readonly buffer VisibleInstanceBuffer {
+    uint instance_count;
+    uint visible_instance_ids[];
+};
+
+layout(std430, set = 1, binding = 0) readonly buffer VertexRecords {
+    VertexRecord vertex_records[];
 };
 
 layout(std430, set = 1, binding = 2) readonly buffer TransformBuffer {
@@ -50,11 +69,12 @@ layout(location = 0) out VS_OUT {
 
 void main()
 {
-    uint object_id = gl_DrawID;
-    uint instance_id = gl_BaseInstance + gl_InstanceIndex;
+    DrawMetaInfo draw_meta_info = draw_meta_infos[gl_DrawID];
+    uint object_id = draw_meta_info.object_id;
+    uint instance_id = visible_instance_ids[gl_BaseInstance + gl_InstanceIndex];
 
-    uint vertex_id = index_buffer[object_id].indices[gl_VertexIndex];
-    Vertex vertex = vertex_buffer[object_id].vertices[vertex_id];
+    VertexRecord vertex_record = vertex_records[object_id];
+    Vertex vertex = vertex_record.vertex_buffer.vertices[vertex_record.index_buffer.indices[gl_VertexIndex]];
 
     mat4 model = transforms[instance_id];
     mat3 model_3x3 = mat3(model);
