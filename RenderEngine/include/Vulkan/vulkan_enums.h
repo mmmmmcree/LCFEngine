@@ -36,10 +36,10 @@ namespace internal {
 
     enum class BindlessBufferBinding : uint8_t //- only 3bits is used, reserve 4 bits for future use
     {
-        eVertexBufferAddresses,
-        eIndexBufferAddresses,
-        eTransforms,
+        eDrawMetaInfos,
+        eVertexRecords,
         eVisibleInstances,
+        eTransforms,
         eMaterialRecords,
         // eUniformBufferAddresses, 
         // eStorageBufferAddresses
@@ -77,8 +77,8 @@ namespace internal {
         // Per-view
         eCamera = internal::encode(DescriptorSetIndex::ePerView, 0),
         // Bindless buffers
-        eVertexBufferAddresses = internal::encode(DescriptorSetIndex::eBindlessBuffers, BindlessBufferBinding::eVertexBufferAddresses),
-        eIndexBufferAddresses = internal::encode(DescriptorSetIndex::eBindlessBuffers, BindlessBufferBinding::eIndexBufferAddresses),
+        eVertexRecords = internal::encode(DescriptorSetIndex::eBindlessBuffers, BindlessBufferBinding::eVertexRecords),
+        eDrawMetaInfos = internal::encode(DescriptorSetIndex::eBindlessBuffers, BindlessBufferBinding::eDrawMetaInfos),
         eTransforms = internal::encode(DescriptorSetIndex::eBindlessBuffers, BindlessBufferBinding::eTransforms),
         eVisibleInstances = internal::encode(DescriptorSetIndex::eBindlessBuffers, BindlessBufferBinding::eVisibleInstances),
         eMaterialRecords = internal::encode(DescriptorSetIndex::eBindlessBuffers, BindlessBufferBinding::eMaterialRecords),

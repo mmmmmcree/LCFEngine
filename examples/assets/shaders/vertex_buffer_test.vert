@@ -32,28 +32,29 @@ struct VertexRecord
 
 struct DrawMetaInfo
 {
-    // uint index_count;
-    // uint instance_count;
-    // uint first_index;
-    // int  vertex_offset;
-    // uint first_instance;
+// vk::DrawIndirectCommand
+    uint vertex_count;
+    uint instance_count;
+    uint first_vertex;
+    uint first_instance;
+// custom
     uint object_id;
 };
 
-layout(std430, set = 1, binding = 1) readonly buffer DrawMetaInfoBuffer {
+layout(std430, set = 1, binding = 0) readonly buffer DrawMetaInfoBuffer {
     DrawMetaInfo draw_meta_infos[];
 };
 
-layout(std430, set = 1, binding = 3) readonly buffer VisibleInstanceBuffer {
+layout(std430, set = 1, binding = 1) readonly buffer VertexRecords {
+    VertexRecord vertex_records[];
+};
+
+layout(std430, set = 1, binding = 2) readonly buffer VisibleInstanceBuffer {
     uint instance_count;
     uint visible_instance_ids[];
 };
 
-layout(std430, set = 1, binding = 0) readonly buffer VertexRecords {
-    VertexRecord vertex_records[];
-};
-
-layout(std430, set = 1, binding = 2) readonly buffer TransformBuffer {
+layout(std430, set = 1, binding = 3) readonly buffer TransformBuffer {
     mat4 transforms[];
 };
 

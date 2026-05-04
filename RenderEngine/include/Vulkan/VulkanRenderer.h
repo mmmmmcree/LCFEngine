@@ -52,7 +52,7 @@ namespace ecf {
 
         VulkanBufferObject m_per_view_uniform_buffer;
 
-        VulkanBufferObject m_indirect_call_buffer;
+        // VulkanBufferObject m_indirect_call_buffer;
         
         VulkanBufferObjectGroup m_per_renderable_ssbo_group;
         

@@ -18,13 +18,13 @@ namespace lcf::render::vkconstants {
     static constexpr vk::DescriptorSetLayoutBinding per_renderable_bindings[]
     {
         {
-            vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eVertexBufferAddresses),
+            vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eVertexRecords),
             vk::DescriptorType::eStorageBuffer,
             1u,
             vk::ShaderStageFlagBits::eVertex
         },
         {
-            vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eIndexBufferAddresses),
+            vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eDrawMetaInfos),
             vk::DescriptorType::eStorageBuffer,
             1u,
             vk::ShaderStageFlagBits::eVertex
@@ -66,25 +66,25 @@ namespace ds {
     static constexpr VulkanDescriptorSetBinding k_bindless_buffer_bindings[]
     {
         {
-            vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eVertexBufferAddresses),
+            vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eDrawMetaInfos),
             vk::DescriptorType::eStorageBuffer,
             1u,
             vk::ShaderStageFlagBits::eVertex
         },
         {
-            vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eIndexBufferAddresses),
-            vk::DescriptorType::eStorageBuffer,
-            1u,
-            vk::ShaderStageFlagBits::eVertex
-        },
-        {
-            vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eTransforms),
+            vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eVertexRecords),
             vk::DescriptorType::eStorageBuffer,
             1u,
             vk::ShaderStageFlagBits::eVertex
         },
         {
             vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eVisibleInstances),
+            vk::DescriptorType::eStorageBuffer,
+            1u,
+            vk::ShaderStageFlagBits::eVertex
+        },
+        {
+            vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eTransforms),
             vk::DescriptorType::eStorageBuffer,
             1u,
             vk::ShaderStageFlagBits::eVertex

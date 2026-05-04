@@ -36,8 +36,28 @@ struct VertexRecord
 
 struct DrawMetaInfo
 {
-    DrawMetaInfo() = default;
-    DrawMetaInfo(uint32_t object_id) : m_object_id(object_id) {}
+    using Self = DrawMetaInfo;
+public:
+    DrawMetaInfo(
+        uint32_t vertex_count = {},
+        uint32_t instance_count = {},
+        uint32_t first_vertex = {},
+        uint32_t first_instance = {},
+        uint32_t object_id = {}
+    ) : m_draw_command(vertex_count, instance_count, first_vertex, first_instance),
+        m_object_id(object_id) {}
+    Self & setVertexCount(uint32_t count) noexcept { m_draw_command.setVertexCount(count); return *this; }
+    Self & setInstanceCount(uint32_t count) noexcept { m_draw_command.setInstanceCount(count); return *this; }
+    Self & setFirstVertex(uint32_t index) noexcept { m_draw_command.setFirstVertex(index); return *this; }
+    Self & setFirstInstance(uint32_t index) noexcept { m_draw_command.setFirstInstance(index); return *this; }
+    Self & setObjectId(uint32_t id) noexcept { m_object_id = id; return *this; }
+    const uint32_t & getVertexCount() const noexcept { return m_draw_command.vertexCount; }
+    const uint32_t & getInstanceCount() const noexcept { return m_draw_command.instanceCount; }
+    const uint32_t & getFirstVertex() const noexcept { return m_draw_command.firstVertex; }
+    const uint32_t & getFirstInstance() const noexcept { return m_draw_command.firstInstance; }
+    const uint32_t & getObjectId() const noexcept { return m_object_id; }
+private:
+    vk::DrawIndirectCommand m_draw_command;
     uint32_t m_object_id = 0; //- visit vertex records, equal to material id
 };
 
@@ -94,14 +114,12 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         .create(m_context_p, size_of_v<Matrix4x4> * 3 + size_of_v<Vector4D<float>>); // projection, view, projection_view, camera_pos
 
     m_per_renderable_ssbo_group.create(m_context_p, GPUBufferPattern::eDynamic);
-    m_per_renderable_ssbo_group.emplace(100 * size_of_v<vk::DeviceAddress>, GPUBufferUsage::eShaderStorage); // vertex buffer addresses
-    m_per_renderable_ssbo_group.emplace(100 * size_of_v<vk::DeviceAddress>, GPUBufferUsage::eShaderStorage); // index buffer addresses
-    m_per_renderable_ssbo_group.emplace(200 * size_of_v<Matrix4x4>, GPUBufferUsage::eShaderStorage); // transforms
+    m_per_renderable_ssbo_group.emplace(100 * size_of_v<DrawMetaInfo>, GPUBufferUsage::eIndirect); // draw meta infos
+    m_per_renderable_ssbo_group.emplace(100 * size_of_v<vk::DeviceAddress>, GPUBufferUsage::eShaderStorage); // vertex records
     m_per_renderable_ssbo_group.emplace(100 * size_of_v<uint32_t>, GPUBufferUsage::eShaderStorage); // visible instances
+    m_per_renderable_ssbo_group.emplace(200 * size_of_v<Matrix4x4>, GPUBufferUsage::eShaderStorage); // transforms
     m_per_renderable_ssbo_group.emplace(size_of_v<vk::DeviceAddress> * 2 * 100, GPUBufferUsage::eShaderStorage); // material records
 
-    m_indirect_call_buffer.setUsage(GPUBufferUsage::eIndirect)
-        .create(m_context_p, size_of_v<vk::DrawIndirectCommand> + 10 * size_of_v<vk::DrawIndirectCommand>); // uint32_t(for IndirectDrawCount) + padding | vk::DrawIndirectCommand ...
 
     VulkanDescriptorSetLayout per_view_descriptor_set_layout;
     per_view_descriptor_set_layout.setBindings(vkconstants::ds::k_per_view_bindings)
@@ -121,11 +139,11 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     
     auto & bindless_buffer_ds = descriptor_set_manager.getBindlessBufferSet();
     bindless_buffer_ds.addDescriptorInfo(
-        std::to_underlying(vkenums::BindlessBufferBinding::eVertexBufferAddresses),
-        m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eVertexBufferAddresses)].generateBufferInfo()
+        std::to_underlying(vkenums::BindlessBufferBinding::eVertexRecords),
+        m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eVertexRecords)].generateBufferInfo()
     ).addDescriptorInfo(
-        std::to_underlying(vkenums::BindlessBufferBinding::eIndexBufferAddresses),
-        m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eIndexBufferAddresses)].generateBufferInfo()
+        std::to_underlying(vkenums::BindlessBufferBinding::eDrawMetaInfos),
+        m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eDrawMetaInfos)].generateBufferInfo()
     ).addDescriptorInfo(
         std::to_underlying(vkenums::BindlessBufferBinding::eTransforms),
         m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eTransforms)].generateBufferInfo()
@@ -442,8 +460,8 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
         model_matrices[i + 1].translateLocalX(10.0f);
     }
 
-    auto & per_renderable_vertex_records_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eVertexBufferAddresses)];
-    auto & draw_meta_info_buffer_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eIndexBufferAddresses)];
+    auto & per_renderable_vertex_records_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eVertexRecords)];
+    auto & draw_meta_info_buffer_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eDrawMetaInfos)];
     auto & visible_instances_buffer_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eVisibleInstances)];
     auto & per_renderable_transform_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eTransforms)];
     auto & per_renderable_material_records = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eMaterialRecords)];
@@ -463,27 +481,25 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
 
     std::vector<DrawMetaInfo> draw_meta_infos(m_meshes.size());
     uint32_t instance_count = 0;
-    std::vector<vk::DrawIndirectCommand> indirect_calls(draw_meta_infos.size());
     for (int i = 0; i < draw_meta_infos.size(); ++i) {
         /**
          * @brief 
          * indiret call index: draw index, use as geometry index to locate vertex buffer and index buffer
          * firstInstance: instance index, use as offset to locate model matrix, one for each instance
          */
-        auto & indirect_call = indirect_calls[i];
         const auto & mesh = m_meshes[i];
-        indirect_call.setFirstVertex(0)
+        auto & draw_meta_info = draw_meta_infos[i];
+        draw_meta_info.setFirstVertex(0)
             .setVertexCount(mesh.getIndexCount())
             .setFirstInstance(instance_count)
-            .setInstanceCount(2);
-        draw_meta_infos[i].m_object_id = i;
-        instance_count += indirect_call.instanceCount;
+            .setInstanceCount(2)
+            .setObjectId(i);
+        instance_count += draw_meta_info.getInstanceCount();
     }
     auto visible_instances = stdv::iota(uint32_t(0), instance_count) | stdr::to<std::vector>();
-    draw_meta_info_buffer_ssbo.addWriteSegment({as_bytes(draw_meta_infos), 0u});
     visible_instances_buffer_ssbo.addWriteSegment({as_bytes_from_value(instance_count), 0u})
         .addWriteSegment({as_bytes(visible_instances), size_of_v<uint32_t>});
-    for (int i = 0; i < indirect_calls.size(); ++i) {
+    for (int i = 0; i < draw_meta_infos.size(); ++i) {
         const auto & material_params_buffer = m_material_params_list[i];
         const auto & texture_ids_buffer = m_material_texture_ids_list[i];
         size_t params_offset = 2 * i * size_of_v<vk::DeviceAddress>;
@@ -491,35 +507,33 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
         per_renderable_material_records.addWriteSegment({as_bytes_from_value(material_params_buffer.getDeviceAddress()), params_offset})
             .addWriteSegment({as_bytes_from_value(texture_ids_buffer.getDeviceAddress()), texture_ids_offset});
     }
-    uint32_t mesh_indirect_call_count = static_cast<uint32_t>(indirect_calls.size());
+    uint32_t mesh_indirect_call_count = static_cast<uint32_t>(draw_meta_infos.size());
 
-    vk::DrawIndirectCommand skybox_draw_call;
+    DrawMetaInfo skybox_draw_call;
     skybox_draw_call.setFirstVertex(0)
         .setVertexCount(36)
         .setFirstInstance(0)
         .setInstanceCount(1);
-    indirect_calls.emplace_back(skybox_draw_call);
+    draw_meta_infos.emplace_back(skybox_draw_call);
 
-    m_indirect_call_buffer.addWriteSegment({as_bytes_from_value(mesh_indirect_call_count), 0})
-        .addWriteSegment({as_bytes(indirect_calls), size_of_v<vk::DrawIndirectCommand>});
 //- device generated command
     constexpr uint32_t k_sequence_count = 2;
     constexpr uint32_t k_max_mesh_draws = 128;
     std::array<DrawSequence, k_sequence_count> sequences;
     // [0] meshes
     sequences[0].pipeline_index = 0;
-    sequences[0].draw_call.setBufferAddress(m_indirect_call_buffer.getDeviceAddress() + size_of_v<vk::DrawIndirectCommand> )  // 跳过头部 count+padding
-        .setStride(size_of_v<vk::DrawIndirectCommand>)
+    sequences[0].draw_call.setBufferAddress(draw_meta_info_buffer_ssbo.getDeviceAddress())
+        .setStride(size_of_v<DrawMetaInfo>)
         .setCommandCount(mesh_indirect_call_count);
     // [1] skybox
     sequences[1].pipeline_index = 1;
-    sequences[1].draw_call.setBufferAddress(m_indirect_call_buffer.getDeviceAddress() + size_of_v<vk::DrawIndirectCommand>  + size_of_v<vk::DrawIndirectCommand> * mesh_indirect_call_count)
-        .setStride(size_of_v<vk::DrawIndirectCommand>)
+    sequences[1].draw_call.setBufferAddress(draw_meta_info_buffer_ssbo.getDeviceAddress() + size_of_v<DrawMetaInfo> * mesh_indirect_call_count)
+        .setStride(size_of_v<DrawMetaInfo>)
         .setCommandCount(1);
     m_sequence_buffer.addWriteSegment({as_bytes(sequences), 0 });
 //-
 
-    m_indirect_call_buffer.commit(cmd);
+    draw_meta_info_buffer_ssbo.addWriteSegment({as_bytes(draw_meta_infos), 0u});
     m_sequence_buffer.commit(cmd);
     m_per_view_uniform_buffer.commit(cmd);
     m_per_renderable_ssbo_group.commitAll(cmd);
