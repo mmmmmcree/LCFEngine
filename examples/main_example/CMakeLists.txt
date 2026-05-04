@@ -14,17 +14,23 @@ target_link_libraries(main_example
         Systems
         profiling 
 )
+file(GLOB_RECURSE MAIN_EXAMPLE_ASSETS CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/../assets/*"
+)
 
-add_custom_command(TARGET main_example POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E echo "Target file directory: $<TARGET_FILE_DIR:main_example>"
-    COMMAND ${CMAKE_COMMAND} -E echo "Source assets directory: ${CMAKE_CURRENT_SOURCE_DIR}/../assets"
-    COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:main_example>/assets
+set(MAIN_EXAMPLE_ASSET_DIR "${CMAKE_BINARY_DIR}/bin/$<CONFIG>/assets")
+
+add_custom_target(main_example_assets
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${MAIN_EXAMPLE_ASSET_DIR}"
     COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_CURRENT_SOURCE_DIR}/../assets
-        $<TARGET_FILE_DIR:main_example>/assets
-    COMMENT "Copying assets to $<TARGET_FILE_DIR:main_example>/assets"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../assets"
+        "${MAIN_EXAMPLE_ASSET_DIR}"
+    DEPENDS ${MAIN_EXAMPLE_ASSETS}
+    COMMENT "Copying assets for main_example"
     VERBATIM
-) 
+)
+
+add_dependencies(main_example main_example_assets)
 
 set_target_properties(main_example PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
