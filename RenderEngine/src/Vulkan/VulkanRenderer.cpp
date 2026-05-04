@@ -111,13 +111,13 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
 
     m_per_view_uniform_buffer.setUsage(GPUBufferUsage::eUniform)
         .setPattern(GPUBufferPattern::eDynamic)
-        .create(m_context_p, size_of_v<Matrix4x4> * 3 + size_of_v<Vector4D<float>>); // projection, view, projection_view, camera_pos
+        .create(m_context_p, size_of_v<Matrix4x4<float>> * 3 + size_of_v<Vector4D<float>>); // projection, view, projection_view, camera_pos
 
     m_per_renderable_ssbo_group.create(m_context_p, GPUBufferPattern::eDynamic);
     m_per_renderable_ssbo_group.emplace(100 * size_of_v<DrawMetaInfo>, GPUBufferUsage::eIndirect); // draw meta infos
     m_per_renderable_ssbo_group.emplace(100 * size_of_v<vk::DeviceAddress>, GPUBufferUsage::eShaderStorage); // vertex records
     m_per_renderable_ssbo_group.emplace(100 * size_of_v<uint32_t>, GPUBufferUsage::eShaderStorage); // visible instances
-    m_per_renderable_ssbo_group.emplace(200 * size_of_v<Matrix4x4>, GPUBufferUsage::eShaderStorage); // transforms
+    m_per_renderable_ssbo_group.emplace(200 * size_of_v<Matrix4x4<float>>, GPUBufferUsage::eShaderStorage); // transforms
     m_per_renderable_ssbo_group.emplace(size_of_v<vk::DeviceAddress> * 2 * 100, GPUBufferUsage::eShaderStorage); // material records
 
 
@@ -440,20 +440,20 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
 
     auto &current_framebuffer = current_frame_resources.fbo;
 
-    Matrix4x4 projection, projection_view;
+    Matrix4x4<float> projection, projection_view;
     projection.perspectiveRH_ZO(60.0f, static_cast<float>(width) / height, 0.1f, 1000.0f);
     auto &camera_transform = camera.getComponent<Transform>();
     const auto & camera_view = camera.getComponent<TransformInvertedWorldMatrix>();
     projection_view = projection * camera_view.getMatrix();
     auto camera_pos = camera_transform.getTranslation();
     m_per_view_uniform_buffer.addWriteSegment({as_bytes_from_value(projection), 0u})
-        .addWriteSegment({as_bytes_from_value(camera_view.getMatrix()), sizeof(Matrix4x4)})
-        .addWriteSegment({as_bytes_from_value(projection_view), 2 * sizeof(Matrix4x4)})
-        .addWriteSegment({as_bytes_from_value(camera_pos), 3 * sizeof(Matrix4x4)});
+        .addWriteSegment({as_bytes_from_value(camera_view.getMatrix()), sizeof(Matrix4x4<float>)})
+        .addWriteSegment({as_bytes_from_value(projection_view), 2 * sizeof(Matrix4x4<float>)})
+        .addWriteSegment({as_bytes_from_value(camera_pos), 3 * sizeof(Matrix4x4<float>)});
     static uint64_t frame_count = 0;
     ++frame_count;
     float angle = 0.1f * frame_count;
-    std::vector<Matrix4x4> model_matrices(120);
+    std::vector<Matrix4x4<float>> model_matrices(120);
     for (uint32_t i = 0; i < model_matrices.size(); i += 2) {
         model_matrices[i].rotateAroundSelf(Quaternion::fromAxisAndAngle({1.0f, 1.0f, 0.0f}, angle));
         model_matrices[i + 1].rotateAroundSelf(Quaternion::fromAxisAndAngle({1.0f, 0.0f, 0.0f}, 90.0f));

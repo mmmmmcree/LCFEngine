@@ -46,7 +46,7 @@ struct enum_mapping_traits<TextureSemantic, aiTextureType>
 
 using AssimpHierarchyNode = std::pair<size_t, const aiNode *>;
 
-static Matrix4x4 to_matrix4x4(const aiMatrix4x4 & ai_mat) noexcept;
+static Matrix4x4<float> to_matrix4x4(const aiMatrix4x4 & ai_mat) noexcept;
 
 static std::expected<Texture2D, std::error_code> to_texture2d(const aiTexture & ai_texture);
 
@@ -287,7 +287,7 @@ Model::HierarchyNode to_hierarchy_node(const AssimpHierarchyNode &ai_hierarchy_n
     return hierarchy_node;
 }
 
-Matrix4x4 to_matrix4x4(const aiMatrix4x4 & ai_mat) noexcept
+Matrix4x4<float> to_matrix4x4(const aiMatrix4x4 & ai_mat) noexcept
 {
     return {
         ai_mat.a1, ai_mat.a2, ai_mat.a3, ai_mat.a4,

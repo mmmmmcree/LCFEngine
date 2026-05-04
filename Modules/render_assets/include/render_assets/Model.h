@@ -21,7 +21,7 @@ namespace lcf {
             HierarchyNode & operator=(HierarchyNode &&) = default;
             size_t m_parent_index = -1u; // -1u means no parent
             std::vector<size_t> m_primitive_indices; // node's controlled primitives
-            Matrix4x4 m_local_matrix;
+            Matrix4x4<float> m_local_matrix;
         };
         using HierarchyNodeList = std::vector<HierarchyNode>;
     public:
