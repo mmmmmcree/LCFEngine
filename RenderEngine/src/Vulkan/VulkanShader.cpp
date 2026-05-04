@@ -27,7 +27,7 @@ VulkanShader & VulkanShader::compileGlslFile(
     compiler.addIncludeDirectory(include_dir.string());
     auto expected_file_content = read_file_as_string(file_path);
     if (not expected_file_content) {
-        lcf_log_info("Error reading file: {}", expected_file_content.error().message());
+        lcf_log_info("Error reading file {}: {}", file_path.string(), expected_file_content.error().message());
         return *this;
     }
     const auto & file_content = expected_file_content.value();
