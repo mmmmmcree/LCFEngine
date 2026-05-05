@@ -72,7 +72,7 @@ layout(buffer_reference, std430) readonly buffer IndexBufferAddress
 
 layout(location = 0) out VS_OUT {
     vec2 uv;
-    uint object_id;
+    flat uint object_id;
     vec3 world_position;
     vec3 world_normal;
     vec3 world_tangent;

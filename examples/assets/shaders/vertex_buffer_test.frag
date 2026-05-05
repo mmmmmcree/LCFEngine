@@ -3,7 +3,7 @@ layout(location = 0) out vec4 frag_color;
 
 layout(location = 0) in VS_OUT {
     vec2 uv;
-    uint object_id;
+    flat uint object_id;
     vec3 world_position;
     vec3 world_normal;
     vec3 world_tangent;
