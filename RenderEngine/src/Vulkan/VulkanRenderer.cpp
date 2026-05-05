@@ -478,9 +478,6 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
     auto & per_renderable_transform_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eTransforms)];
 
     std::vector<ObjectData> object_data_list;
-    auto to_vertex_record = [](const VulkanMesh & mesh) {
-        return ObjectData { mesh.getVertexBufferAddress(), mesh.getIndexBufferAddress() };
-    };
     for (const auto & mesh_pack : m_mesh_packs) {
         const auto & meshes = mesh_pack.meshes;
         for (const auto & mesh : mesh_pack.meshes) {
@@ -515,10 +512,7 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
     std::vector<DrawMetaInfo> draw_meta_infos;
     uint32_t instance_count = 0, object_id = 0;
     for (const auto & mesh_pack : m_mesh_packs) {
-        const auto & meshes = mesh_pack.meshes;
-        for (uint32_t i = 0; i < meshes.size(); ++i) {
-            
-            const auto & mesh = meshes[i];
+        for (const auto & mesh : mesh_pack.meshes) {
             auto & draw_meta_info = draw_meta_infos.emplace_back();
             draw_meta_info.setFirstVertex(0)
                 .setVertexCount(mesh.getIndexCount())
