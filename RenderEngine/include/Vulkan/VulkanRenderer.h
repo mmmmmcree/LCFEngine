@@ -56,8 +56,14 @@ namespace ecf {
         
         VulkanBufferObjectGroup m_per_renderable_ssbo_group;
         
-        VulkanMesh m_mesh;
-        std::vector<VulkanMesh> m_meshes;
+        struct MeshPack
+        {
+            std::vector<VulkanMesh> meshes;
+            uint32_t instance_count = 2;
+        };
+        // VulkanMesh m_mesh;
+        // std::vector<VulkanMesh> m_meshes;
+        std::vector<MeshPack> m_mesh_packs;
         std::vector<VulkanBufferObject> m_material_params_list;
         std::vector<VulkanBufferObject> m_material_texture_ids_list;
 

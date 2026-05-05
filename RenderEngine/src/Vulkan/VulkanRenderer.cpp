@@ -3,6 +3,7 @@
 #include "Vulkan/vulkan_utililtie.h"
 #include "Vulkan/vulkan_constants.h"
 #include "Matrix.h"
+#include "Frustum.h"
 #include "Quaternion.h"
 #include "ecs/Entity.h"
 #include "Transform.h"
@@ -16,6 +17,7 @@
 #include "ResourceSystem.h"
 #include "ecs/Registry.h"
 
+using namespace lcf;
 namespace stdr = std::ranges;
 namespace stdv = std::views;
 
@@ -25,13 +27,31 @@ lcf::VulkanRenderer::~VulkanRenderer()
     device.waitIdle();
 }
 
-struct VertexRecord
+struct CameraData
 {
-    VertexRecord() = default;
-    VertexRecord(vk::DeviceAddress vb_address, vk::DeviceAddress ib_address) :
-        m_vb_address(vb_address), m_ib_address(ib_address) {}
+    Matrix4x4<float> m_projection;
+    Matrix4x4<float> m_view;
+    Matrix4x4<float> m_projection_view;
+    Vector4D<float> m_position;
+    Frustum<float> m_frustum;
+};
+
+struct ObjectData
+{
+    // ObjectData() = default;
+    // ObjectData(vk::DeviceAddress vb_address, vk::DeviceAddress ib_address) :
+    //     m_vb_address(vb_address), m_ib_address(ib_address) {}
     vk::DeviceAddress m_vb_address = 0;
     vk::DeviceAddress m_ib_address = 0;
+    vk::DeviceAddress m_material_params_address = 0;
+    vk::DeviceAddress m_material_texture_ids_address = 0;
+};
+
+struct InstanceData
+{
+    Matrix4x4<float> m_transform {};
+    Vector3D<float> m_world_position_offset {};
+    float m_world_scale = 1.0f;
 };
 
 struct DrawMetaInfo
@@ -111,14 +131,13 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
 
     m_per_view_uniform_buffer.setUsage(GPUBufferUsage::eUniform)
         .setPattern(GPUBufferPattern::eDynamic)
-        .create(m_context_p, size_of_v<Matrix4x4<float>> * 3 + size_of_v<Vector4D<float>>); // projection, view, projection_view, camera_pos
+        .create(m_context_p, size_of_v<CameraData>);
 
     m_per_renderable_ssbo_group.create(m_context_p, GPUBufferPattern::eDynamic);
     m_per_renderable_ssbo_group.emplace(100 * size_of_v<DrawMetaInfo>, GPUBufferUsage::eIndirect); // draw meta infos
-    m_per_renderable_ssbo_group.emplace(100 * size_of_v<vk::DeviceAddress>, GPUBufferUsage::eShaderStorage); // vertex records
+    m_per_renderable_ssbo_group.emplace(100 * size_of_v<ObjectData>, GPUBufferUsage::eShaderStorage); // vertex records
     m_per_renderable_ssbo_group.emplace(100 * size_of_v<uint32_t>, GPUBufferUsage::eShaderStorage); // visible instances
-    m_per_renderable_ssbo_group.emplace(200 * size_of_v<Matrix4x4<float>>, GPUBufferUsage::eShaderStorage); // transforms
-    m_per_renderable_ssbo_group.emplace(size_of_v<vk::DeviceAddress> * 2 * 100, GPUBufferUsage::eShaderStorage); // material records
+    m_per_renderable_ssbo_group.emplace(200 * size_of_v<InstanceData>, GPUBufferUsage::eShaderStorage); // instance data
 
 
     VulkanDescriptorSetLayout per_view_descriptor_set_layout;
@@ -139,8 +158,8 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     
     auto & bindless_buffer_ds = descriptor_set_manager.getBindlessBufferSet();
     bindless_buffer_ds.addDescriptorInfo(
-        std::to_underlying(vkenums::BindlessBufferBinding::eVertexRecords),
-        m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eVertexRecords)].generateBufferInfo()
+        std::to_underlying(vkenums::BindlessBufferBinding::eObjectData),
+        m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eObjectData)].generateBufferInfo()
     ).addDescriptorInfo(
         std::to_underlying(vkenums::BindlessBufferBinding::eDrawMetaInfos),
         m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eDrawMetaInfos)].generateBufferInfo()
@@ -150,9 +169,6 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     ).addDescriptorInfo(
         std::to_underlying(vkenums::BindlessBufferBinding::eVisibleInstances),
         m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eVisibleInstances)].generateBufferInfo()
-    ).addDescriptorInfo(
-        std::to_underlying(vkenums::BindlessBufferBinding::eMaterialRecords),
-        m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eMaterialRecords)].generateBufferInfo()
     ).commitUpdate(device);
 
     auto image1_sp = Texture2D::makeShared();
@@ -164,8 +180,9 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     VulkanBindlessTextureIdTable bindless_texture_id_table;
     std::vector<std::pair<uint32_t, TypedResourceEntity<VulkanImageObject>>> texture_re_list;
     auto upload_model_to_gpu = [this, &texture_id_map, &bindless_texture_id_table, &resource_system, &texture_re_list] (VulkanCommandBufferObject & cmd, Model & model) {
+        auto & mesh_pack = m_mesh_packs.emplace_back();
         for (const auto & geometry: model.getRenderPrimitives() | view_geometries) {
-            auto & mesh = m_meshes.emplace_back();
+            auto & mesh = mesh_pack.meshes.emplace_back();
             mesh.create(m_context_p, cmd,
                 generate_interleaved_segments<glsl::std140::enum_value_type_mapping_t>(
                     geometry,
@@ -205,7 +222,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         }
     };
 
-    auto load_mode_result = ModelLoader {}.load("./assets/models/ToyCar/glTF/ToyCar.gltf");
+    auto load_mode_result = ModelLoader {}.load("./assets/models/FlightHelmet/glTF/FlightHelmet.gltf");
     vkutils::immediate_submit(m_context_p, vk::QueueFlagBits::eTransfer, [&model = load_mode_result.value(), &upload_model_to_gpu] (VulkanCommandBufferObject & cmd) {
         upload_model_to_gpu(cmd, model);
     });
@@ -440,73 +457,98 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
 
     auto &current_framebuffer = current_frame_resources.fbo;
 
+    static Frustum<float> s_frustum;
     Matrix4x4<float> projection, projection_view;
     projection.perspectiveRH_ZO(60.0f, static_cast<float>(width) / height, 0.1f, 1000.0f);
     auto &camera_transform = camera.getComponent<Transform>();
     const auto & camera_view = camera.getComponent<TransformInvertedWorldMatrix>();
     projection_view = projection * camera_view.getMatrix();
+    s_frustum.update(projection_view);
     auto camera_pos = camera_transform.getTranslation();
-    m_per_view_uniform_buffer.addWriteSegment({as_bytes_from_value(projection), 0u})
-        .addWriteSegment({as_bytes_from_value(camera_view.getMatrix()), sizeof(Matrix4x4<float>)})
-        .addWriteSegment({as_bytes_from_value(projection_view), 2 * sizeof(Matrix4x4<float>)})
-        .addWriteSegment({as_bytes_from_value(camera_pos), 3 * sizeof(Matrix4x4<float>)});
-    static uint64_t frame_count = 0;
-    ++frame_count;
-    float angle = 0.1f * frame_count;
-    std::vector<Matrix4x4<float>> model_matrices(120);
-    for (uint32_t i = 0; i < model_matrices.size(); i += 2) {
-        model_matrices[i].rotateAroundSelf(Quaternion::fromAxisAndAngle({1.0f, 1.0f, 0.0f}, angle));
-        model_matrices[i + 1].rotateAroundSelf(Quaternion::fromAxisAndAngle({1.0f, 0.0f, 0.0f}, 90.0f));
-        model_matrices[i + 1].translateLocalX(10.0f);
-    }
+    m_per_view_uniform_buffer.addWriteSegment({as_bytes_from_value(projection), offsetof(CameraData, m_projection)})
+        .addWriteSegment({as_bytes_from_value(camera_view.getMatrix()), offsetof(CameraData, m_view)})
+        .addWriteSegment({as_bytes_from_value(projection_view), offsetof(CameraData, m_projection_view)})
+        .addWriteSegment({as_bytes_from_value(camera_pos), offsetof(CameraData, m_position)})
+        .addWriteSegment({as_bytes_from_value(s_frustum), offsetof(CameraData, m_frustum)});
 
-    auto & per_renderable_vertex_records_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eVertexRecords)];
+
+    auto & per_renderable_vertex_records_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eObjectData)];
     auto & draw_meta_info_buffer_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eDrawMetaInfos)];
     auto & visible_instances_buffer_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eVisibleInstances)];
     auto & per_renderable_transform_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eTransforms)];
-    auto & per_renderable_material_records = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eMaterialRecords)];
 
+    std::vector<ObjectData> object_data_list;
     auto to_vertex_record = [](const VulkanMesh & mesh) {
-        return VertexRecord { mesh.getVertexBufferAddress(), mesh.getIndexBufferAddress() };
+        return ObjectData { mesh.getVertexBufferAddress(), mesh.getIndexBufferAddress() };
     };
-    for (uint32_t i = 0; i < m_meshes.size(); ++i) {
-        const auto & vertex_buffer_address = m_meshes[i].getVertexBufferAddress();
-        const auto & index_buffer_address = m_meshes[i].getIndexBufferAddress();
-        size_t record_offset = i * size_of_v<VertexRecord>;
-        per_renderable_vertex_records_ssbo.addWriteSegment({as_bytes_from_value(vertex_buffer_address), record_offset});
-        per_renderable_vertex_records_ssbo.addWriteSegment({as_bytes_from_value(index_buffer_address), record_offset + size_of_v<vk::DeviceAddress>});
-        // size_t draw_info_offset
-    }
-    per_renderable_transform_ssbo.addWriteSegment({as_bytes(model_matrices), 0u});
+    for (const auto & mesh_pack : m_mesh_packs) {
+        const auto & meshes = mesh_pack.meshes;
+        for (const auto & mesh : mesh_pack.meshes) {
+            uint32_t object_id = static_cast<uint32_t>(object_data_list.size());
+            auto & object_data = object_data_list.emplace_back();
+            object_data.m_vb_address = mesh.getVertexBufferAddress();
+            object_data.m_ib_address = mesh.getIndexBufferAddress();
 
-    std::vector<DrawMetaInfo> draw_meta_infos(m_meshes.size());
-    uint32_t instance_count = 0;
-    for (int i = 0; i < draw_meta_infos.size(); ++i) {
-        /**
-         * @brief 
-         * indiret call index: draw index, use as geometry index to locate vertex buffer and index buffer
-         * firstInstance: instance index, use as offset to locate model matrix, one for each instance
-         */
-        const auto & mesh = m_meshes[i];
-        auto & draw_meta_info = draw_meta_infos[i];
-        draw_meta_info.setFirstVertex(0)
-            .setVertexCount(mesh.getIndexCount())
-            .setFirstInstance(instance_count)
-            .setInstanceCount(2)
-            .setObjectId(i);
-        instance_count += draw_meta_info.getInstanceCount();
+            const auto & material_params_buffer = m_material_params_list[object_id];
+            const auto & texture_ids_buffer = m_material_texture_ids_list[object_id];
+            object_data.m_material_params_address = material_params_buffer.getDeviceAddress();
+            object_data.m_material_texture_ids_address = texture_ids_buffer.getDeviceAddress();
+        }
     }
-    auto visible_instances = stdv::iota(uint32_t(0), instance_count) | stdr::to<std::vector>();
+
+    static uint64_t frame_count = 0;
+    ++frame_count;
+    float angle = 0.1f * frame_count;
+    // std::vector<Matrix4x4<float>> model_matrices(120);
+    // std::vector<Vector3<float>> positions(120);
+    std::vector<InstanceData> instance_data_list(120);
+    for (uint32_t i = 0; i < instance_data_list.size(); i += 2) {
+        instance_data_list[i].m_transform.rotateAroundSelf(Quaternion::fromAxisAndAngle({1.0f, 1.0f, 0.0f}, angle));
+    //     model_matrices[i + 1].rotateAroundSelf(Quaternion::fromAxisAndAngle({1.0f, 0.0f, 0.0f}, 90.0f));
+    //     model_matrices[i + 1].translateLocalX(10.0f);
+    }
+    
+    for (uint32_t i = 0; i < instance_data_list.size(); ++i) {
+        instance_data_list[i].m_world_position_offset =  Vector3D<float>(5.0f * i, 0.0f, 0.0f);
+    }
+    
+    std::vector<DrawMetaInfo> draw_meta_infos;
+    uint32_t instance_count = 0, object_id = 0;
+    for (const auto & mesh_pack : m_mesh_packs) {
+        const auto & meshes = mesh_pack.meshes;
+        for (uint32_t i = 0; i < meshes.size(); ++i) {
+            
+            const auto & mesh = meshes[i];
+            auto & draw_meta_info = draw_meta_infos.emplace_back();
+            draw_meta_info.setFirstVertex(0)
+                .setVertexCount(mesh.getIndexCount())
+                .setFirstInstance(instance_count)
+                .setInstanceCount(mesh_pack.instance_count)
+                .setObjectId(object_id++);
+            instance_count += mesh_pack.instance_count;
+        }
+    }
+
+    std::vector<uint32_t> visible_instances(instance_count);
+
+    uint32_t instance_offset = 0, instance_id = 0;
+    for (const auto & mesh_pack : m_mesh_packs) {
+        uint32_t instance_count = mesh_pack.instance_count;
+        uint32_t mesh_count = static_cast<uint32_t>(mesh_pack.meshes.size());
+        for (uint32_t i = 0; i < instance_count; ++i) {
+            for (uint32_t j = 0; j < mesh_count; ++j) {
+                visible_instances[instance_offset + instance_count * j + i] = instance_id;
+            }
+            ++instance_id;
+        }
+        instance_offset += instance_count * mesh_count;
+    }
+
+    per_renderable_vertex_records_ssbo.addWriteSegment({as_bytes(object_data_list), 0u});
+    per_renderable_transform_ssbo.addWriteSegment({as_bytes(instance_data_list), 0u});
     visible_instances_buffer_ssbo.addWriteSegment({as_bytes_from_value(instance_count), 0u})
         .addWriteSegment({as_bytes(visible_instances), size_of_v<uint32_t>});
-    for (int i = 0; i < draw_meta_infos.size(); ++i) {
-        const auto & material_params_buffer = m_material_params_list[i];
-        const auto & texture_ids_buffer = m_material_texture_ids_list[i];
-        size_t params_offset = 2 * i * size_of_v<vk::DeviceAddress>;
-        size_t texture_ids_offset = params_offset + size_of_v<vk::DeviceAddress>;
-        per_renderable_material_records.addWriteSegment({as_bytes_from_value(material_params_buffer.getDeviceAddress()), params_offset})
-            .addWriteSegment({as_bytes_from_value(texture_ids_buffer.getDeviceAddress()), texture_ids_offset});
-    }
+
     uint32_t mesh_indirect_call_count = static_cast<uint32_t>(draw_meta_infos.size());
 
     DrawMetaInfo skybox_draw_call;

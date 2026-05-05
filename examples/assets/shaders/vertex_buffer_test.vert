@@ -1,10 +1,56 @@
 #version 460
+
 #extension GL_EXT_shader_16bit_storage : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_buffer_reference : require
 #extension GL_EXT_debug_printf : require
 #extension GL_EXT_spirv_intrinsics : require
 
 #include "camera_uniform.glsl"
+
+
+struct DrawMetaInfo
+{
+// vk::DrawIndirectCommand
+    uint vertex_count;
+    uint instance_count;
+    uint first_vertex;
+    uint first_instance;
+// custom
+    uint object_id;
+};
+
+struct ObjectInfo
+{
+    uint64_t vertex_buffer;
+    uint64_t index_buffer;
+    uint64_t material_params;
+    uint64_t material_texture_ids;
+};
+
+struct InstanceInfo
+{
+    mat4 transform;
+    vec3 world_position_offset;
+    float world_scale;
+};
+
+layout(std430, set = 1, binding = 0) readonly buffer DrawMetaInfoBuffer {
+    DrawMetaInfo draw_meta_infos[];
+};
+
+layout(std430, set = 1, binding = 1) readonly buffer ObjectInfos {
+    ObjectInfo object_infos[];
+};
+
+layout(std430, set = 1, binding = 2) readonly buffer VisibleInstanceBuffer {
+    uint instance_count;
+    uint visible_instance_ids[];
+};
+
+layout(std430, set = 1, binding = 3) readonly buffer InstanceInfos {
+    InstanceInfo instance_infos[];
+};
 
 struct Vertex
 {
@@ -24,43 +70,9 @@ layout(buffer_reference, std430) readonly buffer IndexBufferAddress
 	uint indices[];
 };
 
-struct VertexRecord
-{
-    VertexBufferAddress vertex_buffer;
-    IndexBufferAddress index_buffer;
-};
-
-struct DrawMetaInfo
-{
-// vk::DrawIndirectCommand
-    uint vertex_count;
-    uint instance_count;
-    uint first_vertex;
-    uint first_instance;
-// custom
-    uint object_id;
-};
-
-layout(std430, set = 1, binding = 0) readonly buffer DrawMetaInfoBuffer {
-    DrawMetaInfo draw_meta_infos[];
-};
-
-layout(std430, set = 1, binding = 1) readonly buffer VertexRecords {
-    VertexRecord vertex_records[];
-};
-
-layout(std430, set = 1, binding = 2) readonly buffer VisibleInstanceBuffer {
-    uint instance_count;
-    uint visible_instance_ids[];
-};
-
-layout(std430, set = 1, binding = 3) readonly buffer TransformBuffer {
-    mat4 transforms[];
-};
-
 layout(location = 0) out VS_OUT {
     vec2 uv;
-    flat uint material_id;
+    uint object_id;
     vec3 world_position;
     vec3 world_normal;
     vec3 world_tangent;
@@ -72,21 +84,23 @@ void main()
 {
     DrawMetaInfo draw_meta_info = draw_meta_infos[gl_DrawID];
     uint object_id = draw_meta_info.object_id;
-    uint instance_id = visible_instance_ids[gl_BaseInstance + gl_InstanceIndex];
+    uint instance_id = visible_instance_ids[gl_InstanceIndex];
+    // uint instance_id = gl_BaseInstance + gl_InstanceIndex;
 
-    VertexRecord vertex_record = vertex_records[object_id];
-    Vertex vertex = vertex_record.vertex_buffer.vertices[vertex_record.index_buffer.indices[gl_VertexIndex]];
+    ObjectInfo object_info = object_infos[object_id];
+    Vertex vertex = VertexBufferAddress(object_info.vertex_buffer).vertices[IndexBufferAddress(object_info.index_buffer).indices[gl_VertexIndex]];
 
-    mat4 model = transforms[instance_id];
+    InstanceInfo instance_info = instance_infos[instance_id];
+    mat4 model = instance_info.transform;
     mat3 model_3x3 = mat3(model);
     mat3 normal_matrix = transpose(inverse(model_3x3));
 
-    vec4 world_pos = model * vec4(vertex.position, 1.0);
+    vec4 world_pos = (model * vec4(vertex.position, 1.0)) * instance_info.world_scale + vec4(instance_info.world_position_offset, 0.0);
 
     gl_Position = projection_view * world_pos;
 
     vs_out.uv = vertex.uv;
-    vs_out.material_id = object_id;
+    vs_out.object_id = object_id;
     vs_out.world_position = world_pos.xyz;
 
     // Transform normal and tangent to world space

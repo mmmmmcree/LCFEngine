@@ -3,7 +3,7 @@ layout(location = 0) out vec4 frag_color;
 
 layout(location = 0) in VS_OUT {
     vec2 uv;
-    flat uint material_id;
+    uint object_id;
     vec3 world_position;
     vec3 world_normal;
     vec3 world_tangent;
@@ -14,6 +14,15 @@ layout(location = 0) in VS_OUT {
 #extension GL_EXT_nonuniform_qualifier : require
 #extension GL_EXT_debug_printf : require
 #extension GL_EXT_buffer_reference : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+
+struct ObjectInfo
+{
+    uint64_t vertex_buffer;
+    uint64_t index_buffer;
+    uint64_t material_params;
+    uint64_t material_texture_ids;
+};
 
 struct MaterialParams {
     vec4 base_color;
@@ -41,8 +50,8 @@ struct MaterialRecord {
     MaterialTextureIdsAddress material_texture_ids;
 };
 
-layout(std430, set = 1, binding = 4) readonly buffer MaterialRecords {
-    MaterialRecord material_records[];
+layout(std430, set = 1, binding = 1) readonly buffer ObjectInfos {
+    ObjectInfo object_infos[];
 };
 
 #pragma lcf descriptor_set_strategy(set = 2, strategy = bindless)
@@ -62,10 +71,9 @@ const float ambient_intensity = 0.35;
 
 void main()
 {
-    uint material_id = fs_in.material_id;
-    MaterialRecord material_record = material_records[material_id];
-    const MaterialParams material_params = material_record.material_params.value;
-    const MaterialTextureIds material_texture_ids = material_record.material_texture_ids.value;
+    ObjectInfo object_info = object_infos[fs_in.object_id];
+    const MaterialParams material_params = MaterialParamsAddress(object_info.material_params).value;
+    const MaterialTextureIds material_texture_ids = MaterialTextureIdsAddress(object_info.material_texture_ids).value;
 
     // Sample base color
     vec4 base_color = texture(sampler2D(textures[nonuniformEXT(material_texture_ids.base_color_texture_id)], samplers[0]), fs_in.uv);

@@ -18,7 +18,7 @@ namespace lcf::render::vkconstants {
     static constexpr vk::DescriptorSetLayoutBinding per_renderable_bindings[]
     {
         {
-            vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eVertexRecords),
+            vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eObjectData),
             vk::DescriptorType::eStorageBuffer,
             1u,
             vk::ShaderStageFlagBits::eVertex
@@ -34,13 +34,7 @@ namespace lcf::render::vkconstants {
             vk::DescriptorType::eStorageBuffer,
             1u,
             vk::ShaderStageFlagBits::eVertex
-        },
-        {
-            vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eMaterialRecords),
-            vk::DescriptorType::eStorageBuffer,
-            1u,
-            vk::ShaderStageFlagBits::eFragment
-        },
+        }
     };
 
 
@@ -72,10 +66,10 @@ namespace ds {
             vk::ShaderStageFlagBits::eVertex
         },
         {
-            vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eVertexRecords),
+            vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eObjectData),
             vk::DescriptorType::eStorageBuffer,
             1u,
-            vk::ShaderStageFlagBits::eVertex
+            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment
         },
         {
             vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eVisibleInstances),
@@ -88,13 +82,7 @@ namespace ds {
             vk::DescriptorType::eStorageBuffer,
             1u,
             vk::ShaderStageFlagBits::eVertex
-        },
-        {
-            vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eMaterialRecords),
-            vk::DescriptorType::eStorageBuffer,
-            1u,
-            vk::ShaderStageFlagBits::eFragment
-        },
+        }
     };
 
     static constexpr VulkanDescriptorSetBinding k_bindless_texture_bindings[]

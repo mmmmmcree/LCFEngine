@@ -181,6 +181,22 @@ void ModelLoader::Impl::loadTextures() noexcept
 
 void ModelLoader::Impl::processGeometries(Model &model) noexcept
 {
+    std::queue<aiNode *> node_queue;
+    node_queue.emplace(m_ai_scene_p->mRootNode);
+    while (not node_queue.empty()) {
+        auto ai_node_p = node_queue.front();
+        for (auto ai_mesh_index : std::span(ai_node_p->mMeshes, ai_node_p->mNumMeshes)) {
+            auto & ai_mesh = *m_ai_scene_p->mMeshes[ai_mesh_index];
+            const auto & transform = ai_node_p->mTransformation;
+            for (auto & position : std::span(ai_mesh.mVertices, ai_mesh.mNumVertices)) {
+                position = transform * position;
+            }
+        }
+        for (auto child_node_p : std::span(ai_node_p->mChildren, ai_node_p->mNumChildren)) {
+            node_queue.emplace(child_node_p);
+        }
+        node_queue.pop();
+    }
     for (size_t i = 0; i < m_ai_scene_p->mNumMeshes; ++i) {
         process_mesh(*m_geometry_resource_list[i], *m_ai_scene_p->mMeshes[i]);
     }
