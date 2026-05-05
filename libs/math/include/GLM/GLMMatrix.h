@@ -160,5 +160,5 @@ inline void lcf::GLMMatrix4x4<T, qualifier>::setRow(int index, const Vec4 & row)
 template <lcf::number_c T, glm::qualifier qualifier>
 inline lcf::GLMMatrix4x4<T, qualifier>::Vec4 lcf::GLMMatrix4x4<T, qualifier>::getRow(int index) const noexcept
 {
-    return Vec4(*this[0][index], *this[1][index], *this[2][index], *this[3][index]);
+    return Vec4(this->operator[](0)[index], this->operator[](1)[index], this->operator[](2)[index], this->operator[](3)[index]);
 }

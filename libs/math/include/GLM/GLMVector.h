@@ -51,14 +51,6 @@ namespace lcf {
         using Vec4 = GLMVector4D<T, qualifier>;
     public:
         using Base = glm::vec<3, T, qualifier>;
-        static Self crossProduct(const GLMVector3D &lhs, const GLMVector3D &rhs)
-        {
-            return glm::cross(lhs, rhs);
-        }
-        static float dotProduct(const GLMVector3D &lhs, const GLMVector3D &rhs)
-        {
-            return glm::dot(lhs, rhs);
-        }
     public:
         using value_type = T;
         constexpr GLMVector3D() noexcept : Base(static_cast<T>(0), static_cast<T>(0), static_cast<T>(0)) {}
@@ -143,6 +135,18 @@ namespace lcf {
         GLMVector4D normalized() const noexcept { return glm::normalize(*this); }
         bool isNull() const noexcept { return glm::dot(*this, *this) <= glm::epsilon<T>(); }
     };
+
+    template <number_c T, glm::qualifier qualifier>
+    inline static auto dot(const GLMVector2D<T, qualifier> &lhs, const GLMVector2D<T, qualifier> &rhs) noexcept
+    { return glm::dot(lhs, rhs); }
+
+    template <number_c T, glm::qualifier qualifier>
+    inline static auto dot(const GLMVector3D<T, qualifier> &lhs, const GLMVector3D<T, qualifier> &rhs) noexcept
+    { return glm::dot(lhs, rhs); }
+
+    template <number_c T, glm::qualifier qualifier>
+    inline static auto dot(const GLMVector4D<T, qualifier> &lhs, const GLMVector4D<T, qualifier> &rhs) noexcept
+    { return glm::dot(lhs, rhs); }
 
     template<size_t I, number_c T, glm::qualifier qualifier>
     constexpr decltype(auto) get(GLMVector2D<T, qualifier> & vec) noexcept
