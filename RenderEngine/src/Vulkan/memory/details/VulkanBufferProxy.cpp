@@ -11,36 +11,35 @@ VulkanBufferProxy::~VulkanBufferProxy() = default;
 bool VulkanBufferProxy::create(VulkanContext *context_p, uint64_t size_in_bytes)
 {
     m_context_p = context_p;
-    vk::BufferUsageFlags usage_flags {};
-    vk::BufferUsageFlags2 usage_flags2 {};
+    vk::BufferUsageFlags2 usage_flags {};
     vk::MemoryPropertyFlags memory_flags;
     switch (this->getUsage()) {
         case GPUBufferUsage::eVertex : {
-            usage_flags = vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst;
+            usage_flags = vk::BufferUsageFlagBits2::eVertexBuffer | vk::BufferUsageFlagBits2::eTransferDst;
         } break;
         case GPUBufferUsage::eIndex : {
-            usage_flags = vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst;
+            usage_flags = vk::BufferUsageFlagBits2::eIndexBuffer | vk::BufferUsageFlagBits2::eTransferDst;
         } break;
         case GPUBufferUsage::eUniform : {
-            usage_flags = vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eTransferDst;
+            usage_flags = vk::BufferUsageFlagBits2::eUniformBuffer | vk::BufferUsageFlagBits2::eTransferDst;
         } break;
         case GPUBufferUsage::eShaderStorage : {
-            usage_flags = vk::BufferUsageFlagBits::eStorageBuffer |
-                vk::BufferUsageFlagBits::eTransferDst |
-                vk::BufferUsageFlagBits::eShaderDeviceAddress;
+            usage_flags = vk::BufferUsageFlagBits2::eStorageBuffer |
+                vk::BufferUsageFlagBits2::eTransferDst |
+                vk::BufferUsageFlagBits2::eShaderDeviceAddress;
         } break;
         case GPUBufferUsage::eIndirect : {
-            usage_flags = vk::BufferUsageFlagBits::eStorageBuffer |
-                vk::BufferUsageFlagBits::eTransferSrc |
-                vk::BufferUsageFlagBits::eTransferDst |
-                vk::BufferUsageFlagBits::eShaderDeviceAddress |
-                vk::BufferUsageFlagBits::eIndirectBuffer;
+            usage_flags = vk::BufferUsageFlagBits2::eStorageBuffer |
+                vk::BufferUsageFlagBits2::eTransferSrc |
+                vk::BufferUsageFlagBits2::eTransferDst |
+                vk::BufferUsageFlagBits2::eShaderDeviceAddress |
+                vk::BufferUsageFlagBits2::eIndirectBuffer;
         } break;
         case GPUBufferUsage::eStaging : {
-            usage_flags = vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eTransferDst;
+            usage_flags = vk::BufferUsageFlagBits2::eTransferSrc | vk::BufferUsageFlagBits2::eTransferDst;
         } break;
         case GPUBufferUsage::ePreprocess : {
-            usage_flags2 = vk::BufferUsageFlagBits2::ePreprocessBufferEXT |
+            usage_flags = vk::BufferUsageFlagBits2::ePreprocessBufferEXT |
                 vk::BufferUsageFlagBits2::eIndirectBuffer |
                 vk::BufferUsageFlagBits2::eShaderDeviceAddress;
         } break;
@@ -55,20 +54,18 @@ bool VulkanBufferProxy::create(VulkanContext *context_p, uint64_t size_in_bytes)
         } break;
     }
     size_in_bytes = boost::alignment::align_up(size_in_bytes, 4u);
-    vk::BufferCreateInfo buffer_info {{}, size_in_bytes, usage_flags, vk::SharingMode::eExclusive};
     vk::BufferUsageFlags2CreateInfo usage_flags_2_info;
-    if (usage_flags2) {
-        usage_flags_2_info.setUsage(usage_flags2);
-        buffer_info.setPNext(&usage_flags_2_info);
-    }
+    usage_flags_2_info.setUsage(usage_flags);
+    vk::BufferCreateInfo buffer_info {};
+    buffer_info.setSize(size_in_bytes)
+        .setSharingMode(vk::SharingMode::eExclusive)
+        .setPNext(&usage_flags_2_info);
     MemoryAllocationCreateInfo memory_info {memory_flags};
     auto device = m_context_p->getDevice();
     auto & memory_allocator = m_context_p->getMemoryAllocator();
     m_buffer_rp = memory_allocator.createBuffer(buffer_info, memory_info);
     if (not m_buffer_rp) { return false; }
-    bool needs_device_address = (usage_flags & vk::BufferUsageFlagBits::eShaderDeviceAddress) or
-        (usage_flags2 & vk::BufferUsageFlagBits2::eShaderDeviceAddress);
-    if (needs_device_address) {
+    if (usage_flags & vk::BufferUsageFlagBits2::eShaderDeviceAddress) {
         m_device_address = device.getBufferAddress(m_buffer_rp->getHandle());
     }
     return true;
