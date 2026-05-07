@@ -523,19 +523,18 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
         }
     }
 
-    std::vector<uint32_t> visible_instances(instance_count);
+    auto visible_instances = stdv::iota(uint32_t(0), instance_count) | stdr::to<std::vector>();
 
-    uint32_t instance_offset = 0, instance_id = 0;
+    uint32_t instance_baseline_offset = 0;
     for (const auto & mesh_pack : m_mesh_packs) {
-        uint32_t instance_count = mesh_pack.instance_count;
+        uint32_t mesh_instance_count = mesh_pack.instance_count;
         uint32_t mesh_count = static_cast<uint32_t>(mesh_pack.meshes.size());
-        for (uint32_t i = 0; i < instance_count; ++i) {
-            for (uint32_t j = 0; j < mesh_count; ++j) {
-                visible_instances[instance_offset + instance_count * j + i] = instance_id;
+        for (uint32_t i = 0; i < mesh_count; ++i) {
+            for (uint32_t j = 0; j < mesh_instance_count; ++j) {
+                instance_data_list[instance_baseline_offset + i * mesh_instance_count + j] = instance_data_list[instance_baseline_offset + j];
             }
-            ++instance_id;
         }
-        instance_offset += instance_count * mesh_count;
+        instance_baseline_offset += mesh_instance_count * instance_count;
     }
 
     per_renderable_vertex_records_ssbo.addWriteSegment({as_bytes(object_data_list), 0u});
