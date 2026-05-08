@@ -527,7 +527,6 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
     }
 
     // auto visible_instances = stdv::iota(uint32_t(0), instance_count) | stdr::to<std::vector>();
-    std::vector<uint32_t> visible_instances(instance_count);
 
     uint32_t instance_baseline_offset = 0;
     for (const auto & mesh_pack : m_mesh_packs) {
@@ -543,8 +542,8 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
 
     per_renderable_vertex_records_ssbo.addWriteSegment({as_bytes(object_data_list), 0u});
     per_renderable_transform_ssbo.addWriteSegment({as_bytes(instance_data_list), 0u});
-    visible_instances_buffer_ssbo.addWriteSegment({as_bytes_from_value(instance_count), 0u})
-        .addWriteSegment({as_bytes(visible_instances), size_of_v<uint32_t>});
+    // visible_instances_buffer_ssbo.addWriteSegment({as_bytes_from_value(instance_count), 0u})
+    //     .addWriteSegment({as_bytes(visible_instances), size_of_v<uint32_t>});
 
     uint32_t mesh_indirect_call_count = static_cast<uint32_t>(draw_meta_infos.size());
 
