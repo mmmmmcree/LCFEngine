@@ -53,7 +53,7 @@ namespace ds {
             // vk::DescriptorType::eUniformBufferDynamic,
             vk::DescriptorType::eUniformBuffer,
             1u,
-            vk::ShaderStageFlagBits::eVertex
+            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eCompute
         },
     };
 
@@ -63,25 +63,25 @@ namespace ds {
             vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eDrawMetaInfos),
             vk::DescriptorType::eStorageBuffer,
             1u,
-            vk::ShaderStageFlagBits::eVertex
+            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eCompute
         },
         {
             vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eObjectData),
             vk::DescriptorType::eStorageBuffer,
             1u,
-            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment
+            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eCompute
         },
         {
             vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eVisibleInstances),
             vk::DescriptorType::eStorageBuffer,
             1u,
-            vk::ShaderStageFlagBits::eVertex
+            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eCompute
         },
         {
             vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eTransforms),
             vk::DescriptorType::eStorageBuffer,
             1u,
-            vk::ShaderStageFlagBits::eVertex
+            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eCompute
         }
     };
 

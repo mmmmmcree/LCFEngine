@@ -94,9 +94,15 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
 
     auto [max_width, max_height] = max_extent;
 
+    m_per_view_descriptor_set_layout.setBindings(vkconstants::ds::k_per_view_bindings)
+        .setIndex(std::to_underlying(DescriptorSetBindingPoints::ePerView))
+        .create(device, vkenums::DescriptorSetStrategy::eIndividual);
+
     auto compute_shader_program = std::make_shared<VulkanShaderProgram>();
-    compute_shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::eCompute, "assets/shaders/gradient.comp");
-    compute_shader_program->link(m_context_p->getDevice());
+    compute_shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::eCompute, "assets/shaders/cull.comp")
+        .specifyDescriptorSetLayout(m_per_view_descriptor_set_layout)
+        .specifyDescriptorSetLayout(descriptor_set_manager.getBindlessBufferSet().getLayout())
+        .link(m_context_p->getDevice());
 
     ComputePipelineCreateInfo compute_pipeline_info(compute_shader_program);
     m_compute_pipeline.create(m_context_p, compute_pipeline_info);
@@ -104,6 +110,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     auto shader_program = std::make_shared<VulkanShaderProgram>();
     shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::eVertex, "assets/shaders/vertex_buffer_test.vert")
         .addShaderFromGlslFile(ShaderTypeFlagBits::eFragment, "assets/shaders/vertex_buffer_test.frag")
+        .specifyDescriptorSetLayout(m_per_view_descriptor_set_layout)
         .specifyDescriptorSetLayout(descriptor_set_manager.getBindlessBufferSet().getLayout())
         .specifyDescriptorSetLayout(descriptor_set_manager.getBindlessTextureSet().getLayout())
         .link(m_context_p->getDevice());
@@ -117,7 +124,8 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
 
     for (auto &resources : m_frame_resources) {
         resources.command_buffer.create(m_context_p, vk::QueueFlagBits::eGraphics);
-        resources.data_transfer_command_buffer.create(m_context_p, vk::QueueFlagBits::eGraphics);
+        resources.data_transfer_command_buffer.create(m_context_p, vk::QueueFlagBits::eTransfer);
+        resources.compute_command_buffer.create(m_context_p, vk::QueueFlagBits::eCompute);
 
         VulkanFramebufferObjectCreateInfo fbo_info;
         fbo_info.setMaxExtent({static_cast<uint32_t>(max_width), static_cast<uint32_t>(max_height)})
@@ -140,13 +148,10 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     m_per_renderable_ssbo_group.emplace(200 * size_of_v<InstanceData>, GPUBufferUsage::eShaderStorage); // instance data
 
 
-    VulkanDescriptorSetLayout per_view_descriptor_set_layout;
-    per_view_descriptor_set_layout.setBindings(vkconstants::ds::k_per_view_bindings)
-        .setIndex(std::to_underlying(DescriptorSetBindingPoints::ePerView))
-        .create(device, vkenums::DescriptorSetStrategy::eIndividual);
     
     
-    m_per_view_descriptor_set = descriptor_set_manager.createSet(per_view_descriptor_set_layout);
+    
+    m_per_view_descriptor_set = descriptor_set_manager.createSet(m_per_view_descriptor_set_layout);
     vk::DescriptorBufferInfo per_view_buffer_info;
     per_view_buffer_info.setBuffer(m_per_view_uniform_buffer.getHandle())
         .setOffset(0)
@@ -313,6 +318,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     auto skybox_shader_program = std::make_shared<VulkanShaderProgram>();
     skybox_shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::eVertex, "assets/shaders/skybox.vert")
         .addShaderFromGlslFile(ShaderTypeFlagBits::eFragment, "assets/shaders/skybox.frag")
+        .specifyDescriptorSetLayout(m_per_view_descriptor_set_layout)
         .specifyDescriptorSetLayout(descriptor_set_manager.getBindlessBufferSet().getLayout())
         .specifyDescriptorSetLayout(descriptor_set_manager.getBindlessTextureSet().getLayout())
         .link(m_context_p->getDevice());
@@ -447,9 +453,6 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
     vk::Rect2D scissor;
     scissor.setOffset({ 0, 0 }).setExtent({ width, height });
     
-    cmd.begin(vk::CommandBufferBeginInfo{});
-    cmd.setViewport(0, viewport);
-    cmd.setScissor(0, scissor);
     /*
     ! DescriptorSet和Buffer都是command buffer的Resource，需要允许cmd.acquire(resource)
     ! 由cmd控制资源生命周期
@@ -523,7 +526,8 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
         }
     }
 
-    auto visible_instances = stdv::iota(uint32_t(0), instance_count) | stdr::to<std::vector>();
+    // auto visible_instances = stdv::iota(uint32_t(0), instance_count) | stdr::to<std::vector>();
+    std::vector<uint32_t> visible_instances(instance_count);
 
     uint32_t instance_baseline_offset = 0;
     for (const auto & mesh_pack : m_mesh_packs) {
@@ -569,14 +573,36 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
 //-
 
     draw_meta_info_buffer_ssbo.addWriteSegment({as_bytes(draw_meta_infos), 0u});
-    m_sequence_buffer.commit(cmd);
-    m_per_view_uniform_buffer.commit(cmd);
-    m_per_renderable_ssbo_group.commitAll(cmd);
-
-    current_framebuffer.beginRendering(cmd);
+    auto & transfer_cmd = current_frame_resources.data_transfer_command_buffer;
+    transfer_cmd.begin(vk::CommandBufferBeginInfo{});
+    m_per_view_uniform_buffer.commit(transfer_cmd);
+    m_per_renderable_ssbo_group.commitAll(transfer_cmd);
+    m_sequence_buffer.commit(transfer_cmd);
+    transfer_cmd.end();
+    auto data_transfer_complete_info = transfer_cmd.submit();
 
     const auto & bindless_buffer_ds = m_context_p->getDescriptorSetManager().getBindlessBufferSet();
     const auto & bindless_texture_ds = m_context_p->getDescriptorSetManager().getBindlessTextureSet();
+
+    auto & compute_cmd = current_frame_resources.compute_command_buffer;
+    compute_cmd.begin(vk::CommandBufferBeginInfo{});
+    compute_cmd.bindPipeline(m_compute_pipeline);
+    compute_cmd.bindDescriptorSet(m_compute_pipeline, m_per_view_descriptor_set);
+    compute_cmd.bindDescriptorSet(m_compute_pipeline, bindless_buffer_ds);
+    compute_cmd.dispatch(mesh_indirect_call_count, 1, 1);
+    compute_cmd.end();
+    compute_cmd.addWaitSubmitInfo(data_transfer_complete_info);
+    auto compute_complete_info = compute_cmd.submit();
+
+    cmd.begin(vk::CommandBufferBeginInfo{});
+    cmd.setViewport(0, viewport);
+    cmd.setScissor(0, scissor);
+    // m_sequence_buffer.commit(cmd);
+    // m_per_view_uniform_buffer.commit(cmd);
+    // m_per_renderable_ssbo_group.commitAll(cmd);
+
+    current_framebuffer.beginRendering(cmd);
+
     cmd.bindPipeline(m_graphics_pipeline);
     cmd.bindDescriptorSet(m_graphics_pipeline, m_per_view_descriptor_set);
     cmd.bindDescriptorSet(m_graphics_pipeline, bindless_buffer_ds);
@@ -596,15 +622,15 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
 
     vk::GeneratedCommandsInfoEXT gen_info;
     gen_info.setShaderStages(vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment)
-            .setIndirectExecutionSet(m_indirect_execution_set.get())
-            .setIndirectCommandsLayout(m_indirect_commands_layout.get())
-            .setIndirectAddress(m_sequence_buffer.getDeviceAddress())
-            .setIndirectAddressSize(m_sequence_buffer.getSizeInBytes())
-            .setPreprocessAddress(m_preprocess_buffer.getDeviceAddress())
-            .setPreprocessSize(m_preprocess_buffer.getSizeInBytes())
-            .setMaxSequenceCount(k_sequence_count)
-            .setMaxDrawCount(k_max_mesh_draws)
-            .setSequenceCountAddress(0);
+        .setIndirectExecutionSet(m_indirect_execution_set.get())
+        .setIndirectCommandsLayout(m_indirect_commands_layout.get())
+        .setIndirectAddress(m_sequence_buffer.getDeviceAddress())
+        .setIndirectAddressSize(m_sequence_buffer.getSizeInBytes())
+        .setPreprocessAddress(m_preprocess_buffer.getDeviceAddress())
+        .setPreprocessSize(m_preprocess_buffer.getSizeInBytes())
+        .setMaxSequenceCount(k_sequence_count)
+        .setMaxDrawCount(k_max_mesh_draws)
+        .setSequenceCountAddress(0);
 
     cmd.executeGeneratedCommandsEXT(false, gen_info);
     
@@ -629,7 +655,7 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
     wait_info.setSemaphore(render_target_resources.getTargetAvailableSemaphore())
         .setStageMask(vk::PipelineStageFlagBits2::eColorAttachmentOutput);
     cmd.addWaitSubmitInfo(wait_info)
-        // .addWaitSubmitInfo(data_transfer_complete_info)
+        .addWaitSubmitInfo(compute_complete_info)
         .addSignalSubmitInfo(render_target_resources.getPresentReadySemaphore());
     cmd.submit();
 

@@ -37,6 +37,7 @@ namespace ecf {
             FrameResources() = default;
             VulkanCommandBufferObject command_buffer;
             VulkanCommandBufferObject data_transfer_command_buffer; // dependency of command_buffer
+            VulkanCommandBufferObject compute_command_buffer;
             // temporary
             VulkanFramebufferObject fbo;
         };
@@ -50,6 +51,7 @@ namespace ecf {
         VulkanPipeline m_graphics_pipeline;
         VulkanPipeline m_skybox_pipeline;
 
+        VulkanDescriptorSetLayout m_per_view_descriptor_set_layout;
         VulkanBufferObject m_per_view_uniform_buffer;
 
         // VulkanBufferObject m_indirect_call_buffer;
