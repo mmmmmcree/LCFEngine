@@ -38,20 +38,18 @@ struct CameraData
 
 struct ObjectData
 {
-    // ObjectData() = default;
-    // ObjectData(vk::DeviceAddress vb_address, vk::DeviceAddress ib_address) :
-    //     m_vb_address(vb_address), m_ib_address(ib_address) {}
     vk::DeviceAddress m_vb_address = 0;
     vk::DeviceAddress m_ib_address = 0;
     vk::DeviceAddress m_material_params_address = 0;
     vk::DeviceAddress m_material_texture_ids_address = 0;
+    BoundingSphere<float> m_bounding_sphere;
 };
 
 struct InstanceData
 {
     Matrix4x4<float> m_transform {};
-    Vector3D<float> m_world_position_offset {};
-    float m_world_scale = 1.0f;
+    // Vector3D<float> m_world_position_offset {};
+    // float m_world_scale = 1.0f;
 };
 
 struct DrawMetaInfo
@@ -143,7 +141,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
 
     m_per_renderable_ssbo_group.create(m_context_p, GPUBufferPattern::eDynamic);
     m_per_renderable_ssbo_group.emplace(100 * size_of_v<DrawMetaInfo>, GPUBufferUsage::eIndirect); // draw meta infos
-    m_per_renderable_ssbo_group.emplace(100 * size_of_v<ObjectData>, GPUBufferUsage::eShaderStorage); // vertex records
+    m_per_renderable_ssbo_group.emplace(200 * size_of_v<ObjectData>, GPUBufferUsage::eShaderStorage); // obj infos
     m_per_renderable_ssbo_group.emplace(100 * size_of_v<uint32_t>, GPUBufferUsage::eShaderStorage); // visible instances
     m_per_renderable_ssbo_group.emplace(200 * size_of_v<InstanceData>, GPUBufferUsage::eShaderStorage); // instance data
 
@@ -193,6 +191,8 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
                     geometry,
                     VertexAttributeFlags::ePosition | VertexAttributeFlags::eNormal | VertexAttributeFlags::eTexCoord0 | VertexAttributeFlags::eTangent
                 ), geometry.getIndices());
+            BoundingSphere<float> sphere {geometry.getAttributes<VertexAttribute::ePosition>()};
+            mesh.setBoundingSphere(sphere);
         }
 
         for (const auto & material: model.getRenderPrimitives() | view_materials) {
@@ -493,23 +493,20 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
             const auto & texture_ids_buffer = m_material_texture_ids_list[object_id];
             object_data.m_material_params_address = material_params_buffer.getDeviceAddress();
             object_data.m_material_texture_ids_address = texture_ids_buffer.getDeviceAddress();
+            object_data.m_bounding_sphere = mesh.getBoundingSphere();
         }
     }
 
     static uint64_t frame_count = 0;
     ++frame_count;
     float angle = 0.1f * frame_count;
-    // std::vector<Matrix4x4<float>> model_matrices(120);
-    // std::vector<Vector3<float>> positions(120);
     std::vector<InstanceData> instance_data_list(120);
-    for (uint32_t i = 0; i < instance_data_list.size(); i += 2) {
-        instance_data_list[i].m_transform.rotateAroundSelf(Quaternion::fromAxisAndAngle({1.0f, 1.0f, 0.0f}, angle));
-    //     model_matrices[i + 1].rotateAroundSelf(Quaternion::fromAxisAndAngle({1.0f, 0.0f, 0.0f}, 90.0f));
-    //     model_matrices[i + 1].translateLocalX(10.0f);
-    }
-    
-    for (uint32_t i = 0; i < instance_data_list.size(); ++i) {
-        instance_data_list[i].m_world_position_offset =  Vector3D<float>(5.0f * i, 0.0f, 0.0f);
+
+    for (auto && [i, instance_data] : stdv::enumerate(instance_data_list)) {
+        if (i % 2) {
+            instance_data.m_transform.rotateAroundSelf(Quaternion::fromAxisAndAngle({1.0f, 1.0f, 0.0f}, angle));
+        }
+        instance_data.m_transform.translateWorldX(5.0f * i);
     }
     
     std::vector<DrawMetaInfo> draw_meta_infos;
@@ -588,7 +585,7 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
     compute_cmd.bindPipeline(m_compute_pipeline);
     compute_cmd.bindDescriptorSet(m_compute_pipeline, m_per_view_descriptor_set);
     compute_cmd.bindDescriptorSet(m_compute_pipeline, bindless_buffer_ds);
-    compute_cmd.dispatch(mesh_indirect_call_count, 1, 1);
+    compute_cmd.dispatch(1, 1, 1);
     compute_cmd.end();
     compute_cmd.addWaitSubmitInfo(data_transfer_complete_info);
     auto compute_complete_info = compute_cmd.submit();
@@ -612,9 +609,6 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
     //     mesh_indirect_call_count, sizeof(vk::DrawIndirectCommand));
     
     // cmd.bindPipeline(m_skybox_pipeline);
-    // // // cmd.bindDescriptorSet(m_skybox_pipeline, m_per_view_descriptor_set);
-    // // // cmd.bindDescriptorSet(m_skybox_pipeline, bindless_texture_ds);
-    // // cmd.draw(36, 1, 0, 10); // draw with const data in shader program
     // cmd.drawIndirectCount(m_indirect_call_buffer.getHandle(), sizeof(vk::DrawIndirectCommand) + size_of_v<vk::DrawIndirectCommand> * mesh_indirect_call_count,
     //     m_indirect_call_buffer.getHandle(), 0,
     //     1, sizeof(vk::DrawIndirectCommand));

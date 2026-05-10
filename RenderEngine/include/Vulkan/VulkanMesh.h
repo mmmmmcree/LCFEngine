@@ -2,6 +2,7 @@
 
 #include "render_assets/render_assets_fwd_decls.h"
 #include "memory/VulkanBufferObject.h"
+#include "BoundingVolume.h"
 
 namespace lcf::render {
     class VulkanMesh
@@ -18,11 +19,14 @@ namespace lcf::render {
         const vk::DeviceAddress & getIndexBufferAddress() const noexcept { return m_index_buffer.getDeviceAddress(); }
         uint32_t getVertexCount() const noexcept { return m_vertex_count; }
         uint32_t getIndexCount() const noexcept { return m_index_count; }
+        void setBoundingSphere(const BoundingSphere<float> & sphere) noexcept { m_bounding_sphere = sphere; }
+        const BoundingSphere<float> & getBoundingSphere() const noexcept { return m_bounding_sphere; }
     private:
         VulkanBufferObject m_vertex_buffer;
         VulkanBufferObject m_index_buffer;
         uint32_t m_vertex_count;
         uint32_t m_index_count;
         std::vector<uint32_t> m_indices;
+        BoundingSphere<float> m_bounding_sphere;
     };
 }

@@ -1,38 +1,11 @@
 #version 460 core
 
-
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_buffer_reference : require
-#extension GL_EXT_debug_printf : require
-#extension GL_EXT_spirv_intrinsics : require
 
 #include "camera_uniform.glsl"
 
-struct DrawMetaInfo
-{
-// vk::DrawIndirectCommand
-    uint vertex_count;
-    uint instance_count;
-    uint first_vertex;
-    uint first_instance;
-// custom
-    uint object_id;
-};
-
-struct ObjectInfo
-{
-    uint64_t vertex_buffer;
-    uint64_t index_buffer;
-    uint64_t material_params;
-    uint64_t material_texture_ids;
-};
-
-struct InstanceInfo
-{
-    mat4 transform;
-    vec3 world_position_offset;
-    float world_scale;
-};
+#include "bindless_structs.glsl"
 
 layout(std430, set = 1, binding = 0) buffer DrawMetaInfoBuffer {
     DrawMetaInfo draw_meta_infos[];
@@ -53,14 +26,39 @@ layout(std430, set = 1, binding = 3) readonly buffer InstanceInfos {
 
 layout(local_size_x = 16, local_size_y = 1, local_size_z = 1) in;
 
+bool frustum_test(vec3 center, float radius)
+{
+    //frustum_planes is from camera_uniform.glsl
+    for (int i = 0; i < 6; ++i) {
+        if (dot(frustum_planes[i], vec4(center, 1.0)) + radius < 0.0) {
+            return false;
+        }
+    }
+    return true;
+}
+
 void main()
 {
     uint id = gl_GlobalInvocationID.x;
+    if (id >= draw_meta_infos.length()) { return; }
+
     DrawMetaInfo draw_meta_info = draw_meta_infos[id];
     uint object_id = draw_meta_info.object_id;
+    vec4 local_sphere = object_infos[object_id].bounding_sphere;
+
     uint first_instance_id = draw_meta_info.first_instance;
-    uint instance_count = draw_meta_info.instance_count;
-    for (uint i = first_instance_id; i < first_instance_id + instance_count; ++i) {
-        visible_instance_ids[i] = i;
+    uint count = draw_meta_info.instance_count;
+    uint visible_id = first_instance_id;
+
+    for (uint i = 0; i < count; ++i) {
+        uint instance_id = first_instance_id + i;
+        mat4 transform = instance_infos[instance_id].transform;
+        vec3 world_center = (transform * vec4(local_sphere.xyz, 1.0)).xyz;
+        float world_radius = local_sphere.w * length(transform[0].xyz);
+        if (frustum_test(world_center, world_radius)) {
+            visible_instance_ids[visible_id++] = instance_id;
+        }
     }
+
+    draw_meta_infos[id].instance_count = visible_id - first_instance_id;
 }

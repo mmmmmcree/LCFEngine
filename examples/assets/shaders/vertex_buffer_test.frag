@@ -16,13 +16,7 @@ layout(location = 0) in VS_OUT {
 #extension GL_EXT_buffer_reference : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 
-struct ObjectInfo
-{
-    uint64_t vertex_buffer;
-    uint64_t index_buffer;
-    uint64_t material_params;
-    uint64_t material_texture_ids;
-};
+#include "bindless_structs.glsl"
 
 struct MaterialParams {
     vec4 base_color;

@@ -12,6 +12,5 @@ layout(set = 2, binding = 2) uniform texture2D textures[];
 
 void main()
 {
-    vec4 color = texture(sampler2D(textures[nonuniformEXT(0)], samplers[0]), vec2(0, 0)); //dead code
     frag_color = texture(samplerCube(texture_cubes[0], samplers[1]), fs_in.uvw);
 }

@@ -8,32 +8,7 @@
 
 #include "camera_uniform.glsl"
 
-
-struct DrawMetaInfo
-{
-// vk::DrawIndirectCommand
-    uint vertex_count;
-    uint instance_count;
-    uint first_vertex;
-    uint first_instance;
-// custom
-    uint object_id;
-};
-
-struct ObjectInfo
-{
-    uint64_t vertex_buffer;
-    uint64_t index_buffer;
-    uint64_t material_params;
-    uint64_t material_texture_ids;
-};
-
-struct InstanceInfo
-{
-    mat4 transform;
-    vec3 world_position_offset;
-    float world_scale;
-};
+#include "bindless_structs.glsl"
 
 layout(std430, set = 1, binding = 0) readonly buffer DrawMetaInfoBuffer {
     DrawMetaInfo draw_meta_infos[];
@@ -95,7 +70,7 @@ void main()
     mat3 model_3x3 = mat3(model);
     mat3 normal_matrix = transpose(inverse(model_3x3));
 
-    vec4 world_pos = (model * vec4(vertex.position, 1.0)) * instance_info.world_scale + vec4(instance_info.world_position_offset, 0.0);
+    vec4 world_pos = model * vec4(vertex.position, 1.0);
 
     gl_Position = projection_view * world_pos;
 
