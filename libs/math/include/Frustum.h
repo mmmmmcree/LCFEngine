@@ -53,9 +53,11 @@ namespace lcf {
                 return dot(plane, Vec4(center, 1.0f)) + radius > 0;
             });
         }
-        bool isSphereInside(const Vec4 & sphere) const noexcept
+        bool isSphereIntersecting(const Vec3 & center, T radius) const noexcept
         {
-            return this->isSphereInside(sphere.toVector3D(), sphere.getW());
+            return std::ranges::any_of(m_planes, [center, radius](const auto & plane) {
+                return dot(plane, Vec4(center, 1.0f)) + radius > 0;
+            });
         }
         Vec4 & getPlane(Side side) noexcept { return m_planes[std::to_underlying(side)]; }
         const Vec4 & getPlane(Side side) const noexcept { return m_planes[std::to_underlying(side)]; }
