@@ -17,7 +17,7 @@ Material & Material::setParam(MaterialProperty property, const MaterialParam & p
     Vector4D<float> dst_value;
     std::ranges::copy(src_bytes, as_bytes_from_value(dst_value).begin());
     switch (enum_decode::get_vector_type(property)) {
-        case VectorType::e1Float32: { m_params[property] = dst_value.x; } break;
+        case VectorType::e1Float32: { m_params[property] = dst_value.getX(); } break;
         case VectorType::e2Float32: { m_params[property] = dst_value.toVector2D(); } break;
         case VectorType::e3Float32: { m_params[property] = dst_value.toVector3D(); } break;
         case VectorType::e4Float32: { m_params[property] = dst_value; } break;

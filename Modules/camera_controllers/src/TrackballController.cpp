@@ -10,7 +10,7 @@ bool lcf::modules::TrackballController::update(Transform & camera_transform, flo
 
     auto [dx, dy] = (current_input_state.getMousePosition() - prev_input_state.getMousePosition()) * delta_time;
     auto delta_wheel_offset = current_input_state.getWheelOffset() - prev_input_state.getWheelOffset();
-    delta_front = (delta_wheel_offset.y) * m_zoom_speed * delta_time;
+    delta_front = (delta_wheel_offset.getY()) * m_zoom_speed * delta_time;
     
     if (current_input_state.isMouseButtonsPressed(MouseButtonFlags::eLeftButton)) {
         delta_yaw -= dx * m_sensitivity;
