@@ -12,8 +12,8 @@ namespace lcf {
     {
         return OrderedJSON
         {
-            { "x", vec.x },
-            { "y", vec.y }
+            { "x", vec.getX() },
+            { "y", vec.getY() }
         };
     }
 
@@ -22,9 +22,9 @@ namespace lcf {
     {
         return OrderedJSON
         {
-            { "x", vec.x },
-            { "y", vec.y },
-            { "z", vec.z }
+            { "x", vec.getX() },
+            { "y", vec.getY() },
+            { "z", vec.getZ() }
         };
     }
 
@@ -33,10 +33,10 @@ namespace lcf {
     {
         return OrderedJSON
         {
-            { "x", vec.x },
-            { "y", vec.y },
-            { "z", vec.z },
-            { "w", vec.w }
+            { "x", vec.getX() },
+            { "y", vec.getY() },
+            { "z", vec.getZ() },
+            { "w", vec.getW() }
         };
     }
 
@@ -45,10 +45,10 @@ namespace lcf {
     {
         return OrderedJSON
         {
-            { "x", quat.x },
-            { "y", quat.y },
-            { "z", quat.z },
-            { "scalar", quat.w }
+            { "x", quat.getX() },
+            { "y", quat.getY() },
+            { "z", quat.getZ() },
+            { "scalar", quat.getScalar() }
         };
     }
 
@@ -87,6 +87,6 @@ namespace lcf {
             mat[0][1], mat[1][1], mat[2][1], mat[3][1],
             mat[0][2], mat[1][2], mat[2][2], mat[3][2],
             mat[0][3], mat[1][3], mat[2][3], mat[3][3]
-        );       
+        );
     }
 }
