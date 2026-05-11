@@ -39,7 +39,8 @@ namespace internal {
         eDrawMetaInfos,
         eObjectData,
         eVisibleInstances,
-        eTransforms,
+        eInstanceData,
+        eBoundingVolume,
         // eUniformBufferAddresses, 
         // eStorageBufferAddresses
     };
@@ -78,8 +79,9 @@ namespace internal {
         // Bindless buffers
         eObjectData = internal::encode(DescriptorSetIndex::eBindlessBuffers, BindlessBufferBinding::eObjectData),
         eDrawMetaInfos = internal::encode(DescriptorSetIndex::eBindlessBuffers, BindlessBufferBinding::eDrawMetaInfos),
-        eTransforms = internal::encode(DescriptorSetIndex::eBindlessBuffers, BindlessBufferBinding::eTransforms),
+        eInstanceData = internal::encode(DescriptorSetIndex::eBindlessBuffers, BindlessBufferBinding::eInstanceData),
         eVisibleInstances = internal::encode(DescriptorSetIndex::eBindlessBuffers, BindlessBufferBinding::eVisibleInstances),
+        eBoundingVolume = internal::encode(DescriptorSetIndex::eBindlessBuffers, BindlessBufferBinding::eBoundingVolume),
         // Bindless textures
         eSamplers = internal::encode(DescriptorSetIndex::eBindlessTextures, BindlessTextureBinding::eSamplers),
         eTextureCubes = internal::encode(DescriptorSetIndex::eBindlessTextures, BindlessTextureBinding::eTextureCubes),

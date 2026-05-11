@@ -30,7 +30,7 @@ namespace lcf::render::vkconstants {
             vk::ShaderStageFlagBits::eVertex
         },
         {
-            vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eTransforms),
+            vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eInstanceData),
             vk::DescriptorType::eStorageBuffer,
             1u,
             vk::ShaderStageFlagBits::eVertex
@@ -78,10 +78,16 @@ namespace ds {
             vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eCompute
         },
         {
-            vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eTransforms),
+            vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eInstanceData),
             vk::DescriptorType::eStorageBuffer,
             1u,
             vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eCompute
+        },
+        {
+            vkenums::decode::get_binding_point(vkenums::DescriptorBindingPoint::eBoundingVolume),
+            vk::DescriptorType::eStorageBuffer,
+            1u,
+            vk::ShaderStageFlagBits::eCompute
         }
     };
 

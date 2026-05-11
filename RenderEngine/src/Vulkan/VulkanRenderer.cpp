@@ -42,7 +42,6 @@ struct ObjectData
     vk::DeviceAddress m_ib_address = 0;
     vk::DeviceAddress m_material_params_address = 0;
     vk::DeviceAddress m_material_texture_ids_address = 0;
-    BoundingSphere<float> m_bounding_sphere;
 };
 
 struct InstanceData
@@ -141,9 +140,10 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
 
     m_per_renderable_ssbo_group.create(m_context_p, GPUBufferPattern::eDynamic);
     m_per_renderable_ssbo_group.emplace(100 * size_of_v<DrawMetaInfo>, GPUBufferUsage::eIndirect); // draw meta infos
-    m_per_renderable_ssbo_group.emplace(200 * size_of_v<ObjectData>, GPUBufferUsage::eShaderStorage); // obj infos
+    m_per_renderable_ssbo_group.emplace(100 * size_of_v<ObjectData>, GPUBufferUsage::eShaderStorage); // obj infos
     m_per_renderable_ssbo_group.emplace(100 * size_of_v<uint32_t>, GPUBufferUsage::eShaderStorage); // visible instances
     m_per_renderable_ssbo_group.emplace(200 * size_of_v<InstanceData>, GPUBufferUsage::eShaderStorage); // instance data
+    m_per_renderable_ssbo_group.emplace(100 * size_of_v<BoundingSphere<float>>, GPUBufferUsage::eShaderStorage);
 
 
     
@@ -167,11 +167,14 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         std::to_underlying(vkenums::BindlessBufferBinding::eDrawMetaInfos),
         m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eDrawMetaInfos)].generateBufferInfo()
     ).addDescriptorInfo(
-        std::to_underlying(vkenums::BindlessBufferBinding::eTransforms),
-        m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eTransforms)].generateBufferInfo()
+        std::to_underlying(vkenums::BindlessBufferBinding::eInstanceData),
+        m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eInstanceData)].generateBufferInfo()
     ).addDescriptorInfo(
         std::to_underlying(vkenums::BindlessBufferBinding::eVisibleInstances),
         m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eVisibleInstances)].generateBufferInfo()
+    ).addDescriptorInfo(
+        std::to_underlying(vkenums::BindlessBufferBinding::eBoundingVolume),
+        m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eBoundingVolume)].generateBufferInfo()
     ).commitUpdate(device);
 
     auto image1_sp = Texture2D::makeShared();
@@ -478,9 +481,11 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
     auto & per_renderable_vertex_records_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eObjectData)];
     auto & draw_meta_info_buffer_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eDrawMetaInfos)];
     auto & visible_instances_buffer_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eVisibleInstances)];
-    auto & per_renderable_transform_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eTransforms)];
+    auto & per_renderable_transform_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eInstanceData)];
+    auto & bounding_sphere_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eBoundingVolume)];
 
     std::vector<ObjectData> object_data_list;
+    std::vector<BoundingSphere<float>> bounding_spheres_list;
     for (const auto & mesh_pack : m_mesh_packs) {
         const auto & meshes = mesh_pack.meshes;
         for (const auto & mesh : mesh_pack.meshes) {
@@ -493,7 +498,7 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
             const auto & texture_ids_buffer = m_material_texture_ids_list[object_id];
             object_data.m_material_params_address = material_params_buffer.getDeviceAddress();
             object_data.m_material_texture_ids_address = texture_ids_buffer.getDeviceAddress();
-            object_data.m_bounding_sphere = mesh.getBoundingSphere();
+            bounding_spheres_list.emplace_back(mesh.getBoundingSphere());
         }
     }
 
@@ -539,6 +544,7 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
 
     per_renderable_vertex_records_ssbo.addWriteSegment({as_bytes(object_data_list), 0u});
     per_renderable_transform_ssbo.addWriteSegment({as_bytes(instance_data_list), 0u});
+    bounding_sphere_ssbo.addWriteSegment({as_bytes(bounding_spheres_list), 0u});
     // visible_instances_buffer_ssbo.addWriteSegment({as_bytes_from_value(instance_count), 0u})
     //     .addWriteSegment({as_bytes(visible_instances), size_of_v<uint32_t>});
 

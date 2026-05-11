@@ -24,6 +24,10 @@ layout(std430, set = 1, binding = 3) readonly buffer InstanceInfos {
     InstanceInfo instance_infos[];
 };
 
+layout(std430, set = 1, binding = 4) readonly buffer BoundingSpheres {
+    vec4 bounding_spheres[];
+};
+
 layout(local_size_x = 16, local_size_y = 1, local_size_z = 1) in;
 
 bool frustum_test(vec3 center, float radius)
@@ -44,7 +48,7 @@ void main()
 
     DrawMetaInfo draw_meta_info = draw_meta_infos[id];
     uint object_id = draw_meta_info.object_id;
-    vec4 local_sphere = object_infos[object_id].bounding_sphere;
+    vec4 local_sphere = bounding_spheres[object_id];
 
     uint first_instance_id = draw_meta_info.first_instance;
     uint count = draw_meta_info.instance_count;
