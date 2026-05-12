@@ -591,7 +591,7 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
     compute_cmd.bindPipeline(m_compute_pipeline);
     compute_cmd.bindDescriptorSet(m_compute_pipeline, m_per_view_descriptor_set);
     compute_cmd.bindDescriptorSet(m_compute_pipeline, bindless_buffer_ds);
-    compute_cmd.dispatch(1, 1, 1);
+    compute_cmd.dispatch(mesh_indirect_call_count, 1, 1);
     compute_cmd.end();
     compute_cmd.addWaitSubmitInfo(data_transfer_complete_info);
     auto compute_complete_info = compute_cmd.submit();

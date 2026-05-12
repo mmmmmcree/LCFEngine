@@ -41,28 +41,39 @@ bool frustum_test(vec3 center, float radius)
     return true;
 }
 
+shared uint shared_visible_count;
+
 void main()
 {
-    uint id = gl_GlobalInvocationID.x;
-    if (id >= draw_meta_infos.length()) { return; }
+    uint draw_id = gl_WorkGroupID.x;
+    uint local_id = gl_LocalInvocationID.x;
 
-    DrawMetaInfo draw_meta_info = draw_meta_infos[id];
+    DrawMetaInfo draw_meta_info = draw_meta_infos[draw_id];
     uint object_id = draw_meta_info.object_id;
     vec4 local_sphere = bounding_spheres[object_id];
 
     uint first_instance_id = draw_meta_info.first_instance;
     uint count = draw_meta_info.instance_count;
-    uint visible_id = first_instance_id;
+    uint group_stride = gl_WorkGroupSize.x * gl_NumWorkGroups.y * gl_NumWorkGroups.z;
 
-    for (uint i = 0; i < count; ++i) {
+    if (local_id == 0) {
+        shared_visible_count = 0;
+    }
+
+    barrier();
+    for (uint i = local_id; i < count; i += group_stride) {
         uint instance_id = first_instance_id + i;
         mat4 transform = instance_infos[instance_id].transform;
         vec3 world_center = (transform * vec4(local_sphere.xyz, 1.0)).xyz;
         float world_radius = local_sphere.w * length(transform[0].xyz);
         if (frustum_test(world_center, world_radius)) {
-            visible_instance_ids[visible_id++] = instance_id;
+            uint visible_offset = atomicAdd(shared_visible_count, 1);
+            visible_instance_ids[first_instance_id + visible_offset] = instance_id;
         }
     }
+    barrier();
 
-    draw_meta_infos[id].instance_count = visible_id - first_instance_id;
+    if (local_id == 0) {
+        draw_meta_infos[draw_id].instance_count = shared_visible_count;
+    }
 }
