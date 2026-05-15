@@ -91,6 +91,13 @@
         "openssl",
         "cli11"
       ]
+    },
+    "tests": {
+      "description": "Dependencies for unit tests (opt-in, not in default-features)",
+      "dependencies": [
+        "gtest",
+        "benchmark"
+      ]
     }
   },
   "default-features": [

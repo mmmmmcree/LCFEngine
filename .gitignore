@@ -1,7 +1,11 @@
 .vscode/
 build/
+build-msvc/
 build-gcc/
 build-clang/
+build-bench/
+build-clang-tests/
+build-tests/
 models/
 /test.cpp
 /test.exe
@@ -12,4 +16,5 @@ designs/
 /vcpkg-configuration.json
 /vcpkg.json
 .claude/
+.codebuddy/
 /CLAUDE.md
