@@ -7,7 +7,7 @@ namespace {
 
     TEST(FlexArrayCapacity, ReserveZeroOnEmpty)
     {
-        lcf::FlexArray<int> a;
+        lcf::FlexArray_Opus_4_7<int> a;
         a.reserve(0);
         EXPECT_EQ(a.size(), 0u);
         EXPECT_EQ(a.capacity(), 0u);
@@ -15,7 +15,7 @@ namespace {
 
     TEST(FlexArrayCapacity, ReserveBelowCurrentSizeIsNoop)
     {
-        lcf::FlexArray<int> a = {1, 2, 3, 4, 5};
+        lcf::FlexArray_Opus_4_7<int> a = {1, 2, 3, 4, 5};
         const std::size_t old_cap = a.capacity();
         a.reserve(2); // n <= capacity, no-op
         EXPECT_EQ(a.size(), 5u);
@@ -24,7 +24,7 @@ namespace {
 
     TEST(FlexArrayCapacity, ReserveGrowsBeyondCurrentCapacity)
     {
-        lcf::FlexArray<int> a = {1, 2, 3};
+        lcf::FlexArray_Opus_4_7<int> a = {1, 2, 3};
         a.reserve(100);
         EXPECT_GE(a.capacity(), 100u);
         EXPECT_EQ(a.size(), 3u);
@@ -33,7 +33,7 @@ namespace {
 
     TEST(FlexArrayCapacity, ShrinkToFitFullIsNoop)
     {
-        lcf::FlexArray<int> a;
+        lcf::FlexArray_Opus_4_7<int> a;
         a.reserve(3);
         a.pushBack(1); a.pushBack(2); a.pushBack(3);
         const std::size_t cap_before = a.capacity();
@@ -45,7 +45,7 @@ namespace {
 
     TEST(FlexArrayCapacity, ShrinkToFitEmptyReleasesBlock)
     {
-        lcf::FlexArray<int> a;
+        lcf::FlexArray_Opus_4_7<int> a;
         a.reserve(100);
         EXPECT_GE(a.capacity(), 100u);
         a.shrinkToFit();
@@ -54,7 +54,7 @@ namespace {
 
     TEST(FlexArrayCapacity, GrowBoundaryRepeatedExpansion)
     {
-        lcf::FlexArray<int> a;
+        lcf::FlexArray_Opus_4_7<int> a;
         for (int i = 0; i < 1024; ++i) {
             a.pushBack(i);
             EXPECT_GE(a.capacity(), a.size());
@@ -65,7 +65,7 @@ namespace {
 
     TEST(FlexArrayCapacity, ResizeToCapacityBoundary)
     {
-        lcf::FlexArray<int> a;
+        lcf::FlexArray_Opus_4_7<int> a;
         a.reserve(10);
         a.resize(10, 5);
         EXPECT_EQ(a.size(), 10u);

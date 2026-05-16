@@ -22,7 +22,7 @@ namespace {
             ThrowOnNth proto(7);                               // alive +1
             ThrowOnNth::reset(/*throw_at=*/3);                 // re-arm trigger
             EXPECT_THROW({
-                lcf::FlexArray<ThrowOnNth> a(5, proto);
+                lcf::FlexArray_Opus_4_7<ThrowOnNth> a(5, proto);
                 (void)a;
             }, std::runtime_error);
         }
@@ -35,7 +35,7 @@ namespace {
         const std::size_t baseline = ThrowOnNth::s_alive_count.load();
         ThrowOnNth::reset(/*throw_at=*/4);
         EXPECT_THROW({
-            lcf::FlexArray<ThrowOnNth> a(10);
+            lcf::FlexArray_Opus_4_7<ThrowOnNth> a(10);
             (void)a;
         }, std::runtime_error);
         EXPECT_EQ(ThrowOnNth::s_alive_count.load(), baseline);
@@ -52,7 +52,7 @@ namespace {
 
         ThrowOnNth::reset(/*throw_at=*/3);
         EXPECT_THROW({
-            lcf::FlexArray<ThrowOnNth> a(seeds.begin(), seeds.end());
+            lcf::FlexArray_Opus_4_7<ThrowOnNth> a(seeds.begin(), seeds.end());
             (void)a;
         }, std::runtime_error);
         EXPECT_EQ(ThrowOnNth::s_alive_count.load(), baseline);
@@ -62,13 +62,13 @@ namespace {
     TEST(FlexArrayException, CopyCtorWithThrowingElement)
     {
         ThrowOnNth::reset(0);
-        lcf::FlexArray<ThrowOnNth> src;
+        lcf::FlexArray_Opus_4_7<ThrowOnNth> src;
         for (int v : {1, 2, 3, 4}) { src.emplaceBack(v); }
         const std::size_t baseline = ThrowOnNth::s_alive_count.load();
 
         ThrowOnNth::reset(/*throw_at=*/3);
         EXPECT_THROW({
-            lcf::FlexArray<ThrowOnNth> copy = src;
+            lcf::FlexArray_Opus_4_7<ThrowOnNth> copy = src;
             (void)copy;
         }, std::runtime_error);
         EXPECT_EQ(ThrowOnNth::s_alive_count.load(), baseline);
@@ -79,7 +79,7 @@ namespace {
     TEST(FlexArrayException, EmplaceBackThrowPreservesSize)
     {
         ThrowOnNth::reset(0);
-        lcf::FlexArray<ThrowOnNth> a;
+        lcf::FlexArray_Opus_4_7<ThrowOnNth> a;
         for (int v : {1, 2, 3}) { a.emplaceBack(v); }
         const std::size_t size_before = a.size();
         const std::size_t alive_before = ThrowOnNth::s_alive_count.load();
@@ -94,7 +94,7 @@ namespace {
     TEST(FlexArrayException, TryEmplaceBackReturnsUnexpectedOnThrow)
     {
         ThrowOnNth::reset(0);
-        lcf::FlexArray<ThrowOnNth> a;
+        lcf::FlexArray_Opus_4_7<ThrowOnNth> a;
         a.emplaceBack(1);
         const std::size_t size_before = a.size();
         const std::size_t alive_before = ThrowOnNth::s_alive_count.load();
@@ -113,7 +113,7 @@ namespace {
         lcf::test::AllocStats stats;
         using A = lcf::test::CountingAllocator<std::byte>;
         {
-            lcf::FlexArray<int, std::uint32_t, A> v(A{&stats});
+            lcf::FlexArray_Opus_4_7<int, std::uint32_t, A> v(A{&stats});
             for (int i = 0; i < 100; ++i) { v.pushBack(i); }
             EXPECT_EQ(v.size(), 100u);
             EXPECT_GE(stats.alloc_calls.load(), 1u);
@@ -127,7 +127,7 @@ namespace {
     {
         lcf::test::AllocStats stats;
         using A = lcf::test::CountingAllocator<std::byte>;
-        using FlexT = lcf::FlexArray<ThrowOnNth, std::uint32_t, A>;
+        using FlexT = lcf::FlexArray_Opus_4_7<ThrowOnNth, std::uint32_t, A>;
         const std::size_t baseline = ThrowOnNth::s_alive_count.load();
         ThrowOnNth::reset(0);
 

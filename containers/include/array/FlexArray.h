@@ -54,18 +54,18 @@ namespace lcf::detail {
 namespace lcf {
 
     template <typename T, std::unsigned_integral SizeType = std::uint32_t, typename Allocator = std::allocator<std::byte>>
-    class FlexArray
+    class FlexArray_Opus_4_7
     {
         struct Header { SizeType size; SizeType capacity; };
         static constexpr std::size_t k_data_offset = ((sizeof(Header) + alignof(T) - 1) / alignof(T)) * alignof(T);
         struct BlockGuard
         {
-            BlockGuard(FlexArray * owner, T * data, std::size_t cap) noexcept : owner_p(owner), data_p(data), capacity_count(cap) {}
+            BlockGuard(FlexArray_Opus_4_7 * owner, T * data, std::size_t cap) noexcept : owner_p(owner), data_p(data), capacity_count(cap) {}
             BlockGuard(const BlockGuard &) = delete;
             BlockGuard & operator=(const BlockGuard &) = delete;
             ~BlockGuard() { if (data_p) { owner_p->destroy_prefix_and_release(data_p, constructed_count, capacity_count); } }
             T * release() noexcept { T * released_p = data_p; data_p = nullptr; return released_p; }
-            FlexArray * owner_p = nullptr;
+            FlexArray_Opus_4_7 * owner_p = nullptr;
             T * data_p = nullptr;
             std::size_t capacity_count = 0;
             std::size_t constructed_count = 0;
@@ -82,24 +82,26 @@ namespace lcf {
         using reverse_iterator = std::reverse_iterator<iterator>;
         using const_reverse_iterator = std::reverse_iterator<const_iterator>;
     public:
-        FlexArray() noexcept(std::is_nothrow_default_constructible_v<Allocator>) = default;
-        explicit FlexArray(const Allocator & alloc) noexcept : m_allocator(alloc) {}
-        FlexArray(std::size_t count, const T & value, const Allocator & alloc = {});
-        explicit FlexArray(std::size_t count, const Allocator & alloc = {});
+        FlexArray_Opus_4_7() noexcept(std::is_nothrow_default_constructible_v<Allocator>) = default;
+        explicit FlexArray_Opus_4_7(const Allocator & alloc) noexcept : m_allocator(alloc) {}
+        FlexArray_Opus_4_7(std::size_t count, const T & value, const Allocator & alloc = {});
+        explicit FlexArray_Opus_4_7(std::size_t count, const Allocator & alloc = {});
         template <std::input_iterator It>
-        FlexArray(It first, It last, const Allocator & alloc = {});
+        FlexArray_Opus_4_7(It first, It last, const Allocator & alloc = {});
         template <std::ranges::input_range R>
-        FlexArray(std::from_range_t, R && r, const Allocator & alloc = {});
-        FlexArray(std::initializer_list<T> initial_list, const Allocator & alloc = {}) : FlexArray(initial_list.begin(), initial_list.end(), alloc) {}
-        FlexArray(const FlexArray & other) : FlexArray(other, std::allocator_traits<Allocator>::select_on_container_copy_construction(other.m_allocator)) {}
-        FlexArray(const FlexArray & other, const Allocator & alloc);
-        FlexArray(FlexArray && other) noexcept : m_first(other.m_first), m_last(other.m_last), m_end(other.m_end), m_allocator(std::move(other.m_allocator))
+        FlexArray_Opus_4_7(std::from_range_t, R && r, const Allocator & alloc = {});
+        FlexArray_Opus_4_7(std::initializer_list<T> initial_list, const Allocator & alloc = {}) : FlexArray_Opus_4_7(initial_list.begin(), initial_list.end(), alloc) {}
+        FlexArray_Opus_4_7(const FlexArray_Opus_4_7 & other) : FlexArray_Opus_4_7(other, std::allocator_traits<Allocator>::select_on_container_copy_construction(other.m_allocator)) {}
+        FlexArray_Opus_4_7(const FlexArray_Opus_4_7 & other, const Allocator & alloc);
+        FlexArray_Opus_4_7(FlexArray_Opus_4_7 && other) noexcept : m_first(other.m_first), m_last(other.m_last), m_end(other.m_end), m_allocator(std::move(other.m_allocator))
         { other.resetPointers(); }
-        FlexArray(FlexArray && other, const Allocator & alloc);
-        ~FlexArray() { this->discard_block(); }
-        FlexArray & operator=(const FlexArray & other);
-        FlexArray & operator=(FlexArray && other) noexcept(std::allocator_traits<Allocator>::propagate_on_container_move_assignment::value or std::allocator_traits<Allocator>::is_always_equal::value);
-        FlexArray & operator=(std::initializer_list<T> initial_list) { this->assign(initial_list.begin(), initial_list.end()); return *this; }
+        FlexArray_Opus_4_7(FlexArray_Opus_4_7 && other, const Allocator & alloc);
+        ~FlexArray_Opus_4_7() { this->discard_block(); }
+        FlexArray_Opus_4_7 & operator=(const FlexArray_Opus_4_7 & other);
+        FlexArray_Opus_4_7 & operator=(FlexArray_Opus_4_7 && other) noexcept(std::allocator_traits<Allocator>::propagate_on_container_move_assignment::value or std::allocator_traits<Allocator>::is_always_equal::value);
+        FlexArray_Opus_4_7 & operator=(std::initializer_list<T> initial_list) { this->assign(initial_list.begin(), initial_list.end()); return *this; }
+        T & operator[](std::size_t i) noexcept { return m_first[i]; }
+        const T & operator[](std::size_t i) const noexcept { return m_first[i]; }
     public:
         std::size_t size() const noexcept { return static_cast<std::size_t>(m_last - m_first); }
         std::size_t capacity() const noexcept { return static_cast<std::size_t>(m_end - m_first); }
@@ -110,16 +112,10 @@ namespace lcf {
         void shrinkToFit();
         void clearAndShrink() noexcept { this->discard_block(); }
         [[nodiscard]] std::expected<void, std::error_code> tryReserve(std::size_t n) noexcept { return n <= this->capacity() ? std::expected<void, std::error_code>{} : this->tryReallocateTo(n); }
-        T & operator[](std::size_t i) noexcept { return m_first[i]; }
-        const T & operator[](std::size_t i) const noexcept { return m_first[i]; }
+
         T & at(std::size_t i);
         const T & at(std::size_t i) const;
-        T & front() noexcept { return *m_first; }
-        const T & front() const noexcept { return *m_first; }
-        T & back() noexcept { return *(m_last - 1); }
-        const T & back() const noexcept { return *(m_last - 1); }
-        std::span<T> getDataSpan() noexcept { return {m_first, this->size()}; }
-        std::span<const T> getDataSpan() const noexcept { return {m_first, this->size()}; }
+        
         void pushBack(const T & v)
         {
             if (m_last == m_end) [[unlikely]] { this->ensure_one_more_capacity(); }
@@ -156,6 +152,13 @@ namespace lcf {
         iterator insertRange(const_iterator pos, R && r);
         std::span<const std::byte> getCountedBytes() const noexcept { return this->compute_byte_span(this->size()); }
         std::span<const std::byte> getCountedBytesWithCapacity() const noexcept { return this->compute_byte_span(this->capacity()); }
+
+        T & front() noexcept { return *m_first; }
+        const T & front() const noexcept { return *m_first; }
+        T & back() noexcept { return *(m_last - 1); }
+        const T & back() const noexcept { return *(m_last - 1); }
+        std::span<T> getDataSpan() noexcept { return {m_first, this->size()}; }
+        std::span<const T> getDataSpan() const noexcept { return {m_first, this->size()}; }
         iterator begin() noexcept { return m_first; }
         const_iterator begin() const noexcept { return m_first; }
         iterator end() noexcept { return m_last; }
@@ -195,7 +198,7 @@ namespace lcf {
             m_last = nullptr;
             m_end = nullptr;
         }
-        void stealPointersFrom(FlexArray & other) noexcept
+        void stealPointersFrom(FlexArray_Opus_4_7 & other) noexcept
         {
             m_first = other.m_first;
             m_last = other.m_last;
@@ -219,20 +222,20 @@ namespace lcf {
 namespace lcf {
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
-    FlexArray<T, SizeType, Allocator>::FlexArray(std::size_t count, const T & value, const Allocator & alloc) : m_allocator(alloc)
+    FlexArray_Opus_4_7<T, SizeType, Allocator>::FlexArray_Opus_4_7(std::size_t count, const T & value, const Allocator & alloc) : m_allocator(alloc)
     {
         this->build_filled_block(count, [&](std::size_t) -> decltype(auto) { return (value); });
     }
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
-    FlexArray<T, SizeType, Allocator>::FlexArray(std::size_t count, const Allocator & alloc) : m_allocator(alloc)
+    FlexArray_Opus_4_7<T, SizeType, Allocator>::FlexArray_Opus_4_7(std::size_t count, const Allocator & alloc) : m_allocator(alloc)
     {
         this->build_filled_block(count, [](std::size_t) -> decltype(auto) { return T{}; });
     }
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
     template <std::input_iterator It>
-    FlexArray<T, SizeType, Allocator>::FlexArray(It first, It last, const Allocator & alloc) : m_allocator(alloc)
+    FlexArray_Opus_4_7<T, SizeType, Allocator>::FlexArray_Opus_4_7(It first, It last, const Allocator & alloc) : m_allocator(alloc)
     {
         if constexpr (std::forward_iterator<It>) {
             const std::size_t count = static_cast<std::size_t>(std::distance(first, last));
@@ -245,7 +248,7 @@ namespace lcf {
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
     template <std::ranges::input_range R>
-    FlexArray<T, SizeType, Allocator>::FlexArray(std::from_range_t, R && r, const Allocator & alloc) : m_allocator(alloc)
+    FlexArray_Opus_4_7<T, SizeType, Allocator>::FlexArray_Opus_4_7(std::from_range_t, R && r, const Allocator & alloc) : m_allocator(alloc)
     {
         if constexpr (std::ranges::sized_range<R>) {
             const std::size_t count = static_cast<std::size_t>(std::ranges::size(r));
@@ -257,7 +260,7 @@ namespace lcf {
     }
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
-    FlexArray<T, SizeType, Allocator>::FlexArray(const FlexArray & other, const Allocator & alloc) : m_allocator(alloc)
+    FlexArray_Opus_4_7<T, SizeType, Allocator>::FlexArray_Opus_4_7(const FlexArray_Opus_4_7 & other, const Allocator & alloc) : m_allocator(alloc)
     {
         const std::size_t count = other.size();
         if (count == 0) { return; }
@@ -272,7 +275,7 @@ namespace lcf {
     }
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
-    FlexArray<T, SizeType, Allocator>::FlexArray(FlexArray && other, const Allocator & alloc) : m_allocator(alloc)
+    FlexArray_Opus_4_7<T, SizeType, Allocator>::FlexArray_Opus_4_7(FlexArray_Opus_4_7 && other, const Allocator & alloc) : m_allocator(alloc)
     {
         if (m_allocator == other.m_allocator) {
             this->stealPointersFrom(other);
@@ -283,7 +286,7 @@ namespace lcf {
     }
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
-    auto FlexArray<T, SizeType, Allocator>::operator=(const FlexArray & other) -> FlexArray &
+    auto FlexArray_Opus_4_7<T, SizeType, Allocator>::operator=(const FlexArray_Opus_4_7 & other) -> FlexArray_Opus_4_7 &
     {
         if (this == &other) { return *this; }
         if constexpr (std::allocator_traits<Allocator>::propagate_on_container_copy_assignment::value) {
@@ -294,9 +297,9 @@ namespace lcf {
     }
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
-    auto FlexArray<T, SizeType, Allocator>::operator=(FlexArray && other)
+    auto FlexArray_Opus_4_7<T, SizeType, Allocator>::operator=(FlexArray_Opus_4_7 && other)
         noexcept(std::allocator_traits<Allocator>::propagate_on_container_move_assignment::value or std::allocator_traits<Allocator>::is_always_equal::value)
-        -> FlexArray &
+        -> FlexArray_Opus_4_7 &
     {
         if (this == &other) { return *this; }
         constexpr bool k_propagate = std::allocator_traits<Allocator>::propagate_on_container_move_assignment::value;
@@ -325,7 +328,7 @@ namespace lcf {
     }
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
-    void FlexArray<T, SizeType, Allocator>::resize(std::size_t n, const T & value)
+    void FlexArray_Opus_4_7<T, SizeType, Allocator>::resize(std::size_t n, const T & value)
     {
         const std::size_t current_size = this->size();
         if (n == current_size) { return; }
@@ -343,7 +346,7 @@ namespace lcf {
     }
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
-    void FlexArray<T, SizeType, Allocator>::shrinkToFit()
+    void FlexArray_Opus_4_7<T, SizeType, Allocator>::shrinkToFit()
     {
         const std::size_t current_size = this->size();
         if (current_size == this->capacity()) { return; }
@@ -352,22 +355,22 @@ namespace lcf {
     }
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
-    T & FlexArray<T, SizeType, Allocator>::at(std::size_t i)
+    T & FlexArray_Opus_4_7<T, SizeType, Allocator>::at(std::size_t i)
     {
-        if (i >= this->size()) { throw std::out_of_range("lcf::FlexArray::at index out of range"); }
+        if (i >= this->size()) { throw std::out_of_range("lcf::FlexArray_Opus_4_7::at index out of range"); }
         return m_first[i];
     }
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
-    const T & FlexArray<T, SizeType, Allocator>::at(std::size_t i) const
+    const T & FlexArray_Opus_4_7<T, SizeType, Allocator>::at(std::size_t i) const
     {
-        if (i >= this->size()) { throw std::out_of_range("lcf::FlexArray::at index out of range"); }
+        if (i >= this->size()) { throw std::out_of_range("lcf::FlexArray_Opus_4_7::at index out of range"); }
         return m_first[i];
     }
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
     template <typename... Args>
-    [[gnu::always_inline]] inline T & FlexArray<T, SizeType, Allocator>::emplaceBack(Args &&... args)
+    [[gnu::always_inline]] inline T & FlexArray_Opus_4_7<T, SizeType, Allocator>::emplaceBack(Args &&... args)
     {
         if (m_last == m_end) [[unlikely]] { this->ensure_one_more_capacity(); }
         T * slot_p = m_last;
@@ -378,7 +381,7 @@ namespace lcf {
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
     template <typename... Args>
-    auto FlexArray<T, SizeType, Allocator>::tryEmplaceBack(Args &&... args) noexcept(std::is_nothrow_constructible_v<T, Args &&...>)
+    auto FlexArray_Opus_4_7<T, SizeType, Allocator>::tryEmplaceBack(Args &&... args) noexcept(std::is_nothrow_constructible_v<T, Args &&...>)
         -> std::expected<std::reference_wrapper<T>, std::error_code>
     {
         if (m_last == m_end) {
@@ -400,7 +403,7 @@ namespace lcf {
     }
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
-    void FlexArray<T, SizeType, Allocator>::popBack() noexcept
+    void FlexArray_Opus_4_7<T, SizeType, Allocator>::popBack() noexcept
     {
         if (m_last == m_first) { return; }
         --m_last;
@@ -409,7 +412,7 @@ namespace lcf {
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
     template <typename... Args>
-    auto FlexArray<T, SizeType, Allocator>::emplace(const_iterator pos, Args &&... args) -> iterator
+    auto FlexArray_Opus_4_7<T, SizeType, Allocator>::emplace(const_iterator pos, Args &&... args) -> iterator
     {
         const std::size_t index = static_cast<std::size_t>(pos - m_first);
         if (m_last == m_end) { this->ensure_one_more_capacity(); }
@@ -432,7 +435,7 @@ namespace lcf {
     }
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
-    auto FlexArray<T, SizeType, Allocator>::erase(const_iterator first, const_iterator last) -> iterator
+    auto FlexArray_Opus_4_7<T, SizeType, Allocator>::erase(const_iterator first, const_iterator last) -> iterator
     {
         T * data_p = m_first;
         const std::size_t first_index = static_cast<std::size_t>(first - data_p);
@@ -452,7 +455,7 @@ namespace lcf {
     }
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
-    void FlexArray<T, SizeType, Allocator>::assign(std::size_t count, const T & value)
+    void FlexArray_Opus_4_7<T, SizeType, Allocator>::assign(std::size_t count, const T & value)
     {
         this->clear();
         if (count > this->capacity()) { this->reallocateTo(count); }
@@ -464,7 +467,7 @@ namespace lcf {
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
     template <std::input_iterator It>
-    void FlexArray<T, SizeType, Allocator>::assign(It first, It last)
+    void FlexArray_Opus_4_7<T, SizeType, Allocator>::assign(It first, It last)
     {
         this->clear();
         if constexpr (std::forward_iterator<It>) {
@@ -481,7 +484,7 @@ namespace lcf {
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
     template <std::ranges::input_range R>
-    void FlexArray<T, SizeType, Allocator>::appendRange(R && r)
+    void FlexArray_Opus_4_7<T, SizeType, Allocator>::appendRange(R && r)
     {
         if constexpr (std::ranges::sized_range<R>) {
             const std::size_t add_count = static_cast<std::size_t>(std::ranges::size(r));
@@ -492,7 +495,7 @@ namespace lcf {
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
     template <std::ranges::input_range R>
-    auto FlexArray<T, SizeType, Allocator>::insertRange(const_iterator pos, R && r) -> iterator
+    auto FlexArray_Opus_4_7<T, SizeType, Allocator>::insertRange(const_iterator pos, R && r) -> iterator
     {
         const std::size_t insert_index = static_cast<std::size_t>(pos - m_first);
         if constexpr (std::ranges::sized_range<R>) {
@@ -508,7 +511,7 @@ namespace lcf {
     }
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
-    auto FlexArray<T, SizeType, Allocator>::tryAcquireBlock(std::size_t capacity_count) noexcept -> std::expected<T *, std::error_code>
+    auto FlexArray_Opus_4_7<T, SizeType, Allocator>::tryAcquireBlock(std::size_t capacity_count) noexcept -> std::expected<T *, std::error_code>
     {
         constexpr std::size_t k_size_type_max = static_cast<std::size_t>(std::numeric_limits<SizeType>::max());
         if (capacity_count > k_size_type_max) { return std::unexpected{std::make_error_code(std::errc::value_too_large)}; }
@@ -525,7 +528,7 @@ namespace lcf {
     }
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
-    auto FlexArray<T, SizeType, Allocator>::acquireBlock(std::size_t capacity_count) -> T *
+    auto FlexArray_Opus_4_7<T, SizeType, Allocator>::acquireBlock(std::size_t capacity_count) -> T *
     {
         auto result = this->tryAcquireBlock(capacity_count);
         if (not result.has_value()) { throw std::system_error{result.error()}; }
@@ -533,7 +536,7 @@ namespace lcf {
     }
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
-    void FlexArray<T, SizeType, Allocator>::releaseBlock(T * data_p, std::size_t capacity_count) noexcept
+    void FlexArray_Opus_4_7<T, SizeType, Allocator>::releaseBlock(T * data_p, std::size_t capacity_count) noexcept
     {
         if (not data_p) { return; }
         Header * header_p = header_of(data_p);
@@ -544,7 +547,7 @@ namespace lcf {
     }
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
-    void FlexArray<T, SizeType, Allocator>::destroyAllElements() noexcept
+    void FlexArray_Opus_4_7<T, SizeType, Allocator>::destroyAllElements() noexcept
     {
         for (T * p = m_first; p != m_last; ++p) {
             std::destroy_at(p);
@@ -552,7 +555,7 @@ namespace lcf {
     }
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
-    void FlexArray<T, SizeType, Allocator>::destroy_prefix_and_release(T * data_p, std::size_t constructed_count, std::size_t capacity_count) noexcept
+    void FlexArray_Opus_4_7<T, SizeType, Allocator>::destroy_prefix_and_release(T * data_p, std::size_t constructed_count, std::size_t capacity_count) noexcept
     {
         if (not data_p) { return; }
         for (std::size_t i = 0; i < constructed_count; ++i) {
@@ -562,7 +565,7 @@ namespace lcf {
     }
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
-    auto FlexArray<T, SizeType, Allocator>::tryReallocateTo(std::size_t new_capacity) noexcept -> std::expected<void, std::error_code>
+    auto FlexArray_Opus_4_7<T, SizeType, Allocator>::tryReallocateTo(std::size_t new_capacity) noexcept -> std::expected<void, std::error_code>
     {
         const std::size_t current_size = this->size();
         if (new_capacity < current_size) { new_capacity = current_size; }
@@ -599,14 +602,14 @@ namespace lcf {
     }
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
-    void FlexArray<T, SizeType, Allocator>::reallocateTo(std::size_t new_capacity)
+    void FlexArray_Opus_4_7<T, SizeType, Allocator>::reallocateTo(std::size_t new_capacity)
     {
         auto result = this->tryReallocateTo(new_capacity);
         if (not result.has_value()) { throw std::system_error{result.error()}; }
     }
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
-    void FlexArray<T, SizeType, Allocator>::discard_block() noexcept
+    void FlexArray_Opus_4_7<T, SizeType, Allocator>::discard_block() noexcept
     {
         if (not m_first) { return; }
         const std::size_t cap = this->capacity();
@@ -616,7 +619,7 @@ namespace lcf {
     }
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
-    void FlexArray<T, SizeType, Allocator>::ensure_one_more_capacity()
+    void FlexArray_Opus_4_7<T, SizeType, Allocator>::ensure_one_more_capacity()
     {
         if (m_last == m_end) {
             const std::size_t cap = this->capacity();
@@ -625,7 +628,7 @@ namespace lcf {
     }
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
-    auto FlexArray<T, SizeType, Allocator>::try_ensure_one_more_capacity() noexcept -> std::expected<void, std::error_code>
+    auto FlexArray_Opus_4_7<T, SizeType, Allocator>::try_ensure_one_more_capacity() noexcept -> std::expected<void, std::error_code>
     {
         if (m_last != m_end) { return {}; }
         const std::size_t cap = this->capacity();
@@ -633,7 +636,7 @@ namespace lcf {
     }
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
-    std::span<const std::byte> FlexArray<T, SizeType, Allocator>::compute_byte_span(std::size_t element_count) const noexcept
+    std::span<const std::byte> FlexArray_Opus_4_7<T, SizeType, Allocator>::compute_byte_span(std::size_t element_count) const noexcept
     {
         if (not m_first) { return {}; }
         Header * header_p = header_of(m_first);
@@ -645,7 +648,7 @@ namespace lcf {
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
     template <typename Factory>
-    void FlexArray<T, SizeType, Allocator>::build_filled_block(std::size_t count, Factory && factory)
+    void FlexArray_Opus_4_7<T, SizeType, Allocator>::build_filled_block(std::size_t count, Factory && factory)
     {
         if (count == 0) { return; }
         T * new_data_p = this->acquireBlock(count);
@@ -658,7 +661,7 @@ namespace lcf {
     }
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
-    std::size_t FlexArray<T, SizeType, Allocator>::get_grow_count(std::size_t current_capacity, std::size_t requested_capacity)
+    std::size_t FlexArray_Opus_4_7<T, SizeType, Allocator>::get_grow_count(std::size_t current_capacity, std::size_t requested_capacity)
     {
         constexpr std::size_t k_min_capacity = 4;
         std::size_t grown = current_capacity + current_capacity / 2;
@@ -667,3 +670,76 @@ namespace lcf {
     }
 
 } // namespace lcf
+
+
+namespace lcf {
+namespace detail {
+    inline constexpr std::size_t get_array_grow_count(std::size_t current_capacity, std::size_t requested_capacity) noexcept
+    {
+        constexpr std::size_t k_min_capacity = 4;
+        std::size_t grown = current_capacity + (current_capacity >> 1);
+        return std::max(std::max(grown, k_min_capacity), requested_capacity);
+    }
+    template <typename T>
+    inline void migrate_checked(T * dst_p, T * src_p, std::size_t count)
+    {
+        constexpr bool k_prefer_move = not std::is_copy_constructible_v<T>;
+        for (std::size_t i = 0; i < count; ++i) {
+            if constexpr (k_prefer_move) {
+                ::new (static_cast<void *>(dst_p + i)) T(std::move(src_p[i]));
+            } else {
+                ::new (static_cast<void *>(dst_p + i)) T(src_p[i]);
+            }
+        }
+    }
+}
+    template <typename T, std::unsigned_integral SizeType = std::uint32_t, typename Allocator = std::allocator<std::byte>>
+    requires std::is_trivially_copyable_v<T> and std::is_trivially_destructible_v<T>
+    class FlexArray
+    {
+        using Self = FlexArray;
+        using ByteAllocator = typename std::allocator_traits<Allocator>::template rebind_alloc<std::byte>;
+        using ByteAlloctorTraits = std::allocator_traits<ByteAllocator>;
+    public:
+        FlexArray();
+    public:
+        std::size_t getSize() const noexcept { return static_cast<std::size_t>(m_last - m_first); }
+        std::size_t getCapacity() const noexcept { return static_cast<std::size_t>(m_end - m_first); }
+        bool isEmpty() const noexcept { return m_first == m_last; }
+    private:
+        std::error_code requireExtraSize(std::size_t extra_size = 1u) noexcept
+        {
+            std::size_t required_size = this->getSize() + extra_size;
+            std::size_t capacity = this->getCapacity();
+            if (required_size <= capacity) { return {}; }
+            return this->tryReallocateTo(detail::get_array_grow_count(capacity, required_size));
+        }
+        std::error_code tryReallocateTo(std::size_t capacity) noexcept
+        {
+            std::byte * block_p = ByteAlloctorTraits::allocate(ByteAllocator {m_allocator}, get_block_bytes_for(capacity));
+            if (not block_p) { return std::make_error_code(std::errc::not_enough_memory); }
+            auto first_p = reinterpret_cast<T *>(block_p + k_size_offset_bytes);
+            auto end_p = first_p + capacity;
+            std::size_t current_size = this->getSize();
+            *reinterpret_cast<SizeType *>(block_p) = static_cast<SizeType>(current_size);
+
+            std::memcpy(first_p, m_first_p, current_size * sizeof(T));
+            //todo destroy and deallocate old block
+            m_first_p = first_p;
+            m_last_p = first_p + current_size;
+            m_end_p = end_p;
+            return {};
+        }
+    private:
+        static constexpr std::size_t get_block_bytes_for(std::size_t capacity) noexcept
+        {
+            static constexpr std::size_t k_size_offset_bytes = sizeof(SizeType);
+            return k_size_offset_bytes + capacity * sizeof(T);
+        }
+    private:
+        T * m_first_p = nullptr;
+        T * m_last_p = nullptr;
+        T * m_end_p = nullptr;
+        Allocator m_allocator;
+    };
+}

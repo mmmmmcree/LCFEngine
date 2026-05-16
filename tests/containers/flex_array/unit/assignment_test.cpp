@@ -12,8 +12,8 @@ namespace {
 
     TEST(FlexArrayAssignment, SelfCopyAssignment)
     {
-        lcf::FlexArray<int> a = {1, 2, 3};
-        lcf::FlexArray<int> & ref = a;
+        lcf::FlexArray_Opus_4_7<int> a = {1, 2, 3};
+        lcf::FlexArray_Opus_4_7<int> & ref = a;
         a = ref;
         EXPECT_EQ(a.size(), 3u);
         EXPECT_EQ(a[0], 1);
@@ -22,8 +22,8 @@ namespace {
 
     TEST(FlexArrayAssignment, SelfMoveAssignment)
     {
-        lcf::FlexArray<int> a = {1, 2, 3};
-        lcf::FlexArray<int> & ref = a;
+        lcf::FlexArray_Opus_4_7<int> a = {1, 2, 3};
+        lcf::FlexArray_Opus_4_7<int> & ref = a;
         a = std::move(ref);
         EXPECT_EQ(a.size(), 3u);
         EXPECT_EQ(a[2], 3);
@@ -31,7 +31,7 @@ namespace {
 
     TEST(FlexArrayAssignment, InitializerListAssignment)
     {
-        lcf::FlexArray<int> a = {1, 2};
+        lcf::FlexArray_Opus_4_7<int> a = {1, 2};
         a = {10, 20, 30, 40};
         EXPECT_EQ(a.size(), 4u);
         EXPECT_EQ(a[0], 10);
@@ -40,16 +40,16 @@ namespace {
 
     TEST(FlexArrayAssignment, CopyAssignFromEmpty)
     {
-        lcf::FlexArray<int> a = {1, 2, 3};
-        lcf::FlexArray<int> empty;
+        lcf::FlexArray_Opus_4_7<int> a = {1, 2, 3};
+        lcf::FlexArray_Opus_4_7<int> empty;
         a = empty;
         EXPECT_EQ(a.size(), 0u);
     }
 
     TEST(FlexArrayAssignment, CopyAssignToEmpty)
     {
-        lcf::FlexArray<int> empty;
-        lcf::FlexArray<int> src = {1, 2, 3};
+        lcf::FlexArray_Opus_4_7<int> empty;
+        lcf::FlexArray_Opus_4_7<int> src = {1, 2, 3};
         empty = src;
         EXPECT_EQ(empty.size(), 3u);
         EXPECT_EQ(empty[2], 3);
@@ -60,10 +60,10 @@ namespace {
         using PA = std::pmr::polymorphic_allocator<std::byte>;
         std::pmr::monotonic_buffer_resource r1, r2;
         PA alloc1(&r1), alloc2(&r2);
-        lcf::FlexArray<std::string, std::uint32_t, PA> a(alloc1);
+        lcf::FlexArray_Opus_4_7<std::string, std::uint32_t, PA> a(alloc1);
         a.pushBack(std::string("hello"));
         a.pushBack(std::string("world"));
-        lcf::FlexArray<std::string, std::uint32_t, PA> b(alloc2);
+        lcf::FlexArray_Opus_4_7<std::string, std::uint32_t, PA> b(alloc2);
         b = std::move(a);
         EXPECT_EQ(b.size(), 2u);
         EXPECT_EQ(b[0], std::string("hello"));
