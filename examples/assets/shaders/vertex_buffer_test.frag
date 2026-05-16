@@ -45,6 +45,7 @@ struct MaterialRecord {
 };
 
 layout(std430, set = 1, binding = 1) readonly buffer ObjectInfos {
+    uint64_t object_count;
     ObjectInfo object_infos[];
 };
 

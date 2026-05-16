@@ -16,6 +16,7 @@
 #include "Vulkan/VulkanTextureManager.h"
 #include "ResourceSystem.h"
 #include "ecs/Registry.h"
+#include "array/FlexArray.h"
 
 using namespace lcf;
 namespace stdr = std::ranges;
@@ -478,19 +479,20 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
         .addWriteSegment({as_bytes_from_value(s_frustum), offsetof(CameraData, m_frustum)});
 
 
-    auto & per_renderable_vertex_records_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eObjectData)];
+    auto & object_info_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eObjectData)];
     auto & draw_meta_info_buffer_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eDrawMetaInfos)];
     auto & visible_instances_buffer_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eVisibleInstances)];
-    auto & per_renderable_transform_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eInstanceData)];
+    auto & instance_data_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eInstanceData)];
     auto & bounding_sphere_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eBoundingVolume)];
 
-    std::vector<ObjectData> object_data_list;
-    std::vector<BoundingSphere<float>> bounding_spheres_list;
+    FlexArray<ObjectData, uint64_t> object_data_list;
+    FlexArray<BoundingSphere<float>> bounding_spheres_list;
     for (const auto & mesh_pack : m_mesh_packs) {
         const auto & meshes = mesh_pack.meshes;
         for (const auto & mesh : mesh_pack.meshes) {
             uint32_t object_id = static_cast<uint32_t>(object_data_list.size());
-            auto & object_data = object_data_list.emplace_back();
+            object_data_list.emplace_back();
+            auto & object_data = object_data_list.back();
             object_data.m_vb_address = mesh.getVertexBufferAddress();
             object_data.m_ib_address = mesh.getIndexBufferAddress();
 
@@ -514,11 +516,12 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
         instance_data.m_transform.translateWorldX(5.0f * i);
     }
     
-    std::vector<DrawMetaInfo> draw_meta_infos;
+    FlexArray<DrawMetaInfo> draw_meta_infos;
     uint32_t instance_count = 0, object_id = 0;
     for (const auto & mesh_pack : m_mesh_packs) {
         for (const auto & mesh : mesh_pack.meshes) {
-            auto & draw_meta_info = draw_meta_infos.emplace_back();
+            draw_meta_infos.emplace_back();
+            auto & draw_meta_info = draw_meta_infos.back();
             draw_meta_info.setFirstVertex(0)
                 .setVertexCount(mesh.getIndexCount())
                 .setFirstInstance(instance_count)
@@ -542,8 +545,8 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
         instance_baseline_offset += mesh_instance_count * instance_count;
     }
 
-    per_renderable_vertex_records_ssbo.addWriteSegment({as_bytes(object_data_list), 0u});
-    per_renderable_transform_ssbo.addWriteSegment({as_bytes(instance_data_list), 0u});
+    object_info_ssbo.addWriteSegment({object_data_list.counted_bytes()});
+    instance_data_ssbo.addWriteSegment({as_bytes(instance_data_list), 0u});
     bounding_sphere_ssbo.addWriteSegment({as_bytes(bounding_spheres_list), 0u});
     // visible_instances_buffer_ssbo.addWriteSegment({as_bytes_from_value(instance_count), 0u})
     //     .addWriteSegment({as_bytes(visible_instances), size_of_v<uint32_t>});
@@ -563,18 +566,19 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
     std::array<DrawSequence, k_sequence_count> sequences;
     // [0] meshes
     sequences[0].pipeline_index = 0;
-    sequences[0].draw_call.setBufferAddress(draw_meta_info_buffer_ssbo.getDeviceAddress())
+    sequences[0].draw_call.setBufferAddress(draw_meta_info_buffer_ssbo.getDeviceAddress() + sizeof(uint32_t))
         .setStride(size_of_v<DrawMetaInfo>)
         .setCommandCount(mesh_indirect_call_count);
     // [1] skybox
     sequences[1].pipeline_index = 1;
-    sequences[1].draw_call.setBufferAddress(draw_meta_info_buffer_ssbo.getDeviceAddress() + size_of_v<DrawMetaInfo> * mesh_indirect_call_count)
+    sequences[1].draw_call.setBufferAddress(draw_meta_info_buffer_ssbo.getDeviceAddress() + sizeof(uint32_t) + size_of_v<DrawMetaInfo> * mesh_indirect_call_count)
         .setStride(size_of_v<DrawMetaInfo>)
         .setCommandCount(1);
     m_sequence_buffer.addWriteSegment({as_bytes(sequences), 0 });
 //-
 
-    draw_meta_info_buffer_ssbo.addWriteSegment({as_bytes(draw_meta_infos), 0u});
+    draw_meta_info_buffer_ssbo.addWriteSegment({draw_meta_infos.counted_bytes()});
+    // draw_meta_info_buffer_ssbo.addWriteSegment({as_bytes(draw_meta_infos), 0u});
     auto & transfer_cmd = current_frame_resources.data_transfer_command_buffer;
     transfer_cmd.begin(vk::CommandBufferBeginInfo{});
     m_per_view_uniform_buffer.commit(transfer_cmd);
@@ -599,9 +603,6 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
     cmd.begin(vk::CommandBufferBeginInfo{});
     cmd.setViewport(0, viewport);
     cmd.setScissor(0, scissor);
-    // m_sequence_buffer.commit(cmd);
-    // m_per_view_uniform_buffer.commit(cmd);
-    // m_per_renderable_ssbo_group.commitAll(cmd);
 
     current_framebuffer.beginRendering(cmd);
 

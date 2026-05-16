@@ -11,10 +11,12 @@
 #include "bindless_structs.glsl"
 
 layout(std430, set = 1, binding = 0) readonly buffer DrawMetaInfoBuffer {
+    uint draw_count;
     DrawMetaInfo draw_meta_infos[];
 };
 
 layout(std430, set = 1, binding = 1) readonly buffer ObjectInfos {
+    uint64_t object_count;
     ObjectInfo object_infos[];
 };
 
