@@ -671,70 +671,146 @@ namespace lcf {
 
 } // namespace lcf
 
+namespace {
+    template <typename T>
+    concept trivial_c = std::is_trivially_copyable_v<T> and std::is_trivially_destructible_v<T>;
 
-namespace lcf {
-namespace detail {
     inline constexpr std::size_t get_array_grow_count(std::size_t current_capacity, std::size_t requested_capacity) noexcept
     {
         constexpr std::size_t k_min_capacity = 4;
         std::size_t grown = current_capacity + (current_capacity >> 1);
         return std::max(std::max(grown, k_min_capacity), requested_capacity);
     }
-    template <typename T>
-    inline void migrate_checked(T * dst_p, T * src_p, std::size_t count)
-    {
-        constexpr bool k_prefer_move = not std::is_copy_constructible_v<T>;
-        for (std::size_t i = 0; i < count; ++i) {
-            if constexpr (k_prefer_move) {
-                ::new (static_cast<void *>(dst_p + i)) T(std::move(src_p[i]));
-            } else {
-                ::new (static_cast<void *>(dst_p + i)) T(src_p[i]);
-            }
-        }
-    }
 }
-    template <typename T, std::unsigned_integral SizeType = std::uint32_t, typename Allocator = std::allocator<std::byte>>
-    requires std::is_trivially_copyable_v<T> and std::is_trivially_destructible_v<T>
+
+namespace lcf {
+
+    template <::trivial_c T, std::unsigned_integral SizeType = std::uint32_t, typename Allocator = std::allocator<std::byte>>
     class FlexArray
     {
         using Self = FlexArray;
         using ByteAllocator = typename std::allocator_traits<Allocator>::template rebind_alloc<std::byte>;
         using ByteAlloctorTraits = std::allocator_traits<ByteAllocator>;
+        static constexpr std::size_t k_size_offset_bytes = sizeof(SizeType);
     public:
-        FlexArray();
+        using value_type = T;
+        using size_type = std::size_t;
+        using header_size_type = SizeType;
+        using allocator_type = Allocator;
+        using iterator = T *;
+        using const_iterator = const T *;
+        using reverse_iterator = std::reverse_iterator<iterator>;
+        using const_reverse_iterator = std::reverse_iterator<const_iterator>;
     public:
-        std::size_t getSize() const noexcept { return static_cast<std::size_t>(m_last - m_first); }
-        std::size_t getCapacity() const noexcept { return static_cast<std::size_t>(m_end - m_first); }
-        bool isEmpty() const noexcept { return m_first == m_last; }
+        constexpr FlexArray() noexcept = default;
+        explicit FlexArray(const Allocator & alloc) noexcept : m_allocator(alloc) {}
+        explicit FlexArray(std::size_t count, const Allocator & alloc = Allocator()) noexcept;
+        FlexArray(std::size_t count, const T & value, const Allocator & alloc = Allocator()) noexcept;
+        template <std::input_iterator InputIt>
+        FlexArray(InputIt first, InputIt last, const Allocator & alloc = Allocator()) noexcept;
+        template <std::ranges::input_range Range>
+        FlexArray(std::from_range_t, Range && range, const Allocator & alloc = Allocator()) noexcept;
+        FlexArray(std::initializer_list<T> init, const Allocator & alloc = Allocator()) noexcept : m_allocator(alloc) { this->appendRange(init); }
+        FlexArray(const Self & other) noexcept { this->copyFrom(other); }
+        FlexArray(const Self & other, const Allocator & alloc) noexcept : m_allocator(alloc) { this->copyFrom(other); }
+        FlexArray(Self && other) noexcept { this->stealFrom(other); }
+        FlexArray(Self && other, const Allocator & alloc) noexcept : m_allocator(alloc) { this->stealFrom(other); }
+        Self & operator=(const Self & other) noexcept;
+        Self & operator=(Self && other) noexcept;
+        Self & operator=(std::initializer_list<T> init) noexcept { this->assignRange(init); return *this; }
+        ~FlexArray() noexcept { this->deallocateBlock(); }
+        T & operator[](std::size_t i) noexcept { return m_first_p[i]; }
+        const T & operator[](std::size_t i) const noexcept { return m_first_p[i]; }
+    public:
+        T & front() noexcept { return *m_first_p; }
+        const T & front() const noexcept { return *m_first_p; }
+        T & back() noexcept { return *(m_last_p - 1); }
+        const T & back() const noexcept { return *(m_last_p - 1); }
+        iterator begin() noexcept { return m_first_p; }
+        const_iterator begin() const noexcept { return m_first_p; }
+        iterator end() noexcept { return m_last_p; }
+        const_iterator end() const noexcept { return m_last_p; }
+        const_iterator cbegin() const noexcept { return m_first_p; }
+        const_iterator cend() const noexcept { return m_last_p; }
+        reverse_iterator rbegin() noexcept { return reverse_iterator(m_last_p); }
+        const_reverse_iterator rbegin() const noexcept { return const_reverse_iterator(m_last_p); }
+        reverse_iterator rend() noexcept { return reverse_iterator(m_first_p); }
+        const_reverse_iterator rend() const noexcept { return const_reverse_iterator(m_first_p); }
+        const_reverse_iterator crbegin() const noexcept { return const_reverse_iterator(m_last_p); }
+        const_reverse_iterator crend() const noexcept { return const_reverse_iterator(m_first_p); }
+        allocator_type getAllocator() const noexcept { return m_allocator; }
+        std::span<T> getDataSpan() noexcept { return {m_first_p, this->getSize()}; }
+        std::span<const T> getDataSpan() const noexcept { return {m_first_p, this->getSize()}; }
+        std::span<const std::byte> getCountedBytes() const noexcept;
+        std::size_t getSize() const noexcept { return static_cast<std::size_t>(m_last_p - m_first_p); }
+        std::size_t getCapacity() const noexcept { return static_cast<std::size_t>(m_end_p - m_first_p); }
+        bool isEmpty() const noexcept { return m_first_p == m_last_p; }
+    public:
+        std::error_code pushBack(const T & value) noexcept;
+        template <typename... Args>
+        std::error_code emplaceBack(Args &&... args) noexcept;
+        void popBack() noexcept { if (not this->isEmpty()) { m_last_p--; } }
+        void clear() noexcept { m_last_p = m_first_p; }
+        void clearAndShrink() noexcept { this->deallocateBlock(); }
+        void resize(std::size_t count) noexcept;
+        void resize(std::size_t count, const T & value) noexcept;
+        void reserve(std::size_t count) noexcept { if (count > this->getCapacity()) { this->tryReallocateTo(count); } }
+        template <std::ranges::input_range Range>
+        void assignRange(Range && range) noexcept { this->clear(); this->appendRange(std::forward<Range>(range)); }
+        template <std::ranges::input_range Range>
+        void appendRange(Range && range) noexcept;
     private:
         std::error_code requireExtraSize(std::size_t extra_size = 1u) noexcept
         {
             std::size_t required_size = this->getSize() + extra_size;
             std::size_t capacity = this->getCapacity();
             if (required_size <= capacity) { return {}; }
-            return this->tryReallocateTo(detail::get_array_grow_count(capacity, required_size));
+            return this->tryReallocateTo(::get_array_grow_count(capacity, required_size));
         }
-        std::error_code tryReallocateTo(std::size_t capacity) noexcept
+        std::error_code tryReallocateTo(std::size_t new_capacity) noexcept
         {
-            std::byte * block_p = ByteAlloctorTraits::allocate(ByteAllocator {m_allocator}, get_block_bytes_for(capacity));
-            if (not block_p) { return std::make_error_code(std::errc::not_enough_memory); }
-            auto first_p = reinterpret_cast<T *>(block_p + k_size_offset_bytes);
-            auto end_p = first_p + capacity;
+            ByteAllocator alloc(m_allocator);
+            std::byte * header_p = ByteAlloctorTraits::allocate(alloc, get_block_bytes_for(new_capacity));
+            if (not header_p) { return std::make_error_code(std::errc::not_enough_memory); }
+            T * new_first_p = reinterpret_cast<T *>(header_p + k_size_offset_bytes);
             std::size_t current_size = this->getSize();
-            *reinterpret_cast<SizeType *>(block_p) = static_cast<SizeType>(current_size);
-
-            std::memcpy(first_p, m_first_p, current_size * sizeof(T));
-            //todo destroy and deallocate old block
-            m_first_p = first_p;
-            m_last_p = first_p + current_size;
-            m_end_p = end_p;
+            std::copy_n(m_first_p, current_size, new_first_p);
+            this->deallocateBlock();
+            *reinterpret_cast<SizeType *>(header_p) = static_cast<SizeType>(current_size);
+            m_first_p = new_first_p;
+            m_last_p = new_first_p + current_size;
+            m_end_p = new_first_p + new_capacity;
             return {};
         }
-    private:
-        static constexpr std::size_t get_block_bytes_for(std::size_t capacity) noexcept
+        void deallocateBlock() noexcept
         {
-            static constexpr std::size_t k_size_offset_bytes = sizeof(SizeType);
-            return k_size_offset_bytes + capacity * sizeof(T);
+            if (not m_first_p) { return; }
+            ByteAllocator alloc(m_allocator);
+            auto header_p = header_of(m_first_p);
+            ByteAlloctorTraits::deallocate(alloc, header_p, get_block_bytes_for(this->getCapacity()));
+            m_first_p = m_last_p = m_end_p = nullptr;
+        }
+        void copyFrom(const Self & other) noexcept
+        {
+            std::size_t size = other.getSize();
+            this->requireExtraSize(size);
+            std::copy_n(other.m_first_p, size, m_first_p);
+            m_last_p = m_first_p + size;
+        }
+        void stealFrom(Self & other) noexcept
+        {
+            m_first_p = std::exchange(other.m_first_p, nullptr);
+            m_last_p = std::exchange(other.m_last_p, nullptr);
+            m_end_p = std::exchange(other.m_end_p, nullptr);
+        }
+    private:
+        static constexpr std::size_t get_block_bytes_for(std::size_t count) noexcept
+        {
+            return k_size_offset_bytes + count * sizeof(T);
+        }
+        static constexpr std::byte * header_of(T * data_p) noexcept
+        {
+            return reinterpret_cast<std::byte *>(data_p) - k_size_offset_bytes;
         }
     private:
         T * m_first_p = nullptr;
@@ -742,4 +818,115 @@ namespace detail {
         T * m_end_p = nullptr;
         Allocator m_allocator;
     };
+
+    template <::trivial_c T, std::unsigned_integral SizeType, typename Allocator>
+    inline std::error_code FlexArray<T, SizeType, Allocator>::pushBack(const T &value) noexcept
+    {
+        if (auto ec = this->requireExtraSize()) { return ec; }
+        ::new (static_cast<void *>(m_last_p++)) T(value);
+        return {};
+    }
+
+    template <::trivial_c T, std::unsigned_integral SizeType, typename Allocator>
+    template <typename... Args>
+    inline std::error_code FlexArray<T, SizeType, Allocator>::emplaceBack(Args &&...args) noexcept
+    {
+        if (auto ec = this->requireExtraSize()) { return ec; }
+        ::new (static_cast<void *>(m_last_p++)) T(std::forward<Args>(args)...);
+        return {};
+    }
+
+    template <::trivial_c T, std::unsigned_integral SizeType, typename Allocator>
+    template <std::ranges::input_range Range>
+    void FlexArray<T, SizeType, Allocator>::appendRange(Range && range) noexcept
+    {
+        if constexpr (std::ranges::sized_range<Range>) {
+            std::size_t count = static_cast<std::size_t>(std::ranges::size(range));
+            this->requireExtraSize(count);
+            std::copy_n(std::ranges::begin(range), count, m_last_p);
+            m_last_p += count;
+        } else {
+            for (auto && elem : range) { this->emplaceBack(std::forward<decltype(elem)>(elem)); }
+        }
+    }
+    
+    template <::trivial_c T, std::unsigned_integral SizeType, typename Allocator>
+    FlexArray<T, SizeType, Allocator>::FlexArray(std::size_t count, const Allocator & alloc) noexcept : m_allocator(alloc)
+    {
+        this->requireExtraSize(count);
+        m_last_p = m_first_p + count;
+    }
+
+    template <::trivial_c T, std::unsigned_integral SizeType, typename Allocator>
+    FlexArray<T, SizeType, Allocator>::FlexArray(std::size_t count, const T & value, const Allocator & alloc) noexcept : m_allocator(alloc)
+    {
+        this->requireExtraSize(count);
+        std::fill_n(m_first_p, count, value);
+        m_last_p = m_first_p + count;
+    }
+
+    template <::trivial_c T, std::unsigned_integral SizeType, typename Allocator>
+    template <std::input_iterator InputIt>
+    FlexArray<T, SizeType, Allocator>::FlexArray(InputIt first, InputIt last, const Allocator & alloc) noexcept : m_allocator(alloc)
+    {
+        if constexpr (std::forward_iterator<InputIt>) {
+            std::size_t count = static_cast<std::size_t>(std::distance(first, last));
+            this->requireExtraSize(count);
+            std::copy(first, last, m_first_p);
+            m_last_p = m_first_p + count;
+        } else {
+            for (auto it = first; it != last; ++it) { this->emplaceBack(*it); }
+        }
+    }
+
+    template <::trivial_c T, std::unsigned_integral SizeType, typename Allocator>
+    template <std::ranges::input_range Range>
+    FlexArray<T, SizeType, Allocator>::FlexArray(std::from_range_t, Range && range, const Allocator & alloc) noexcept : m_allocator(alloc)
+    {
+        this->appendRange(std::forward<Range>(range));
+    }
+
+    template <::trivial_c T, std::unsigned_integral SizeType, typename Allocator>
+    auto FlexArray<T, SizeType, Allocator>::operator=(const Self & other) noexcept -> Self &
+    {
+        if (this == &other) { return *this; }
+        this->clear();
+        this->copyFrom(other);
+        return *this;
+    }
+
+    template <::trivial_c T, std::unsigned_integral SizeType, typename Allocator>
+    auto FlexArray<T, SizeType, Allocator>::operator=(Self && other) noexcept -> Self &
+    {
+        if (this == &other) { return *this; }
+        this->deallocateBlock();
+        this->stealFrom(other);
+        return *this;
+    }
+
+    template <::trivial_c T, std::unsigned_integral SizeType, typename Allocator>
+    void FlexArray<T, SizeType, Allocator>::resize(std::size_t count) noexcept
+    {
+        if (count > this->getSize()) { this->requireExtraSize(count - this->getSize()); }
+        m_last_p = m_first_p + count;
+    }
+    
+    template <::trivial_c T, std::unsigned_integral SizeType, typename Allocator>
+    void FlexArray<T, SizeType, Allocator>::resize(std::size_t count, const T & value) noexcept
+    {
+        if (count > this->getSize()) {
+            this->requireExtraSize(count - this->getSize());
+            std::fill_n(m_last_p, count - this->getSize(), value);
+        }
+        m_last_p = m_first_p + count;
+    }
+
+    template <::trivial_c T, std::unsigned_integral SizeType, typename Allocator>
+    inline std::span<const std::byte> FlexArray<T, SizeType, Allocator>::getCountedBytes() const noexcept
+    {
+        if (not m_first_p) { return {}; }
+        auto header_p = header_of(m_first_p);
+        *reinterpret_cast<SizeType *>(header_p) = static_cast<SizeType>(this->getSize());
+        return {header_p, get_block_bytes_for(this->getSize())};
+    }
 }
