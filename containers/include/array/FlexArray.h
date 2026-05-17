@@ -1069,7 +1069,7 @@ namespace lcf {
     {
         std::size_t required_size = this->size() + extra_size;
         std::size_t capacity = this->capacity();
-        if (required_size <= capacity) { return {}; }
+        if (required_size <= capacity) [[likely]] { return {}; }
         return this->tryReallocateTo(::get_array_grow_count(capacity, required_size));
     }
 
