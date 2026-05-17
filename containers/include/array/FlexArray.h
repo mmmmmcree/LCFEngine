@@ -759,59 +759,14 @@ namespace lcf {
         template <std::ranges::input_range Range>
         void append_range(Range && range) noexcept;
     private:
-        std::error_code requireExtraSize(std::size_t extra_size = 1u) noexcept
-        {
-            std::size_t required_size = this->size() + extra_size;
-            std::size_t capacity = this->capacity();
-            if (required_size <= capacity) { return {}; }
-            return this->tryReallocateTo(::get_array_grow_count(capacity, required_size));
-        }
-        std::error_code tryReallocateTo(std::size_t new_capacity) noexcept
-        {
-            ByteAllocator alloc(m_allocator);
-            std::byte * header_p = ByteAlloctorTraits::allocate(alloc, get_block_bytes_for(new_capacity));
-            if (not header_p) { return std::make_error_code(std::errc::not_enough_memory); }
-            T * new_first_p = reinterpret_cast<T *>(header_p + k_size_offset_bytes);
-            std::size_t current_size = this->size();
-            std::uninitialized_move_n(m_first_p, current_size, new_first_p);
-            this->deallocateBlock();
-            *reinterpret_cast<SizeType *>(header_p) = static_cast<SizeType>(current_size);
-            m_first_p = new_first_p;
-            m_last_p = new_first_p + current_size;
-            m_end_p = new_first_p + new_capacity;
-            return {};
-        }
-        void deallocateBlock() noexcept
-        {
-            if (not m_first_p) { return; }
-            if constexpr (not std::is_trivially_destructible_v<T>) { std::destroy_n(m_first_p, this->size()); }
-            ByteAllocator alloc(m_allocator);
-            auto header_p = header_of(m_first_p);
-            ByteAlloctorTraits::deallocate(alloc, header_p, get_block_bytes_for(this->capacity()));
-            m_first_p = m_last_p = m_end_p = nullptr;
-        }
-        void copyFrom(const Self & other) noexcept
-        {
-            std::size_t size = other.size();
-            this->requireExtraSize(size);
-            std::copy_n(other.m_first_p, size, m_first_p);
-            m_last_p = m_first_p + size;
-        }
-        void stealFrom(Self & other) noexcept
-        {
-            m_first_p = std::exchange(other.m_first_p, nullptr);
-            m_last_p = std::exchange(other.m_last_p, nullptr);
-            m_end_p = std::exchange(other.m_end_p, nullptr);
-        }
+        std::error_code requireExtraSize(std::size_t extra_size = 1u) noexcept;
+        std::error_code tryReallocateTo(std::size_t new_capacity) noexcept;
+        void deallocateBlock() noexcept;
+        void copyFrom(const Self & other) noexcept;
+        void stealFrom(Self & other) noexcept;
     private:
-        static constexpr std::size_t get_block_bytes_for(std::size_t count) noexcept
-        {
-            return k_size_offset_bytes + count * sizeof(T);
-        }
-        static constexpr std::byte * header_of(T * data_p) noexcept
-        {
-            return reinterpret_cast<std::byte *>(data_p) - k_size_offset_bytes;
-        }
+        static constexpr std::size_t get_block_bytes_for(std::size_t count) noexcept { return k_size_offset_bytes + count * sizeof(T); }
+        static constexpr std::byte * header_of(T * data_p) noexcept { return reinterpret_cast<std::byte *>(data_p) - k_size_offset_bytes; }
     private:
         T * m_first_p = nullptr;
         T * m_last_p = nullptr;
@@ -823,7 +778,7 @@ namespace lcf {
     inline std::error_code FlexArray<T, SizeType, Allocator>::push_back(const T &value) noexcept
     {
         if (auto ec = this->requireExtraSize()) { return ec; }
-        ::new (static_cast<void *>(m_last_p++)) T(value);
+        std::construct_at(m_last_p++, value);
         return {};
     }
 
@@ -832,7 +787,7 @@ namespace lcf {
     inline constexpr std::error_code FlexArray<T, SizeType, Allocator>::emplace_back(Args &&...args) noexcept
     {
         if (auto ec = this->requireExtraSize()) { return ec; }
-        ::new (static_cast<void *>(m_last_p++)) T(std::forward<Args>(args)...);
+        std::construct_at(m_last_p++, T(std::forward<Args>(args)...));
         return {};
     }
 
@@ -949,5 +904,59 @@ namespace lcf {
         auto header_p = header_of(m_first_p);
         *reinterpret_cast<SizeType *>(header_p) = static_cast<SizeType>(this->size());
         return {header_p, get_block_bytes_for(this->size())};
+    }
+
+    template <::trivial_copyable_c T, std::unsigned_integral SizeType, typename Allocator>
+    inline std::error_code FlexArray<T, SizeType, Allocator>::requireExtraSize(std::size_t extra_size) noexcept
+    {
+        std::size_t required_size = this->size() + extra_size;
+        std::size_t capacity = this->capacity();
+        if (required_size <= capacity) { return {}; }
+        return this->tryReallocateTo(::get_array_grow_count(capacity, required_size));
+    }
+
+    template<::trivial_copyable_c T, std::unsigned_integral SizeType, typename Allocator>
+    inline std::error_code FlexArray<T, SizeType, Allocator>::tryReallocateTo(std::size_t new_capacity) noexcept
+    {
+        ByteAllocator alloc(m_allocator);
+        std::byte * header_p = ByteAlloctorTraits::allocate(alloc, get_block_bytes_for(new_capacity));
+        if (not header_p) { return std::make_error_code(std::errc::not_enough_memory); }
+        T * new_first_p = reinterpret_cast<T *>(header_p + k_size_offset_bytes);
+        std::size_t current_size = this->size();
+        std::uninitialized_move_n(m_first_p, current_size, new_first_p);
+        this->deallocateBlock();
+        *reinterpret_cast<SizeType *>(header_p) = static_cast<SizeType>(current_size);
+        m_first_p = new_first_p;
+        m_last_p = new_first_p + current_size;
+        m_end_p = new_first_p + new_capacity;
+        return {};
+    }
+
+    template <::trivial_copyable_c T, std::unsigned_integral SizeType, typename Allocator>
+    inline void FlexArray<T, SizeType, Allocator>::deallocateBlock() noexcept
+    {
+        if (not m_first_p) { return; }
+        if constexpr (not std::is_trivially_destructible_v<T>) { std::destroy_n(m_first_p, this->size()); }
+        ByteAllocator alloc(m_allocator);
+        auto header_p = header_of(m_first_p);
+        ByteAlloctorTraits::deallocate(alloc, header_p, get_block_bytes_for(this->capacity()));
+        m_first_p = m_last_p = m_end_p = nullptr;
+    }
+
+    template <::trivial_copyable_c T, std::unsigned_integral SizeType, typename Allocator>
+    inline void FlexArray<T, SizeType, Allocator>::copyFrom(const Self &other) noexcept
+    {
+        std::size_t size = other.size();
+        this->requireExtraSize(size);
+        std::copy_n(other.m_first_p, size, m_first_p);
+        m_last_p = m_first_p + size;
+    }
+
+    template <::trivial_copyable_c T, std::unsigned_integral SizeType, typename Allocator>
+    inline void FlexArray<T, SizeType, Allocator>::stealFrom(Self &other) noexcept
+    {
+        m_first_p = std::exchange(other.m_first_p, nullptr);
+        m_last_p = std::exchange(other.m_last_p, nullptr);
+        m_end_p = std::exchange(other.m_end_p, nullptr);
     }
 }
