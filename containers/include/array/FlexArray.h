@@ -781,28 +781,8 @@ namespace lcf {
         std::error_code requireExtraSize(std::size_t extra_size = 1u) noexcept(is_nothrow_relocate_v<T>);
         std::error_code tryReallocateTo(std::size_t new_capacity) noexcept(is_nothrow_relocate_v<T>);
         void deallocateBlockAndSetPointers(T * first_p = nullptr, std::size_t new_size = 0u, std::size_t new_capacity = 0u) noexcept;
-        void makeGap(std::size_t pos_index, std::size_t count) noexcept(is_nothrow_relocate_v<T>)
-        {
-            T * src = m_first_p + pos_index;
-            std::size_t tail_count = this->size() - pos_index;
-            std::uninitialized_move_n(src + tail_count - count, count, src + tail_count);
-            std::move_backward(src, src + tail_count - count, src + tail_count);
-            if constexpr (std::is_trivially_destructible_v<T>) { std::destroy_n(src + tail_count - count, count); }
-            m_last_p += count;
-        }
-        std::error_code reallocateAndMakeGap(std::size_t pos_index, std::size_t count) noexcept(is_nothrow_relocate_v<T>)
-        {
-            std::size_t old_size = this->size();
-            std::size_t new_capacity = get_array_grow_count(this->capacity(), old_size + count);
-            ByteAllocator alloc(m_allocator);
-            std::byte * header_p = ByteAlloctorTraits::allocate(alloc, get_block_bytes_for(new_capacity));
-            if (not header_p) { return std::make_error_code(std::errc::not_enough_memory); }
-            T * new_first_p = reinterpret_cast<T *>(header_p + k_size_offset_bytes);
-            std::uninitialized_move_n(m_first_p, pos_index, new_first_p);
-            std::uninitialized_move_n(m_first_p + pos_index, old_size - pos_index, new_first_p + pos_index + count);
-            this->deallocateBlockAndSetPointers(new_first_p, old_size + count, new_capacity);
-            return {};
-        }
+        void makeGap(std::size_t pos_index, std::size_t count) noexcept(is_nothrow_relocate_v<T>);
+        std::error_code reallocateAndMakeGap(std::size_t pos_index, std::size_t count) noexcept(is_nothrow_relocate_v<T>);
         void copyFrom(const Self & other) noexcept(is_nothrow_relocate_v<T>);
         void stealFrom(Self & other) noexcept;
     private:
@@ -1017,6 +997,32 @@ namespace lcf {
         m_first_p = first_p;
         m_last_p = first_p + new_size;
         m_end_p = first_p + new_capacity;
+    }
+
+    template <typename T, std::unsigned_integral SizeType, typename Allocator>
+    inline void FlexArray<T, SizeType, Allocator>::makeGap(std::size_t pos_index, std::size_t count) noexcept(is_nothrow_relocate_v<T>)
+    {
+        T * src = m_first_p + pos_index;
+        std::size_t tail_count = this->size() - pos_index;
+        std::uninitialized_move_n(src + tail_count - count, count, src + tail_count);
+        std::move_backward(src, src + tail_count - count, src + tail_count);
+        if constexpr (std::is_trivially_destructible_v<T>) { std::destroy_n(src + tail_count - count, count); }
+        m_last_p += count;
+    }
+
+    template <typename T, std::unsigned_integral SizeType, typename Allocator>
+    inline std::error_code FlexArray<T, SizeType, Allocator>::reallocateAndMakeGap(std::size_t pos_index, std::size_t count) noexcept(is_nothrow_relocate_v<T>)
+    {
+        std::size_t old_size = this->size();
+        std::size_t new_capacity = get_array_grow_count(this->capacity(), old_size + count);
+        ByteAllocator alloc(m_allocator);
+        std::byte * header_p = ByteAlloctorTraits::allocate(alloc, get_block_bytes_for(new_capacity));
+        if (not header_p) { return std::make_error_code(std::errc::not_enough_memory); }
+        T * new_first_p = reinterpret_cast<T *>(header_p + k_size_offset_bytes);
+        std::uninitialized_move_n(m_first_p, pos_index, new_first_p);
+        std::uninitialized_move_n(m_first_p + pos_index, old_size - pos_index, new_first_p + pos_index + count);
+        this->deallocateBlockAndSetPointers(new_first_p, old_size + count, new_capacity);
+        return {};
     }
 
     template <typename T, std::unsigned_integral SizeType, typename Allocator>
