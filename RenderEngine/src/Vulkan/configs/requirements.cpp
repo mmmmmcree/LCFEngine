@@ -7,7 +7,8 @@ namespace stdr = std::ranges;
 //  Instance Extensions
 // ============================================================================
 
-static constexpr const char * k_instance_extensions[] = {
+static constexpr std::initializer_list<const char * const> k_instance_extensions
+{
 #ifndef NDEBUG
     VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
 #endif
@@ -19,7 +20,8 @@ static constexpr const char * k_instance_extensions[] = {
 //  Instance Layers
 // ============================================================================
 
-static constexpr const char * k_instance_layers[] = {
+static constexpr std::initializer_list<const char * const> k_instance_layers
+{
 #ifndef NDEBUG
     "VK_LAYER_KHRONOS_validation",
 #endif
@@ -29,7 +31,8 @@ static constexpr const char * k_instance_layers[] = {
 //  Device Extensions (core, always required)
 // ============================================================================
 
-static constexpr const char * k_device_extensions[] = {
+static constexpr std::initializer_list<const char * const> k_device_extensions
+{
     VK_KHR_MAINTENANCE1_EXTENSION_NAME,
     VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME,
     VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME,
@@ -40,7 +43,8 @@ static constexpr const char * k_device_extensions[] = {
 //  Device Extensions (presentation, only when surfaces are present)
 // ============================================================================
 
-static constexpr const char * k_presentation_device_extensions[] = {
+static constexpr std::initializer_list<const char * const> k_presentation_device_extensions
+{
     VK_KHR_SWAPCHAIN_EXTENSION_NAME,
     VK_EXT_SWAPCHAIN_MAINTENANCE_1_EXTENSION_NAME,
 };
