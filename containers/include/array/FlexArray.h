@@ -63,7 +63,7 @@ namespace lcf {
         FlexArray(const Self & other) noexcept { this->copyFrom(other); }
         FlexArray(const Self & other, const Allocator & alloc) noexcept : m_allocator(alloc) { this->copyFrom(other); }
         FlexArray(Self && other) noexcept { this->stealFrom(other); }
-        FlexArray(Self && other, const Allocator & alloc) noexcept : m_allocator(alloc) { this->stealFrom(other); }
+        FlexArray(Self && other, const Allocator & alloc) noexcept;
         Self & operator=(const Self & other) noexcept;
         Self & operator=(Self && other) noexcept;
         Self & operator=(std::initializer_list<T> init) noexcept { this->assign_range(init); return *this; }
@@ -131,6 +131,7 @@ namespace lcf {
         void closeGap(std::size_t pos_index, std::size_t count) noexcept;
         void copyFrom(const Self & other) noexcept;
         void stealFrom(Self & other) noexcept;
+        void moveElementsFrom(Self & other) noexcept;
     private:
         static constexpr std::size_t get_block_bytes_for(std::size_t count) noexcept { return k_size_offset_bytes + count * sizeof(T); }
         static constexpr std::byte * header_of(T * data_p) noexcept { return reinterpret_cast<std::byte *>(data_p) - k_size_offset_bytes; }
@@ -365,8 +366,24 @@ namespace lcf {
     auto FlexArray<T, SizeType, Allocator>::operator=(Self && other) noexcept -> Self &
     {
         if (this == &other) { return *this; }
-        this->deallocateBlockAndSetPointers();
-        this->stealFrom(other);
+        constexpr bool k_propagate = std::allocator_traits<Allocator>::propagate_on_container_move_assignment::value;
+        constexpr bool k_always_equal = std::allocator_traits<Allocator>::is_always_equal::value;
+
+        if constexpr (k_propagate or k_always_equal) {
+            this->clear();
+            this->deallocateBlockAndSetPointers();
+            this->stealFrom(other);
+            if constexpr (k_propagate) { m_allocator = std::move(other.m_allocator); }
+        } else {
+            if (m_allocator == other.m_allocator) {
+                this->clear();
+                this->deallocateBlockAndSetPointers();
+                this->stealFrom(other);
+            } else {
+                this->clear();
+                this->moveElementsFrom(other);
+            }
+        }
         return *this;
     }
 
@@ -412,7 +429,7 @@ namespace lcf {
     {
         std::size_t required_size = this->size() + extra_size;
         std::size_t capacity = this->capacity();
-        if (required_size <= capacity) [[likely]] { return {}; }
+        if (required_size <= capacity) { return {}; }
         return this->tryReallocateTo(::get_array_grow_count(capacity, required_size));
     }
 
@@ -470,5 +487,34 @@ namespace lcf {
         m_first_p = std::exchange(other.m_first_p, nullptr);
         m_last_p = std::exchange(other.m_last_p, nullptr);
         m_end_p = std::exchange(other.m_end_p, nullptr);
+    }
+
+    template <typename T, std::unsigned_integral SizeType, typename Allocator>
+    inline void FlexArray<T, SizeType, Allocator>::moveElementsFrom(Self &other) noexcept
+    {
+        std::size_t size = other.size();
+        if (size == 0) { return; }
+        this->requireExtraSize(size);
+        if constexpr (is_nothrow_relocate_v<T>) {
+            std::uninitialized_move_n(other.m_first_p, size, m_first_p);
+        } else {
+            try { std::uninitialized_move_n(other.m_first_p, size, m_first_p); }
+            catch (...) { return; }
+        }
+        m_last_p = m_first_p + size;
+    }
+
+    template <typename T, std::unsigned_integral SizeType, typename Allocator>
+    FlexArray<T, SizeType, Allocator>::FlexArray(Self && other, const Allocator & alloc) noexcept : m_allocator(alloc)
+    {
+        if constexpr (std::allocator_traits<Allocator>::is_always_equal::value) {
+            this->stealFrom(other);
+        } else {
+            if (m_allocator == other.m_allocator) {
+                this->stealFrom(other);
+            } else {
+                this->moveElementsFrom(other);
+            }
+        }
     }
 }
