@@ -60,4 +60,28 @@ if(LCF_BUILD_BENCHMARKS)
             utilities             # provides lcf::Logger / lcf_log_*
             benchmark::benchmark
     )
+
+    # Maximum optimisation for benchmark builds (LTO + aggressive inlining).
+    if(MSVC)
+        target_compile_options(containers_flex_array_bench PRIVATE
+            $<$<CONFIG:Release>:/O2 /Ob3 /GL /DNDEBUG>
+        )
+        target_link_options(containers_flex_array_bench PRIVATE
+            $<$<CONFIG:Release>:/LTCG>
+        )
+    elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        target_compile_options(containers_flex_array_bench PRIVATE
+            $<$<CONFIG:Release>:-O3 -flto -DNDEBUG>
+        )
+        target_link_options(containers_flex_array_bench PRIVATE
+            $<$<CONFIG:Release>:-flto>
+        )
+    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        target_compile_options(containers_flex_array_bench PRIVATE
+            $<$<CONFIG:Release>:-O3 -flto -DNDEBUG>
+        )
+        target_link_options(containers_flex_array_bench PRIVATE
+            $<$<CONFIG:Release>:-flto>
+        )
+    endif()
 endif()
