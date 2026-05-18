@@ -1,0 +1,115 @@
+{
+  "name": "lcfengine",
+  "version": "1.0.0",
+  "dependencies": [
+    "magic-enum",
+    "nlohmann-json",
+    "spdlog",
+    "half",
+    "boost-align"
+  ],
+  "features": {
+    "image": {
+      "description": "Dependencies for libs/image",
+      "dependencies": [
+        "stb",
+        "libpng",
+        "libjpeg-turbo",
+        "boost-gil",
+        "boost-algorithm"
+      ]
+    },
+    "math": {
+      "description": "Dependencies for libs/math",
+      "dependencies": [
+        "glm"
+      ]
+    },
+    "shader-core": {
+      "description": "Dependencies for libs/shader_core",
+      "dependencies": [
+        "shaderc",
+        "spirv-cross"
+      ]
+    },
+    "containers": {
+      "description": "Dependencies for containers/",
+      "dependencies": [
+        "robin-map",
+        "boost-graph",
+        "boost-icl"
+      ]
+    },
+    "engine-core": {
+      "description": "Dependencies for core/",
+      "dependencies": [
+        "entt",
+        "taskflow",
+        "boost-asio",
+        "boost-uuid"
+      ]
+    },
+    "input": {
+      "description": "Dependencies for input/",
+      "dependencies": [
+        "boost-circular-buffer",
+        "boost-lockfree"
+      ]
+    },
+    "render-engine": {
+      "description": "Dependencies for RenderEngine/",
+      "dependencies": [
+        "assimp",
+        "vulkan",
+        "vulkan-memory-allocator",
+        "boost-container",
+        "boost-functional"
+      ]
+    },
+    "gui": {
+      "description": "Dependencies for GUI/",
+      "dependencies": [
+        {
+          "name": "sdl3",
+          "features": [ "vulkan" ]
+        }
+      ]
+    },
+    "profiling": {
+      "description": "Dependencies for profiling/",
+      "dependencies": [
+        "tracy"
+      ]
+    },
+    "examples": {
+      "description": "Dependencies for example programs",
+      "dependencies": [
+        "boost-beast",
+        "boost-url",
+        "boost-pool",
+        "boost-unordered",
+        "openssl",
+        "cli11"
+      ]
+    },
+    "tests": {
+      "description": "Dependencies for unit tests (opt-in, not in default-features)",
+      "dependencies": [
+        "gtest",
+        "benchmark"
+      ]
+    }
+  },
+  "default-features": [
+    "image",
+    "math",
+    "shader-core",
+    "containers",
+    "engine-core",
+    "input",
+    "render-engine",
+    "gui",
+    "profiling",
+    "examples"
+  ]
+}
