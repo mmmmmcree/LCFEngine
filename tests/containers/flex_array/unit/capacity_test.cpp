@@ -1,6 +1,7 @@
-// D. Capacity and reallocation boundaries — mirrors runCapacityEdgeTests().
+// D. Capacity and reallocation boundaries — tests FlexArray_Opus_4_7 (snake_case).
 
 #include <array/FlexArray.h>
+#include "array/FlexArray_Opus_4_7.h"
 #include <gtest/gtest.h>
 
 namespace {
@@ -17,7 +18,7 @@ namespace {
     {
         lcf::FlexArray_Opus_4_7<int> a = {1, 2, 3, 4, 5};
         const std::size_t old_cap = a.capacity();
-        a.reserve(2); // n <= capacity, no-op
+        a.reserve(2);
         EXPECT_EQ(a.size(), 5u);
         EXPECT_EQ(a.capacity(), old_cap);
     }
@@ -35,10 +36,10 @@ namespace {
     {
         lcf::FlexArray_Opus_4_7<int> a;
         a.reserve(3);
-        a.pushBack(1); a.pushBack(2); a.pushBack(3);
+        a.push_back(1); a.push_back(2); a.push_back(3);
         const std::size_t cap_before = a.capacity();
         if (cap_before == 3u) {
-            a.shrinkToFit();
+            a.shrink_to_fit();
             EXPECT_EQ(a.capacity(), 3u);
         }
     }
@@ -48,7 +49,7 @@ namespace {
         lcf::FlexArray_Opus_4_7<int> a;
         a.reserve(100);
         EXPECT_GE(a.capacity(), 100u);
-        a.shrinkToFit();
+        a.shrink_to_fit();
         EXPECT_EQ(a.capacity(), 0u);
     }
 
@@ -56,7 +57,7 @@ namespace {
     {
         lcf::FlexArray_Opus_4_7<int> a;
         for (int i = 0; i < 1024; ++i) {
-            a.pushBack(i);
+            a.push_back(i);
             EXPECT_GE(a.capacity(), a.size());
         }
         EXPECT_EQ(a.size(), 1024u);

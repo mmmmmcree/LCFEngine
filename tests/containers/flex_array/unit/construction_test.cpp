@@ -1,6 +1,7 @@
-// A. Construction completeness — mirrors runConstructionEdgeTests().
+// A. Construction completeness — tests FlexArray_Opus_4_7 construction edge cases.
 
 #include <array/FlexArray.h>
+#include "array/FlexArray_Opus_4_7.h"
 #include <gtest/gtest.h>
 
 #include <cstdint>
@@ -18,12 +19,12 @@ namespace {
         lcf::FlexArray_Opus_4_7<int> a;
         EXPECT_EQ(a.size(), 0u);
         EXPECT_EQ(a.capacity(), 0u);
-        EXPECT_TRUE(a.isEmpty());
+        EXPECT_TRUE(a.empty());
         EXPECT_TRUE(a.begin() == a.end());
         EXPECT_TRUE(a.cbegin() == a.cend());
         EXPECT_TRUE(a.rbegin() == a.rend());
-        EXPECT_EQ(a.getDataSpan().size(), 0u);
-        EXPECT_EQ(a.getCountedBytes().size(), 0u);
+        EXPECT_EQ(a.data_span().size(), 0u);
+        EXPECT_EQ(a.counted_bytes().size(), 0u);
     }
 
     TEST(FlexArrayConstruction, AllocOnlyCtor)
@@ -96,8 +97,8 @@ namespace {
         std::pmr::monotonic_buffer_resource r1, r2;
         PA alloc1(&r1), alloc2(&r2);
         lcf::FlexArray_Opus_4_7<std::string, std::uint32_t, PA> a(alloc1);
-        a.pushBack(std::string("aa"));
-        a.pushBack(std::string("bb"));
+        a.push_back(std::string("aa"));
+        a.push_back(std::string("bb"));
         lcf::FlexArray_Opus_4_7<std::string, std::uint32_t, PA> b(std::move(a), alloc2);
         EXPECT_EQ(b.size(), 2u);
         EXPECT_EQ(b[0], std::string("aa"));

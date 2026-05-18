@@ -1,7 +1,7 @@
 // Vector-like contract test, parameterized over multiple container instantiations.
-// Mirrors runVectorContractTest<Container>() from the original Test.cpp.
 
 #include <array/FlexArray.h>
+#include "array/FlexArray_Opus_4_7.h"
 #include <gtest/gtest.h>
 
 #include <cstdint>
@@ -10,41 +10,27 @@
 
 namespace {
 
-    // Adapter helpers: unify std::vector / lcf::FlexArray surface.
-    template <typename T, std::unsigned_integral S, typename A>
-    std::size_t adapt_size(const lcf::FlexArray<T, S, A> & c) noexcept { return c.size(); }
-    template <typename T, typename A>
-    std::size_t adapt_size(const std::vector<T, A> & c) noexcept { return c.size(); }
+    // All three containers now share snake_case API surface.
+    template <typename Container, typename V>
+    void adapt_push(Container & c, V && v) { c.push_back(std::forward<V>(v)); }
 
-    template <typename T, std::unsigned_integral S, typename A>
-    bool adapt_empty(const lcf::FlexArray<T, S, A> & c) noexcept { return c.isEmpty(); }
-    template <typename T, typename A>
-    bool adapt_empty(const std::vector<T, A> & c) noexcept { return c.empty(); }
+    template <typename Container>
+    void adapt_pop(Container & c) { c.pop_back(); }
 
-    template <typename T, std::unsigned_integral S, typename A, typename V>
-    void adapt_push(lcf::FlexArray<T, S, A> & c, V && v) { c.pushBack(std::forward<V>(v)); }
-    template <typename T, typename A, typename V>
-    void adapt_push(std::vector<T, A> & c, V && v) { c.push_back(std::forward<V>(v)); }
+    template <typename Container>
+    bool adapt_empty(const Container & c) { return c.empty(); }
 
-    template <typename T, std::unsigned_integral S, typename A>
-    void adapt_pop(lcf::FlexArray<T, S, A> & c) { c.popBack(); }
-    template <typename T, typename A>
-    void adapt_pop(std::vector<T, A> & c) { c.pop_back(); }
+    template <typename Container>
+    std::size_t adapt_size(const Container & c) { return c.size(); }
 
-    template <typename T, std::unsigned_integral S, typename A>
-    void adapt_clear(lcf::FlexArray<T, S, A> & c) noexcept { c.clear(); }
-    template <typename T, typename A>
-    void adapt_clear(std::vector<T, A> & c) noexcept { c.clear(); }
+    template <typename Container>
+    std::size_t adapt_capacity(const Container & c) { return c.capacity(); }
 
-    template <typename T, std::unsigned_integral S, typename A>
-    void adapt_reserve(lcf::FlexArray<T, S, A> & c, std::size_t n) { c.reserve(n); }
-    template <typename T, typename A>
-    void adapt_reserve(std::vector<T, A> & c, std::size_t n) { c.reserve(n); }
+    template <typename Container>
+    void adapt_reserve(Container & c, std::size_t n) { c.reserve(n); }
 
-    template <typename T, std::unsigned_integral S, typename A>
-    std::size_t adapt_capacity(const lcf::FlexArray<T, S, A> & c) noexcept { return c.capacity(); }
-    template <typename T, typename A>
-    std::size_t adapt_capacity(const std::vector<T, A> & c) noexcept { return c.capacity(); }
+    template <typename Container>
+    void adapt_clear(Container & c) { c.clear(); }
 
     template <typename Container>
     class VectorContract : public ::testing::Test {};
@@ -53,7 +39,10 @@ namespace {
         std::vector<int>,
         lcf::FlexArray<int>,
         lcf::FlexArray<int, std::uint64_t>,
-        lcf::FlexArray<int, std::uint16_t>
+        lcf::FlexArray<int, std::uint16_t>,
+        lcf::FlexArray_Opus_4_7<int>,
+        lcf::FlexArray_Opus_4_7<int, std::uint64_t>,
+        lcf::FlexArray_Opus_4_7<int, std::uint16_t>
     >;
     TYPED_TEST_SUITE(VectorContract, ContractTypes);
 

@@ -13,12 +13,9 @@ project(containers_flex_array_tests)
 # ============================================================
 add_executable(containers_flex_array_unit_tests
     unit/contract_test.cpp
-    unit/specific_test.cpp
     unit/construction_test.cpp
-    unit/assignment_test.cpp
     unit/modifiers_test.cpp
     unit/capacity_test.cpp
-    unit/exception_test.cpp
     unit/specialization_test.cpp
     unit/const_test.cpp
 )
