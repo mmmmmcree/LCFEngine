@@ -328,10 +328,19 @@ namespace lcf::benchmark {
         m_bounding_spheres_list.reserve(m_object_count);
         m_draw_meta_infos.reserve(m_object_count);
 
+        // 「同 pack 内 mesh 共享位置」策略（参考 VulkanRenderer.cpp:530 instance pool 复制）：
+        //   - 每 pack 占 mesh_count(pack) * instance_per_mesh 个 instance pool slot
+        //   - 同一 pack 内的 N 个 mesh 各自的 first_instance 指向 pool 中的不同段
+        //     但这 N 段对应的位置数据完全相同（rebuildInstanceData 中负责复制）
+        //   - 不同 pack 占用 cube 网格中的下一段空间点（pack_baseline 推进）
+        //   - 位置点总数 = pack_count * instance_per_mesh（cube 阵列要排布的真实点数）
         uint32_t object_id = 0;
-        uint32_t first_instance = 0;
+        uint32_t pool_cursor = 0;          // instance pool 当前写入位置
         for (const auto & pack : m_mesh_packs) {
-            for (const auto & mesh : pack.meshes) {
+            const uint32_t pack_mesh_count = static_cast<uint32_t>(pack.meshes.size());
+            const uint32_t pack_pool_size  = pack_mesh_count * m_current_instance_per_mesh;
+            for (uint32_t i = 0; i < pack_mesh_count; ++i) {
+                const auto & mesh = pack.meshes[i];
                 ObjectData od;
                 od.m_vb_address = mesh.getVertexBufferAddress();
                 od.m_ib_address = mesh.getIndexBufferAddress();
@@ -346,15 +355,15 @@ namespace lcf::benchmark {
                 dmi.m_vertex_count   = mesh.getIndexCount();
                 dmi.m_instance_count = m_current_instance_per_mesh;
                 dmi.m_first_vertex   = 0u;
-                dmi.m_first_instance = first_instance;
+                dmi.m_first_instance = pool_cursor + i * m_current_instance_per_mesh;
                 dmi.m_object_id      = object_id;
                 m_draw_meta_infos.emplace_back(dmi);
 
-                first_instance += m_current_instance_per_mesh;
                 ++object_id;
             }
+            pool_cursor += pack_pool_size;
         }
-        m_total_instance_count = first_instance;
+        m_total_instance_count = pool_cursor;
 
         // 保存一份原始 draw_meta_infos 作为 CPU 路径每帧 reset 的模板。
         m_draw_meta_infos_template = m_draw_meta_infos;
@@ -373,19 +382,46 @@ namespace lcf::benchmark {
         m_instance_data_list.clear();
         m_instance_data_list.reserve(m_total_instance_count);
 
-        // 在 X-Z 平面上以网格状布满 m_total_instance_count 个实例。
-        const uint32_t side = static_cast<uint32_t>(
-            std::ceil(std::sqrt(static_cast<float>(std::max(1u, m_total_instance_count)))));
-        const float spacing = 3.0f;
-        const float origin_offset = -static_cast<float>(side) * 0.5f * spacing;
+        // 真实位置点数 = pack_count * instance_per_mesh（同 pack 内 N mesh 共享位置）。
+        const uint32_t pack_count = static_cast<uint32_t>(m_mesh_packs.size());
+        const uint32_t unique_position_count = pack_count * m_current_instance_per_mesh;
 
-        for (uint32_t i = 0; i < m_total_instance_count; ++i) {
-            const uint32_t row = i / side;
-            const uint32_t col = i % side;
+        if (unique_position_count == 0u) {
+            return;
+        }
+
+        // 在 3D 立方体网格上分布 unique_position_count 个真实位置，居中于原点。
+        // side = ceil(cbrt(N))，索引 i → (x = i % side, y = (i / side) % side, z = i / (side*side))
+        const uint32_t side = static_cast<uint32_t>(
+            std::ceil(std::cbrt(static_cast<float>(unique_position_count))));
+        const float spacing = 3.0f;
+        const float origin_offset = -static_cast<float>(side - 1) * 0.5f * spacing;
+
+        // 先生成 unique_position_count 个真实 transform。
+        std::vector<InstanceData> unique_instances;
+        unique_instances.reserve(unique_position_count);
+        for (uint32_t i = 0; i < unique_position_count; ++i) {
+            const uint32_t cx = i % side;
+            const uint32_t cy = (i / side) % side;
+            const uint32_t cz = i / (side * side);
             InstanceData inst;
-            inst.m_transform.translateWorldX(origin_offset + static_cast<float>(col) * spacing);
-            inst.m_transform.translateWorldZ(origin_offset + static_cast<float>(row) * spacing);
-            m_instance_data_list.emplace_back(inst);
+            inst.m_transform.translateWorldX(origin_offset + static_cast<float>(cx) * spacing);
+            inst.m_transform.translateWorldY(origin_offset + static_cast<float>(cy) * spacing);
+            inst.m_transform.translateWorldZ(origin_offset + static_cast<float>(cz) * spacing);
+            unique_instances.emplace_back(inst);
+        }
+
+        // 按 setSceneScale 中相同的 pack→mesh 顺序展开到 instance pool：
+        //   每 pack 占 unique_position_count 中的连续 instance_per_mesh 段（pack i 对应 [i*ipm, (i+1)*ipm)）；
+        //   该段在 pool 内被 mesh_count(pack) 次复制（同 pack 内 N mesh 共享同一组位置）。
+        for (uint32_t pack_idx = 0; pack_idx < pack_count; ++pack_idx) {
+            const uint32_t pack_mesh_count = static_cast<uint32_t>(m_mesh_packs[pack_idx].meshes.size());
+            const uint32_t pos_begin = pack_idx * m_current_instance_per_mesh;
+            for (uint32_t copy = 0; copy < pack_mesh_count; ++copy) {
+                for (uint32_t k = 0; k < m_current_instance_per_mesh; ++k) {
+                    m_instance_data_list.emplace_back(unique_instances[pos_begin + k]);
+                }
+            }
         }
     }
 
