@@ -48,8 +48,6 @@ struct ObjectData
 struct InstanceData
 {
     Matrix4x4<float> m_transform {};
-    // Vector3D<float> m_world_position_offset {};
-    // float m_world_scale = 1.0f;
 };
 
 struct DrawMetaInfo
@@ -146,10 +144,6 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     m_per_renderable_ssbo_group.emplace(200 * size_of_v<InstanceData>, GPUBufferUsage::eShaderStorage); // instance data
     m_per_renderable_ssbo_group.emplace(100 * size_of_v<BoundingSphere<float>>, GPUBufferUsage::eShaderStorage);
 
-
-    
-    
-    
     m_per_view_descriptor_set = descriptor_set_manager.createSet(m_per_view_descriptor_set_layout);
     vk::DescriptorBufferInfo per_view_buffer_info;
     per_view_buffer_info.setBuffer(m_per_view_uniform_buffer.getHandle())
@@ -480,7 +474,7 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
 
 
     auto & object_info_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eObjectData)];
-    auto & draw_meta_info_buffer_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eDrawMetaInfos)];
+    auto & draw_meta_info_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eDrawMetaInfos)];
     auto & visible_instances_buffer_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eVisibleInstances)];
     auto & instance_data_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eInstanceData)];
     auto & bounding_sphere_ssbo = m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eBoundingVolume)];
@@ -566,18 +560,18 @@ void lcf::VulkanRenderer::render(const ecs::Entity & camera, const ecs::Entity &
     std::array<DrawSequence, k_sequence_count> sequences;
     // [0] meshes
     sequences[0].pipeline_index = 0;
-    sequences[0].draw_call.setBufferAddress(draw_meta_info_buffer_ssbo.getDeviceAddress() + sizeof(uint32_t))
+    sequences[0].draw_call.setBufferAddress(draw_meta_info_ssbo.getDeviceAddress() + sizeof(uint32_t))
         .setStride(size_of_v<DrawMetaInfo>)
         .setCommandCount(mesh_indirect_call_count);
     // [1] skybox
     sequences[1].pipeline_index = 1;
-    sequences[1].draw_call.setBufferAddress(draw_meta_info_buffer_ssbo.getDeviceAddress() + sizeof(uint32_t) + size_of_v<DrawMetaInfo> * mesh_indirect_call_count)
+    sequences[1].draw_call.setBufferAddress(draw_meta_info_ssbo.getDeviceAddress() + sizeof(uint32_t) + size_of_v<DrawMetaInfo> * mesh_indirect_call_count)
         .setStride(size_of_v<DrawMetaInfo>)
         .setCommandCount(1);
     m_sequence_buffer.addWriteSegment({as_bytes(sequences), 0 });
 //-
 
-    draw_meta_info_buffer_ssbo.addWriteSegment({draw_meta_infos.counted_bytes()});
+    draw_meta_info_ssbo.addWriteSegment({draw_meta_infos.counted_bytes()});
     // draw_meta_info_buffer_ssbo.addWriteSegment({as_bytes(draw_meta_infos), 0u});
     auto & transfer_cmd = current_frame_resources.data_transfer_command_buffer;
     transfer_cmd.begin(vk::CommandBufferBeginInfo{});
