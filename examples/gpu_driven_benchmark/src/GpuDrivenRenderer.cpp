@@ -215,7 +215,7 @@ namespace lcf::benchmark {
         if (m_frame_has_history[m_current_frame_index]) {
             const auto ts = m_timestamp_pool.readBackFrame(m_current_frame_index);
             metrics.m2_gpu_frame_ms = ts.m_gpu_frame_ms;
-            metrics.m4_gpu_cull_ms  = ts.m_gpu_cull_ms;
+            metrics.m4_cull_ms      = ts.m_gpu_cull_ms;
         }
 
         const auto cpu_t0 = std::chrono::steady_clock::now();

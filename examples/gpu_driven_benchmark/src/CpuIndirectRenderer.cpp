@@ -202,8 +202,13 @@ namespace lcf::benchmark {
         scissor.setOffset({0, 0}).setExtent({width, height});
 
         // 1) 先更新 camera shadow → 然后 CPU 端做剔除（写入 visible / 重写 draw_meta instance_count）。
+        // 用 chrono 单独包住 cull，归到 M4_cull_ms；M1 不再吃这段（与 GpuDriven 对称）。
         m_scene_p->updateCameraShadow(camera, {width, height});
+        const auto cull_t0 = std::chrono::steady_clock::now();
         this->cullOnCpu();
+        const auto cull_t1 = std::chrono::steady_clock::now();
+        const double cull_ms =
+            std::chrono::duration<double, std::milli>(cull_t1 - cull_t0).count();
 
         // 2) transfer cmd：把 host shadow（含剔除后 draw_meta_infos 与 visible_instances）commit。
         auto & transfer_cmd = frame.transfer_cmd;
@@ -283,8 +288,10 @@ namespace lcf::benchmark {
         target_sp->finishRender();
 
         const auto cpu_t1 = std::chrono::steady_clock::now();
+        // M1 = 总 CPU 段 - cull 段；M4 = cull 段（host chrono）
         metrics.m1_cpu_submit_ms =
-            std::chrono::duration<double, std::milli>(cpu_t1 - cpu_t0).count();
+            std::chrono::duration<double, std::milli>(cpu_t1 - cpu_t0).count() - cull_ms;
+        metrics.m4_cull_ms       = cull_ms;
         // M3：host 端 vkCmdDrawIndirectCount 一次提交。chap05 §5.4.2 规定 host 视角统计。
         metrics.m3_draw_calls = 1u;
 

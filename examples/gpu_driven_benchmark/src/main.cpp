@@ -336,11 +336,11 @@ done:
         // 简易 HUD：每 30 帧打一次指标到日志（不阻塞主循环）。
         static uint32_t hud_counter = 0;
         if ((++hud_counter % 30) == 0) {
-            lcf_log_info("path={} scene_inst={} M1={:.3f}ms M2={:.3f}ms M3={} M4={:.3f}ms",
+            lcf_log_info("path={} scene_inst={} M1={:.3f}ms M2={:.3f}ms M3={} M4_cull={:.3f}ms",
                          lcf::benchmark::to_csv_name(switcher.getActivePath()),
                          scene.getTotalInstanceCount(),
                          metrics.m1_cpu_submit_ms, metrics.m2_gpu_frame_ms,
-                         metrics.m3_draw_calls, metrics.m4_gpu_cull_ms);
+                         metrics.m3_draw_calls, metrics.m4_cull_ms);
         }
         TRACY_SCOPE_END();
     };

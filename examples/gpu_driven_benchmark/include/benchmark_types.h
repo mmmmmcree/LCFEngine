@@ -55,12 +55,20 @@ namespace lcf::benchmark {
     // 每帧采集的指标（与 chap05 §5.4.2 表头 M1/M2/M3/M4/M5 对应）。
     // 注意：M5（p99）不是逐帧值，而是基于 m2 序列在一次跑分窗口结束时计算得到，
     // 因此不在该结构体里。逐帧仅 m1..m4。
+    //
+    // M1/M4 的语义切分（统一论文对照口径）：
+    //   - m1_cpu_submit_ms：CPU 端 record + transfer + submit + finishRender 等"非剔除"段
+    //                       不再包含 cull 时间，避免 CPU 路径的 cull 被吃进 M1、与
+    //                       GpuDriven 的 cull（在 GPU）位置不对称导致比较失真。
+    //   - m4_cull_ms：剔除阶段耗时（不区分 CPU/GPU 路径）：
+    //                  · NaiveCpu / CpuIndirect → host chrono 包住 cullOnCpu()
+    //                  · GpuDriven              → GPU compute timestamp 差（cull.comp）
     struct FrameMetrics
     {
-        double   m1_cpu_submit_ms = 0.0;  // CPU record + submit 段（chrono）
+        double   m1_cpu_submit_ms = 0.0;  // CPU record+submit 段（chrono，已剔除 cull）
         double   m2_gpu_frame_ms  = 0.0;  // GPU 帧时间戳差（top→bottom of pipe）
         uint32_t m3_draw_calls    = 0u;   // host 端 draw 调用次数（路径相关）
-        double   m4_gpu_cull_ms   = 0.0;  // GPU 视锥剔除耗时（仅 GpuDriven 非零）
+        double   m4_cull_ms       = 0.0;  // 剔除耗时（CPU 路径=host chrono；GpuDriven=GPU 时间戳）
     };
 
     // ----- 与 GLSL 端 bindless_structs.glsl 二进制对位的 host 端结构体 -----

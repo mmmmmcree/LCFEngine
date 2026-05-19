@@ -73,13 +73,13 @@ namespace lcf::benchmark {
             m1.emplace_back(f.m1_cpu_submit_ms);
             m2.emplace_back(f.m2_gpu_frame_ms);
             m3.emplace_back(static_cast<double>(f.m3_draw_calls));
-            m4.emplace_back(f.m4_gpu_cull_ms);
+            m4.emplace_back(f.m4_cull_ms);
         }
 
         agg.m1_cpu_submit_ms_mean = computeMean(m1);
         agg.m2_gpu_frame_ms_mean  = computeMean(m2);
         agg.m3_draw_calls_mean    = computeMean(m3);
-        agg.m4_gpu_cull_ms_mean   = computeMean(m4);
+        agg.m4_cull_ms_mean       = computeMean(m4);
         agg.m5_p99_ms             = computeP99Ms(m2);  // 复制副本进入；nth_element 会修改
         agg.sample_count          = static_cast<uint32_t>(m_frames.size());
 
@@ -95,7 +95,7 @@ namespace lcf::benchmark {
         }
         if (need_header) {
             ofs << "path,scene,instance_count,m1_cpu_submit_ms,m2_gpu_frame_ms,"
-                << "m3_draw_calls,m4_gpu_cull_ms,m5_p99_ms,sample_count\n";
+                << "m3_draw_calls,m4_cull_ms,m5_p99_ms,sample_count\n";
         }
         ofs << to_csv_name(m_current_path) << ','
             << to_csv_name(m_current_scene) << ','
@@ -103,16 +103,16 @@ namespace lcf::benchmark {
             << agg.m1_cpu_submit_ms_mean << ','
             << agg.m2_gpu_frame_ms_mean << ','
             << agg.m3_draw_calls_mean << ','
-            << agg.m4_gpu_cull_ms_mean << ','
+            << agg.m4_cull_ms_mean << ','
             << agg.m5_p99_ms << ','
             << agg.sample_count << '\n';
         ofs.flush();
 
         lcf_log_info(
-            "metrics[{}/{}]: M1={:.4f}ms M2={:.4f}ms M3={:.1f} M4={:.4f}ms p99={:.4f}ms n={}",
+            "metrics[{}/{}]: M1={:.4f}ms M2={:.4f}ms M3={:.1f} M4_cull={:.4f}ms p99={:.4f}ms n={}",
             to_csv_name(m_current_path), to_csv_name(m_current_scene),
             agg.m1_cpu_submit_ms_mean, agg.m2_gpu_frame_ms_mean,
-            agg.m3_draw_calls_mean, agg.m4_gpu_cull_ms_mean,
+            agg.m3_draw_calls_mean, agg.m4_cull_ms_mean,
             agg.m5_p99_ms, agg.sample_count);
 
         m_run_active = false;

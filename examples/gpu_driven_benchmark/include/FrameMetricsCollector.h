@@ -13,7 +13,11 @@
 //
 // CSV 表头由 ensureHeader 在首次 endRunAndAppendCsv 时写入。
 // 一行格式：
-//   path,scene,instance_count,m1_cpu_submit_ms,m2_gpu_frame_ms,m3_draw_calls,m4_gpu_cull_ms,m5_p99_ms
+//   path,scene,instance_count,m1_cpu_submit_ms,m2_gpu_frame_ms,m3_draw_calls,m4_cull_ms,m5_p99_ms
+//
+// M4_cull_ms 不区分 CPU/GPU 路径：
+//   - NaiveCpu / CpuIndirect：host chrono(cullOnCpu)
+//   - GpuDriven：GPU compute timestamp 差（cull.comp）
 
 #include "benchmark_types.h"
 
@@ -30,7 +34,7 @@ namespace lcf::benchmark {
         double   m1_cpu_submit_ms_mean = 0.0;
         double   m2_gpu_frame_ms_mean  = 0.0;
         double   m3_draw_calls_mean    = 0.0;  // 用 double 因为 mean 可能非整
-        double   m4_gpu_cull_ms_mean   = 0.0;
+        double   m4_cull_ms_mean       = 0.0;
         double   m5_p99_ms             = 0.0;
         uint32_t sample_count          = 0;
     };

@@ -179,8 +179,13 @@ namespace lcf::benchmark {
         scissor.setOffset({0, 0}).setExtent({width, height});
 
         // 1) 更新 camera shadow → 2) CPU 视锥剔除得到逐 mesh 的可见 id 列表。
+        // 用 chrono 单独包住 cull，归到 M4_cull_ms；M1 不再吃这段（与 GpuDriven 对称）。
         m_scene_p->updateCameraShadow(camera, {width, height});
+        const auto cull_t0 = std::chrono::steady_clock::now();
         auto per_mesh_visible = this->cullOnCpu();
+        const auto cull_t1 = std::chrono::steady_clock::now();
+        const double cull_ms =
+            std::chrono::duration<double, std::milli>(cull_t1 - cull_t0).count();
 
         // 3) transfer cmd：上传 PerView UBO + 5 路 SSBO（draw_meta 已 reset & 重写）。
         // 朴素路径不上传 visible_instances（shader 不读它）；BenchmarkScene 已在 path
@@ -282,9 +287,11 @@ namespace lcf::benchmark {
         target_sp->finishRender();
 
         const auto cpu_t1 = std::chrono::steady_clock::now();
+        // M1 = 总 CPU 段 - cull 段；M4 = cull 段（host chrono）
         metrics.m1_cpu_submit_ms =
-            std::chrono::duration<double, std::milli>(cpu_t1 - cpu_t0).count();
-        metrics.m3_draw_calls = total_draw_calls;
+            std::chrono::duration<double, std::milli>(cpu_t1 - cpu_t0).count() - cull_ms;
+        metrics.m4_cull_ms       = cull_ms;
+        metrics.m3_draw_calls    = total_draw_calls;
 
         m_frame_has_history[m_current_frame_index] = true;
         ++m_current_frame_index %= m_frame_resources.size();
