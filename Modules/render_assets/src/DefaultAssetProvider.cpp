@@ -41,7 +41,7 @@ DefaultAssetProvider::DefaultAssetProvider()
         {MaterialProperty::eSubsurfaceColor, enum_value_t<enum_decode::get_vector_type(MaterialProperty::eSubsurfaceColor)> {1.0f, 1.0f, 1.0f}}, 
         {MaterialProperty::eSheenColor, enum_value_t<enum_decode::get_vector_type(MaterialProperty::eSheenColor)> {0.0f, 0.0f, 0.0f}}, 
         {MaterialProperty::eSheenRoughness, enum_value_t<enum_decode::get_vector_type(MaterialProperty::eSheenRoughness)> {0.0f, 0.0f, 0.0f}}, 
-        {MaterialProperty::eEmissive, enum_value_t<enum_decode::get_vector_type(MaterialProperty::eEmissive)> {0.0f, 0.0f, 0.0f, 0.0f}}, 
+        {MaterialProperty::eEmissive, enum_value_t<enum_decode::get_vector_type(MaterialProperty::eEmissive)> {1.0f, 1.0f, 1.0f, 1.0f}}, 
         {MaterialProperty::eNormal, enum_value_t<enum_decode::get_vector_type(MaterialProperty::eNormal)> {0.0f, 0.0f, 1.0f}}, 
         {MaterialProperty::eBentNormal, enum_value_t<enum_decode::get_vector_type(MaterialProperty::eBentNormal)> {0.0f, 0.0f, 1.0f}}, 
         {MaterialProperty::ePostLightingColor, enum_value_t<enum_decode::get_vector_type(MaterialProperty::ePostLightingColor)> {0.0f, 0.0f, 0.0f, 0.0f}}, 

@@ -32,6 +32,7 @@ struct MaterialTextureIds {
     uint base_color_texture_id;
     uint metallic_roughness_texture_id;
     uint normal_texture_id;
+    uint occlusion_texture_id;
     uint emissive_texture_id;
 };
 
