@@ -282,6 +282,18 @@ namespace lcf::benchmark {
 
         frame.fbo.beginRendering(cmd);
 
+        // 先画天空盒：在 DGC executeGeneratedCommandsEXT 之前 bind skybox pipeline + 3 个 ds 画一次。
+        // 注意：cmd.executeGeneratedCommandsEXT 会切换到 indirect_execution_set 内的 pipeline，
+        // 所以这里先画完 skybox 再调 DGC，互不干扰。
+        const auto & skybox_pipeline = m_scene_p->getSkyboxPipeline();
+        cmd.bindPipeline(skybox_pipeline);
+        cmd.bindDescriptorSet(skybox_pipeline, m_scene_p->getPerViewDescriptorSet());
+        cmd.bindDescriptorSet(skybox_pipeline,
+                              m_context_p->getDescriptorSetManager().getBindlessBufferSet());
+        cmd.bindDescriptorSet(skybox_pipeline,
+                              m_context_p->getDescriptorSetManager().getBindlessTextureSet());
+        cmd.draw(36u, 1u, 0u, 0u);
+
         cmd.bindPipeline(m_graphics_pipeline);
         cmd.bindDescriptorSet(m_graphics_pipeline, m_scene_p->getPerViewDescriptorSet());
         cmd.bindDescriptorSet(m_graphics_pipeline,

@@ -218,6 +218,16 @@ namespace lcf::benchmark {
 
         frame.fbo.beginRendering(cmd);
 
+        // 先画天空盒（与 NaiveCpuRenderer 一致；与主网格共享 fbo / depth）。
+        const auto & skybox_pipeline = m_scene_p->getSkyboxPipeline();
+        cmd.bindPipeline(skybox_pipeline);
+        cmd.bindDescriptorSet(skybox_pipeline, m_scene_p->getPerViewDescriptorSet());
+        cmd.bindDescriptorSet(skybox_pipeline,
+                              m_context_p->getDescriptorSetManager().getBindlessBufferSet());
+        cmd.bindDescriptorSet(skybox_pipeline,
+                              m_context_p->getDescriptorSetManager().getBindlessTextureSet());
+        cmd.draw(36u, 1u, 0u, 0u);
+
         cmd.bindPipeline(m_graphics_pipeline);
         cmd.bindDescriptorSet(m_graphics_pipeline, m_scene_p->getPerViewDescriptorSet());
         cmd.bindDescriptorSet(m_graphics_pipeline,

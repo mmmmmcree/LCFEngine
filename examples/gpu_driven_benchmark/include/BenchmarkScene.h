@@ -25,6 +25,7 @@
 #include "Vulkan/VulkanCommandBufferObject.h"
 #include "Vulkan/VulkanContext.h"
 #include "Vulkan/VulkanMesh.h"
+#include "Vulkan/VulkanPipeline.h"
 #include "Vulkan/VulkanTextureManager.h"
 #include "Vulkan/ds/VulkanDescriptorSet.h"
 #include "Vulkan/ds/VulkanDescriptorSetLayout.h"
@@ -65,6 +66,7 @@ namespace lcf::benchmark {
         using VulkanImageObject    = render::VulkanImageObject;
         using VulkanDescriptorSet  = render::VulkanDescriptorSet;
         using VulkanDsLayout       = render::VulkanDescriptorSetLayout;
+        using VulkanPipeline       = render::VulkanPipeline;
 
     public:
         // 主网格按"模型 → mesh"两级展开存储（与 VulkanRenderer.cpp::MeshPack 同形）。
@@ -159,6 +161,11 @@ namespace lcf::benchmark {
         // PerView UBO 字段访问（用于 renderer 在 draw 阶段用 push_constant 等场景读取）。
         const CameraData & getCameraDataShadow() const noexcept { return m_camera_data_shadow; }
 
+        // 天空盒 pipeline（三 renderer 共享，在 record 阶段先 bind 它画 36 顶点）。
+        // 与 main_example 一致：descriptor sets = (PerView, BindlessBuffer, BindlessTexture)；
+        // depth = LessOrEqual + write disabled，cullFront，与 .xyww trick 配合把背景推到远平面。
+        const VulkanPipeline & getSkyboxPipeline() const noexcept { return m_skybox_pipeline; }
+
     private:
         void uploadModel(VulkanCmdBuffer & cmd,
                          lcf::Model & model,
@@ -168,6 +175,10 @@ namespace lcf::benchmark {
         void writeBindlessBufferDescriptorSet();
         void writeBindlessTextureDescriptorSet();
         void rebuildInstanceData();
+        // 一次性初始化天空盒资源：bk.jpg → cube_map（sphere_to_cube pipeline）+ skybox pipeline。
+        // 必须在 writeBindlessTextureDescriptorSet 之前调用，因为它要把 cube_map / sampler1
+        // 注册到 bindless texture set；该 set 由后者统一 commitUpdate。
+        void initSkybox(ecs::ResourceSystem & resource_system);
 
     private:
         VulkanContext * m_context_p = nullptr;
@@ -182,6 +193,9 @@ namespace lcf::benchmark {
         std::vector<std::pair<uint32_t,
             TypedResourceEntity<VulkanImageObject>>>                   m_texture_re_list;
         TypedResourceEntity<VulkanImageObject>                         m_cube_map_re;
+
+        // Skybox pipeline（三 renderer 共享）。在 create() 中由 initSkybox() 创建。
+        VulkanPipeline m_skybox_pipeline;
 
         // PerView UBO + per-view DS（与 VulkanRenderer.cpp 完全等价，但跨三 renderer 共用）。
         VulkanBufferObject m_per_view_uniform_buffer;

@@ -201,6 +201,17 @@ namespace lcf::benchmark {
 
         frame.fbo.beginRendering(cmd);
 
+        // 先画天空盒：bind skybox pipeline + 3 个 ds + draw 36 顶点。
+        // skybox.vert 用 .xyww trick 把 z 推到远平面，与主网格深度共存。
+        const auto & skybox_pipeline = m_scene_p->getSkyboxPipeline();
+        cmd.bindPipeline(skybox_pipeline);
+        cmd.bindDescriptorSet(skybox_pipeline, m_scene_p->getPerViewDescriptorSet());
+        cmd.bindDescriptorSet(skybox_pipeline,
+                              m_context_p->getDescriptorSetManager().getBindlessBufferSet());
+        cmd.bindDescriptorSet(skybox_pipeline,
+                              m_context_p->getDescriptorSetManager().getBindlessTextureSet());
+        cmd.draw(36u, 1u, 0u, 0u);
+
         cmd.bindPipeline(m_graphics_pipeline);
         cmd.bindDescriptorSet(m_graphics_pipeline, m_scene_p->getPerViewDescriptorSet());
         cmd.bindDescriptorSet(m_graphics_pipeline,

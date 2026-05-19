@@ -22,20 +22,25 @@
 #include "Quaternion.h"
 #include "ResourceSystem.h"
 #include "Transform.h"
+#include "Vulkan/VulkanPipeline.h"
 #include "Vulkan/VulkanSampler.h"
 #include "Vulkan/VulkanSamplerManager.h"
+#include "Vulkan/VulkanShaderProgram.h"
 #include "Vulkan/VulkanTextureManager.h"
 #include "Vulkan/ds/VulkanBindlessDescriptorSet.h"
 #include "Vulkan/ds/VulkanDescriptorSetManager.h"
+#include "Vulkan/VulkanFramebufferObject.h"
 #include "Vulkan/vulkan_constants.h"
 #include "Vulkan/vulkan_enums.h"
 #include "Vulkan/vulkan_utililtie.h"
 #include "bytes.h"
 #include "common/glsl_type_traits.h"
 #include "ecs/Registry.h"
+#include "enums/enum_cast.h"
 #include "log.h"
 #include "render_assets/ModelLoader.h"
 #include "render_assets/Texture2D.h"
+#include "resource_utils.h"
 
 using lcf::BoundingSphere;
 using lcf::Model;
@@ -44,16 +49,22 @@ using lcf::Texture2D;
 using lcf::VertexAttribute;
 using lcf::VertexAttributeFlags;
 using lcf::ShadingModel;
+using lcf::ShaderTypeFlagBits;
 using lcf::generate_interleaved_segments;
 using lcf::view_geometries;
 using lcf::view_materials;
 using lcf::get_textures;
+using lcf::make_resource_ptr;
 using lcf::render::GPUBufferPattern;
 using lcf::render::GPUBufferUsage;
+using lcf::render::GraphicPipelineCreateInfo;
 using lcf::render::SamplerPreset;
 using lcf::render::VulkanAttachment;
 using lcf::render::VulkanBindlessTextureIdTable;
+using lcf::render::VulkanFramebufferObject;
+using lcf::render::VulkanFramebufferObjectCreateInfo;
 using lcf::render::VulkanImageObject;
+using lcf::render::VulkanShaderProgram;
 using namespace lcf::render::vkenums;
 
 namespace lcf::benchmark {
@@ -166,6 +177,11 @@ namespace lcf::benchmark {
         };
         upload("./assets/models/FlightHelmet/glTF/FlightHelmet.gltf");
         upload("./assets/models/DamagedHelmet/DamagedHelmet.gltf");
+
+        // 一次性创建天空盒资源（cube_map + skybox pipeline）。在 writeBindlessTextureDescriptorSet
+        // 之前调用：cube_map / sampler1 通过它注册到 bindless texture set，统一在下面 commit。
+        this->initSkybox(resource_system);
+        lcf_log_info("[scene] skybox initialized");
 
         // 提交完毕后写入 BindlessBuffer 与 BindlessTexture 描述符集。
         this->writeBindlessBufferDescriptorSet();
@@ -312,7 +328,149 @@ namespace lcf::benchmark {
         bindless_texture.addDescriptorInfo(
             std::to_underlying(BindlessTextureBinding::eSamplers), 0, sampler_info);
 
+        // sampler[1] = environment map sampler（skybox.frag 用 samplers[1]）。
+        vk::DescriptorImageInfo env_sampler_info;
+        env_sampler_info.setSampler(sampler_manager.get(SamplerPreset::eEnvironmentMap));
+        bindless_texture.addDescriptorInfo(
+            std::to_underlying(BindlessTextureBinding::eSamplers), 1, env_sampler_info);
+
+        // texture_cubes[0] = sphere_to_cube 渲出来的 cube_map（initSkybox 已转 ShaderReadOnlyOptimal）。
+        if (m_cube_map_re) {
+            vk::DescriptorImageInfo cube_map_info;
+            cube_map_info.setImageLayout(*m_cube_map_re->getLayout())
+                         .setImageView(m_cube_map_re->getDefaultView());
+            bindless_texture.addDescriptorInfo(
+                std::to_underlying(BindlessTextureBinding::eTextureCubes),
+                0,
+                cube_map_info,
+                m_cube_map_re.lease());
+        }
+
         bindless_texture.commitUpdate(m_context_p->getDevice());
+    }
+
+    void BenchmarkScene::initSkybox(ecs::ResourceSystem & resource_system)
+    {
+        // 与 main_example (VulkanRenderer.cpp:262-333) 等价的 sphere → cube map 流程：
+        //   1) 加载 bk.jpg (球面 HDR) → sphere_map texture (transfer queue 不行，
+        //      因为后面要 bindPipeline + draw 渲染 cube_map，需要 graphics queue)；
+        //   2) 创建 cube_map (1024×1024，6 面，eCubeCompatible，eColorAttachment | eSampled)；
+        //   3) 创建 sphere_to_cube pipeline + descriptor (set 0 / binding 0 = sphere_map)；
+        //   4) graphics queue immediate_submit 内：
+        //        setData(sphere_map) + generateMipmaps
+        //        bindPipeline(stc) + bindDescriptorSet → fbo(color=cube_map).beginRendering
+        //        cmd.draw(36,1) → endRendering → cube_map transitLayout(ShaderReadOnlyOptimal)
+        //   5) 创建 skybox pipeline（与 benchmark 主管线相同的 fbo 配置：
+        //        R16G16B16A16 + D32 + MSAA e4），depth write off + LessOrEqual + cull front。
+        auto & ds_manager      = m_context_p->getDescriptorSetManager();
+        const auto & sampler_manager = m_context_p->getSamplerManager();
+        auto device = m_context_p->getDevice();
+
+        // ---- 1) sphere image 加载 ----
+        auto sphere_image_sp = Texture2D::makeShared();
+        if (auto ec = sphere_image_sp->loadFromFileGpuFriendly({"assets/images/bk.jpg"}); ec) {
+            lcf_log_warn("[scene] skybox: failed to load bk.jpg: {}", ec.message());
+            return;
+        }
+
+        // 临时 sphere_map（scope 仅本函数，渲染完即可释放，不进 bindless）。
+        VulkanImageObject sphere_map;
+        sphere_map.setFormat(enum_cast<vk::Format>(sphere_image_sp->getDecodeFormat()))
+                  .setUsage(vk::ImageUsageFlagBits::eSampled |
+                            vk::ImageUsageFlagBits::eTransferDst)
+                  .setMipmapped(true)
+                  .setExtent({sphere_image_sp->getWidth(), sphere_image_sp->getHeight(), 1u})
+                  .create(m_context_p);
+        auto sphere_map_re = resource_system.registerResource(std::move(sphere_map));
+
+        // ---- 2) cube_map ----
+        constexpr uint32_t k_cube_width = 1024u;
+        VulkanImageObject cube_map;
+        cube_map.addImageFlags(vk::ImageCreateFlagBits::eCubeCompatible)
+                .setUsage(vk::ImageUsageFlagBits::eSampled |
+                          vk::ImageUsageFlagBits::eTransferDst |
+                          vk::ImageUsageFlagBits::eColorAttachment)
+                .setFormat(vk::Format::eR8G8B8A8Unorm)
+                .setExtent({k_cube_width, k_cube_width, 1u})
+                .create(m_context_p);
+        m_cube_map_re = resource_system.registerResource(std::move(cube_map));
+
+        // ---- 3) sphere_to_cube pipeline ----
+        auto stc_program = std::make_shared<VulkanShaderProgram>();
+        stc_program
+            ->addShaderFromGlslFile(ShaderTypeFlagBits::eVertex,
+                                    "assets/shaders/sphere_to_cube.vert")
+            .addShaderFromGlslFile (ShaderTypeFlagBits::eGeometry,
+                                    "assets/shaders/sphere_to_cube.geom")
+            .addShaderFromGlslFile (ShaderTypeFlagBits::eFragment,
+                                    "assets/shaders/sphere_to_cube.frag")
+            .link(device);
+
+        GraphicPipelineCreateInfo stc_info;
+        stc_info.setShaderProgram(stc_program)
+                .addColorAttachmentFormat(vk::Format::eR8G8B8A8Unorm);
+
+        render::VulkanPipeline stc_pipeline;
+        stc_pipeline.create(m_context_p, stc_info);
+
+        // ---- 4) graphics queue immediate_submit：上传 sphere + render cube_map ----
+        render::vkutils::immediate_submit(
+            m_context_p,
+            vk::QueueFlagBits::eGraphics,
+            [&](render::VulkanCommandBufferObject & cmd) {
+                sphere_map_re->setData(cmd, sphere_image_sp->getDataSpan());
+                sphere_map_re->generateMipmaps(cmd);
+
+                vk::DescriptorImageInfo image_info;
+                image_info.setImageLayout(*sphere_map_re->getLayout())
+                          .setImageView(sphere_map_re->getDefaultView())
+                          .setSampler(sampler_manager.get(SamplerPreset::eEnvironmentMap));
+
+                const auto & stc_layout = stc_pipeline.getDescriptorSetLayout(0);
+                auto stc_ds_rp = make_resource_ptr<render::VulkanDescriptorSet>(
+                    ds_manager.createSet(stc_layout));
+                stc_ds_rp->addDescriptorInfo(0, image_info).commitUpdate(device);
+
+                // fbo 的 color attachment = cube_map 整体（layered render，由 geom shader 写 6 层）。
+                auto [w, h, z] = m_cube_map_re->getExtent();
+                VulkanFramebufferObjectCreateInfo fbo_info;
+                fbo_info.setMaxExtent({w, h});
+                VulkanFramebufferObject fbo;
+                fbo.addColorAttachment(*m_cube_map_re)
+                   .create(m_context_p, fbo_info);
+
+                cmd.acquireResourceLease(stc_ds_rp.lease());
+                cmd.bindPipeline(stc_pipeline);
+                cmd.bindDescriptorSet(stc_pipeline, *stc_ds_rp);
+                fbo.setViewportAndScissor(cmd);
+                fbo.beginRendering(cmd);
+                cmd.draw(36, 1, 0, 0);
+                fbo.endRendering(cmd);
+                m_cube_map_re->transitLayout(cmd, vk::ImageLayout::eShaderReadOnlyOptimal);
+            });
+
+        // ---- 5) skybox pipeline（三 renderer 共享）----
+        auto skybox_program = std::make_shared<VulkanShaderProgram>();
+        skybox_program
+            ->addShaderFromGlslFile(ShaderTypeFlagBits::eVertex,
+                                    "assets/shaders/skybox.vert")
+            .addShaderFromGlslFile (ShaderTypeFlagBits::eFragment,
+                                    "assets/shaders/skybox.frag")
+            .specifyDescriptorSetLayout(m_per_view_descriptor_set_layout)
+            .specifyDescriptorSetLayout(ds_manager.getBindlessBufferSet().getLayout())
+            .specifyDescriptorSetLayout(ds_manager.getBindlessTextureSet().getLayout())
+            .link(device);
+
+        GraphicPipelineCreateInfo skybox_info;
+        skybox_info.setShaderProgram(skybox_program)
+                   .addColorAttachmentFormat(vk::Format::eR16G16B16A16Sfloat)
+                   .setDepthAttachmentFormat(vk::Format::eD32Sfloat)
+                   .setRasterizationSamples(vk::SampleCountFlagBits::e4)
+                   .setDepthWriteEnabled(false)
+                   .setDepthCompareOp(vk::CompareOp::eLessOrEqual)
+                   .setCullMode(vk::CullModeFlagBits::eFront)
+                   .setFrontFace(vk::FrontFace::eCounterClockwise);
+        m_skybox_pipeline.create(m_context_p, skybox_info);
     }
 
     void BenchmarkScene::setSceneScale(eScene scene)
