@@ -90,10 +90,11 @@ namespace lcf::benchmark {
         ComputePipelineCreateInfo compute_info(compute_program);
         m_compute_pipeline.create(m_context_p, compute_info);
 
-        // ---------- 2) graphics pipeline (vertex_buffer_test.*) ----------
+        // ---------- 2) graphics pipeline (benchmark_indirect.*) ----------
+        // 切到 benchmark 私有 shader：与 CpuIndirectRenderer 共用，含 MaterialTextureIds 5 槽修复。
         auto graphics_program = std::make_shared<VulkanShaderProgram>();
-        graphics_program->addShaderFromGlslFile(ShaderTypeFlagBits::eVertex,   "assets/shaders/vertex_buffer_test.vert")
-            .addShaderFromGlslFile           (ShaderTypeFlagBits::eFragment, "assets/shaders/vertex_buffer_test.frag")
+        graphics_program->addShaderFromGlslFile(ShaderTypeFlagBits::eVertex,   "assets/shaders/benchmark_indirect.vert")
+            .addShaderFromGlslFile           (ShaderTypeFlagBits::eFragment, "assets/shaders/benchmark_indirect.frag")
             .specifyDescriptorSetLayout(per_view_layout)
             .specifyDescriptorSetLayout(ds_manager.getBindlessBufferSet().getLayout())
             .specifyDescriptorSetLayout(ds_manager.getBindlessTextureSet().getLayout())

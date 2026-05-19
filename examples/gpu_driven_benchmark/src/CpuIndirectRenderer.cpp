@@ -65,10 +65,14 @@ namespace lcf::benchmark {
         auto & ds_manager = context->getDescriptorSetManager();
 
         // ---------- graphics pipeline ----------
+        // 用 benchmark 私有 shader（fork 自 vertex_buffer_test.*）：
+        //   - benchmark_indirect.vert：内容等价 vertex_buffer_test.vert
+        //   - benchmark_indirect.frag：修复 MaterialTextureIds 5 槽错位（含 occlusion）+ emissive 直累加
+        // 与 main_example 完全隔离，便于独立演化。
         auto graphics_program = std::make_shared<VulkanShaderProgram>();
         graphics_program
-            ->addShaderFromGlslFile(ShaderTypeFlagBits::eVertex,   "assets/shaders/vertex_buffer_test.vert")
-            .addShaderFromGlslFile (ShaderTypeFlagBits::eFragment, "assets/shaders/vertex_buffer_test.frag")
+            ->addShaderFromGlslFile(ShaderTypeFlagBits::eVertex,   "assets/shaders/benchmark_indirect.vert")
+            .addShaderFromGlslFile (ShaderTypeFlagBits::eFragment, "assets/shaders/benchmark_indirect.frag")
             .specifyDescriptorSetLayout(scene->getPerViewDescriptorSetLayout())
             .specifyDescriptorSetLayout(ds_manager.getBindlessBufferSet().getLayout())
             .specifyDescriptorSetLayout(ds_manager.getBindlessTextureSet().getLayout())

@@ -5,6 +5,12 @@
 #extension GL_EXT_buffer_reference : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 
+// 间接绘制路径专用 fragment shader（CpuIndirect / GpuDriven 共用），fork 自
+// examples/assets/shaders/vertex_buffer_test.frag。本 fork 修复了 MaterialTextureIds
+// 的槽位错位 bug：shader 端槽位顺序与 BenchmarkScene 上传时的
+// get_textures(material, eStandard) 迭代顺序对齐 —— 5 槽（含 occlusion）。
+// 与 main_example 的 vertex_buffer_test.frag 完全独立，避免相互影响。
+
 layout(location = 0) out vec4 frag_color;
 
 layout(location = 0) in VS_OUT {
@@ -33,7 +39,6 @@ struct MaterialTextureIds {
     // 与 BenchmarkScene::uploadModel 内 get_textures(material, eStandard) 的迭代顺序对齐。
     // ShadingModel::eStandard 触发 5 个 TextureSemantic：
     //   eBaseColor → eMetallicRoughness → eNormal → eOcclusion → eEmissive
-    // 之前 vertex_buffer_test.frag 只声明 4 槽，导致 emissive 槽错位读到了 occlusion id。
     uint base_color_texture_id;
     uint metallic_roughness_texture_id;
     uint normal_texture_id;
@@ -83,9 +88,7 @@ void main()
     vec3 final_color = ambient + diffuse;
 
     // Emissive：直接累加 sample 值。没贴 emissive 的材质走 DefaultAssetProvider 提供的
-    // 黑色 (0,0,0) 纹理 → 不影响最终色；贴了 emissive 的（如 DamagedHelmet 眼缝）会自然亮起。
-    // 不再额外乘 material_params.emissive_color：因为大多数 gltf 材质都没在 host 端设
-    // emissive_color factor（默认 0），乘上去会把 emissive map 抵消为 0。
+    // 黑色纹理 → 不影响最终色；贴了 emissive 的（如 DamagedHelmet 眼缝）会自然亮起。
     vec4 emissive_sample = texture(sampler2D(textures[nonuniformEXT(material_texture_ids.emissive_texture_id)], samplers[0]), fs_in.uv);
     final_color += emissive_sample.rgb;
 
