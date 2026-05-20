@@ -38,14 +38,20 @@ namespace lcf::benchmark {
     //
     // 每条 path 的可用 mode 集合由 RendererSwitcher 决定：
     //   eCpuDrivenNaive    → { eClean, eLegacy }
-    //   eCpuDrivenIndirect → { eSingle, eBatched }
+    //   eCpuDrivenIndirect → { eSingle, eLegacy }
     //   eGpuDriven         → { eGpuDriven, eGpuIndirectCount }（后者用于 ABL-DGC 消融）
+    //
+    // 注：eLegacy 在 NaiveCpu 与 CpuIndirect 上语义不同但精神一致——都对应"工业悲观/
+    // 现实"形态：放弃 BDA + Bindless 基础设施带来的"一次绑定全部绘制"红利，主动引入
+    // PSO 切换 + 全 ds rebind 的 host overhead。两者切换粒度不同（Naive 在 instance
+    // 粒度、Indirect 在 mesh 粒度），反映批量提交方式的本质差异，详见论文 §5.4.1。
     enum class eEmulationMode : uint8_t
     {
         eClean            = 0,  // NaiveCpu: 现状（per-mesh push_constants + per-instance vkCmdDraw）
-        eLegacy           = 1,  // NaiveCpu: 模拟"传统"per-instance rebind 2 ds + 周期性 PSO switch
-        eSingle           = 2,  // CpuIndirect: 现状（1 次 vkCmdDrawIndirectCount 全包）
-        eBatched          = 3,  // CpuIndirect: 按 mesh 分批（mesh_count 次 vkCmdDrawIndirect + per-mesh ds rebind）
+        eLegacy           = 1,  // 双路径共用：周期性 PSO toggle + 切换后强制全 ds rebind + push_const 重发；
+                                //   NaiveCpu  → 每 m_pipeline_switch_period (默认 4096) 个 instance 切一次
+                                //   CpuIndirect → 每 mesh 必切（drawIndirect 之间 toggle PSO）
+        eSingle           = 2,  // CpuIndirect: 现状（1 次 vkCmdDrawIndirectCount 全包，享受 BDA+Bindless 红利）
         eGpuDriven        = 4,  // GpuDriven: DGC + GPU cull（核心方案）
         eGpuIndirectCount = 5,  // GpuDriven: GPU cull 仍开，但用 vkCmdDrawIndirectCount 替 DGC（ABL-DGC 消融）
     };
@@ -166,7 +172,6 @@ namespace lcf::benchmark {
             case eEmulationMode::eClean:            return "clean";
             case eEmulationMode::eLegacy:           return "legacy";
             case eEmulationMode::eSingle:           return "single";
-            case eEmulationMode::eBatched:          return "batched";
             case eEmulationMode::eGpuDriven:        return "gpu_driven";
             case eEmulationMode::eGpuIndirectCount: return "gpu_indirect_count";
         }

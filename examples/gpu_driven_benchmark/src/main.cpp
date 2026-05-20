@@ -58,7 +58,7 @@ namespace {
         {ePath::eCpuDrivenNaive,    eEmulationMode::eClean},
         {ePath::eCpuDrivenNaive,    eEmulationMode::eLegacy},
         {ePath::eCpuDrivenIndirect, eEmulationMode::eSingle},
-        {ePath::eCpuDrivenIndirect, eEmulationMode::eBatched},
+        {ePath::eCpuDrivenIndirect, eEmulationMode::eLegacy},
         {ePath::eGpuDriven,         eEmulationMode::eGpuDriven},
     };
     constexpr size_t k_full_matrix_count = sizeof(k_full_matrix) / sizeof(k_full_matrix[0]);
@@ -80,10 +80,11 @@ namespace {
         // 输出目录（step7）：CSV / .tracy / zone_csv 集中放这里。空 = 走默认 benchmark_results
         std::filesystem::path out_dir;
         // step5 新增：
-        // - modes_filter：CSV 短名集合（clean/legacy/single/batched/gpu_driven/gpu_indirect_count）；空 = 全跑
-        // - pipeline_switch_period：NaiveCpu_legacy 每 N 实例 toggle 一次 PSO
+        // - modes_filter：CSV 短名集合（clean/legacy/single/gpu_driven/gpu_indirect_count）；空 = 全跑
+        //   注：legacy 同时匹配 NaiveCpu_legacy 与 CpuIndirect_legacy（两路径共享同一 mode 短名）
+        // - pipeline_switch_period：NaiveCpu_legacy 每 N 实例 toggle 一次 PSO（默认 4096）
         std::unordered_set<std::string> modes_filter;
-        uint32_t pipeline_switch_period = 64u;
+        uint32_t pipeline_switch_period = 4096u;
         // step6：交互模式下手动开关 disable_cull（仅做单次实验时方便观察）
         bool disable_cull = false;
         // step7：tracy-capture 抓取（要求 tracy-capture 在 PATH）
@@ -141,7 +142,7 @@ namespace {
         std::puts("    keys: 1/2/3  -> switch path (Naive / CpuIndirect / GpuDriven)");
         std::puts("    keys: M      -> cycle emulation mode within active path");
         std::puts("                    Naive:       clean <-> legacy");
-        std::puts("                    CpuIndirect: single <-> batched");
+        std::puts("                    CpuIndirect: single <-> legacy");
         std::puts("                    GpuDriven:   gpu_driven <-> gpu_indirect_count");
         std::puts("    keys: 4/5/6/7 -> switch scene scale (A/B/C/D)");
         std::puts("  gpu_driven_benchmark --benchmark           headless main matrix (5 modes x 4 scenes)");
@@ -149,8 +150,8 @@ namespace {
         std::puts("    --warmup N         (default 200)");
         std::puts("    --samples N        (default 1000)");
         std::puts("    --out <path.csv>   (default benchmark_results/result_TS.csv or ablation_TS.csv)");
-        std::puts("    --modes a,b,c,...  (default all 5: clean,legacy,single,batched,gpu_driven)");
-        std::puts("    --pipeline-switch-period N  (default 64; only affects NaiveCpu_legacy)");
+        std::puts("    --modes a,b,c,...  (default all 5; Naive_legacy/Indirect_legacy 共享 'legacy')");
+        std::puts("    --pipeline-switch-period N  (default 4096; only affects NaiveCpu_legacy)");
         std::puts("    --camera-stress    (skewed camera @ grid corner, ~30/60% culled for B/C/D)");
         std::puts("    --tracy-capture    (spawn tracy-capture per unit; requires tracy-capture in PATH)");
         std::puts("    --out-dir <dir>    (override output directory; csv/.tracy/zone_csv all go here)");
@@ -593,7 +594,7 @@ abl_done:
             case ePath::eCpuDrivenNaive:
                 return (cur == eEmulationMode::eClean) ? eEmulationMode::eLegacy : eEmulationMode::eClean;
             case ePath::eCpuDrivenIndirect:
-                return (cur == eEmulationMode::eSingle) ? eEmulationMode::eBatched : eEmulationMode::eSingle;
+                return (cur == eEmulationMode::eSingle) ? eEmulationMode::eLegacy : eEmulationMode::eSingle;
             case ePath::eGpuDriven:
             default:
                 return (cur == eEmulationMode::eGpuDriven) ? eEmulationMode::eGpuIndirectCount : eEmulationMode::eGpuDriven;

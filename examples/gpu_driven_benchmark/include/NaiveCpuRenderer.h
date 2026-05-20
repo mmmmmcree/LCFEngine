@@ -50,7 +50,10 @@ namespace lcf::benchmark {
         //            + 每 m_pipeline_switch_period 实例切一次 PSO 模拟 driver 重 setup
         void setEmulationMode(eEmulationMode mode) override;
 
-        // 仅 eLegacy 用：配置每多少 instance 切一次 PSO。默认 64。
+        // 仅 eLegacy 用：配置每多少 instance 切一次 PSO。默认 4096。
+        // 该默认值对齐"工业引擎按材质排序后切 PSO"的现实工况——场景 D（24576 instance）
+        // 全可见时一帧约 6 次 PSO 切换，与 CpuIndirect_legacy 的"每 mesh 必切 = 6 次/帧"
+        // 自然落在同一量级（虽然两者切换粒度本质不同：instance vs mesh）。
         void setPipelineSwitchPeriod(uint32_t period) noexcept { m_pipeline_switch_period = (period == 0u ? 1u : period); }
 
         // ABL-CULL 消融：true → cullOnCpu 走 identity 填充（visible = 全 instance）。
@@ -93,7 +96,7 @@ namespace lcf::benchmark {
 
         // 模拟模式状态：默认 eClean 保持现状。
         eEmulationMode m_mode = eEmulationMode::eClean;
-        uint32_t       m_pipeline_switch_period = 64u;
+        uint32_t       m_pipeline_switch_period = 4096u;  // 对齐"按材质排序后切 PSO"的工业现实工况
         bool           m_disable_cull = false;  // ABL-CULL 消融开关
 
         bool m_created = false;

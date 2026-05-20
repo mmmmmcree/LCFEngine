@@ -17,7 +17,7 @@
 //
 // mode 列对每条 path 含义：
 //   eCpuDrivenNaive    → clean / legacy
-//   eCpuDrivenIndirect → single / batched
+//   eCpuDrivenIndirect → single / legacy
 //   eGpuDriven         → gpu_driven（单一态，便于过滤/对比）
 //
 // M4_cull_ms 不区分 CPU/GPU 路径：
@@ -56,7 +56,7 @@ namespace lcf::benchmark {
 
         // 开始一个跑分单元。warmup_frames 仅作为 reserve hint，不在内部丢弃；
         // 调用方应保证 warmup 阶段不调用 push。
-        // mode 区分同 path 下的不同 host 行为（clean/legacy/single/batched/gpu_driven）。
+        // mode 区分同 path 下的不同 host 行为（clean/legacy/single/gpu_driven）。
         // disable_cull：当前单元是否启用 ABL-CULL 消融（关闭剔除）；CSV 里写 0/1。
         void beginRun(ePath path, eEmulationMode mode, eScene scene,
                       uint32_t instance_count, uint32_t expected_samples,

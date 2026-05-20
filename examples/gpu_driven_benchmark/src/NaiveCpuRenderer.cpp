@@ -44,7 +44,7 @@ namespace lcf::benchmark {
 
     void NaiveCpuRenderer::setEmulationMode(eEmulationMode mode)
     {
-        // 只接 eClean / eLegacy；其它 mode 静默忽略（避免 RendererSwitcher 误传 single/batched）。
+        // 只接 eClean / eLegacy；其它 mode 静默忽略（避免 RendererSwitcher 误传 single 等）。
         if (mode != eEmulationMode::eClean && mode != eEmulationMode::eLegacy) {
             lcf_log_warn("NaiveCpuRenderer: ignore unsupported mode={}", to_csv_name(mode));
             return;

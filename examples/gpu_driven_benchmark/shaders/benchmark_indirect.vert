@@ -12,7 +12,7 @@
 //
 // 路径关键不变量：
 //   - mesh_id 索引 draw_meta_infos[]：默认走 gl_DrawID（drawIndirectCount 累加值）；
-//     CpuIndirect_batched 模式用 push_const pc_force_mesh_id 强制覆盖（因为
+//     CpuIndirect_legacy 模式用 push_const pc_force_mesh_id 强制覆盖（因为
 //     vkCmdDrawIndirect 多次单独调用时 gl_DrawID 在每次内部都从 0 开始，需 host 端 push 真值）
 //   - gl_InstanceIndex = firstInstance + InstanceID；在 visible_instance_ids[] 内取真实 instance_id
 //   - object_id 来自 draw_meta_infos[mesh_id].object_id
@@ -21,7 +21,7 @@
 #include "bindless_structs.glsl"
 
 // push_const sentinel：0xFFFFFFFFu = "用 gl_DrawID"（默认/single/gpu_driven 路径）；
-// 其它值 = host 端强制指定的 mesh_id（CpuIndirect_batched / NaiveCpu_legacy 路径）。
+// 其它值 = host 端强制指定的 mesh_id（CpuIndirect_legacy / NaiveCpu_legacy 路径）。
 layout(push_constant) uniform PcMeshOverride {
     uint pc_force_mesh_id;
 } pc;

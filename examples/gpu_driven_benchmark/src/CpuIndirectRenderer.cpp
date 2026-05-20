@@ -51,7 +51,7 @@ namespace lcf::benchmark {
 
     void CpuIndirectRenderer::setEmulationMode(eEmulationMode mode)
     {
-        if (mode != eEmulationMode::eSingle && mode != eEmulationMode::eBatched) {
+        if (mode != eEmulationMode::eSingle && mode != eEmulationMode::eLegacy) {
             lcf_log_warn("CpuIndirectRenderer: ignore unsupported mode={}", to_csv_name(mode));
             return;
         }
@@ -98,6 +98,14 @@ namespace lcf::benchmark {
         // 注意：CPU 间接路径不需要 eIndirectBindableEXT（DGC 才需要）；
         // 但 vkCmdDrawIndirectCount 本身不需要 pipeline 标记，普通 graphics pipeline 即可。
         m_graphics_pipeline.create(m_context_p, graphic_info);
+
+        // pipeline_b：与 a 同 program / 同 layout，仅 cullMode 改为 eFront。
+        // 对封闭 mesh（FlightHelmet / DamagedHelmet）trackball 视角下视觉无差；
+        // 用于 eLegacy 模式 mesh 之间 toggle，模拟 PSO state switch + driver 全 state 失效。
+        // 与 NaiveCpuRenderer 的双 PSO 设计保持对称。
+        GraphicPipelineCreateInfo graphic_info_b = graphic_info;
+        graphic_info_b.setCullMode(vk::CullModeFlagBits::eFront);
+        m_graphics_pipeline_b.create(m_context_p, graphic_info_b);
 
         // ---------- frame resources ----------
         auto [max_w, max_h] = max_extent;
@@ -312,26 +320,49 @@ namespace lcf::benchmark {
                 draw_count, sizeof(DrawMetaInfo));
             total_draw_calls = 1u;
         } else {
-            // ===== Batched 路径（"按 material 分批"模拟）=====
-            //   - 每 mesh：rebind 2 个 ds（即使内容相同也发出，模拟 driver dirty validation）
-            //              + push pc_force_mesh_id = mi（drawIndirect 多次单独调用时
-            //              gl_DrawID 在每次内部恒为 0，必须 push 真值覆盖）
-            //              + 一次 vkCmdDrawIndirect(drawCount=1, offset=head + mi*stride)
+            // ===== Legacy 路径（"工业悲观间接" baseline 模拟）=====
+            //   主动放弃 eSingle 享受的"一次绑定全部绘制"红利：
+            //     - 每 mesh：rebind 2 个 ds（即使内容相同也发出，模拟 driver dirty validation）
+            //                + push pc_force_mesh_id = mi（drawIndirect 多次单独调用时
+            //                gl_DrawID 在每次内部恒为 0，必须 push 真值覆盖）
+            //                + 一次 vkCmdDrawIndirect(drawCount=1, offset=head + mi*stride)
+            //     - 每 m_pipeline_switch_period 个 mesh：toggle PSO（a ↔ b），
+            //       切换后强制 rebind 全部 3 个 ds + 重发 push_const，模拟 PSO 切换让
+            //       driver state 全部失效。默认 period = 1（每 mesh 必切），与"按材质排序后
+            //       切 PSO"的工业现实工况对齐。
             //   - M3 = mesh_count（与论文里"传统按 mesh batch"对齐）
             auto & ds_manager           = m_context_p->getDescriptorSetManager();
+            const auto & per_view_ds    = m_scene_p->getPerViewDescriptorSet();
             auto & bindless_buf_ds      = ds_manager.getBindlessBufferSet();
             auto & bindless_tex_ds      = ds_manager.getBindlessTextureSet();
-            auto & program              = *m_graphics_pipeline.getShaderProgram();
+
+            const render::VulkanPipeline * active_pipeline = &m_graphics_pipeline;
 
             for (uint32_t mi = 0; mi < draw_count; ++mi) {
-                cmd.bindDescriptorSet(m_graphics_pipeline, bindless_buf_ds);
-                cmd.bindDescriptorSet(m_graphics_pipeline, bindless_tex_ds);
+                // 周期性 PSO toggle（mi > 0 才切，避免首 mesh 无意义 rebind）
+                if (mi > 0u && (mi % m_pipeline_switch_period == 0u)) {
+                    active_pipeline = (active_pipeline == &m_graphics_pipeline)
+                                          ? &m_graphics_pipeline_b
+                                          : &m_graphics_pipeline;
+                    cmd.bindPipeline(*active_pipeline);
+                    // PSO 切换后强制 rebind 全部 3 ds（模拟最坏路径：driver state 全失效）
+                    cmd.bindDescriptorSet(*active_pipeline, per_view_ds);
+                    cmd.bindDescriptorSet(*active_pipeline, bindless_buf_ds);
+                    cmd.bindDescriptorSet(*active_pipeline, bindless_tex_ds);
+                }
 
-                // push 真实 mesh_id
-                program.setPushConstantData(
-                    vk::ShaderStageFlagBits::eVertex,
-                    {static_cast<const void *>(&mi)});
-                program.bindPushConstants(cmd);
+                // 每 mesh 固定 rebind 2 ds（即使内容相同，host 调用栈仍发出）。
+                cmd.bindDescriptorSet(*active_pipeline, bindless_buf_ds);
+                cmd.bindDescriptorSet(*active_pipeline, bindless_tex_ds);
+
+                // push 真实 mesh_id（用 active pipeline 的 program）
+                {
+                    auto & program = *active_pipeline->getShaderProgram();
+                    program.setPushConstantData(
+                        vk::ShaderStageFlagBits::eVertex,
+                        {static_cast<const void *>(&mi)});
+                    program.bindPushConstants(cmd);
+                }
 
                 // offset = head(4B) + mi * stride(20B)
                 const vk::DeviceSize offset =
@@ -388,7 +419,7 @@ namespace lcf::benchmark {
         metrics.m4_cull_ms       = cull_ms;
         // M3：host 端 draw 调用次数。
         //   - eSingle  → 1（drawIndirectCount 一次提交）
-        //   - eBatched → mesh_count（每 mesh 一次 drawIndirect，模拟"按 material batch"）
+        //   - eLegacy  → mesh_count（每 mesh 一次 drawIndirect，模拟"按材质排序后切 PSO"）
         metrics.m3_draw_calls          = total_draw_calls;
         metrics.m4_visible_instances   = total_visible;
 
