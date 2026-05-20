@@ -78,7 +78,10 @@
     "profiling": {
       "description": "Dependencies for profiling/",
       "dependencies": [
-        "tracy"
+        {
+          "name": "tracy",
+          "features": [ "on-demand" ]
+        }
       ]
     },
     "examples": {

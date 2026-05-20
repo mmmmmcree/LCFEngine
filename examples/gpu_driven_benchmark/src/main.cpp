@@ -39,6 +39,7 @@
 #include <sstream>
 #include <string>
 #include <thread>
+#include <future>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -69,11 +70,14 @@ namespace {
         bool self_test    = false;
         bool benchmark    = false;
         bool ablation     = false;  // step6：场景 C 4 行消融独立 CSV
+        bool camera_stress = false; // step7：相机斜视外角，让 B/C/D 档剔除率有意义（CULL-RATE 表）
         // 跑分参数（可选 override）
         uint32_t warmup_frames  = 200;
         uint32_t sample_frames  = 1000;
         // 默认输出目录：<exe>/benchmark_results/result_YYYYMMDD_HHMMSS.csv
         std::filesystem::path out_csv;
+        // 输出目录（step7）：CSV / .tracy / zone_csv 集中放这里。空 = 走默认 benchmark_results
+        std::filesystem::path out_dir;
         // step5 新增：
         // - modes_filter：CSV 短名集合（clean/legacy/single/batched/gpu_driven/gpu_indirect_count）；空 = 全跑
         // - pipeline_switch_period：NaiveCpu_legacy 每 N 实例 toggle 一次 PSO
@@ -81,6 +85,8 @@ namespace {
         uint32_t pipeline_switch_period = 64u;
         // step6：交互模式下手动开关 disable_cull（仅做单次实验时方便观察）
         bool disable_cull = false;
+        // step7：tracy-capture 抓取（要求 tracy-capture 在 PATH）
+        bool tracy_capture_per_unit = false;
     };
 
     CliArgs parse_cli(int argc, char * argv[])
@@ -93,6 +99,9 @@ namespace {
             else if (a == "--self-test") { args.self_test = true; }
             else if (a == "--benchmark") { args.benchmark = true; }
             else if (a == "--ablation")  { args.ablation  = true; }
+            else if (a == "--camera-stress") { args.camera_stress = true; }
+            else if (a == "--tracy-capture") { args.tracy_capture_per_unit = true; }
+            else if (a == "--out-dir" && i + 1 < argc) { args.out_dir = argv[++i]; }
             else if (a == "--disable-cull") { args.disable_cull = true; }
             else if (a == "--warmup" && i + 1 < argc) {
                 args.warmup_frames = static_cast<uint32_t>(std::stoul(argv[++i]));
@@ -141,6 +150,9 @@ namespace {
         std::puts("    --out <path.csv>   (default benchmark_results/result_TS.csv or ablation_TS.csv)");
         std::puts("    --modes a,b,c,...  (default all 5: clean,legacy,single,batched,gpu_driven)");
         std::puts("    --pipeline-switch-period N  (default 64; only affects NaiveCpu_legacy)");
+        std::puts("    --camera-stress    (skewed camera @ grid corner, ~30/60% culled for B/C/D)");
+        std::puts("    --tracy-capture    (spawn tracy-capture per unit; requires tracy-capture in PATH)");
+        std::puts("    --out-dir <dir>    (override output directory; csv/.tracy/zone_csv all go here)");
         std::puts("  gpu_driven_benchmark --self-test           run unit self-tests");
     }
 
@@ -192,6 +204,77 @@ namespace {
         if (auto * r = switcher.getRenderer(path)) {
             r->setDisableCull(disabled);
         }
+    }
+
+    // 相机姿态：默认 vs camera-stress（让剔除真实生效）。
+    //   - 默认：(0, 0, 50)，看 -Z，FOV 60° 包住 grid → 剔除率 ~0%
+    //   - stress：(35, 0, 35) + 绕 Y 轴 -45°，斜视 grid 一角 → 剔除率 60-80%（依 scene 而异）
+    // 实现：先 reset 到原点，再 transform 到目标姿态。
+    void apply_camera_pose(lcf::Transform & camera_transform,
+                           lcf::ecs::Registry & registry,
+                           const lcf::ecs::Entity & camera_entity,
+                           lcf::ecs::TransformSystem & transform_system,
+                           bool stress)
+    {
+        // Reset 到单位矩阵；下面再 translate / rotate 到目标姿态。
+        lcf::Matrix4x4<float> id;
+        id.setToIdentity();
+        camera_transform.setLocalMatrix(id);
+        if (stress) {
+            // grid 范围 ±22.5（D 档）。把相机放到 (35, 0, 35)，绕 Y 轴 -45°（朝 -X-Z 看 grid 中心）。
+            camera_transform.translateWorld(35.0f, 0.0f, 35.0f);
+            camera_transform.rotateLocalYAxis(-45.0f);
+        } else {
+            camera_transform.translateWorld(0.0f, 0.0f, 50.0f);
+        }
+        registry.enqueueSignal<lcf::ecs::TransformUpdateSignal>({camera_entity.getId()});
+        registry.ctx().get<lcf::ecs::Dispatcher>().update();
+        transform_system.update();
+    }
+
+    // 启动 tracy-capture 子进程（要求 tracy-capture 在 PATH）。
+    // 返回 future：调用方在 sample 段跑完后 .wait() 即可。
+    // - tracy-capture 是阻塞型 CLI：默认连不到 server 时会一直 retry，连上之后开始录，
+    //   直到 -s 秒数到点才主动 disconnect 并落盘退出
+    // - 用更长的 capture 时长（sample 实际时长 + 安全余量）保证不被截断
+    std::future<int> spawn_tracy_capture(const std::filesystem::path & tracy_file, double seconds)
+    {
+        return std::async(std::launch::async, [tracy_file, seconds]() -> int {
+            // -f 强制覆盖；-s 持续秒数（向上取整 + 余量）；-o 输出文件
+            const int total_s = static_cast<int>(std::ceil(seconds));
+            std::string cmd = "tracy-capture -f -s " + std::to_string(total_s) +
+                              " -o \"" + tracy_file.string() + "\" >NUL 2>&1";
+            return std::system(cmd.c_str());
+        });
+    }
+
+    // 跑分结束后一次性把 out_dir 内所有 .tracy 转成 <stem>_zones.csv（zone 统计：mean/min/max/std）。
+    // 这是 chap05 §5.5.6 \"Tracy CPU 端时间分布\"表的数据来源。
+    // 要求 tracy-csvexport 在 PATH 里。
+    int export_all_tracy_zones(const std::filesystem::path & out_dir)
+    {
+        if (out_dir.empty() or not std::filesystem::is_directory(out_dir)) { return 0; }
+        int success = 0;
+        int failed  = 0;
+        for (auto & entry : std::filesystem::directory_iterator(out_dir)) {
+            if (entry.path().extension() != ".tracy") { continue; }
+            auto out_csv = entry.path();
+            out_csv.replace_extension();  // strip .tracy
+            out_csv += "_zones.csv";
+            std::string cmd = "tracy-csvexport \"" + entry.path().string() +
+                              "\" > \"" + out_csv.string() + "\" 2>NUL";
+            int rc = std::system(cmd.c_str());
+            if (rc == 0) {
+                ++success;
+                lcf_log_info("[zone-csv] {} -> {}", entry.path().filename().string(),
+                             out_csv.filename().string());
+            } else {
+                ++failed;
+                lcf_log_warn("[zone-csv] FAILED rc={} for {}", rc, entry.path().string());
+            }
+        }
+        lcf_log_info("[zone-csv] total: {} ok / {} failed", success, failed);
+        return failed;
     }
 
     // 给 NaiveCpu 配置 pipeline_switch_period（仅 eLegacy 起效）。
@@ -282,18 +365,26 @@ int main(int argc, char * argv[])
         // 跑分模式仍需要 window（用于 swapchain），但不在主线程做 trackball；
         // 相机用一组固定姿态使每个 (path, mode, scene) 跑分时画面一致。
 
+        // out_dir 优先级 > out_csv：若给了 out_dir，CSV 落在 out_dir/main.csv，.tracy 也落在该目录。
+        std::filesystem::path out_dir = args.out_dir;
         std::filesystem::path csv_path = args.out_csv;
-        if (csv_path.empty()) {
-            csv_path = std::filesystem::path("benchmark_results") /
-                       ("result_" + make_timestamp_suffix() + ".csv");
+        if (out_dir.empty() and csv_path.empty()) {
+            const std::string suffix = "result_" + make_timestamp_suffix() +
+                                       (args.camera_stress ? "_stress" : "");
+            out_dir = std::filesystem::path("benchmark_results") / suffix;
         }
-        lcf_log_info("benchmark mode: warmup={} samples={} out={} switch_period={}",
+        if (csv_path.empty()) {
+            csv_path = out_dir.empty()
+                        ? std::filesystem::path("benchmark_results") /
+                          ("result_" + make_timestamp_suffix() + ".csv")
+                        : (out_dir / "main.csv");
+        }
+        std::filesystem::create_directories(csv_path.parent_path());
+        lcf_log_info("benchmark mode: warmup={} samples={} out={} switch_period={} camera_stress={} tracy={}",
                      args.warmup_frames, args.sample_frames, csv_path.string(),
-                     args.pipeline_switch_period);
+                     args.pipeline_switch_period,
+                     args.camera_stress, args.tracy_capture_per_unit);
 
-        // 提前给 NaiveCpu 配置 pipeline_switch_period（renderer 实例会在第一次 switchPath
-        // 时 lazy-create；但 RendererSwitcher::getRenderer 返回的可能是 nullptr —— 改在
-        // 每个 mode 启用前 apply_mode 后再设。
         lcf::benchmark::FrameMetricsCollector collector;
 
         const lcf::benchmark::eScene scenes[] = {
@@ -303,11 +394,8 @@ int main(int argc, char * argv[])
             lcf::benchmark::eScene::eD,
         };
 
-        // 给相机摆个固定姿态：稍后退便于看到所有实例。
-        camera_transform.translateWorld(0.0f, 0.0f, 50.0f);
-        registry.enqueueSignal<lcf::ecs::TransformUpdateSignal>({camera_entity.getId()});
-        registry.ctx().get<lcf::ecs::Dispatcher>().update();
-        transform_system.update();
+        apply_camera_pose(camera_transform, registry, camera_entity, transform_system,
+                          args.camera_stress);
 
         for (size_t mi = 0; mi < k_full_matrix_count; ++mi) {
             const auto & pm = k_full_matrix[mi];
@@ -332,6 +420,26 @@ int main(int argc, char * argv[])
                     if (window_up->getState() == lcf::gui::WindowState::eAboutToClose) { goto done; }
                     switcher.render(camera_entity, window_up->getEntity());
                 }
+
+                // 启动 tracy-capture 子进程（如启用），估算 capture 时长 = sample_frames / 估算 FPS。
+                // 用 warmup 段最后 N 帧的实际帧时间反推 FPS；初值给 200 FPS（Release 兜底）。
+                std::future<int> tracy_future;
+                if (args.tracy_capture_per_unit and not out_dir.empty()) {
+                    // 文件名：<path>_<mode>_<scene>.tracy
+                    std::string fname = std::string(lcf::benchmark::to_csv_name(pm.path)) + "_" +
+                                        std::string(lcf::benchmark::to_csv_name(pm.mode)) + "_" +
+                                        std::string(lcf::benchmark::to_csv_name(sc)) + ".tracy";
+                    auto tracy_file = out_dir / fname;
+                    // capture 时长：保守按 30 FPS 估 sample 段 + 5s 安全余量。capture 会提前
+                    // 录满 sample 段，剩余时间 client idle 也能继续维持 connection。
+                    const double cap_seconds = static_cast<double>(args.sample_frames) / 30.0 + 5.0;
+                    tracy_future = spawn_tracy_capture(tracy_file, cap_seconds);
+                    // 等 capture 与 client 完整 handshake（300ms 比 150ms 更稳，避免连接竞速）
+                    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+                    lcf_log_info("[tracy] spawn capture -> {} (cap={:.1f}s)",
+                                 tracy_file.string(), cap_seconds);
+                }
+
                 // sample
                 collector.beginRun(pm.path, pm.mode, sc, inst, args.sample_frames, /*disable_cull=*/false);
                 for (uint32_t i = 0; i < args.sample_frames; ++i) {
@@ -342,13 +450,27 @@ int main(int argc, char * argv[])
                     LCF_TRACY_FRAMEMARK;
                 }
                 collector.endRunAndAppendCsv(csv_path);
+
+                // 等待 tracy-capture 落盘（如启用）。tracy-capture 自己 -s 计时到点退出。
+                if (tracy_future.valid()) {
+                    lcf_log_info("[tracy] waiting capture to flush...");
+                    int rc = tracy_future.get();
+                    lcf_log_info("[tracy] capture done rc={}", rc);
+                    // 给 TracyClient 内部 finalize + 准备接受下一次 connect 留充足时间，
+                    // 避免相邻两次 capture 之间出现 reconnect race 导致 .tracy 损坏。
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+                }
             }
         }
 done:
         context.getDevice().waitIdle();
+        if (args.tracy_capture_per_unit and not out_dir.empty()) {
+            export_all_tracy_zones(out_dir);
+        }
         lcf_log_info("benchmark done. csv: {}", csv_path.string());
         return 0;
     }
+
 
     // ---- 消融模式：场景 C 4 行（ABL-FULL / ABL-CULL / ABL-DGC / ABL-NONE）----
     // 与论文 chap05 §5.5.2 表 5-x 对位。CSV 路径默认 ablation_TS.csv（与主跑分独立）。
@@ -358,28 +480,34 @@ done:
     //   3) gpu_indirect_count + cull on  = 关闭 DGC（ABL-DGC）
     //   4) gpu_indirect_count + cull off = 同时关闭剔除与 DGC（叠加，作为参照）
     if (args.ablation) {
+        std::filesystem::path out_dir = args.out_dir;
         std::filesystem::path csv_path = args.out_csv;
-        if (csv_path.empty()) {
-            csv_path = std::filesystem::path("benchmark_results") /
-                       ("ablation_" + make_timestamp_suffix() + ".csv");
+        if (out_dir.empty() and csv_path.empty()) {
+            out_dir = std::filesystem::path("benchmark_results") /
+                      ("ablation_" + make_timestamp_suffix());
         }
-        lcf_log_info("ablation mode: warmup={} samples={} out={}",
-                     args.warmup_frames, args.sample_frames, csv_path.string());
+        if (csv_path.empty()) {
+            csv_path = out_dir.empty()
+                        ? std::filesystem::path("benchmark_results") /
+                          ("ablation_" + make_timestamp_suffix() + ".csv")
+                        : (out_dir / "ablation.csv");
+        }
+        std::filesystem::create_directories(csv_path.parent_path());
+        lcf_log_info("ablation mode: warmup={} samples={} out={} tracy={}",
+                     args.warmup_frames, args.sample_frames, csv_path.string(),
+                     args.tracy_capture_per_unit);
 
         lcf::benchmark::FrameMetricsCollector collector;
 
-        // 固定相机姿态（与主跑分一致）。
-        camera_transform.translateWorld(0.0f, 0.0f, 50.0f);
-        registry.enqueueSignal<lcf::ecs::TransformUpdateSignal>({camera_entity.getId()});
-        registry.ctx().get<lcf::ecs::Dispatcher>().update();
-        transform_system.update();
+        apply_camera_pose(camera_transform, registry, camera_entity, transform_system,
+                          args.camera_stress);
 
-        struct AblRow { eEmulationMode mode; bool disable_cull; };
+        struct AblRow { eEmulationMode mode; bool disable_cull; const char * tag; };
         const AblRow rows[] = {
-            { eEmulationMode::eGpuDriven,        false },
-            { eEmulationMode::eGpuDriven,        true  },
-            { eEmulationMode::eGpuIndirectCount, false },
-            { eEmulationMode::eGpuIndirectCount, true  },
+            { eEmulationMode::eGpuDriven,        false, "full"          },
+            { eEmulationMode::eGpuDriven,        true,  "no_cull"       },
+            { eEmulationMode::eGpuIndirectCount, false, "no_dgc"        },
+            { eEmulationMode::eGpuIndirectCount, true,  "no_dgc_no_cull"},
         };
 
         const auto sc = lcf::benchmark::eScene::eC;
@@ -396,6 +524,18 @@ done:
                 if (window_up->getState() == lcf::gui::WindowState::eAboutToClose) { goto abl_done; }
                 switcher.render(camera_entity, window_up->getEntity());
             }
+
+            std::future<int> tracy_future;
+            if (args.tracy_capture_per_unit and not out_dir.empty()) {
+                std::string fname = std::string("abl_") + row.tag + ".tracy";
+                auto tracy_file = out_dir / fname;
+                const double cap_seconds = static_cast<double>(args.sample_frames) / 30.0 + 5.0;
+                tracy_future = spawn_tracy_capture(tracy_file, cap_seconds);
+                std::this_thread::sleep_for(std::chrono::milliseconds(300));
+                lcf_log_info("[tracy] spawn capture -> {} (cap={:.1f}s)",
+                             tracy_file.string(), cap_seconds);
+            }
+
             // sample
             collector.beginRun(ePath::eGpuDriven, row.mode, sc, inst, args.sample_frames, row.disable_cull);
             for (uint32_t i = 0; i < args.sample_frames; ++i) {
@@ -408,14 +548,22 @@ done:
             collector.endRunAndAppendCsv(csv_path);
             lcf_log_info("[ablation] mode={} disable_cull={} done",
                          lcf::benchmark::to_csv_name(row.mode), row.disable_cull);
+            if (tracy_future.valid()) {
+                tracy_future.get();
+                std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+            }
         }
 abl_done:
         // 跑完恢复 disable_cull = false 以免污染交互模式
         apply_disable_cull(switcher, ePath::eGpuDriven, false);
         context.getDevice().waitIdle();
+        if (args.tracy_capture_per_unit and not out_dir.empty()) {
+            export_all_tracy_zones(out_dir);
+        }
         lcf_log_info("ablation done. csv: {}", csv_path.string());
         return 0;
     }
+
 
 
     // ---- 交互模式：双调度器，按键切路径/场景 ----
