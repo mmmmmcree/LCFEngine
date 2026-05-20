@@ -32,6 +32,23 @@ namespace lcf::benchmark {
 
     constexpr std::size_t k_path_count = 3;
 
+    // 模拟模式枚举：与 ePath 正交的"路径内 host 行为变体"。
+    // 用于在不增加 ePath 数量的前提下，对单条 path 提供"工业悲观 baseline" vs
+    // "理想化 bindless 写法"两档对照（chap05 §5.4.2 表格里的优化梯度）。
+    //
+    // 每条 path 的可用 mode 集合由 RendererSwitcher 决定：
+    //   eCpuDrivenNaive    → { eClean, eLegacy }
+    //   eCpuDrivenIndirect → { eSingle, eBatched }
+    //   eGpuDriven         → { eGpuDriven }（单一态，便于 CSV 列对齐）
+    enum class eEmulationMode : uint8_t
+    {
+        eClean     = 0,  // NaiveCpu: 现状（per-mesh push_constants + per-instance vkCmdDraw）
+        eLegacy    = 1,  // NaiveCpu: 模拟"传统"per-instance rebind 2 ds + 周期性 PSO switch
+        eSingle    = 2,  // CpuIndirect: 现状（1 次 vkCmdDrawIndirectCount 全包）
+        eBatched   = 3,  // CpuIndirect: 按 mesh 分批（mesh_count 次 vkCmdDrawIndirect + per-mesh ds rebind）
+        eGpuDriven = 4,  // GpuDriven: 唯一态
+    };
+
     // 场景规模档位（与 chap05 主对照矩阵的 A/B/C/D 列对齐）。
     enum class eScene : uint8_t
     {
@@ -133,6 +150,19 @@ namespace lcf::benchmark {
             case eScene::eD: return "D";
         }
         return "X";
+    }
+
+    // mode → CSV 短名（与 CLI --modes 参数解析一一对应；不要随意改字面量）。
+    constexpr std::string_view to_csv_name(eEmulationMode mode) noexcept
+    {
+        switch (mode) {
+            case eEmulationMode::eClean:     return "clean";
+            case eEmulationMode::eLegacy:    return "legacy";
+            case eEmulationMode::eSingle:    return "single";
+            case eEmulationMode::eBatched:   return "batched";
+            case eEmulationMode::eGpuDriven: return "gpu_driven";
+        }
+        return "unknown";
     }
 
 }  // namespace lcf::benchmark

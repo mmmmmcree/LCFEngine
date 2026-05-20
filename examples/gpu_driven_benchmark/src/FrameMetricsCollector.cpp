@@ -13,9 +13,11 @@ namespace fs = std::filesystem;
 namespace lcf::benchmark {
 
     void FrameMetricsCollector::beginRun(
-        ePath path, eScene scene, uint32_t instance_count, uint32_t expected_samples)
+        ePath path, eEmulationMode mode, eScene scene,
+        uint32_t instance_count, uint32_t expected_samples)
     {
         m_current_path     = path;
+        m_current_mode     = mode;
         m_current_scene    = scene;
         m_instance_count   = instance_count;
         m_run_active       = true;
@@ -57,8 +59,9 @@ namespace lcf::benchmark {
     {
         AggregatedMetrics agg;
         if (m_frames.empty()) {
-            lcf_log_warn("FrameMetricsCollector::endRunAndAppendCsv: empty samples for path={} scene={}",
-                         to_csv_name(m_current_path), to_csv_name(m_current_scene));
+            lcf_log_warn("FrameMetricsCollector::endRunAndAppendCsv: empty samples for path={} mode={} scene={}",
+                         to_csv_name(m_current_path), to_csv_name(m_current_mode),
+                         to_csv_name(m_current_scene));
             m_run_active = false;
             return agg;
         }
@@ -94,10 +97,11 @@ namespace lcf::benchmark {
             return agg;
         }
         if (need_header) {
-            ofs << "path,scene,instance_count,m1_cpu_submit_ms,m2_gpu_frame_ms,"
+            ofs << "path,mode,scene,instance_count,m1_cpu_submit_ms,m2_gpu_frame_ms,"
                 << "m3_draw_calls,m4_cull_ms,m5_p99_ms,sample_count\n";
         }
         ofs << to_csv_name(m_current_path) << ','
+            << to_csv_name(m_current_mode) << ','
             << to_csv_name(m_current_scene) << ','
             << m_instance_count << ','
             << agg.m1_cpu_submit_ms_mean << ','
@@ -109,8 +113,9 @@ namespace lcf::benchmark {
         ofs.flush();
 
         lcf_log_info(
-            "metrics[{}/{}]: M1={:.4f}ms M2={:.4f}ms M3={:.1f} M4_cull={:.4f}ms p99={:.4f}ms n={}",
-            to_csv_name(m_current_path), to_csv_name(m_current_scene),
+            "metrics[{}/{}/{}]: M1={:.4f}ms M2={:.4f}ms M3={:.1f} M4_cull={:.4f}ms p99={:.4f}ms n={}",
+            to_csv_name(m_current_path), to_csv_name(m_current_mode),
+            to_csv_name(m_current_scene),
             agg.m1_cpu_submit_ms_mean, agg.m2_gpu_frame_ms_mean,
             agg.m3_draw_calls_mean, agg.m4_cull_ms_mean,
             agg.m5_p99_ms, agg.sample_count);

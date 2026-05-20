@@ -42,6 +42,12 @@ namespace lcf::benchmark {
                                     const ecs::Entity & render_target) = 0;
 
         virtual ePath getPath() const noexcept = 0;
+
+        // 设置模拟模式（默认空实现）：
+        //   - NaiveCpu / CpuIndirect 各自 override 实现 mode 内部分支
+        //   - GpuDriven 不重写，保持空 → 调用者传任何 mode 都被忽略（path 维度只有 eGpuDriven）
+        // 切换时机：必须在两次 render() 之间调用；renderer 内部下一帧 record 即生效。
+        virtual void setEmulationMode(eEmulationMode /*mode*/) {}
     };
 
 }  // namespace lcf::benchmark

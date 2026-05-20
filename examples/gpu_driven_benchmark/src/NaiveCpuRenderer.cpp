@@ -41,6 +41,19 @@ namespace lcf::benchmark {
         if (m_context_p) { m_context_p->getDevice().waitIdle(); }
     }
 
+    void NaiveCpuRenderer::setEmulationMode(eEmulationMode mode)
+    {
+        // 只接 eClean / eLegacy；其它 mode 静默忽略（避免 RendererSwitcher 误传 single/batched）。
+        if (mode != eEmulationMode::eClean && mode != eEmulationMode::eLegacy) {
+            lcf_log_warn("NaiveCpuRenderer: ignore unsupported mode={}", to_csv_name(mode));
+            return;
+        }
+        if (m_mode != mode) {
+            lcf_log_info("NaiveCpuRenderer: switch mode -> {}", to_csv_name(mode));
+            m_mode = mode;
+        }
+    }
+
     void NaiveCpuRenderer::create(
         render::VulkanContext * context,
         BenchmarkScene * scene,
@@ -72,8 +85,16 @@ namespace lcf::benchmark {
         graphic_info.setShaderProgram(graphics_program)
             .setDepthAttachmentFormat(vk::Format::eD32Sfloat)
             .setRasterizationSamples(vk::SampleCountFlagBits::e4)
-            .addColorAttachmentFormat(vk::Format::eR16G16B16A16Sfloat);
+            .addColorAttachmentFormat(vk::Format::eR16G16B16A16Sfloat)
+            .setCullMode(vk::CullModeFlagBits::eBack);
         m_graphics_pipeline.create(m_context_p, graphic_info);
+
+        // pipeline_b：与 a 同 program / 同 layout，仅 cullMode 反向。
+        // 对封闭 mesh（FlightHelmet / DamagedHelmet）trackball 视角下视觉无差；
+        // 用于 eLegacy 模式每 N 实例 toggle，模拟驱动 PSO state switch。
+        GraphicPipelineCreateInfo graphic_info_b = graphic_info;
+        graphic_info_b.setCullMode(vk::CullModeFlagBits::eFront);
+        m_graphics_pipeline_b.create(m_context_p, graphic_info_b);
 
         // ---------- frame resources ----------
         auto [max_w, max_h] = max_extent;
@@ -217,6 +238,7 @@ namespace lcf::benchmark {
                               m_context_p->getDescriptorSetManager().getBindlessTextureSet());
         cmd.draw(36u, 1u, 0u, 0u);
 
+        // 主管线 + 主 ds 绑定（clean / legacy 共用起手）。
         cmd.bindPipeline(m_graphics_pipeline);
         cmd.bindDescriptorSet(m_graphics_pipeline, m_scene_p->getPerViewDescriptorSet());
         cmd.bindDescriptorSet(m_graphics_pipeline,
@@ -230,29 +252,89 @@ namespace lcf::benchmark {
         // 把 mesh_id（draw_meta_infos 索引）映射到 (mesh_pack, mesh_in_pack) — 顺序保留。
         // BenchmarkScene::setSceneScale 内是按 mesh_packs 的扁平顺序生成 draw_meta_infos 的。
         uint32_t total_draw_calls = 0;
-        uint32_t mi = 0;  // index into draw_meta_infos / per_mesh_visible
-        for (const auto & pack : meshes_packs) {
-            for (const auto & mesh : pack.meshes) {
-                const auto & visible_ids = per_mesh_visible[mi];
-                if (not visible_ids.empty()) {
-                    // push constant：object_id = mi（与 cullOnCpu 中 draw_metas[mi].object_id 同）
-                    // 但更稳妥：直接用 draw_metas[mi].m_object_id。
-                    const uint32_t object_id = draw_metas[mi].m_object_id;
-                    auto & shader_program = *m_graphics_pipeline.getShaderProgram();
-                    shader_program.setPushConstantData(
-                        vk::ShaderStageFlagBits::eVertex,
-                        {static_cast<const void *>(&object_id)});
-                    shader_program.bindPushConstants(cmd);
+        if (m_mode == eEmulationMode::eClean) {
+            // ===== Clean 路径（理想化 bindless）：per-mesh push_const + per-instance vkCmdDraw =====
+            uint32_t mi = 0;
+            for (const auto & pack : meshes_packs) {
+                for (const auto & mesh : pack.meshes) {
+                    const auto & visible_ids = per_mesh_visible[mi];
+                    if (not visible_ids.empty()) {
+                        const uint32_t object_id = draw_metas[mi].m_object_id;
+                        auto & shader_program = *m_graphics_pipeline.getShaderProgram();
+                        shader_program.setPushConstantData(
+                            vk::ShaderStageFlagBits::eVertex,
+                            {static_cast<const void *>(&object_id)});
+                        shader_program.bindPushConstants(cmd);
 
+                        const uint32_t index_count = mesh.getIndexCount();
+                        for (uint32_t instance_id : visible_ids) {
+                            cmd.draw(index_count, 1u, 0u, instance_id);
+                            ++total_draw_calls;
+                        }
+                    }
+                    ++mi;
+                }
+            }
+        } else {
+            // ===== Legacy 路径（"工业悲观 baseline"模拟）=====
+            //   - 每 instance：rebind 2 个 ds（bindless_buffer + bindless_texture）
+            //     即使 ds 内容没变，host 仍发出 vkCmdBindDescriptorSets，模拟驱动 dirty validation
+            //   - 每 m_pipeline_switch_period 个 instance：toggle PSO（a ↔ b），
+            //     切换后强制 rebind 全部 3 个 ds + push_const，模拟"PSO 切换让 driver state 全部失效"
+            //   - 注意：active_pipeline 引用要保持稳定，setPushConstantData 走 active 的 program
+            auto & ds_manager     = m_context_p->getDescriptorSetManager();
+            const auto & per_view_ds    = m_scene_p->getPerViewDescriptorSet();
+            auto & bindless_buf_ds = ds_manager.getBindlessBufferSet();
+            auto & bindless_tex_ds = ds_manager.getBindlessTextureSet();
+
+            const render::VulkanPipeline * active_pipeline = &m_graphics_pipeline;
+            uint32_t draw_counter = 0;
+
+            uint32_t mi = 0;
+            for (const auto & pack : meshes_packs) {
+                for (const auto & mesh : pack.meshes) {
+                    const auto & visible_ids = per_mesh_visible[mi];
+                    if (visible_ids.empty()) { ++mi; continue; }
+
+                    const uint32_t object_id   = draw_metas[mi].m_object_id;
                     const uint32_t index_count = mesh.getIndexCount();
+
+                    // 进入新 mesh：发 push_const（用当前 active pipeline 的 program）。
+                    {
+                        auto & program = *active_pipeline->getShaderProgram();
+                        program.setPushConstantData(
+                            vk::ShaderStageFlagBits::eVertex,
+                            {static_cast<const void *>(&object_id)});
+                        program.bindPushConstants(cmd);
+                    }
+
                     for (uint32_t instance_id : visible_ids) {
-                        // vkCmdDraw(vertexCount=index_count, instanceCount=1,
-                        //           firstVertex=0, firstInstance=instance_id)
+                        // 周期性 PSO toggle（draw_counter > 0 才切，避免首帧无意义 rebind）
+                        if (draw_counter > 0u && (draw_counter % m_pipeline_switch_period == 0u)) {
+                            active_pipeline = (active_pipeline == &m_graphics_pipeline)
+                                                  ? &m_graphics_pipeline_b
+                                                  : &m_graphics_pipeline;
+                            cmd.bindPipeline(*active_pipeline);
+                            // PSO 切换后强制 rebind 全部 3 ds + push_const（模拟最坏路径）
+                            cmd.bindDescriptorSet(*active_pipeline, per_view_ds);
+                            cmd.bindDescriptorSet(*active_pipeline, bindless_buf_ds);
+                            cmd.bindDescriptorSet(*active_pipeline, bindless_tex_ds);
+                            auto & program = *active_pipeline->getShaderProgram();
+                            program.setPushConstantData(
+                                vk::ShaderStageFlagBits::eVertex,
+                                {static_cast<const void *>(&object_id)});
+                            program.bindPushConstants(cmd);
+                        }
+                        // 每实例固定 rebind 2 ds（即使内容相同，host 调用栈仍发出）。
+                        cmd.bindDescriptorSet(*active_pipeline, bindless_buf_ds);
+                        cmd.bindDescriptorSet(*active_pipeline, bindless_tex_ds);
+
                         cmd.draw(index_count, 1u, 0u, instance_id);
                         ++total_draw_calls;
+                        ++draw_counter;
                     }
+                    ++mi;
                 }
-                ++mi;
             }
         }
 

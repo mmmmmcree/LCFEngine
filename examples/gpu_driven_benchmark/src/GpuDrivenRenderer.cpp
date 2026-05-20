@@ -302,6 +302,18 @@ namespace lcf::benchmark {
         cmd.bindDescriptorSet(m_graphics_pipeline,
                               m_context_p->getDescriptorSetManager().getBindlessTextureSet());
 
+        // benchmark_indirect.vert 在 step5 加了 push_const pc_force_mesh_id 用于 CpuIndirect_batched
+        // 强制 mesh_id；GpuDriven 路径走 fallback（gl_DrawID = DGC sequence index）。
+        // 必须 push 一次 sentinel 0xFFFFFFFFu，否则 push_const 内容未定义 → mesh_id 错乱。
+        {
+            const uint32_t sentinel = 0xFFFFFFFFu;
+            auto & program = *m_graphics_pipeline.getShaderProgram();
+            program.setPushConstantData(
+                vk::ShaderStageFlagBits::eVertex,
+                {static_cast<const void *>(&sentinel)});
+            program.bindPushConstants(cmd);
+        }
+
         vk::GeneratedCommandsInfoEXT gen_info;
         gen_info.setShaderStages(vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment)
                 .setIndirectExecutionSet(m_indirect_execution_set.get())

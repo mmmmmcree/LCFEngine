@@ -45,6 +45,12 @@ namespace lcf::benchmark {
 
         ePath getPath() const noexcept override { return ePath::eCpuDrivenIndirect; }
 
+        // 仅接受 eSingle / eBatched；其它 mode 静默忽略。
+        // - eSingle：现状（1 次 vkCmdDrawIndirectCount 全包；shader 端 mesh_id = gl_DrawID）
+        // - eBatched：按 mesh 分批 vkCmdDrawIndirect（mesh_count 次 + per-mesh push mesh_id +
+        //             per-mesh rebind 2 ds），模拟"工业引擎按 material 切 ds"的 host overhead
+        void setEmulationMode(eEmulationMode mode) override;
+
     private:
         struct FrameResources
         {
@@ -67,6 +73,8 @@ namespace lcf::benchmark {
         render::VulkanPipeline m_graphics_pipeline;
         GpuTimestampQueryPool  m_timestamp_pool;
         std::vector<bool>      m_frame_has_history;
+
+        eEmulationMode m_mode = eEmulationMode::eSingle;
 
         bool m_created = false;
     };

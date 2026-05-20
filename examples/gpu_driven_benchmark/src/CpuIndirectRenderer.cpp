@@ -48,6 +48,18 @@ namespace lcf::benchmark {
         if (m_context_p) { m_context_p->getDevice().waitIdle(); }
     }
 
+    void CpuIndirectRenderer::setEmulationMode(eEmulationMode mode)
+    {
+        if (mode != eEmulationMode::eSingle && mode != eEmulationMode::eBatched) {
+            lcf_log_warn("CpuIndirectRenderer: ignore unsupported mode={}", to_csv_name(mode));
+            return;
+        }
+        if (m_mode != mode) {
+            lcf_log_info("CpuIndirectRenderer: switch mode -> {}", to_csv_name(mode));
+            m_mode = mode;
+        }
+    }
+
     void CpuIndirectRenderer::create(
         render::VulkanContext * context,
         BenchmarkScene * scene,
@@ -244,18 +256,65 @@ namespace lcf::benchmark {
         cmd.bindDescriptorSet(m_graphics_pipeline,
                               m_context_p->getDescriptorSetManager().getBindlessTextureSet());
 
-        // drawIndirectCount(buffer, offset, countBuffer, countOffset, maxDrawCount, stride)
-        // - buffer: draw_meta SSBO，offset = sizeof(uint32_t) 跳过 head 的 draw_count 字段
-        // - countBuffer: 同 buffer，countOffset = 0（head 即 draw_count）
-        // - stride: sizeof(DrawMetaInfo) 与 GLSL std430 对齐一致（20 字节）
         const auto & draw_meta_ssbo =
             m_scene_p->getBindlessBufferGroup()
                 [std::to_underlying(vkenums::BindlessBufferBinding::eDrawMetaInfos)];
         const auto draw_count = static_cast<uint32_t>(m_scene_p->getDrawMetaInfos().size());
-        cmd.drawIndirectCount(
-            draw_meta_ssbo.getHandle(), sizeof(uint32_t),
-            draw_meta_ssbo.getHandle(), 0u,
-            draw_count, sizeof(DrawMetaInfo));
+
+        uint32_t total_draw_calls = 0u;
+        if (m_mode == eEmulationMode::eSingle) {
+            // ===== Single 路径（现状）：一次 drawIndirectCount 全包；shader 走 gl_DrawID =====
+            // 起手 push pc_force_mesh_id = 0xFFFFFFFF 让 shader 走 fallback 到 gl_DrawID。
+            // 必须 push（即使值是 sentinel），否则 shader 读到的 push_const 是未定义内容。
+            const uint32_t sentinel = 0xFFFFFFFFu;
+            auto & program = *m_graphics_pipeline.getShaderProgram();
+            program.setPushConstantData(
+                vk::ShaderStageFlagBits::eVertex,
+                {static_cast<const void *>(&sentinel)});
+            program.bindPushConstants(cmd);
+
+            // drawIndirectCount(buffer, offset, countBuffer, countOffset, maxDrawCount, stride)
+            // - buffer: draw_meta SSBO，offset = sizeof(uint32_t) 跳过 head 的 draw_count 字段
+            // - countBuffer: 同 buffer，countOffset = 0（head 即 draw_count）
+            // - stride: sizeof(DrawMetaInfo) 与 GLSL std430 对齐一致（20 字节）
+            cmd.drawIndirectCount(
+                draw_meta_ssbo.getHandle(), sizeof(uint32_t),
+                draw_meta_ssbo.getHandle(), 0u,
+                draw_count, sizeof(DrawMetaInfo));
+            total_draw_calls = 1u;
+        } else {
+            // ===== Batched 路径（"按 material 分批"模拟）=====
+            //   - 每 mesh：rebind 2 个 ds（即使内容相同也发出，模拟 driver dirty validation）
+            //              + push pc_force_mesh_id = mi（drawIndirect 多次单独调用时
+            //              gl_DrawID 在每次内部恒为 0，必须 push 真值覆盖）
+            //              + 一次 vkCmdDrawIndirect(drawCount=1, offset=head + mi*stride)
+            //   - M3 = mesh_count（与论文里"传统按 mesh batch"对齐）
+            auto & ds_manager           = m_context_p->getDescriptorSetManager();
+            auto & bindless_buf_ds      = ds_manager.getBindlessBufferSet();
+            auto & bindless_tex_ds      = ds_manager.getBindlessTextureSet();
+            auto & program              = *m_graphics_pipeline.getShaderProgram();
+
+            for (uint32_t mi = 0; mi < draw_count; ++mi) {
+                cmd.bindDescriptorSet(m_graphics_pipeline, bindless_buf_ds);
+                cmd.bindDescriptorSet(m_graphics_pipeline, bindless_tex_ds);
+
+                // push 真实 mesh_id
+                program.setPushConstantData(
+                    vk::ShaderStageFlagBits::eVertex,
+                    {static_cast<const void *>(&mi)});
+                program.bindPushConstants(cmd);
+
+                // offset = head(4B) + mi * stride(20B)
+                const vk::DeviceSize offset =
+                    sizeof(uint32_t) + static_cast<vk::DeviceSize>(mi) * sizeof(DrawMetaInfo);
+                cmd.drawIndirect(
+                    draw_meta_ssbo.getHandle(),
+                    offset,
+                    1u,                          // drawCount
+                    sizeof(DrawMetaInfo));       // stride（drawCount=1 时不重要但仍传）
+                ++total_draw_calls;
+            }
+        }
 
         frame.fbo.endRendering(cmd);
 
@@ -292,8 +351,10 @@ namespace lcf::benchmark {
         metrics.m1_cpu_submit_ms =
             std::chrono::duration<double, std::milli>(cpu_t1 - cpu_t0).count() - cull_ms;
         metrics.m4_cull_ms       = cull_ms;
-        // M3：host 端 vkCmdDrawIndirectCount 一次提交。chap05 §5.4.2 规定 host 视角统计。
-        metrics.m3_draw_calls = 1u;
+        // M3：host 端 draw 调用次数。
+        //   - eSingle  → 1（drawIndirectCount 一次提交）
+        //   - eBatched → mesh_count（每 mesh 一次 drawIndirect，模拟"按 material batch"）
+        metrics.m3_draw_calls = total_draw_calls;
 
         m_frame_has_history[m_current_frame_index] = true;
         ++m_current_frame_index %= m_frame_resources.size();

@@ -44,6 +44,15 @@ namespace lcf::benchmark {
 
         ePath getPath() const noexcept override { return ePath::eCpuDrivenNaive; }
 
+        // 仅接受 eClean / eLegacy；其它 mode 静默忽略。
+        // - eClean：现状（per-mesh push_constants + per-instance vkCmdDraw）
+        // - eLegacy：per-instance rebind 2 ds（bindless_buffer + bindless_texture）
+        //            + 每 m_pipeline_switch_period 实例切一次 PSO 模拟 driver 重 setup
+        void setEmulationMode(eEmulationMode mode) override;
+
+        // 仅 eLegacy 用：配置每多少 instance 切一次 PSO。默认 64。
+        void setPipelineSwitchPeriod(uint32_t period) noexcept { m_pipeline_switch_period = (period == 0u ? 1u : period); }
+
     private:
         struct FrameResources
         {
@@ -65,8 +74,16 @@ namespace lcf::benchmark {
         uint32_t                    m_current_frame_index = 0;
 
         render::VulkanPipeline m_graphics_pipeline;
+        // 第二个 PSO，仅 eLegacy 模式下用于"每 N 实例切一次 pipeline"模拟驱动 state switch。
+        // 与 m_graphics_pipeline 同 program / 同 layout（保证 ds 二进制兼容），
+        // 仅 cullMode 不同（a=eBack, b=eFront；封闭模型 trackball 视角下视觉无差）。
+        render::VulkanPipeline m_graphics_pipeline_b;
         GpuTimestampQueryPool  m_timestamp_pool;
         std::vector<bool>      m_frame_has_history;
+
+        // 模拟模式状态：默认 eClean 保持现状。
+        eEmulationMode m_mode = eEmulationMode::eClean;
+        uint32_t       m_pipeline_switch_period = 64u;
 
         bool m_created = false;
     };

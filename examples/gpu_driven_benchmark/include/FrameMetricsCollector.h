@@ -12,8 +12,13 @@
 //   4) 所有跑分结束后调用 close() 释放文件。
 //
 // CSV 表头由 ensureHeader 在首次 endRunAndAppendCsv 时写入。
-// 一行格式：
-//   path,scene,instance_count,m1_cpu_submit_ms,m2_gpu_frame_ms,m3_draw_calls,m4_cull_ms,m5_p99_ms
+// 一行格式（与 chap05 §5.4.2 表头对齐 + step5 增加 mode 列做"路径优化梯度"对照）：
+//   path,mode,scene,instance_count,m1_cpu_submit_ms,m2_gpu_frame_ms,m3_draw_calls,m4_cull_ms,m5_p99_ms,sample_count
+//
+// mode 列对每条 path 含义：
+//   eCpuDrivenNaive    → clean / legacy
+//   eCpuDrivenIndirect → single / batched
+//   eGpuDriven         → gpu_driven（单一态，便于过滤/对比）
 //
 // M4_cull_ms 不区分 CPU/GPU 路径：
 //   - NaiveCpu / CpuIndirect：host chrono(cullOnCpu)
@@ -50,7 +55,9 @@ namespace lcf::benchmark {
 
         // 开始一个跑分单元。warmup_frames 仅作为 reserve hint，不在内部丢弃；
         // 调用方应保证 warmup 阶段不调用 push。
-        void beginRun(ePath path, eScene scene, uint32_t instance_count, uint32_t expected_samples);
+        // mode 区分同 path 下的不同 host 行为（clean/legacy/single/batched/gpu_driven）。
+        void beginRun(ePath path, eEmulationMode mode, eScene scene,
+                      uint32_t instance_count, uint32_t expected_samples);
 
         // 累积一帧指标。
         void push(const FrameMetrics & metrics);
@@ -70,8 +77,9 @@ namespace lcf::benchmark {
         static double computeMean(const std::vector<double> & values);
 
     private:
-        ePath  m_current_path  = ePath::eCpuDrivenNaive;
-        eScene m_current_scene = eScene::eA;
+        ePath          m_current_path  = ePath::eCpuDrivenNaive;
+        eEmulationMode m_current_mode  = eEmulationMode::eClean;
+        eScene         m_current_scene = eScene::eA;
         uint32_t m_instance_count = 0;
         std::vector<FrameMetrics> m_frames;
         bool m_run_active = false;
