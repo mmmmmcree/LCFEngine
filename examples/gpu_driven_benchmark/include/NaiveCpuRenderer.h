@@ -53,6 +53,9 @@ namespace lcf::benchmark {
         // 仅 eLegacy 用：配置每多少 instance 切一次 PSO。默认 64。
         void setPipelineSwitchPeriod(uint32_t period) noexcept { m_pipeline_switch_period = (period == 0u ? 1u : period); }
 
+        // ABL-CULL 消融：true → cullOnCpu 走 identity 填充（visible = 全 instance）。
+        void setDisableCull(bool disabled) override { m_disable_cull = disabled; }
+
     private:
         struct FrameResources
         {
@@ -61,10 +64,17 @@ namespace lcf::benchmark {
             render::VulkanFramebufferObject    fbo;
         };
 
-        // 与 cull.comp 等价的 host 端剔除；返回 (mesh_visible_instances) 列表，
-        // 每个元素是该 mesh 的可见 instance_id 数组（用于逐 vkCmdDraw 提交）。
+        // CullResult：visible 列表 + 该帧总可见数（FrameMetrics.m4_visible_instances）。
+        struct CullResult
+        {
+            std::vector<std::vector<uint32_t>> per_mesh_visible;
+            uint32_t                           total_visible = 0u;
+        };
+
+        // 与 cull.comp 等价的 host 端剔除；返回逐 mesh 可见 id + 总可见数。
+        // 当 m_disable_cull = true 时，跳过 frustum test，恒等填充全部 instance。
         // 同时改写 m_scene 的 draw_meta_infos[i].instance_count 为剔除后值（公平起见）。
-        std::vector<std::vector<uint32_t>> cullOnCpu();
+        CullResult cullOnCpu();
 
     private:
         render::VulkanContext * m_context_p = nullptr;
@@ -84,6 +94,7 @@ namespace lcf::benchmark {
         // 模拟模式状态：默认 eClean 保持现状。
         eEmulationMode m_mode = eEmulationMode::eClean;
         uint32_t       m_pipeline_switch_period = 64u;
+        bool           m_disable_cull = false;  // ABL-CULL 消融开关
 
         bool m_created = false;
     };

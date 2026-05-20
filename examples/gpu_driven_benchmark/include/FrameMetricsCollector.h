@@ -40,6 +40,7 @@ namespace lcf::benchmark {
         double   m2_gpu_frame_ms_mean  = 0.0;
         double   m3_draw_calls_mean    = 0.0;  // 用 double 因为 mean 可能非整
         double   m4_cull_ms_mean       = 0.0;
+        double   m4_visible_mean       = 0.0;  // 平均可见 instance 数（CULL-RATE 用）
         double   m5_p99_ms             = 0.0;
         uint32_t sample_count          = 0;
     };
@@ -56,8 +57,10 @@ namespace lcf::benchmark {
         // 开始一个跑分单元。warmup_frames 仅作为 reserve hint，不在内部丢弃；
         // 调用方应保证 warmup 阶段不调用 push。
         // mode 区分同 path 下的不同 host 行为（clean/legacy/single/batched/gpu_driven）。
+        // disable_cull：当前单元是否启用 ABL-CULL 消融（关闭剔除）；CSV 里写 0/1。
         void beginRun(ePath path, eEmulationMode mode, eScene scene,
-                      uint32_t instance_count, uint32_t expected_samples);
+                      uint32_t instance_count, uint32_t expected_samples,
+                      bool disable_cull = false);
 
         // 累积一帧指标。
         void push(const FrameMetrics & metrics);
@@ -80,7 +83,8 @@ namespace lcf::benchmark {
         ePath          m_current_path  = ePath::eCpuDrivenNaive;
         eEmulationMode m_current_mode  = eEmulationMode::eClean;
         eScene         m_current_scene = eScene::eA;
-        uint32_t m_instance_count = 0;
+        uint32_t       m_instance_count = 0;
+        bool           m_disable_cull   = false;
         std::vector<FrameMetrics> m_frames;
         bool m_run_active = false;
     };

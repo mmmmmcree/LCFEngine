@@ -39,14 +39,15 @@ namespace lcf::benchmark {
     // 每条 path 的可用 mode 集合由 RendererSwitcher 决定：
     //   eCpuDrivenNaive    → { eClean, eLegacy }
     //   eCpuDrivenIndirect → { eSingle, eBatched }
-    //   eGpuDriven         → { eGpuDriven }（单一态，便于 CSV 列对齐）
+    //   eGpuDriven         → { eGpuDriven, eGpuIndirectCount }（后者用于 ABL-DGC 消融）
     enum class eEmulationMode : uint8_t
     {
-        eClean     = 0,  // NaiveCpu: 现状（per-mesh push_constants + per-instance vkCmdDraw）
-        eLegacy    = 1,  // NaiveCpu: 模拟"传统"per-instance rebind 2 ds + 周期性 PSO switch
-        eSingle    = 2,  // CpuIndirect: 现状（1 次 vkCmdDrawIndirectCount 全包）
-        eBatched   = 3,  // CpuIndirect: 按 mesh 分批（mesh_count 次 vkCmdDrawIndirect + per-mesh ds rebind）
-        eGpuDriven = 4,  // GpuDriven: 唯一态
+        eClean            = 0,  // NaiveCpu: 现状（per-mesh push_constants + per-instance vkCmdDraw）
+        eLegacy           = 1,  // NaiveCpu: 模拟"传统"per-instance rebind 2 ds + 周期性 PSO switch
+        eSingle           = 2,  // CpuIndirect: 现状（1 次 vkCmdDrawIndirectCount 全包）
+        eBatched          = 3,  // CpuIndirect: 按 mesh 分批（mesh_count 次 vkCmdDrawIndirect + per-mesh ds rebind）
+        eGpuDriven        = 4,  // GpuDriven: DGC + GPU cull（核心方案）
+        eGpuIndirectCount = 5,  // GpuDriven: GPU cull 仍开，但用 vkCmdDrawIndirectCount 替 DGC（ABL-DGC 消融）
     };
 
     // 场景规模档位（与 chap05 主对照矩阵的 A/B/C/D 列对齐）。
@@ -86,6 +87,12 @@ namespace lcf::benchmark {
         double   m2_gpu_frame_ms  = 0.0;  // GPU 帧时间戳差（top→bottom of pipe）
         uint32_t m3_draw_calls    = 0u;   // host 端 draw 调用次数（路径相关）
         double   m4_cull_ms       = 0.0;  // 剔除耗时（CPU 路径=host chrono；GpuDriven=GPU 时间戳）
+        // 论文 chap05 §5.5.4 CULL-RATE 表：本帧实际可见 instance 总数。
+        //   - NaiveCpu / CpuIndirect：cullOnCpu 内累加 visible_ids.size()
+        //   - GpuDriven：保持 0（避免每帧 GPU→CPU readback 污染 M1；论文表用同 scene
+        //                的 CpuIndirect 数据填充 GpuDriven 行，剔除算法相同）
+        //   - --disable-cull 模式下：恒等填充 → 本字段 = total_instance_count
+        uint32_t m4_visible_instances = 0u;
     };
 
     // ----- 与 GLSL 端 bindless_structs.glsl 二进制对位的 host 端结构体 -----
@@ -156,11 +163,12 @@ namespace lcf::benchmark {
     constexpr std::string_view to_csv_name(eEmulationMode mode) noexcept
     {
         switch (mode) {
-            case eEmulationMode::eClean:     return "clean";
-            case eEmulationMode::eLegacy:    return "legacy";
-            case eEmulationMode::eSingle:    return "single";
-            case eEmulationMode::eBatched:   return "batched";
-            case eEmulationMode::eGpuDriven: return "gpu_driven";
+            case eEmulationMode::eClean:            return "clean";
+            case eEmulationMode::eLegacy:           return "legacy";
+            case eEmulationMode::eSingle:           return "single";
+            case eEmulationMode::eBatched:          return "batched";
+            case eEmulationMode::eGpuDriven:        return "gpu_driven";
+            case eEmulationMode::eGpuIndirectCount: return "gpu_indirect_count";
         }
         return "unknown";
     }

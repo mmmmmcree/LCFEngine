@@ -28,6 +28,7 @@
 #include "Vulkan/memory/VulkanImageObject.h"
 #include "ecs/Entity.h"
 #include "log.h"
+#include "tracy_profiling.h"
 
 using lcf::ShaderTypeFlagBits;
 using lcf::render::GraphicPipelineCreateInfo;
@@ -136,8 +137,25 @@ namespace lcf::benchmark {
         m_scene_p->resetDrawMetaToOriginal();
         m_scene_p->resizeVisibleInstancesBuffer();
 
+        const auto draw_metas  = m_scene_p->getDrawMetaInfos();
+
+        if (m_disable_cull) {
+            // ABL-CULL 消融：恒等填充。每 mesh 把 [first, first+count) 顺序写入 visible 槽。
+            uint32_t total_visible = 0u;
+            for (uint32_t mi = 0; mi < draw_metas.size(); ++mi) {
+                const auto & meta = draw_metas[mi];
+                const uint32_t count = meta.m_instance_count;
+                const uint32_t first = meta.m_first_instance;
+                for (uint32_t i = 0; i < count; ++i) {
+                    m_scene_p->writeVisibleInstanceAt(first + i, first + i);
+                }
+                // instance_count 不变（已是原始值）。
+                total_visible += count;
+            }
+            return total_visible;
+        }
+
         const auto & frustum   = m_scene_p->getCameraDataShadow().m_frustum;
-        const auto draw_metas  = m_scene_p->getDrawMetaInfos();        // 已被 reset 为原始值
         const auto instances   = m_scene_p->getInstanceDataList();
         const auto bounds      = m_scene_p->getBoundingSpheresList();
 
@@ -183,6 +201,7 @@ namespace lcf::benchmark {
     FrameMetrics CpuIndirectRenderer::render(
         const ecs::Entity & camera, const ecs::Entity & render_target)
     {
+        LCF_TRACY_ZONE_N("CpuIndirect::Frame");
         FrameMetrics metrics;
         if (not m_created) { return metrics; }
 
@@ -217,17 +236,27 @@ namespace lcf::benchmark {
         // 用 chrono 单独包住 cull，归到 M4_cull_ms；M1 不再吃这段（与 GpuDriven 对称）。
         m_scene_p->updateCameraShadow(camera, {width, height});
         const auto cull_t0 = std::chrono::steady_clock::now();
-        this->cullOnCpu();
+        uint32_t total_visible = 0u;
+        {
+            LCF_TRACY_ZONE_N("CpuIndirect::CullCpu");
+            total_visible = this->cullOnCpu();
+        }
         const auto cull_t1 = std::chrono::steady_clock::now();
         const double cull_ms =
             std::chrono::duration<double, std::milli>(cull_t1 - cull_t0).count();
 
         // 2) transfer cmd：把 host shadow（含剔除后 draw_meta_infos 与 visible_instances）commit。
         auto & transfer_cmd = frame.transfer_cmd;
-        transfer_cmd.begin(vk::CommandBufferBeginInfo{});
-        m_scene_p->prepareFrameDataTransfer(transfer_cmd, camera, {width, height});
-        transfer_cmd.end();
-        const auto transfer_done = transfer_cmd.submit();
+        {
+            LCF_TRACY_ZONE_N("CpuIndirect::TransferRecord");
+            transfer_cmd.begin(vk::CommandBufferBeginInfo{});
+            m_scene_p->prepareFrameDataTransfer(transfer_cmd, camera, {width, height});
+            transfer_cmd.end();
+        }
+        const auto transfer_done = [&] {
+            LCF_TRACY_ZONE_N("CpuIndirect::TransferSubmit");
+            return transfer_cmd.submit();
+        }();
 
         // 3) graphics cmd：viewport / set bind / drawIndirectCount × 1。
         cmd.begin(vk::CommandBufferBeginInfo{});
@@ -342,9 +371,15 @@ namespace lcf::benchmark {
         cmd.addWaitSubmitInfo(wait_acquired)
            .addWaitSubmitInfo(transfer_done)
            .addSignalSubmitInfo(target_resources.getPresentReadySemaphore());
-        cmd.submit();
+        {
+            LCF_TRACY_ZONE_N("CpuIndirect::GraphicsSubmit");
+            cmd.submit();
+        }
 
-        target_sp->finishRender();
+        {
+            LCF_TRACY_ZONE_N("CpuIndirect::Wait");  // M6
+            target_sp->finishRender();
+        }
 
         const auto cpu_t1 = std::chrono::steady_clock::now();
         // M1 = 总 CPU 段 - cull 段；M4 = cull 段（host chrono）
@@ -354,7 +389,8 @@ namespace lcf::benchmark {
         // M3：host 端 draw 调用次数。
         //   - eSingle  → 1（drawIndirectCount 一次提交）
         //   - eBatched → mesh_count（每 mesh 一次 drawIndirect，模拟"按 material batch"）
-        metrics.m3_draw_calls = total_draw_calls;
+        metrics.m3_draw_calls          = total_draw_calls;
+        metrics.m4_visible_instances   = total_visible;
 
         m_frame_has_history[m_current_frame_index] = true;
         ++m_current_frame_index %= m_frame_resources.size();

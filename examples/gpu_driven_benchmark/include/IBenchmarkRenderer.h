@@ -44,10 +44,16 @@ namespace lcf::benchmark {
         virtual ePath getPath() const noexcept = 0;
 
         // 设置模拟模式（默认空实现）：
-        //   - NaiveCpu / CpuIndirect 各自 override 实现 mode 内部分支
-        //   - GpuDriven 不重写，保持空 → 调用者传任何 mode 都被忽略（path 维度只有 eGpuDriven）
+        //   - NaiveCpu / CpuIndirect / GpuDriven 各自 override 实现 mode 内部分支
+        //   - 不识别的 mode 静默忽略
         // 切换时机：必须在两次 render() 之间调用；renderer 内部下一帧 record 即生效。
         virtual void setEmulationMode(eEmulationMode /*mode*/) {}
+
+        // 设置剔除开关（默认空实现）：
+        //   - false：正常 6 平面 frustum test
+        //   - true：恒等填充（visible = 全部 instance），用于 chap05 §5.5.2 ABL-CULL 消融
+        // GpuDriven 通过 push_const 让 cull.comp 跳过 frustum test；CPU 路径直接走 identity 分支。
+        virtual void setDisableCull(bool /*disabled*/) {}
     };
 
 }  // namespace lcf::benchmark

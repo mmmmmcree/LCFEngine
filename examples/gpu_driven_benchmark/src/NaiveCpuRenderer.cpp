@@ -21,6 +21,7 @@
 #include "Vulkan/memory/VulkanImageObject.h"
 #include "ecs/Entity.h"
 #include "log.h"
+#include "tracy_profiling.h"
 
 using lcf::ShaderTypeFlagBits;
 using lcf::render::GraphicPipelineCreateInfo;
@@ -116,17 +117,35 @@ namespace lcf::benchmark {
         lcf_log_info("NaiveCpuRenderer created");
     }
 
-    std::vector<std::vector<uint32_t>> NaiveCpuRenderer::cullOnCpu()
+    NaiveCpuRenderer::CullResult NaiveCpuRenderer::cullOnCpu()
     {
         // 每帧 reset draw_meta 防止跨帧污染；本路径同样要 reset，原因与 CpuIndirect 同。
         m_scene_p->resetDrawMetaToOriginal();
 
-        const auto & frustum   = m_scene_p->getCameraDataShadow().m_frustum;
         const auto draw_metas  = m_scene_p->getDrawMetaInfos();
+
+        CullResult result;
+        result.per_mesh_visible.resize(draw_metas.size());
+
+        if (m_disable_cull) {
+            // ABL-CULL 消融：恒等填充，跳过 frustum test。
+            // 直接把每个 mesh 的 [first, first+count) 全量写入 visible 列表。
+            for (uint32_t mi = 0; mi < draw_metas.size(); ++mi) {
+                const auto & meta = draw_metas[mi];
+                auto & visible_for_this_mesh = result.per_mesh_visible[mi];
+                visible_for_this_mesh.resize(meta.m_instance_count);
+                for (uint32_t i = 0; i < meta.m_instance_count; ++i) {
+                    visible_for_this_mesh[i] = meta.m_first_instance + i;
+                }
+                // instance_count 不变（已是原始值）。
+                result.total_visible += meta.m_instance_count;
+            }
+            return result;
+        }
+
+        const auto & frustum   = m_scene_p->getCameraDataShadow().m_frustum;
         const auto instances   = m_scene_p->getInstanceDataList();
         const auto bounds      = m_scene_p->getBoundingSpheresList();
-
-        std::vector<std::vector<uint32_t>> per_mesh_visible(draw_metas.size());
 
         for (uint32_t mi = 0; mi < draw_metas.size(); ++mi) {
             const auto & meta = draw_metas[mi];
@@ -134,7 +153,7 @@ namespace lcf::benchmark {
             const uint32_t count = meta.m_instance_count;
             const uint32_t first = meta.m_first_instance;
 
-            auto & visible_for_this_mesh = per_mesh_visible[mi];
+            auto & visible_for_this_mesh = result.per_mesh_visible[mi];
             visible_for_this_mesh.reserve(count / 4 + 4);
 
             for (uint32_t i = 0; i < count; ++i) {
@@ -162,15 +181,17 @@ namespace lcf::benchmark {
             // 公平起见：把 draw_meta_infos[mi].instance_count 改为剔除后的值，
             // 其它仍是 host shadow 状态（虽然朴素路径不上传 visible_ssbo，但让 shadow
             // 与三路径"剔除位置不同、可见对象集合相同"的语义一致）。
-            m_scene_p->overrideDrawMetaInstanceCount(
-                mi, static_cast<uint32_t>(visible_for_this_mesh.size()));
+            const auto vsz = static_cast<uint32_t>(visible_for_this_mesh.size());
+            m_scene_p->overrideDrawMetaInstanceCount(mi, vsz);
+            result.total_visible += vsz;
         }
-        return per_mesh_visible;
+        return result;
     }
 
     FrameMetrics NaiveCpuRenderer::render(
         const ecs::Entity & camera, const ecs::Entity & render_target)
     {
+        LCF_TRACY_ZONE_N("Naive::Frame");
         FrameMetrics metrics;
         if (not m_created) { return metrics; }
 
@@ -203,19 +224,30 @@ namespace lcf::benchmark {
         // 用 chrono 单独包住 cull，归到 M4_cull_ms；M1 不再吃这段（与 GpuDriven 对称）。
         m_scene_p->updateCameraShadow(camera, {width, height});
         const auto cull_t0 = std::chrono::steady_clock::now();
-        auto per_mesh_visible = this->cullOnCpu();
+        CullResult cull_result;
+        {
+            LCF_TRACY_ZONE_N("Naive::CullCpu");
+            cull_result = this->cullOnCpu();
+        }
         const auto cull_t1 = std::chrono::steady_clock::now();
         const double cull_ms =
             std::chrono::duration<double, std::milli>(cull_t1 - cull_t0).count();
+        auto & per_mesh_visible = cull_result.per_mesh_visible;
 
         // 3) transfer cmd：上传 PerView UBO + 5 路 SSBO（draw_meta 已 reset & 重写）。
         // 朴素路径不上传 visible_instances（shader 不读它）；BenchmarkScene 已在 path
         // 切换时清空 visible host shadow，prepareFrameDataTransfer 不会写 visible_ssbo。
         auto & transfer_cmd = frame.transfer_cmd;
-        transfer_cmd.begin(vk::CommandBufferBeginInfo{});
-        m_scene_p->prepareFrameDataTransfer(transfer_cmd, camera, {width, height});
-        transfer_cmd.end();
-        const auto transfer_done = transfer_cmd.submit();
+        {
+            LCF_TRACY_ZONE_N("Naive::TransferRecord");
+            transfer_cmd.begin(vk::CommandBufferBeginInfo{});
+            m_scene_p->prepareFrameDataTransfer(transfer_cmd, camera, {width, height});
+            transfer_cmd.end();
+        }
+        const auto transfer_done = [&] {
+            LCF_TRACY_ZONE_N("Naive::TransferSubmit");
+            return transfer_cmd.submit();
+        }();
 
         // 4) graphics cmd：逐 mesh 遍历可见 instance，每个发一次 vkCmdDraw。
         cmd.begin(vk::CommandBufferBeginInfo{});
@@ -364,16 +396,23 @@ namespace lcf::benchmark {
         cmd.addWaitSubmitInfo(wait_acquired)
            .addWaitSubmitInfo(transfer_done)
            .addSignalSubmitInfo(target_resources.getPresentReadySemaphore());
-        cmd.submit();
+        {
+            LCF_TRACY_ZONE_N("Naive::GraphicsSubmit");
+            cmd.submit();
+        }
 
-        target_sp->finishRender();
+        {
+            LCF_TRACY_ZONE_N("Naive::Wait");  // M6: CPU↔GPU 同步等待
+            target_sp->finishRender();
+        }
 
         const auto cpu_t1 = std::chrono::steady_clock::now();
         // M1 = 总 CPU 段 - cull 段；M4 = cull 段（host chrono）
         metrics.m1_cpu_submit_ms =
             std::chrono::duration<double, std::milli>(cpu_t1 - cpu_t0).count() - cull_ms;
-        metrics.m4_cull_ms       = cull_ms;
-        metrics.m3_draw_calls    = total_draw_calls;
+        metrics.m4_cull_ms             = cull_ms;
+        metrics.m3_draw_calls          = total_draw_calls;
+        metrics.m4_visible_instances   = cull_result.total_visible;
 
         m_frame_has_history[m_current_frame_index] = true;
         ++m_current_frame_index %= m_frame_resources.size();

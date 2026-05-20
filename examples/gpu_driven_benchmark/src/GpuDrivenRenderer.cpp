@@ -26,6 +26,7 @@
 #include "ecs/Entity.h"
 #include "ecs/Registry.h"
 #include "log.h"
+#include "tracy_profiling.h"
 
 using lcf::ShaderTypeFlagBits;
 using lcf::render::ComputePipelineCreateInfo;
@@ -50,6 +51,18 @@ namespace lcf::benchmark {
     GpuDrivenRenderer::~GpuDrivenRenderer()
     {
         if (m_context_p) { m_context_p->getDevice().waitIdle(); }
+    }
+
+    void GpuDrivenRenderer::setEmulationMode(eEmulationMode mode)
+    {
+        if (mode != eEmulationMode::eGpuDriven && mode != eEmulationMode::eGpuIndirectCount) {
+            lcf_log_warn("GpuDrivenRenderer: ignore unsupported mode={}", to_csv_name(mode));
+            return;
+        }
+        if (m_mode != mode) {
+            lcf_log_info("GpuDrivenRenderer: switch mode -> {}", to_csv_name(mode));
+            m_mode = mode;
+        }
     }
 
     void GpuDrivenRenderer::create(
@@ -81,9 +94,10 @@ namespace lcf::benchmark {
         auto device       = m_context_p->getDevice();
         const auto & per_view_layout = m_scene_p->getPerViewDescriptorSetLayout();
 
-        // ---------- 1) compute pipeline (cull.comp) ----------
+        // ---------- 1) compute pipeline (benchmark_cull.comp) ----------
+        // 私有版本，加了 push_const pc_disable_cull 用于 ABL-CULL 消融。
         auto compute_program = std::make_shared<VulkanShaderProgram>();
-        compute_program->addShaderFromGlslFile(ShaderTypeFlagBits::eCompute, "assets/shaders/cull.comp")
+        compute_program->addShaderFromGlslFile(ShaderTypeFlagBits::eCompute, "assets/shaders/benchmark_cull.comp")
             .specifyDescriptorSetLayout(per_view_layout)
             .specifyDescriptorSetLayout(ds_manager.getBindlessBufferSet().getLayout())
             .link(device);
@@ -195,6 +209,7 @@ namespace lcf::benchmark {
     FrameMetrics GpuDrivenRenderer::render(
         const ecs::Entity & camera, const ecs::Entity & render_target)
     {
+        LCF_TRACY_ZONE_N("GpuDriven::Frame");
         FrameMetrics metrics;
         if (not m_created) { return metrics; }
 
@@ -244,30 +259,52 @@ namespace lcf::benchmark {
 
         // ---- 1) transfer cmd：committed scene shadow + sequence buffer ----
         auto & transfer_cmd = frame.transfer_cmd;
-        transfer_cmd.begin(vk::CommandBufferBeginInfo{});
-        m_scene_p->prepareFrameDataTransfer(transfer_cmd, camera, {width, height});
-        m_sequence_buffer.commit(transfer_cmd);
-        transfer_cmd.end();
-        const auto transfer_done = transfer_cmd.submit();
+        {
+            LCF_TRACY_ZONE_N("GpuDriven::TransferRecord");
+            transfer_cmd.begin(vk::CommandBufferBeginInfo{});
+            m_scene_p->prepareFrameDataTransfer(transfer_cmd, camera, {width, height});
+            m_sequence_buffer.commit(transfer_cmd);
+            transfer_cmd.end();
+        }
+        const auto transfer_done = [&] {
+            LCF_TRACY_ZONE_N("GpuDriven::TransferSubmit");
+            return transfer_cmd.submit();
+        }();
 
-        // ---- 2) compute cmd：cull.comp ----
+        // ---- 2) compute cmd：benchmark_cull.comp ----
         auto & compute_cmd = frame.compute_cmd;
-        compute_cmd.begin(vk::CommandBufferBeginInfo{});
-        m_timestamp_pool.resetFrame(compute_cmd, m_current_frame_index);
-        m_timestamp_pool.writeComputeBegin(compute_cmd, m_current_frame_index,
-                                           vk::PipelineStageFlagBits2::eTopOfPipe);
+        {
+            LCF_TRACY_ZONE_N("GpuDriven::CullRecord");
+            compute_cmd.begin(vk::CommandBufferBeginInfo{});
+            m_timestamp_pool.resetFrame(compute_cmd, m_current_frame_index);
+            m_timestamp_pool.writeComputeBegin(compute_cmd, m_current_frame_index,
+                                               vk::PipelineStageFlagBits2::eTopOfPipe);
 
-        compute_cmd.bindPipeline(m_compute_pipeline);
-        compute_cmd.bindDescriptorSet(m_compute_pipeline, m_scene_p->getPerViewDescriptorSet());
-        compute_cmd.bindDescriptorSet(m_compute_pipeline,
-                                       m_context_p->getDescriptorSetManager().getBindlessBufferSet());
-        compute_cmd.dispatch(draw_count, 1u, 1u);
+            compute_cmd.bindPipeline(m_compute_pipeline);
+            compute_cmd.bindDescriptorSet(m_compute_pipeline, m_scene_p->getPerViewDescriptorSet());
+            compute_cmd.bindDescriptorSet(m_compute_pipeline,
+                                           m_context_p->getDescriptorSetManager().getBindlessBufferSet());
 
-        m_timestamp_pool.writeComputeEnd(compute_cmd, m_current_frame_index,
-                                         vk::PipelineStageFlagBits2::eComputeShader);
-        compute_cmd.end();
-        compute_cmd.addWaitSubmitInfo(transfer_done);
-        const auto compute_done = compute_cmd.submit();
+            // ABL-CULL 消融：push pc_disable_cull（0/1）。benchmark_cull.comp 内据此选择
+            // bypass frustum_test 或正常 6 平面剔除。
+            const uint32_t pc_disable = m_disable_cull ? 1u : 0u;
+            auto & program = *m_compute_pipeline.getShaderProgram();
+            program.setPushConstantData(
+                vk::ShaderStageFlagBits::eCompute,
+                {static_cast<const void *>(&pc_disable)});
+            program.bindPushConstants(compute_cmd);
+
+            compute_cmd.dispatch(draw_count, 1u, 1u);
+
+            m_timestamp_pool.writeComputeEnd(compute_cmd, m_current_frame_index,
+                                             vk::PipelineStageFlagBits2::eComputeShader);
+            compute_cmd.end();
+            compute_cmd.addWaitSubmitInfo(transfer_done);
+        }
+        const auto compute_done = [&] {
+            LCF_TRACY_ZONE_N("GpuDriven::CullSubmit");
+            return compute_cmd.submit();
+        }();
 
         // ---- 3) graphics cmd：DGC executeGeneratedCommandsEXT ----
         cmd.begin(vk::CommandBufferBeginInfo{});
@@ -303,7 +340,7 @@ namespace lcf::benchmark {
                               m_context_p->getDescriptorSetManager().getBindlessTextureSet());
 
         // benchmark_indirect.vert 在 step5 加了 push_const pc_force_mesh_id 用于 CpuIndirect_batched
-        // 强制 mesh_id；GpuDriven 路径走 fallback（gl_DrawID = DGC sequence index）。
+        // 强制 mesh_id；GpuDriven 路径走 fallback（gl_DrawID = DGC sequence index 或 drawIndirectCount 累加值）。
         // 必须 push 一次 sentinel 0xFFFFFFFFu，否则 push_const 内容未定义 → mesh_id 错乱。
         {
             const uint32_t sentinel = 0xFFFFFFFFu;
@@ -314,20 +351,38 @@ namespace lcf::benchmark {
             program.bindPushConstants(cmd);
         }
 
-        vk::GeneratedCommandsInfoEXT gen_info;
-        gen_info.setShaderStages(vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment)
-                .setIndirectExecutionSet(m_indirect_execution_set.get())
-                .setIndirectCommandsLayout(m_indirect_commands_layout.get())
-                .setIndirectAddress(m_sequence_buffer.getDeviceAddress())
-                // spec 要求 indirectAddressSize ≥ indirectStride * maxSequenceCount；
-                // 显式传 stride × count，避免依赖 getSizeInBytes() 的实现细节。
-                .setIndirectAddressSize(sizeof(DrawSequence) * k_sequence_count)
-                .setPreprocessAddress(m_preprocess_buffer.getDeviceAddress())
-                .setPreprocessSize(m_preprocess_buffer.getSizeInBytes())
-                .setMaxSequenceCount(k_sequence_count)
-                .setMaxDrawCount(k_max_mesh_draws)
-                .setSequenceCountAddress(0);
-        cmd.executeGeneratedCommandsEXT(false, gen_info);
+        uint32_t m3_calls = 0u;
+        if (m_mode == eEmulationMode::eGpuDriven) {
+            // ===== 核心方案：DGC executeGeneratedCommandsEXT =====
+            LCF_TRACY_ZONE_N("GpuDriven::DGCExecute");
+            vk::GeneratedCommandsInfoEXT gen_info;
+            gen_info.setShaderStages(vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment)
+                    .setIndirectExecutionSet(m_indirect_execution_set.get())
+                    .setIndirectCommandsLayout(m_indirect_commands_layout.get())
+                    .setIndirectAddress(m_sequence_buffer.getDeviceAddress())
+                    // spec 要求 indirectAddressSize ≥ indirectStride * maxSequenceCount；
+                    // 显式传 stride × count，避免依赖 getSizeInBytes() 的实现细节。
+                    .setIndirectAddressSize(sizeof(DrawSequence) * k_sequence_count)
+                    .setPreprocessAddress(m_preprocess_buffer.getDeviceAddress())
+                    .setPreprocessSize(m_preprocess_buffer.getSizeInBytes())
+                    .setMaxSequenceCount(k_sequence_count)
+                    .setMaxDrawCount(k_max_mesh_draws)
+                    .setSequenceCountAddress(0);
+            cmd.executeGeneratedCommandsEXT(false, gen_info);
+            m3_calls = 1u;
+        } else {
+            // ===== ABL-DGC 消融：GPU cull 仍开，但用 vkCmdDrawIndirectCount 替代 DGC =====
+            // - draw_meta SSBO 已被 cull.comp 写过（instance_count = 可见数）
+            // - drawIndirectCount(buffer, offset=4, countBuffer=同 buffer, countOffset=0,
+            //                     maxDraw=draw_count, stride=20)
+            // 与 CpuIndirect_single 唯一差别：cull 由 GPU 完成（M4 走 GPU timestamp）。
+            LCF_TRACY_ZONE_N("GpuDriven::IndirectCount");
+            cmd.drawIndirectCount(
+                draw_meta_ssbo.getHandle(), sizeof(uint32_t),
+                draw_meta_ssbo.getHandle(), 0u,
+                draw_count, sizeof(DrawMetaInfo));
+            m3_calls = 1u;  // host 端仍是 1 次 cmd
+        }
 
         frame.fbo.endRendering(cmd);
 
@@ -355,14 +410,23 @@ namespace lcf::benchmark {
         cmd.addWaitSubmitInfo(wait_acquired)
            .addWaitSubmitInfo(compute_done)
            .addSignalSubmitInfo(target_resources.getPresentReadySemaphore());
-        cmd.submit();
+        {
+            LCF_TRACY_ZONE_N("GpuDriven::GraphicsSubmit");
+            cmd.submit();
+        }
 
-        target_sp->finishRender();
+        {
+            LCF_TRACY_ZONE_N("GpuDriven::Wait");  // M6
+            target_sp->finishRender();
+        }
 
         const auto cpu_t1 = std::chrono::steady_clock::now();
         metrics.m1_cpu_submit_ms =
             std::chrono::duration<double, std::milli>(cpu_t1 - cpu_t0).count();
-        metrics.m3_draw_calls = 1u;  // 单次 executeGeneratedCommandsEXT
+        metrics.m3_draw_calls        = m3_calls;
+        // m4_visible_instances 不在 GpuDriven 端回填（避免 GPU→CPU readback 污染 M1）；
+        // 论文 CULL-RATE 表用同 scene 的 CpuIndirect 数据填充（剔除算法等价）。
+        metrics.m4_visible_instances = 0u;
 
         m_frame_has_history[m_current_frame_index] = true;
         ++m_current_frame_index %= m_frame_resources.size();

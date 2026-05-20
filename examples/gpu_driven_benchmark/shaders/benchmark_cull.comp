@@ -1,0 +1,103 @@
+#version 460 core
+
+// benchmark_cull.comp：fork 自 examples/assets/shaders/cull.comp。
+// fork 原因：在 benchmark 的 chap05 §5.5.2 ABL-CULL 消融需要"关闭剔除"的对照变量，
+// 不希望污染 main_example 共用的公共 cull.comp。
+//
+// 与原版差异：
+//   - 加 push_constant `pc_disable_cull`：值为 1 时跳过 frustum_test，恒等填充全部
+//     instance（其余逻辑不变，仍走 atomicAdd → visible_instance_ids 写法）。
+//
+// 与 GpuDrivenRenderer 的 disable_cull 接口对接：renderer 在 record compute
+// dispatch 前 push 这个 4 字节 uint。
+
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_buffer_reference : require
+
+#include "camera_uniform.glsl"
+
+#include "bindless_structs.glsl"
+
+layout(std430, set = 1, binding = 0) buffer DrawMetaInfoBuffer {
+    uint draw_count;
+    DrawMetaInfo draw_meta_infos[];
+};
+
+layout(std430, set = 1, binding = 1) readonly buffer ObjectInfos {
+    uint64_t objetc_count;
+    ObjectInfo object_infos[];
+};
+
+layout(std430, set = 1, binding = 2) buffer VisibleInstanceBuffer {
+    uint instance_count;
+    uint visible_instance_ids[];
+};
+
+layout(std430, set = 1, binding = 3) readonly buffer InstanceInfos {
+    InstanceInfo instance_infos[];
+};
+
+layout(std430, set = 1, binding = 4) readonly buffer BoundingSpheres {
+    vec4 bounding_spheres[];
+};
+
+// ABL-CULL 消融开关：
+//   0 = 正常 6 平面 frustum test；
+//   1 = 跳过 frustum test，恒等填充所有 instance（仅 GpuDriven 专用，CPU 路径自走 host 分支）。
+layout(push_constant) uniform PcCullControl {
+    uint pc_disable_cull;
+} pc;
+
+layout(local_size_x = 16, local_size_y = 1, local_size_z = 1) in;
+
+bool frustum_test(vec3 center, float radius)
+{
+    for (int i = 0; i < 6; ++i) {
+        if (dot(frustum_planes[i], vec4(center, 1.0)) + radius < 0.0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+shared uint shared_visible_count;
+
+void main()
+{
+    uint draw_id = gl_WorkGroupID.x;
+    uint local_id = gl_LocalInvocationID.x;
+
+    DrawMetaInfo draw_meta_info = draw_meta_infos[draw_id];
+    uint object_id = draw_meta_info.object_id;
+    vec4 local_sphere = bounding_spheres[object_id];
+
+    uint first_instance_id = draw_meta_info.first_instance;
+    uint count = draw_meta_info.instance_count;
+    uint group_stride = gl_WorkGroupSize.x * gl_NumWorkGroups.y * gl_NumWorkGroups.z;
+
+    if (local_id == 0) {
+        shared_visible_count = 0;
+    }
+
+    barrier();
+    bool bypass = (pc.pc_disable_cull != 0u);
+    for (uint i = local_id; i < count; i += group_stride) {
+        uint instance_id = first_instance_id + i;
+        bool visible = bypass;
+        if (!bypass) {
+            mat4 transform = instance_infos[instance_id].transform;
+            vec3 world_center = (transform * vec4(local_sphere.xyz, 1.0)).xyz;
+            float world_radius = local_sphere.w * length(transform[0].xyz);
+            visible = frustum_test(world_center, world_radius);
+        }
+        if (visible) {
+            uint visible_offset = atomicAdd(shared_visible_count, 1);
+            visible_instance_ids[first_instance_id + visible_offset] = instance_id;
+        }
+    }
+    barrier();
+
+    if (local_id == 0) {
+        draw_meta_infos[draw_id].instance_count = shared_visible_count;
+    }
+}

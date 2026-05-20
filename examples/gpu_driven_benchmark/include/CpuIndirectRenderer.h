@@ -51,6 +51,9 @@ namespace lcf::benchmark {
         //             per-mesh rebind 2 ds），模拟"工业引擎按 material 切 ds"的 host overhead
         void setEmulationMode(eEmulationMode mode) override;
 
+        // ABL-CULL 消融：true → cullOnCpu 走 identity 填充。
+        void setDisableCull(bool disabled) override { m_disable_cull = disabled; }
+
     private:
         struct FrameResources
         {
@@ -75,6 +78,7 @@ namespace lcf::benchmark {
         std::vector<bool>      m_frame_has_history;
 
         eEmulationMode m_mode = eEmulationMode::eSingle;
+        bool           m_disable_cull = false;
 
         bool m_created = false;
     };

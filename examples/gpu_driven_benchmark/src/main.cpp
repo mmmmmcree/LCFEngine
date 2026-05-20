@@ -68,16 +68,19 @@ namespace {
         bool show_version = false;
         bool self_test    = false;
         bool benchmark    = false;
+        bool ablation     = false;  // step6：场景 C 4 行消融独立 CSV
         // 跑分参数（可选 override）
         uint32_t warmup_frames  = 200;
         uint32_t sample_frames  = 1000;
         // 默认输出目录：<exe>/benchmark_results/result_YYYYMMDD_HHMMSS.csv
         std::filesystem::path out_csv;
         // step5 新增：
-        // - modes_filter：CSV 短名集合（clean/legacy/single/batched/gpu_driven）；空 = 全跑
+        // - modes_filter：CSV 短名集合（clean/legacy/single/batched/gpu_driven/gpu_indirect_count）；空 = 全跑
         // - pipeline_switch_period：NaiveCpu_legacy 每 N 实例 toggle 一次 PSO
         std::unordered_set<std::string> modes_filter;
         uint32_t pipeline_switch_period = 64u;
+        // step6：交互模式下手动开关 disable_cull（仅做单次实验时方便观察）
+        bool disable_cull = false;
     };
 
     CliArgs parse_cli(int argc, char * argv[])
@@ -89,6 +92,8 @@ namespace {
             else if (a == "--version") { args.show_version = true; }
             else if (a == "--self-test") { args.self_test = true; }
             else if (a == "--benchmark") { args.benchmark = true; }
+            else if (a == "--ablation")  { args.ablation  = true; }
+            else if (a == "--disable-cull") { args.disable_cull = true; }
             else if (a == "--warmup" && i + 1 < argc) {
                 args.warmup_frames = static_cast<uint32_t>(std::stoul(argv[++i]));
             }
@@ -127,12 +132,13 @@ namespace {
         std::puts("    keys: M      -> cycle emulation mode within active path");
         std::puts("                    Naive:       clean <-> legacy");
         std::puts("                    CpuIndirect: single <-> batched");
-        std::puts("                    GpuDriven:   (single mode only)");
+        std::puts("                    GpuDriven:   gpu_driven <-> gpu_indirect_count");
         std::puts("    keys: 4/5/6/7 -> switch scene scale (A/B/C/D)");
-        std::puts("  gpu_driven_benchmark --benchmark           headless full-matrix bench");
+        std::puts("  gpu_driven_benchmark --benchmark           headless main matrix (5 modes x 4 scenes)");
+        std::puts("  gpu_driven_benchmark --ablation            headless ablation (scene C, 4 rows)");
         std::puts("    --warmup N         (default 200)");
         std::puts("    --samples N        (default 1000)");
-        std::puts("    --out <path.csv>   (default benchmark_results/result_TS.csv)");
+        std::puts("    --out <path.csv>   (default benchmark_results/result_TS.csv or ablation_TS.csv)");
         std::puts("    --modes a,b,c,...  (default all 5: clean,legacy,single,batched,gpu_driven)");
         std::puts("    --pipeline-switch-period N  (default 64; only affects NaiveCpu_legacy)");
         std::puts("  gpu_driven_benchmark --self-test           run unit self-tests");
@@ -171,12 +177,20 @@ namespace {
     }
 
     // 把 (path, mode) 对应到具体 renderer 实例并设置 mode。
-    // GpuDriven 的 mode 永远是 eGpuDriven（renderer 默认空 setEmulationMode 会忽略其它值）。
+    // GpuDriven 接受 eGpuDriven / eGpuIndirectCount；其它 renderer 各自接受对应集合。
     void apply_mode(lcf::benchmark::RendererSwitcher & switcher, ePath path, eEmulationMode mode)
     {
         switcher.switchPath(path);
         if (auto * r = switcher.getRenderer(path)) {
             r->setEmulationMode(mode);
+        }
+    }
+
+    // 设置当前 active path 的 disable_cull（消融跑分用）。
+    void apply_disable_cull(lcf::benchmark::RendererSwitcher & switcher, ePath path, bool disabled)
+    {
+        if (auto * r = switcher.getRenderer(path)) {
+            r->setDisableCull(disabled);
         }
     }
 
@@ -306,6 +320,7 @@ int main(int argc, char * argv[])
             }
             apply_mode(switcher, pm.path, pm.mode);
             apply_pipeline_switch_period(switcher, args.pipeline_switch_period);
+            apply_disable_cull(switcher, pm.path, false);  // 主表恒为 false
 
             for (auto sc : scenes) {
                 scene.setSceneScale(sc);
@@ -318,12 +333,13 @@ int main(int argc, char * argv[])
                     switcher.render(camera_entity, window_up->getEntity());
                 }
                 // sample
-                collector.beginRun(pm.path, pm.mode, sc, inst, args.sample_frames);
+                collector.beginRun(pm.path, pm.mode, sc, inst, args.sample_frames, /*disable_cull=*/false);
                 for (uint32_t i = 0; i < args.sample_frames; ++i) {
                     window_up->pollEvents();
                     if (window_up->getState() == lcf::gui::WindowState::eAboutToClose) { goto done; }
                     auto m = switcher.render(camera_entity, window_up->getEntity());
                     collector.push(m);
+                    LCF_TRACY_FRAMEMARK;
                 }
                 collector.endRunAndAppendCsv(csv_path);
             }
@@ -333,6 +349,74 @@ done:
         lcf_log_info("benchmark done. csv: {}", csv_path.string());
         return 0;
     }
+
+    // ---- 消融模式：场景 C 4 行（ABL-FULL / ABL-CULL / ABL-DGC / ABL-NONE）----
+    // 与论文 chap05 §5.5.2 表 5-x 对位。CSV 路径默认 ablation_TS.csv（与主跑分独立）。
+    // 跑分单元：
+    //   1) gpu_driven        + cull on   = 完整 GPU-Driven 基准（ABL-FULL）
+    //   2) gpu_driven        + cull off  = 关闭剔除（ABL-CULL）
+    //   3) gpu_indirect_count + cull on  = 关闭 DGC（ABL-DGC）
+    //   4) gpu_indirect_count + cull off = 同时关闭剔除与 DGC（叠加，作为参照）
+    if (args.ablation) {
+        std::filesystem::path csv_path = args.out_csv;
+        if (csv_path.empty()) {
+            csv_path = std::filesystem::path("benchmark_results") /
+                       ("ablation_" + make_timestamp_suffix() + ".csv");
+        }
+        lcf_log_info("ablation mode: warmup={} samples={} out={}",
+                     args.warmup_frames, args.sample_frames, csv_path.string());
+
+        lcf::benchmark::FrameMetricsCollector collector;
+
+        // 固定相机姿态（与主跑分一致）。
+        camera_transform.translateWorld(0.0f, 0.0f, 50.0f);
+        registry.enqueueSignal<lcf::ecs::TransformUpdateSignal>({camera_entity.getId()});
+        registry.ctx().get<lcf::ecs::Dispatcher>().update();
+        transform_system.update();
+
+        struct AblRow { eEmulationMode mode; bool disable_cull; };
+        const AblRow rows[] = {
+            { eEmulationMode::eGpuDriven,        false },
+            { eEmulationMode::eGpuDriven,        true  },
+            { eEmulationMode::eGpuIndirectCount, false },
+            { eEmulationMode::eGpuIndirectCount, true  },
+        };
+
+        const auto sc = lcf::benchmark::eScene::eC;
+        scene.setSceneScale(sc);
+        const uint32_t inst = scene.getTotalInstanceCount();
+
+        for (const auto & row : rows) {
+            apply_mode(switcher, ePath::eGpuDriven, row.mode);
+            apply_disable_cull(switcher, ePath::eGpuDriven, row.disable_cull);
+
+            // warmup
+            for (uint32_t i = 0; i < args.warmup_frames; ++i) {
+                window_up->pollEvents();
+                if (window_up->getState() == lcf::gui::WindowState::eAboutToClose) { goto abl_done; }
+                switcher.render(camera_entity, window_up->getEntity());
+            }
+            // sample
+            collector.beginRun(ePath::eGpuDriven, row.mode, sc, inst, args.sample_frames, row.disable_cull);
+            for (uint32_t i = 0; i < args.sample_frames; ++i) {
+                window_up->pollEvents();
+                if (window_up->getState() == lcf::gui::WindowState::eAboutToClose) { goto abl_done; }
+                auto m = switcher.render(camera_entity, window_up->getEntity());
+                collector.push(m);
+                LCF_TRACY_FRAMEMARK;
+            }
+            collector.endRunAndAppendCsv(csv_path);
+            lcf_log_info("[ablation] mode={} disable_cull={} done",
+                         lcf::benchmark::to_csv_name(row.mode), row.disable_cull);
+        }
+abl_done:
+        // 跑完恢复 disable_cull = false 以免污染交互模式
+        apply_disable_cull(switcher, ePath::eGpuDriven, false);
+        context.getDevice().waitIdle();
+        lcf_log_info("ablation done. csv: {}", csv_path.string());
+        return 0;
+    }
+
 
     // ---- 交互模式：双调度器，按键切路径/场景 ----
     // 路径切换 1/2/3；M 键在当前 path 内 cycle mode；场景切换 4/5/6/7（A/B/C/D）。
@@ -357,7 +441,7 @@ done:
                 return (cur == eEmulationMode::eSingle) ? eEmulationMode::eBatched : eEmulationMode::eSingle;
             case ePath::eGpuDriven:
             default:
-                return eEmulationMode::eGpuDriven;  // 单一态
+                return (cur == eEmulationMode::eGpuDriven) ? eEmulationMode::eGpuIndirectCount : eEmulationMode::eGpuDriven;
         }
     };
     auto path_to_idx = [&](ePath p) -> int {
@@ -463,6 +547,7 @@ done:
         transform_system.update();
 
         auto metrics = switcher.render(camera_entity, window_up->getEntity());
+        LCF_TRACY_FRAMEMARK;  // 标记 Tracy timeline 帧边界
 
         // 简易 HUD：每 30 帧打一次指标到日志（不阻塞主循环）。
         static uint32_t hud_counter = 0;
