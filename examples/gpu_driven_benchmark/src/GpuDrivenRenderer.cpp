@@ -27,6 +27,7 @@
 #include "ecs/Registry.h"
 #include "log.h"
 #include "tracy_profiling.h"
+#include "VkDebugLabel.h"
 
 using lcf::ShaderTypeFlagBits;
 using lcf::render::ComputePipelineCreateInfo;
@@ -294,7 +295,12 @@ namespace lcf::benchmark {
                 {static_cast<const void *>(&pc_disable)});
             program.bindPushConstants(compute_cmd);
 
-            compute_cmd.dispatch(draw_count, 1u, 1u);
+            // 包 vkCmdBeginDebugUtilsLabelEXT：nsys / RenderDoc timeline 上能看到
+            // "GpuDriven::CullDispatch" 段的 GPU duration，作为 query pool M4_cull_ms 的双源认证。
+            {
+                VkDebugLabel _lbl(compute_cmd, "GpuDriven::CullDispatch");
+                compute_cmd.dispatch(draw_count, 1u, 1u);
+            }
 
             m_timestamp_pool.writeComputeEnd(compute_cmd, m_current_frame_index,
                                              vk::PipelineStageFlagBits2::eComputeShader);
@@ -355,6 +361,7 @@ namespace lcf::benchmark {
         if (m_mode == eEmulationMode::eGpuDriven) {
             // ===== 核心方案：DGC executeGeneratedCommandsEXT =====
             LCF_TRACY_ZONE_N("GpuDriven::DGCExecute");
+            VkDebugLabel _lbl(cmd, "GpuDriven::DGCExecute");
             vk::GeneratedCommandsInfoEXT gen_info;
             gen_info.setShaderStages(vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment)
                     .setIndirectExecutionSet(m_indirect_execution_set.get())
@@ -377,6 +384,7 @@ namespace lcf::benchmark {
             //                     maxDraw=draw_count, stride=20)
             // 与 CpuIndirect_single 唯一差别：cull 由 GPU 完成（M4 走 GPU timestamp）。
             LCF_TRACY_ZONE_N("GpuDriven::IndirectCount");
+            VkDebugLabel _lbl(cmd, "GpuDriven::IndirectCount");
             cmd.drawIndirectCount(
                 draw_meta_ssbo.getHandle(), sizeof(uint32_t),
                 draw_meta_ssbo.getHandle(), 0u,

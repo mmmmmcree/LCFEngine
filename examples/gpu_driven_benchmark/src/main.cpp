@@ -17,6 +17,7 @@
 #include "CpuIndirectRenderer.h"
 #include "RendererSwitcher.h"
 #include "benchmark_types.h"
+#include "VkDebugLabel.h"
 
 #include "ResourceSystem.h"
 #include "TrackballController.h"
@@ -330,6 +331,12 @@ int main(int argc, char * argv[])
     lcf::benchmark::BenchmarkScene scene;
     scene.create(&context, registry);
     lcf_log_info("[bench] after scene.create");
+
+    // 初始化 VK_EXT_debug_utils 函数指针（VkDebugLabel 内 lazy 用）。
+    // 给 nsys / RenderDoc 在 cmd buffer timeline 上识别 GpuDriven::CullDispatch
+    // 等关键段，作为 query pool M2/M4 的双源认证（chap05 §5.5.6）。
+    lcf::benchmark::VkDebugLabel::init(context.getDevice());
+
 
     // 先把场景规模摆到默认档（eA），再创建 renderer。这样 RendererSwitcher 创建
     // GpuDrivenRenderer 时 scene 的 instance_data / bounding / draw_meta 已就绪，

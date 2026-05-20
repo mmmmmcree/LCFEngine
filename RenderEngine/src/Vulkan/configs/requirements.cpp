@@ -9,9 +9,11 @@ namespace stdr = std::ranges;
 
 static constexpr std::initializer_list<const char * const> k_instance_extensions
 {
-#ifndef NDEBUG
+    // VK_EXT_debug_utils 在 Release 也始终启用：开销近乎为 0（仅当外部 profiler /
+    // validation layer hook 时才有回调），但允许 vkCmdBeginDebugUtilsLabelEXT 在
+    // Vulkan command buffer 内打 label，供 nsys / RenderDoc 抓 GPU timeline 段。
+    // chap05 §5.5.6 用 nsys 做 query pool 的双源认证依赖此扩展。
     VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
-#endif
     VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME,
     VK_EXT_SURFACE_MAINTENANCE_1_EXTENSION_NAME,
 };
