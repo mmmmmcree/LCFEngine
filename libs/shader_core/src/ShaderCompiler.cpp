@@ -1,6 +1,7 @@
 #include "shader_core/ShaderCompiler.h"
 #include "shader_core/ShaderIncluder.h"
 #include "shader_core/shader_utils.h"
+#include "shader_core/config.h"
 #include <shaderc/shaderc.hpp>
 #include <slang.h>
 #include <slang-com-ptr.h>
@@ -11,6 +12,11 @@
 using namespace lcf;
 namespace stdr = std::ranges;
 namespace stdv = std::views;
+
+ShaderCompiler::ShaderCompiler()
+{
+    m_include_directories.assign_range(shader_core::Config::instance().getIncludeDirectories() | stdv::transform([](const auto & dir) { return dir.string(); }));
+}
 
 void ShaderCompiler::addMacroDefinition(std::string_view macro_definition)
 {
@@ -26,7 +32,6 @@ std::expected<spirv::Unit, std::error_code> ShaderCompiler::compileGlslSourceToS
     ShaderTypeFlagBits type,
     const std::string & source_code,
     const std::string & shader_name,
-    const std::string & entry_point,
     bool optimize) noexcept
 {
     shaderc::Compiler compiler;
@@ -42,7 +47,13 @@ std::expected<spirv::Unit, std::error_code> ShaderCompiler::compileGlslSourceToS
         options.SetIncluder(std::move(includer));
     }
     if (optimize) { options.SetOptimizationLevel(shaderc_optimization_level_size); }
-    shaderc::SpvCompilationResult result = compiler.CompileGlslToSpv(source_code, enum_cast<shaderc_shader_kind>(type), shader_name.c_str(), entry_point.c_str(), options);
+    const auto & entry_point = shader_core::Config::instance().getDefaultGlslEntryPoint();
+    shaderc::SpvCompilationResult result = compiler.CompileGlslToSpv(
+        source_code,
+        enum_cast<shaderc_shader_kind>(type),
+        shader_name.c_str(),
+        entry_point.c_str(),
+        options);
     if (result.GetCompilationStatus() != shaderc_compilation_status_success) {
         lcf_log_error("shader compilation failed: {}", result.GetErrorMessage());
         return std::unexpected(std::make_error_code(std::errc::invalid_argument));
@@ -52,7 +63,7 @@ std::expected<spirv::Unit, std::error_code> ShaderCompiler::compileGlslSourceToS
 
 std::expected<spirv::Unit, std::error_code> ShaderCompiler::compileGlslSourceToSpv(ShaderTypeFlagBits type, const std::filesystem::path &file_path) noexcept
 {
-    auto expected_file_content = read_file_as_string(file_path);
+    auto expected_file_content = read_file_as_string(shader_core::Config::instance().resolvePath(file_path));
     if (not expected_file_content) {
         lcf_log_error("failed to read file {}: {}", file_path.string(), expected_file_content.error().message());
         return std::unexpected(expected_file_content.error());
@@ -72,13 +83,18 @@ std::expected<spirv::UnitList, std::error_code> ShaderCompiler::compileSlangSour
     }(s_global_session_cp);
 
     slang::SessionDesc session_desc{};
-    slang::TargetDesc target_desc{};
+    std::vector<slang::TargetDesc> target_decsc;
+    auto & target_desc = target_decsc.emplace_back();
     target_desc.format = SLANG_SPIRV;
     target_desc.profile = s_global_session_cp->findProfile("spirv_1_5");
-    session_desc.targets = &target_desc;
-    session_desc.targetCount = 1;
+    session_desc.targets = target_decsc.data();
+    session_desc.targetCount = target_decsc.size();
 
     std::vector<slang::CompilerOptionEntry> compiler_options;
+    auto & entry_point_option = compiler_options.emplace_back();
+    entry_point_option.name = slang::CompilerOptionName::VulkanUseEntryPointName;
+    entry_point_option.value.kind = slang::CompilerOptionValueKind::Int;
+    entry_point_option.value.intValue0 = 1; 
     session_desc.compilerOptionEntries = compiler_options.data();
     session_desc.compilerOptionEntryCount = compiler_options.size();
 
@@ -134,7 +150,7 @@ std::expected<spirv::UnitList, std::error_code> ShaderCompiler::compileSlangSour
 
 std::expected<spirv::UnitList, std::error_code> ShaderCompiler::compileSlangSourceToSpv(const std::filesystem::path & file_path) noexcept
 {
-    auto expected_file_content = read_file_as_string(file_path);
+    auto expected_file_content = read_file_as_string(shader_core::Config::instance().resolvePath(file_path));
     if (not expected_file_content) {
         lcf_log_error("failed to read file {}: {}", file_path.string(), expected_file_content.error().message());
         return std::unexpected(expected_file_content.error());

@@ -12,8 +12,8 @@ namespace lcf {
     class ShaderCompiler
     {
     public:
-        ShaderCompiler() = default;
         ~ShaderCompiler() noexcept = default;
+        ShaderCompiler();
         ShaderCompiler(const ShaderCompiler &) = delete;
         ShaderCompiler & operator=(const ShaderCompiler &) = delete;
         ShaderCompiler(ShaderCompiler &&) = default;
@@ -25,7 +25,6 @@ namespace lcf {
             ShaderTypeFlagBits type,
             const std::string & source_code,
             const std::string & shader_name,
-            const std::string & entry_point = "main",
             bool optimize = false) noexcept;
         std::expected<spirv::Unit, std::error_code> compileGlslSourceToSpv(ShaderTypeFlagBits type, const std::filesystem::path & file_path) noexcept;
         std::expected<spirv::UnitList, std::error_code> compileSlangSourceToSpv(const std::string & source_code, const std::string & module_name) noexcept;

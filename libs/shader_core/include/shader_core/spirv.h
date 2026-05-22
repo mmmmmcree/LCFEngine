@@ -20,7 +20,7 @@ namespace lcf::spirv {
 
         ShaderTypeFlagBits m_stage;
         Code m_code;
-        std::string m_entry_point = "main";
+        std::string m_entry_point;
     };
 
     using UnitList = std::vector<Unit>;

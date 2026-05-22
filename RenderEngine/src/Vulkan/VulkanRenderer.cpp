@@ -95,7 +95,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         .create(device, vkenums::DescriptorSetStrategy::eIndividual);
 
     auto compute_shader_program = std::make_shared<VulkanShaderProgram>();
-    compute_shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::eCompute, "assets/shaders/cull.comp")
+    compute_shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::eCompute, "shaders://cull.comp")
         .specifyDescriptorSetLayout(m_per_view_descriptor_set_layout)
         .specifyDescriptorSetLayout(descriptor_set_manager.getBindlessBufferSet().getLayout())
         .link(m_context_p->getDevice());
@@ -104,8 +104,8 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     m_compute_pipeline.create(m_context_p, compute_pipeline_info);
 
     auto shader_program = std::make_shared<VulkanShaderProgram>();
-    shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::eVertex, "assets/shaders/vertex_buffer_test.vert")
-        .addShaderFromGlslFile(ShaderTypeFlagBits::eFragment, "assets/shaders/vertex_buffer_test.frag")
+    shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::eVertex, "shaders://vertex_buffer_test.vert")
+        .addShaderFromGlslFile(ShaderTypeFlagBits::eFragment, "shaders://vertex_buffer_test.frag")
         .specifyDescriptorSetLayout(m_per_view_descriptor_set_layout)
         .specifyDescriptorSetLayout(descriptor_set_manager.getBindlessBufferSet().getLayout())
         .specifyDescriptorSetLayout(descriptor_set_manager.getBindlessTextureSet().getLayout())
@@ -274,7 +274,7 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     //     .addShaderFromGlslFile(ShaderTypeFlagBits::eGeometry, "assets/shaders/sphere_to_cube.geom")
     //     .addShaderFromGlslFile(ShaderTypeFlagBits::eFragment, "assets/shaders/sphere_to_cube.frag")
     //     .link(m_context_p->getDevice());
-    stc_shader_program->addShaderFromSlangFile("assets/shaders/sphere_to_cube.slang")
+    stc_shader_program->addShaderFromSlangFile("shaders://sphere_to_cube.slang")
         .link(m_context_p->getDevice());
     GraphicPipelineCreateInfo stc_pipeline_info;
     stc_pipeline_info.setShaderProgram(stc_shader_program)
@@ -316,8 +316,8 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     });
 
     auto skybox_shader_program = std::make_shared<VulkanShaderProgram>();
-    skybox_shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::eVertex, "assets/shaders/skybox.vert")
-        .addShaderFromGlslFile(ShaderTypeFlagBits::eFragment, "assets/shaders/skybox.frag")
+    skybox_shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::eVertex, "shaders://skybox.vert")
+        .addShaderFromGlslFile(ShaderTypeFlagBits::eFragment, "shaders://skybox.frag")
         .specifyDescriptorSetLayout(m_per_view_descriptor_set_layout)
         .specifyDescriptorSetLayout(descriptor_set_manager.getBindlessBufferSet().getLayout())
         .specifyDescriptorSetLayout(descriptor_set_manager.getBindlessTextureSet().getLayout())
