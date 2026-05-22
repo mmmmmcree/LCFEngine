@@ -13,11 +13,15 @@ namespace fs = std::filesystem;
 namespace lcf::benchmark {
 
     void FrameMetricsCollector::beginRun(
-        ePath path, eScene scene, uint32_t instance_count, uint32_t expected_samples)
+        ePath path, eEmulationMode mode, eScene scene,
+        uint32_t instance_count, uint32_t expected_samples,
+        bool disable_cull)
     {
         m_current_path     = path;
+        m_current_mode     = mode;
         m_current_scene    = scene;
         m_instance_count   = instance_count;
+        m_disable_cull     = disable_cull;
         m_run_active       = true;
         m_frames.clear();
         m_frames.reserve(expected_samples);
@@ -57,29 +61,33 @@ namespace lcf::benchmark {
     {
         AggregatedMetrics agg;
         if (m_frames.empty()) {
-            lcf_log_warn("FrameMetricsCollector::endRunAndAppendCsv: empty samples for path={} scene={}",
-                         to_csv_name(m_current_path), to_csv_name(m_current_scene));
+            lcf_log_warn("FrameMetricsCollector::endRunAndAppendCsv: empty samples for path={} mode={} scene={}",
+                         to_csv_name(m_current_path), to_csv_name(m_current_mode),
+                         to_csv_name(m_current_scene));
             m_run_active = false;
             return agg;
         }
 
         // 拆 5 个序列做聚合。
-        std::vector<double> m1, m2, m3, m4;
+        std::vector<double> m1, m2, m3, m4, m4v;
         m1.reserve(m_frames.size());
         m2.reserve(m_frames.size());
         m3.reserve(m_frames.size());
         m4.reserve(m_frames.size());
+        m4v.reserve(m_frames.size());
         for (const auto & f : m_frames) {
             m1.emplace_back(f.m1_cpu_submit_ms);
             m2.emplace_back(f.m2_gpu_frame_ms);
             m3.emplace_back(static_cast<double>(f.m3_draw_calls));
             m4.emplace_back(f.m4_cull_ms);
+            m4v.emplace_back(static_cast<double>(f.m4_visible_instances));
         }
 
         agg.m1_cpu_submit_ms_mean = computeMean(m1);
         agg.m2_gpu_frame_ms_mean  = computeMean(m2);
         agg.m3_draw_calls_mean    = computeMean(m3);
         agg.m4_cull_ms_mean       = computeMean(m4);
+        agg.m4_visible_mean       = computeMean(m4v);
         agg.m5_p99_ms             = computeP99Ms(m2);  // 复制副本进入；nth_element 会修改
         agg.sample_count          = static_cast<uint32_t>(m_frames.size());
 
@@ -94,25 +102,31 @@ namespace lcf::benchmark {
             return agg;
         }
         if (need_header) {
-            ofs << "path,scene,instance_count,m1_cpu_submit_ms,m2_gpu_frame_ms,"
-                << "m3_draw_calls,m4_cull_ms,m5_p99_ms,sample_count\n";
+            ofs << "path,mode,disable_cull,scene,instance_count,m1_cpu_submit_ms,m2_gpu_frame_ms,"
+                << "m3_draw_calls,m4_cull_ms,m4_visible_instances,m5_p99_ms,sample_count\n";
         }
         ofs << to_csv_name(m_current_path) << ','
+            << to_csv_name(m_current_mode) << ','
+            << (m_disable_cull ? 1 : 0) << ','
             << to_csv_name(m_current_scene) << ','
             << m_instance_count << ','
             << agg.m1_cpu_submit_ms_mean << ','
             << agg.m2_gpu_frame_ms_mean << ','
             << agg.m3_draw_calls_mean << ','
             << agg.m4_cull_ms_mean << ','
+            << agg.m4_visible_mean << ','
             << agg.m5_p99_ms << ','
             << agg.sample_count << '\n';
         ofs.flush();
 
         lcf_log_info(
-            "metrics[{}/{}]: M1={:.4f}ms M2={:.4f}ms M3={:.1f} M4_cull={:.4f}ms p99={:.4f}ms n={}",
-            to_csv_name(m_current_path), to_csv_name(m_current_scene),
+            "metrics[{}/{}{}/{}]: M1={:.4f}ms M2={:.4f}ms M3={:.1f} M4_cull={:.4f}ms M4v={:.0f} p99={:.4f}ms n={}",
+            to_csv_name(m_current_path), to_csv_name(m_current_mode),
+            (m_disable_cull ? "/no_cull" : ""),
+            to_csv_name(m_current_scene),
             agg.m1_cpu_submit_ms_mean, agg.m2_gpu_frame_ms_mean,
             agg.m3_draw_calls_mean, agg.m4_cull_ms_mean,
+            agg.m4_visible_mean,
             agg.m5_p99_ms, agg.sample_count);
 
         m_run_active = false;

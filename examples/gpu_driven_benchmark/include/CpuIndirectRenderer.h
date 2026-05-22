@@ -45,6 +45,21 @@ namespace lcf::benchmark {
 
         ePath getPath() const noexcept override { return ePath::eCpuDrivenIndirect; }
 
+        // 仅接受 eSingle / eLegacy；其它 mode 静默忽略。
+        // - eSingle：现状（1 次 vkCmdDrawIndirectCount 全包；shader 端 mesh_id = gl_DrawID），
+        //            享受 BDA+Bindless 基础设施带来的"一次绑定、单管线打全场"红利
+        // - eLegacy：按 mesh 分批 vkCmdDrawIndirect（mesh_count 次 + per-mesh push mesh_id +
+        //            per-mesh rebind 2 ds + 每 m_pipeline_switch_period 个 mesh 切一次 PSO 并
+        //            强制 rebind 全 3 ds + 重发 push_const），模拟工业引擎按材质排序后切 PSO 的
+        //            host overhead；与 NaiveCpu::eLegacy 形成"工业悲观 baseline"语义对齐
+        void setEmulationMode(eEmulationMode mode) override;
+
+        // 仅 eLegacy 用：配置每多少个 mesh 切一次 PSO。默认 1（每 mesh 必切）。
+        void setPipelineSwitchPeriod(uint32_t period) noexcept { m_pipeline_switch_period = (period == 0u ? 1u : period); }
+
+        // ABL-CULL 消融：true → cullOnCpu 走 identity 填充。
+        void setDisableCull(bool disabled) override { m_disable_cull = disabled; }
+
     private:
         struct FrameResources
         {
@@ -65,8 +80,15 @@ namespace lcf::benchmark {
         uint32_t                    m_current_frame_index = 0;
 
         render::VulkanPipeline m_graphics_pipeline;
+        // eLegacy 用：与 m_graphics_pipeline 同 program / 同 layout，仅 cullMode 反向（eFront）。
+        // 对封闭 mesh trackball 视角下视觉无差，用于 mesh 之间 toggle 模拟 PSO state switch。
+        render::VulkanPipeline m_graphics_pipeline_b;
         GpuTimestampQueryPool  m_timestamp_pool;
         std::vector<bool>      m_frame_has_history;
+
+        eEmulationMode m_mode = eEmulationMode::eSingle;
+        uint32_t       m_pipeline_switch_period = 1u;  // eLegacy: 每 N 个 mesh 切一次 PSO，默认 1（每 mesh 必切）
+        bool           m_disable_cull = false;
 
         bool m_created = false;
     };

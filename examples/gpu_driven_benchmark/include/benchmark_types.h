@@ -32,6 +32,30 @@ namespace lcf::benchmark {
 
     constexpr std::size_t k_path_count = 3;
 
+    // 模拟模式枚举：与 ePath 正交的"路径内 host 行为变体"。
+    // 用于在不增加 ePath 数量的前提下，对单条 path 提供"工业悲观 baseline" vs
+    // "理想化 bindless 写法"两档对照（chap05 §5.4.2 表格里的优化梯度）。
+    //
+    // 每条 path 的可用 mode 集合由 RendererSwitcher 决定：
+    //   eCpuDrivenNaive    → { eClean, eLegacy }
+    //   eCpuDrivenIndirect → { eSingle, eLegacy }
+    //   eGpuDriven         → { eGpuDriven, eGpuIndirectCount }（后者用于 ABL-DGC 消融）
+    //
+    // 注：eLegacy 在 NaiveCpu 与 CpuIndirect 上语义不同但精神一致——都对应"工业悲观/
+    // 现实"形态：放弃 BDA + Bindless 基础设施带来的"一次绑定全部绘制"红利，主动引入
+    // PSO 切换 + 全 ds rebind 的 host overhead。两者切换粒度不同（Naive 在 instance
+    // 粒度、Indirect 在 mesh 粒度），反映批量提交方式的本质差异，详见论文 §5.4.1。
+    enum class eEmulationMode : uint8_t
+    {
+        eClean            = 0,  // NaiveCpu: 现状（per-mesh push_constants + per-instance vkCmdDraw）
+        eLegacy           = 1,  // 双路径共用：周期性 PSO toggle + 切换后强制全 ds rebind + push_const 重发；
+                                //   NaiveCpu  → 每 m_pipeline_switch_period (默认 4096) 个 instance 切一次
+                                //   CpuIndirect → 每 mesh 必切（drawIndirect 之间 toggle PSO）
+        eSingle           = 2,  // CpuIndirect: 现状（1 次 vkCmdDrawIndirectCount 全包，享受 BDA+Bindless 红利）
+        eGpuDriven        = 4,  // GpuDriven: DGC + GPU cull（核心方案）
+        eGpuIndirectCount = 5,  // GpuDriven: GPU cull 仍开，但用 vkCmdDrawIndirectCount 替 DGC（ABL-DGC 消融）
+    };
+
     // 场景规模档位（与 chap05 主对照矩阵的 A/B/C/D 列对齐）。
     enum class eScene : uint8_t
     {
@@ -69,6 +93,12 @@ namespace lcf::benchmark {
         double   m2_gpu_frame_ms  = 0.0;  // GPU 帧时间戳差（top→bottom of pipe）
         uint32_t m3_draw_calls    = 0u;   // host 端 draw 调用次数（路径相关）
         double   m4_cull_ms       = 0.0;  // 剔除耗时（CPU 路径=host chrono；GpuDriven=GPU 时间戳）
+        // 论文 chap05 §5.5.4 CULL-RATE 表：本帧实际可见 instance 总数。
+        //   - NaiveCpu / CpuIndirect：cullOnCpu 内累加 visible_ids.size()
+        //   - GpuDriven：保持 0（避免每帧 GPU→CPU readback 污染 M1；论文表用同 scene
+        //                的 CpuIndirect 数据填充 GpuDriven 行，剔除算法相同）
+        //   - --disable-cull 模式下：恒等填充 → 本字段 = total_instance_count
+        uint32_t m4_visible_instances = 0u;
     };
 
     // ----- 与 GLSL 端 bindless_structs.glsl 二进制对位的 host 端结构体 -----
@@ -133,6 +163,19 @@ namespace lcf::benchmark {
             case eScene::eD: return "D";
         }
         return "X";
+    }
+
+    // mode → CSV 短名（与 CLI --modes 参数解析一一对应；不要随意改字面量）。
+    constexpr std::string_view to_csv_name(eEmulationMode mode) noexcept
+    {
+        switch (mode) {
+            case eEmulationMode::eClean:            return "clean";
+            case eEmulationMode::eLegacy:           return "legacy";
+            case eEmulationMode::eSingle:           return "single";
+            case eEmulationMode::eGpuDriven:        return "gpu_driven";
+            case eEmulationMode::eGpuIndirectCount: return "gpu_indirect_count";
+        }
+        return "unknown";
     }
 
 }  // namespace lcf::benchmark

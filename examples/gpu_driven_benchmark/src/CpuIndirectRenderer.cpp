@@ -28,6 +28,7 @@
 #include "Vulkan/memory/VulkanImageObject.h"
 #include "ecs/Entity.h"
 #include "log.h"
+#include "tracy_profiling.h"
 
 using lcf::ShaderTypeFlagBits;
 using lcf::render::GraphicPipelineCreateInfo;
@@ -46,6 +47,18 @@ namespace lcf::benchmark {
     CpuIndirectRenderer::~CpuIndirectRenderer()
     {
         if (m_context_p) { m_context_p->getDevice().waitIdle(); }
+    }
+
+    void CpuIndirectRenderer::setEmulationMode(eEmulationMode mode)
+    {
+        if (mode != eEmulationMode::eSingle && mode != eEmulationMode::eLegacy) {
+            lcf_log_warn("CpuIndirectRenderer: ignore unsupported mode={}", to_csv_name(mode));
+            return;
+        }
+        if (m_mode != mode) {
+            lcf_log_info("CpuIndirectRenderer: switch mode -> {}", to_csv_name(mode));
+            m_mode = mode;
+        }
     }
 
     void CpuIndirectRenderer::create(
@@ -86,6 +99,14 @@ namespace lcf::benchmark {
         // 但 vkCmdDrawIndirectCount 本身不需要 pipeline 标记，普通 graphics pipeline 即可。
         m_graphics_pipeline.create(m_context_p, graphic_info);
 
+        // pipeline_b：与 a 同 program / 同 layout，仅 cullMode 改为 eFront。
+        // 对封闭 mesh（FlightHelmet / DamagedHelmet）trackball 视角下视觉无差；
+        // 用于 eLegacy 模式 mesh 之间 toggle，模拟 PSO state switch + driver 全 state 失效。
+        // 与 NaiveCpuRenderer 的双 PSO 设计保持对称。
+        GraphicPipelineCreateInfo graphic_info_b = graphic_info;
+        graphic_info_b.setCullMode(vk::CullModeFlagBits::eFront);
+        m_graphics_pipeline_b.create(m_context_p, graphic_info_b);
+
         // ---------- frame resources ----------
         auto [max_w, max_h] = max_extent;
         for (auto & fr : m_frame_resources) {
@@ -124,8 +145,25 @@ namespace lcf::benchmark {
         m_scene_p->resetDrawMetaToOriginal();
         m_scene_p->resizeVisibleInstancesBuffer();
 
+        const auto draw_metas  = m_scene_p->getDrawMetaInfos();
+
+        if (m_disable_cull) {
+            // ABL-CULL 消融：恒等填充。每 mesh 把 [first, first+count) 顺序写入 visible 槽。
+            uint32_t total_visible = 0u;
+            for (uint32_t mi = 0; mi < draw_metas.size(); ++mi) {
+                const auto & meta = draw_metas[mi];
+                const uint32_t count = meta.m_instance_count;
+                const uint32_t first = meta.m_first_instance;
+                for (uint32_t i = 0; i < count; ++i) {
+                    m_scene_p->writeVisibleInstanceAt(first + i, first + i);
+                }
+                // instance_count 不变（已是原始值）。
+                total_visible += count;
+            }
+            return total_visible;
+        }
+
         const auto & frustum   = m_scene_p->getCameraDataShadow().m_frustum;
-        const auto draw_metas  = m_scene_p->getDrawMetaInfos();        // 已被 reset 为原始值
         const auto instances   = m_scene_p->getInstanceDataList();
         const auto bounds      = m_scene_p->getBoundingSpheresList();
 
@@ -171,6 +209,7 @@ namespace lcf::benchmark {
     FrameMetrics CpuIndirectRenderer::render(
         const ecs::Entity & camera, const ecs::Entity & render_target)
     {
+        LCF_TRACY_ZONE_N("CpuIndirect::Frame");
         FrameMetrics metrics;
         if (not m_created) { return metrics; }
 
@@ -205,17 +244,27 @@ namespace lcf::benchmark {
         // 用 chrono 单独包住 cull，归到 M4_cull_ms；M1 不再吃这段（与 GpuDriven 对称）。
         m_scene_p->updateCameraShadow(camera, {width, height});
         const auto cull_t0 = std::chrono::steady_clock::now();
-        this->cullOnCpu();
+        uint32_t total_visible = 0u;
+        {
+            LCF_TRACY_ZONE_N("CpuIndirect::CullCpu");
+            total_visible = this->cullOnCpu();
+        }
         const auto cull_t1 = std::chrono::steady_clock::now();
         const double cull_ms =
             std::chrono::duration<double, std::milli>(cull_t1 - cull_t0).count();
 
         // 2) transfer cmd：把 host shadow（含剔除后 draw_meta_infos 与 visible_instances）commit。
         auto & transfer_cmd = frame.transfer_cmd;
-        transfer_cmd.begin(vk::CommandBufferBeginInfo{});
-        m_scene_p->prepareFrameDataTransfer(transfer_cmd, camera, {width, height});
-        transfer_cmd.end();
-        const auto transfer_done = transfer_cmd.submit();
+        {
+            LCF_TRACY_ZONE_N("CpuIndirect::TransferRecord");
+            transfer_cmd.begin(vk::CommandBufferBeginInfo{});
+            m_scene_p->prepareFrameDataTransfer(transfer_cmd, camera, {width, height});
+            transfer_cmd.end();
+        }
+        const auto transfer_done = [&] {
+            LCF_TRACY_ZONE_N("CpuIndirect::TransferSubmit");
+            return transfer_cmd.submit();
+        }();
 
         // 3) graphics cmd：viewport / set bind / drawIndirectCount × 1。
         cmd.begin(vk::CommandBufferBeginInfo{});
@@ -244,18 +293,88 @@ namespace lcf::benchmark {
         cmd.bindDescriptorSet(m_graphics_pipeline,
                               m_context_p->getDescriptorSetManager().getBindlessTextureSet());
 
-        // drawIndirectCount(buffer, offset, countBuffer, countOffset, maxDrawCount, stride)
-        // - buffer: draw_meta SSBO，offset = sizeof(uint32_t) 跳过 head 的 draw_count 字段
-        // - countBuffer: 同 buffer，countOffset = 0（head 即 draw_count）
-        // - stride: sizeof(DrawMetaInfo) 与 GLSL std430 对齐一致（20 字节）
         const auto & draw_meta_ssbo =
             m_scene_p->getBindlessBufferGroup()
                 [std::to_underlying(vkenums::BindlessBufferBinding::eDrawMetaInfos)];
         const auto draw_count = static_cast<uint32_t>(m_scene_p->getDrawMetaInfos().size());
-        cmd.drawIndirectCount(
-            draw_meta_ssbo.getHandle(), sizeof(uint32_t),
-            draw_meta_ssbo.getHandle(), 0u,
-            draw_count, sizeof(DrawMetaInfo));
+
+        uint32_t total_draw_calls = 0u;
+        if (m_mode == eEmulationMode::eSingle) {
+            // ===== Single 路径（现状）：一次 drawIndirectCount 全包；shader 走 gl_DrawID =====
+            // 起手 push pc_force_mesh_id = 0xFFFFFFFF 让 shader 走 fallback 到 gl_DrawID。
+            // 必须 push（即使值是 sentinel），否则 shader 读到的 push_const 是未定义内容。
+            const uint32_t sentinel = 0xFFFFFFFFu;
+            auto & program = *m_graphics_pipeline.getShaderProgram();
+            program.setPushConstantData(
+                vk::ShaderStageFlagBits::eVertex,
+                {static_cast<const void *>(&sentinel)});
+            program.bindPushConstants(cmd);
+
+            // drawIndirectCount(buffer, offset, countBuffer, countOffset, maxDrawCount, stride)
+            // - buffer: draw_meta SSBO，offset = sizeof(uint32_t) 跳过 head 的 draw_count 字段
+            // - countBuffer: 同 buffer，countOffset = 0（head 即 draw_count）
+            // - stride: sizeof(DrawMetaInfo) 与 GLSL std430 对齐一致（20 字节）
+            cmd.drawIndirectCount(
+                draw_meta_ssbo.getHandle(), sizeof(uint32_t),
+                draw_meta_ssbo.getHandle(), 0u,
+                draw_count, sizeof(DrawMetaInfo));
+            total_draw_calls = 1u;
+        } else {
+            // ===== Legacy 路径（"工业悲观间接" baseline 模拟）=====
+            //   主动放弃 eSingle 享受的"一次绑定全部绘制"红利：
+            //     - 每 mesh：rebind 2 个 ds（即使内容相同也发出，模拟 driver dirty validation）
+            //                + push pc_force_mesh_id = mi（drawIndirect 多次单独调用时
+            //                gl_DrawID 在每次内部恒为 0，必须 push 真值覆盖）
+            //                + 一次 vkCmdDrawIndirect(drawCount=1, offset=head + mi*stride)
+            //     - 每 m_pipeline_switch_period 个 mesh：toggle PSO（a ↔ b），
+            //       切换后强制 rebind 全部 3 个 ds + 重发 push_const，模拟 PSO 切换让
+            //       driver state 全部失效。默认 period = 1（每 mesh 必切），与"按材质排序后
+            //       切 PSO"的工业现实工况对齐。
+            //   - M3 = mesh_count（与论文里"传统按 mesh batch"对齐）
+            auto & ds_manager           = m_context_p->getDescriptorSetManager();
+            const auto & per_view_ds    = m_scene_p->getPerViewDescriptorSet();
+            auto & bindless_buf_ds      = ds_manager.getBindlessBufferSet();
+            auto & bindless_tex_ds      = ds_manager.getBindlessTextureSet();
+
+            const render::VulkanPipeline * active_pipeline = &m_graphics_pipeline;
+
+            for (uint32_t mi = 0; mi < draw_count; ++mi) {
+                // 周期性 PSO toggle（mi > 0 才切，避免首 mesh 无意义 rebind）
+                if (mi > 0u && (mi % m_pipeline_switch_period == 0u)) {
+                    active_pipeline = (active_pipeline == &m_graphics_pipeline)
+                                          ? &m_graphics_pipeline_b
+                                          : &m_graphics_pipeline;
+                    cmd.bindPipeline(*active_pipeline);
+                    // PSO 切换后强制 rebind 全部 3 ds（模拟最坏路径：driver state 全失效）
+                    cmd.bindDescriptorSet(*active_pipeline, per_view_ds);
+                    cmd.bindDescriptorSet(*active_pipeline, bindless_buf_ds);
+                    cmd.bindDescriptorSet(*active_pipeline, bindless_tex_ds);
+                }
+
+                // 每 mesh 固定 rebind 2 ds（即使内容相同，host 调用栈仍发出）。
+                cmd.bindDescriptorSet(*active_pipeline, bindless_buf_ds);
+                cmd.bindDescriptorSet(*active_pipeline, bindless_tex_ds);
+
+                // push 真实 mesh_id（用 active pipeline 的 program）
+                {
+                    auto & program = *active_pipeline->getShaderProgram();
+                    program.setPushConstantData(
+                        vk::ShaderStageFlagBits::eVertex,
+                        {static_cast<const void *>(&mi)});
+                    program.bindPushConstants(cmd);
+                }
+
+                // offset = head(4B) + mi * stride(20B)
+                const vk::DeviceSize offset =
+                    sizeof(uint32_t) + static_cast<vk::DeviceSize>(mi) * sizeof(DrawMetaInfo);
+                cmd.drawIndirect(
+                    draw_meta_ssbo.getHandle(),
+                    offset,
+                    1u,                          // drawCount
+                    sizeof(DrawMetaInfo));       // stride（drawCount=1 时不重要但仍传）
+                ++total_draw_calls;
+            }
+        }
 
         frame.fbo.endRendering(cmd);
 
@@ -283,17 +402,26 @@ namespace lcf::benchmark {
         cmd.addWaitSubmitInfo(wait_acquired)
            .addWaitSubmitInfo(transfer_done)
            .addSignalSubmitInfo(target_resources.getPresentReadySemaphore());
-        cmd.submit();
+        {
+            LCF_TRACY_ZONE_N("CpuIndirect::GraphicsSubmit");
+            cmd.submit();
+        }
 
-        target_sp->finishRender();
+        {
+            LCF_TRACY_ZONE_N("CpuIndirect::Wait");  // M6
+            target_sp->finishRender();
+        }
 
         const auto cpu_t1 = std::chrono::steady_clock::now();
         // M1 = 总 CPU 段 - cull 段；M4 = cull 段（host chrono）
         metrics.m1_cpu_submit_ms =
             std::chrono::duration<double, std::milli>(cpu_t1 - cpu_t0).count() - cull_ms;
         metrics.m4_cull_ms       = cull_ms;
-        // M3：host 端 vkCmdDrawIndirectCount 一次提交。chap05 §5.4.2 规定 host 视角统计。
-        metrics.m3_draw_calls = 1u;
+        // M3：host 端 draw 调用次数。
+        //   - eSingle  → 1（drawIndirectCount 一次提交）
+        //   - eLegacy  → mesh_count（每 mesh 一次 drawIndirect，模拟"按材质排序后切 PSO"）
+        metrics.m3_draw_calls          = total_draw_calls;
+        metrics.m4_visible_instances   = total_visible;
 
         m_frame_has_history[m_current_frame_index] = true;
         ++m_current_frame_index %= m_frame_resources.size();

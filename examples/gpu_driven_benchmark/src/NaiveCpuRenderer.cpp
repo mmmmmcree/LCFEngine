@@ -21,6 +21,7 @@
 #include "Vulkan/memory/VulkanImageObject.h"
 #include "ecs/Entity.h"
 #include "log.h"
+#include "tracy_profiling.h"
 
 using lcf::ShaderTypeFlagBits;
 using lcf::render::GraphicPipelineCreateInfo;
@@ -39,6 +40,19 @@ namespace lcf::benchmark {
     NaiveCpuRenderer::~NaiveCpuRenderer()
     {
         if (m_context_p) { m_context_p->getDevice().waitIdle(); }
+    }
+
+    void NaiveCpuRenderer::setEmulationMode(eEmulationMode mode)
+    {
+        // 只接 eClean / eLegacy；其它 mode 静默忽略（避免 RendererSwitcher 误传 single 等）。
+        if (mode != eEmulationMode::eClean && mode != eEmulationMode::eLegacy) {
+            lcf_log_warn("NaiveCpuRenderer: ignore unsupported mode={}", to_csv_name(mode));
+            return;
+        }
+        if (m_mode != mode) {
+            lcf_log_info("NaiveCpuRenderer: switch mode -> {}", to_csv_name(mode));
+            m_mode = mode;
+        }
     }
 
     void NaiveCpuRenderer::create(
@@ -72,8 +86,16 @@ namespace lcf::benchmark {
         graphic_info.setShaderProgram(graphics_program)
             .setDepthAttachmentFormat(vk::Format::eD32Sfloat)
             .setRasterizationSamples(vk::SampleCountFlagBits::e4)
-            .addColorAttachmentFormat(vk::Format::eR16G16B16A16Sfloat);
+            .addColorAttachmentFormat(vk::Format::eR16G16B16A16Sfloat)
+            .setCullMode(vk::CullModeFlagBits::eBack);
         m_graphics_pipeline.create(m_context_p, graphic_info);
+
+        // pipeline_b：与 a 同 program / 同 layout，仅 cullMode 反向。
+        // 对封闭 mesh（FlightHelmet / DamagedHelmet）trackball 视角下视觉无差；
+        // 用于 eLegacy 模式每 N 实例 toggle，模拟驱动 PSO state switch。
+        GraphicPipelineCreateInfo graphic_info_b = graphic_info;
+        graphic_info_b.setCullMode(vk::CullModeFlagBits::eFront);
+        m_graphics_pipeline_b.create(m_context_p, graphic_info_b);
 
         // ---------- frame resources ----------
         auto [max_w, max_h] = max_extent;
@@ -95,17 +117,35 @@ namespace lcf::benchmark {
         lcf_log_info("NaiveCpuRenderer created");
     }
 
-    std::vector<std::vector<uint32_t>> NaiveCpuRenderer::cullOnCpu()
+    NaiveCpuRenderer::CullResult NaiveCpuRenderer::cullOnCpu()
     {
         // 每帧 reset draw_meta 防止跨帧污染；本路径同样要 reset，原因与 CpuIndirect 同。
         m_scene_p->resetDrawMetaToOriginal();
 
-        const auto & frustum   = m_scene_p->getCameraDataShadow().m_frustum;
         const auto draw_metas  = m_scene_p->getDrawMetaInfos();
+
+        CullResult result;
+        result.per_mesh_visible.resize(draw_metas.size());
+
+        if (m_disable_cull) {
+            // ABL-CULL 消融：恒等填充，跳过 frustum test。
+            // 直接把每个 mesh 的 [first, first+count) 全量写入 visible 列表。
+            for (uint32_t mi = 0; mi < draw_metas.size(); ++mi) {
+                const auto & meta = draw_metas[mi];
+                auto & visible_for_this_mesh = result.per_mesh_visible[mi];
+                visible_for_this_mesh.resize(meta.m_instance_count);
+                for (uint32_t i = 0; i < meta.m_instance_count; ++i) {
+                    visible_for_this_mesh[i] = meta.m_first_instance + i;
+                }
+                // instance_count 不变（已是原始值）。
+                result.total_visible += meta.m_instance_count;
+            }
+            return result;
+        }
+
+        const auto & frustum   = m_scene_p->getCameraDataShadow().m_frustum;
         const auto instances   = m_scene_p->getInstanceDataList();
         const auto bounds      = m_scene_p->getBoundingSpheresList();
-
-        std::vector<std::vector<uint32_t>> per_mesh_visible(draw_metas.size());
 
         for (uint32_t mi = 0; mi < draw_metas.size(); ++mi) {
             const auto & meta = draw_metas[mi];
@@ -113,7 +153,7 @@ namespace lcf::benchmark {
             const uint32_t count = meta.m_instance_count;
             const uint32_t first = meta.m_first_instance;
 
-            auto & visible_for_this_mesh = per_mesh_visible[mi];
+            auto & visible_for_this_mesh = result.per_mesh_visible[mi];
             visible_for_this_mesh.reserve(count / 4 + 4);
 
             for (uint32_t i = 0; i < count; ++i) {
@@ -141,15 +181,17 @@ namespace lcf::benchmark {
             // 公平起见：把 draw_meta_infos[mi].instance_count 改为剔除后的值，
             // 其它仍是 host shadow 状态（虽然朴素路径不上传 visible_ssbo，但让 shadow
             // 与三路径"剔除位置不同、可见对象集合相同"的语义一致）。
-            m_scene_p->overrideDrawMetaInstanceCount(
-                mi, static_cast<uint32_t>(visible_for_this_mesh.size()));
+            const auto vsz = static_cast<uint32_t>(visible_for_this_mesh.size());
+            m_scene_p->overrideDrawMetaInstanceCount(mi, vsz);
+            result.total_visible += vsz;
         }
-        return per_mesh_visible;
+        return result;
     }
 
     FrameMetrics NaiveCpuRenderer::render(
         const ecs::Entity & camera, const ecs::Entity & render_target)
     {
+        LCF_TRACY_ZONE_N("Naive::Frame");
         FrameMetrics metrics;
         if (not m_created) { return metrics; }
 
@@ -182,19 +224,30 @@ namespace lcf::benchmark {
         // 用 chrono 单独包住 cull，归到 M4_cull_ms；M1 不再吃这段（与 GpuDriven 对称）。
         m_scene_p->updateCameraShadow(camera, {width, height});
         const auto cull_t0 = std::chrono::steady_clock::now();
-        auto per_mesh_visible = this->cullOnCpu();
+        CullResult cull_result;
+        {
+            LCF_TRACY_ZONE_N("Naive::CullCpu");
+            cull_result = this->cullOnCpu();
+        }
         const auto cull_t1 = std::chrono::steady_clock::now();
         const double cull_ms =
             std::chrono::duration<double, std::milli>(cull_t1 - cull_t0).count();
+        auto & per_mesh_visible = cull_result.per_mesh_visible;
 
         // 3) transfer cmd：上传 PerView UBO + 5 路 SSBO（draw_meta 已 reset & 重写）。
         // 朴素路径不上传 visible_instances（shader 不读它）；BenchmarkScene 已在 path
         // 切换时清空 visible host shadow，prepareFrameDataTransfer 不会写 visible_ssbo。
         auto & transfer_cmd = frame.transfer_cmd;
-        transfer_cmd.begin(vk::CommandBufferBeginInfo{});
-        m_scene_p->prepareFrameDataTransfer(transfer_cmd, camera, {width, height});
-        transfer_cmd.end();
-        const auto transfer_done = transfer_cmd.submit();
+        {
+            LCF_TRACY_ZONE_N("Naive::TransferRecord");
+            transfer_cmd.begin(vk::CommandBufferBeginInfo{});
+            m_scene_p->prepareFrameDataTransfer(transfer_cmd, camera, {width, height});
+            transfer_cmd.end();
+        }
+        const auto transfer_done = [&] {
+            LCF_TRACY_ZONE_N("Naive::TransferSubmit");
+            return transfer_cmd.submit();
+        }();
 
         // 4) graphics cmd：逐 mesh 遍历可见 instance，每个发一次 vkCmdDraw。
         cmd.begin(vk::CommandBufferBeginInfo{});
@@ -217,6 +270,7 @@ namespace lcf::benchmark {
                               m_context_p->getDescriptorSetManager().getBindlessTextureSet());
         cmd.draw(36u, 1u, 0u, 0u);
 
+        // 主管线 + 主 ds 绑定（clean / legacy 共用起手）。
         cmd.bindPipeline(m_graphics_pipeline);
         cmd.bindDescriptorSet(m_graphics_pipeline, m_scene_p->getPerViewDescriptorSet());
         cmd.bindDescriptorSet(m_graphics_pipeline,
@@ -230,29 +284,89 @@ namespace lcf::benchmark {
         // 把 mesh_id（draw_meta_infos 索引）映射到 (mesh_pack, mesh_in_pack) — 顺序保留。
         // BenchmarkScene::setSceneScale 内是按 mesh_packs 的扁平顺序生成 draw_meta_infos 的。
         uint32_t total_draw_calls = 0;
-        uint32_t mi = 0;  // index into draw_meta_infos / per_mesh_visible
-        for (const auto & pack : meshes_packs) {
-            for (const auto & mesh : pack.meshes) {
-                const auto & visible_ids = per_mesh_visible[mi];
-                if (not visible_ids.empty()) {
-                    // push constant：object_id = mi（与 cullOnCpu 中 draw_metas[mi].object_id 同）
-                    // 但更稳妥：直接用 draw_metas[mi].m_object_id。
-                    const uint32_t object_id = draw_metas[mi].m_object_id;
-                    auto & shader_program = *m_graphics_pipeline.getShaderProgram();
-                    shader_program.setPushConstantData(
-                        vk::ShaderStageFlagBits::eVertex,
-                        {static_cast<const void *>(&object_id)});
-                    shader_program.bindPushConstants(cmd);
+        if (m_mode == eEmulationMode::eClean) {
+            // ===== Clean 路径（理想化 bindless）：per-mesh push_const + per-instance vkCmdDraw =====
+            uint32_t mi = 0;
+            for (const auto & pack : meshes_packs) {
+                for (const auto & mesh : pack.meshes) {
+                    const auto & visible_ids = per_mesh_visible[mi];
+                    if (not visible_ids.empty()) {
+                        const uint32_t object_id = draw_metas[mi].m_object_id;
+                        auto & shader_program = *m_graphics_pipeline.getShaderProgram();
+                        shader_program.setPushConstantData(
+                            vk::ShaderStageFlagBits::eVertex,
+                            {static_cast<const void *>(&object_id)});
+                        shader_program.bindPushConstants(cmd);
 
+                        const uint32_t index_count = mesh.getIndexCount();
+                        for (uint32_t instance_id : visible_ids) {
+                            cmd.draw(index_count, 1u, 0u, instance_id);
+                            ++total_draw_calls;
+                        }
+                    }
+                    ++mi;
+                }
+            }
+        } else {
+            // ===== Legacy 路径（"工业悲观 baseline"模拟）=====
+            //   - 每 instance：rebind 2 个 ds（bindless_buffer + bindless_texture）
+            //     即使 ds 内容没变，host 仍发出 vkCmdBindDescriptorSets，模拟驱动 dirty validation
+            //   - 每 m_pipeline_switch_period 个 instance：toggle PSO（a ↔ b），
+            //     切换后强制 rebind 全部 3 个 ds + push_const，模拟"PSO 切换让 driver state 全部失效"
+            //   - 注意：active_pipeline 引用要保持稳定，setPushConstantData 走 active 的 program
+            auto & ds_manager     = m_context_p->getDescriptorSetManager();
+            const auto & per_view_ds    = m_scene_p->getPerViewDescriptorSet();
+            auto & bindless_buf_ds = ds_manager.getBindlessBufferSet();
+            auto & bindless_tex_ds = ds_manager.getBindlessTextureSet();
+
+            const render::VulkanPipeline * active_pipeline = &m_graphics_pipeline;
+            uint32_t draw_counter = 0;
+
+            uint32_t mi = 0;
+            for (const auto & pack : meshes_packs) {
+                for (const auto & mesh : pack.meshes) {
+                    const auto & visible_ids = per_mesh_visible[mi];
+                    if (visible_ids.empty()) { ++mi; continue; }
+
+                    const uint32_t object_id   = draw_metas[mi].m_object_id;
                     const uint32_t index_count = mesh.getIndexCount();
+
+                    // 进入新 mesh：发 push_const（用当前 active pipeline 的 program）。
+                    {
+                        auto & program = *active_pipeline->getShaderProgram();
+                        program.setPushConstantData(
+                            vk::ShaderStageFlagBits::eVertex,
+                            {static_cast<const void *>(&object_id)});
+                        program.bindPushConstants(cmd);
+                    }
+
                     for (uint32_t instance_id : visible_ids) {
-                        // vkCmdDraw(vertexCount=index_count, instanceCount=1,
-                        //           firstVertex=0, firstInstance=instance_id)
+                        // 周期性 PSO toggle（draw_counter > 0 才切，避免首帧无意义 rebind）
+                        if (draw_counter > 0u && (draw_counter % m_pipeline_switch_period == 0u)) {
+                            active_pipeline = (active_pipeline == &m_graphics_pipeline)
+                                                  ? &m_graphics_pipeline_b
+                                                  : &m_graphics_pipeline;
+                            cmd.bindPipeline(*active_pipeline);
+                            // PSO 切换后强制 rebind 全部 3 ds + push_const（模拟最坏路径）
+                            cmd.bindDescriptorSet(*active_pipeline, per_view_ds);
+                            cmd.bindDescriptorSet(*active_pipeline, bindless_buf_ds);
+                            cmd.bindDescriptorSet(*active_pipeline, bindless_tex_ds);
+                            auto & program = *active_pipeline->getShaderProgram();
+                            program.setPushConstantData(
+                                vk::ShaderStageFlagBits::eVertex,
+                                {static_cast<const void *>(&object_id)});
+                            program.bindPushConstants(cmd);
+                        }
+                        // 每实例固定 rebind 2 ds（即使内容相同，host 调用栈仍发出）。
+                        cmd.bindDescriptorSet(*active_pipeline, bindless_buf_ds);
+                        cmd.bindDescriptorSet(*active_pipeline, bindless_tex_ds);
+
                         cmd.draw(index_count, 1u, 0u, instance_id);
                         ++total_draw_calls;
+                        ++draw_counter;
                     }
+                    ++mi;
                 }
-                ++mi;
             }
         }
 
@@ -282,16 +396,23 @@ namespace lcf::benchmark {
         cmd.addWaitSubmitInfo(wait_acquired)
            .addWaitSubmitInfo(transfer_done)
            .addSignalSubmitInfo(target_resources.getPresentReadySemaphore());
-        cmd.submit();
+        {
+            LCF_TRACY_ZONE_N("Naive::GraphicsSubmit");
+            cmd.submit();
+        }
 
-        target_sp->finishRender();
+        {
+            LCF_TRACY_ZONE_N("Naive::Wait");  // M6: CPU↔GPU 同步等待
+            target_sp->finishRender();
+        }
 
         const auto cpu_t1 = std::chrono::steady_clock::now();
         // M1 = 总 CPU 段 - cull 段；M4 = cull 段（host chrono）
         metrics.m1_cpu_submit_ms =
             std::chrono::duration<double, std::milli>(cpu_t1 - cpu_t0).count() - cull_ms;
-        metrics.m4_cull_ms       = cull_ms;
-        metrics.m3_draw_calls    = total_draw_calls;
+        metrics.m4_cull_ms             = cull_ms;
+        metrics.m3_draw_calls          = total_draw_calls;
+        metrics.m4_visible_instances   = cull_result.total_visible;
 
         m_frame_has_history[m_current_frame_index] = true;
         ++m_current_frame_index %= m_frame_resources.size();

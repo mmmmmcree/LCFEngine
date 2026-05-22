@@ -44,6 +44,21 @@ namespace lcf::benchmark {
 
         ePath getPath() const noexcept override { return ePath::eCpuDrivenNaive; }
 
+        // 仅接受 eClean / eLegacy；其它 mode 静默忽略。
+        // - eClean：现状（per-mesh push_constants + per-instance vkCmdDraw）
+        // - eLegacy：per-instance rebind 2 ds（bindless_buffer + bindless_texture）
+        //            + 每 m_pipeline_switch_period 实例切一次 PSO 模拟 driver 重 setup
+        void setEmulationMode(eEmulationMode mode) override;
+
+        // 仅 eLegacy 用：配置每多少 instance 切一次 PSO。默认 4096。
+        // 该默认值对齐"工业引擎按材质排序后切 PSO"的现实工况——场景 D（24576 instance）
+        // 全可见时一帧约 6 次 PSO 切换，与 CpuIndirect_legacy 的"每 mesh 必切 = 6 次/帧"
+        // 自然落在同一量级（虽然两者切换粒度本质不同：instance vs mesh）。
+        void setPipelineSwitchPeriod(uint32_t period) noexcept { m_pipeline_switch_period = (period == 0u ? 1u : period); }
+
+        // ABL-CULL 消融：true → cullOnCpu 走 identity 填充（visible = 全 instance）。
+        void setDisableCull(bool disabled) override { m_disable_cull = disabled; }
+
     private:
         struct FrameResources
         {
@@ -52,10 +67,17 @@ namespace lcf::benchmark {
             render::VulkanFramebufferObject    fbo;
         };
 
-        // 与 cull.comp 等价的 host 端剔除；返回 (mesh_visible_instances) 列表，
-        // 每个元素是该 mesh 的可见 instance_id 数组（用于逐 vkCmdDraw 提交）。
+        // CullResult：visible 列表 + 该帧总可见数（FrameMetrics.m4_visible_instances）。
+        struct CullResult
+        {
+            std::vector<std::vector<uint32_t>> per_mesh_visible;
+            uint32_t                           total_visible = 0u;
+        };
+
+        // 与 cull.comp 等价的 host 端剔除；返回逐 mesh 可见 id + 总可见数。
+        // 当 m_disable_cull = true 时，跳过 frustum test，恒等填充全部 instance。
         // 同时改写 m_scene 的 draw_meta_infos[i].instance_count 为剔除后值（公平起见）。
-        std::vector<std::vector<uint32_t>> cullOnCpu();
+        CullResult cullOnCpu();
 
     private:
         render::VulkanContext * m_context_p = nullptr;
@@ -65,8 +87,17 @@ namespace lcf::benchmark {
         uint32_t                    m_current_frame_index = 0;
 
         render::VulkanPipeline m_graphics_pipeline;
+        // 第二个 PSO，仅 eLegacy 模式下用于"每 N 实例切一次 pipeline"模拟驱动 state switch。
+        // 与 m_graphics_pipeline 同 program / 同 layout（保证 ds 二进制兼容），
+        // 仅 cullMode 不同（a=eBack, b=eFront；封闭模型 trackball 视角下视觉无差）。
+        render::VulkanPipeline m_graphics_pipeline_b;
         GpuTimestampQueryPool  m_timestamp_pool;
         std::vector<bool>      m_frame_has_history;
+
+        // 模拟模式状态：默认 eClean 保持现状。
+        eEmulationMode m_mode = eEmulationMode::eClean;
+        uint32_t       m_pipeline_switch_period = 4096u;  // 对齐"按材质排序后切 PSO"的工业现实工况
+        bool           m_disable_cull = false;  // ABL-CULL 消融开关
 
         bool m_created = false;
     };

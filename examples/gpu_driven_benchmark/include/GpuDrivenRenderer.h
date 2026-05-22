@@ -47,6 +47,14 @@ namespace lcf::benchmark {
 
         ePath getPath() const noexcept override { return ePath::eGpuDriven; }
 
+        // 接受 eGpuDriven / eGpuIndirectCount；其它静默忽略。
+        // - eGpuDriven：GPU cull + DGC executeGeneratedCommandsEXT（核心方案）
+        // - eGpuIndirectCount：GPU cull 仍开，但用 vkCmdDrawIndirectCount 替代 DGC（ABL-DGC 消融）
+        void setEmulationMode(eEmulationMode mode) override;
+
+        // ABL-CULL 消融：true → benchmark_cull.comp 走 disable_cull bypass 分支。
+        void setDisableCull(bool disabled) override { m_disable_cull = disabled; }
+
     private:
         // 与 VulkanRenderer.cpp::DrawSequence 同形（pipeline_index + draw_call）；
         // 但本路径只用 1 条 sequence（mesh only），pipeline_index 始终 = 0。
@@ -86,6 +94,10 @@ namespace lcf::benchmark {
         render::VulkanBufferObject        m_sequence_buffer;
 
         GpuTimestampQueryPool m_timestamp_pool;
+
+        // 模式：默认 eGpuDriven（DGC + GPU cull）。
+        eEmulationMode m_mode = eEmulationMode::eGpuDriven;
+        bool           m_disable_cull = false;
 
         bool m_created = false;
 
