@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
-#include "VulkanShaderProgram.h"
+#include "shader/VulkanShaderProgram.h"
 
 namespace lcf::render {
     class VulkanContext;

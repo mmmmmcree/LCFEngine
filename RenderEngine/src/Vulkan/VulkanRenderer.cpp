@@ -1,5 +1,5 @@
 #include "Vulkan/VulkanRenderer.h"
-#include "Vulkan/VulkanShaderProgram.h"
+#include "Vulkan/shader/VulkanShaderProgram.h"
 #include "Vulkan/vulkan_utililtie.h"
 #include "Vulkan/vulkan_constants.h"
 #include "Matrix.h"
@@ -270,9 +270,11 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
     }
 
     auto stc_shader_program = std::make_shared<VulkanShaderProgram>();
-    stc_shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::eVertex, "assets/shaders/sphere_to_cube.vert")
-        .addShaderFromGlslFile(ShaderTypeFlagBits::eGeometry, "assets/shaders/sphere_to_cube.geom")
-        .addShaderFromGlslFile(ShaderTypeFlagBits::eFragment, "assets/shaders/sphere_to_cube.frag")
+    // stc_shader_program->addShaderFromGlslFile(ShaderTypeFlagBits::eVertex, "assets/shaders/sphere_to_cube.vert")
+    //     .addShaderFromGlslFile(ShaderTypeFlagBits::eGeometry, "assets/shaders/sphere_to_cube.geom")
+    //     .addShaderFromGlslFile(ShaderTypeFlagBits::eFragment, "assets/shaders/sphere_to_cube.frag")
+    //     .link(m_context_p->getDevice());
+    stc_shader_program->addShaderFromSlangFile("assets/shaders/sphere_to_cube.slang")
         .link(m_context_p->getDevice());
     GraphicPipelineCreateInfo stc_pipeline_info;
     stc_pipeline_info.setShaderProgram(stc_shader_program)

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <shaderc/shaderc.hpp>
+#include <slang.h>
 #include <spirv_cross/spirv_common.hpp>
 #include "enums/enum_cast.h"
 #include "enums/enum_flags.h"
@@ -14,8 +15,7 @@ namespace lcf {
         eGeometry = 1 << 3,
         eFragment = 1 << 4,
         eCompute = 1 << 5,
-        eAllGraphics = eVertex | eTessControl | eTessEvaluation | eGeometry | eFragment,
-        eAll = eAllGraphics | eCompute,
+        eAllGraphics = eVertex | eTessControl | eTessEvaluation | eGeometry | eFragment, eAll = eAllGraphics | eCompute,
     };
     template <> inline constexpr bool is_enum_flags_v<ShaderTypeFlagBits> = true;
 
@@ -29,6 +29,19 @@ namespace lcf {
             { ShaderTypeFlagBits::eGeometry, shaderc_geometry_shader },
             { ShaderTypeFlagBits::eFragment, shaderc_fragment_shader },
             { ShaderTypeFlagBits::eCompute, shaderc_compute_shader },
+        };
+    };
+
+    template <>
+    struct enum_mapping_traits <ShaderTypeFlagBits, SlangStage>
+    {
+        static constexpr std::tuple<ShaderTypeFlagBits, SlangStage> mappings[] = {
+            { ShaderTypeFlagBits::eVertex, SLANG_STAGE_VERTEX },
+            { ShaderTypeFlagBits::eGeometry, SLANG_STAGE_GEOMETRY },
+            { ShaderTypeFlagBits::eFragment, SLANG_STAGE_FRAGMENT },
+            { ShaderTypeFlagBits::eCompute, SLANG_STAGE_COMPUTE },
+            { ShaderTypeFlagBits::eTessControl, SLANG_STAGE_HULL },
+            { ShaderTypeFlagBits::eTessEvaluation, SLANG_STAGE_DOMAIN },
         };
     };
 

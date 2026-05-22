@@ -207,6 +207,7 @@ void VulkanContext::createLogicalDevice()
         .setDescriptorBindingStorageImageUpdateAfterBind(true)
         .setDescriptorBindingStorageBufferUpdateAfterBind(true)
         .setRuntimeDescriptorArray(true)
+        .setShaderOutputLayer(true)
         .setShaderSampledImageArrayNonUniformIndexing(true)
         .setDrawIndirectCount(true)
         .setTimelineSemaphore(true);

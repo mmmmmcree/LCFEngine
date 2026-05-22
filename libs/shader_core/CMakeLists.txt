@@ -20,6 +20,7 @@ find_package(unofficial-shaderc CONFIG REQUIRED)
 find_package(spirv_cross_core CONFIG REQUIRED)
 find_package(spirv_cross_glsl CONFIG REQUIRED)
 find_package(spirv_cross_cpp CONFIG REQUIRED)
+find_package(slang CONFIG REQUIRED)
      
 include_directories( 
   ${CMAKE_CURRENT_SOURCE_DIR}/include 
@@ -39,4 +40,5 @@ target_link_libraries(${PROJECT_NAME}
     PRIVATE 
         unofficial::shaderc::shaderc
         spirv-cross-core spirv-cross-glsl spirv-cross-cpp
+        slang::slang
 )
