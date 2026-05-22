@@ -29,7 +29,8 @@
       "description": "Dependencies for libs/shader_core",
       "dependencies": [
         "shaderc",
-        "spirv-cross"
+        "spirv-cross",
+        "shader-slang"
       ]
     },
     "containers": {
