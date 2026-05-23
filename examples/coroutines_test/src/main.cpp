@@ -27,7 +27,7 @@ asio::awaitable<void> async_task()
 
 int main()
 {
-    lcf::Logger::init();
+    lcf::log::init();
     int heartbeat = 0;
     lcf::PeriodicTask periodic_task {
         std::chrono::milliseconds(1000),

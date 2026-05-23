@@ -11,7 +11,7 @@ namespace stdr = std::ranges;
 #include "image/Image.h"
 
 int main() {
-    lcf::Logger::init();
+    lcf::log::init();
     
 
     ModelLoader loader;

@@ -10,84 +10,73 @@
 #include <filesystem>
 #endif
 
-namespace lcf {
-    class Logger
+namespace lcf::log {
+namespace details {
+#ifndef NDEBUG
+    inline static void init_debug() noexcept
     {
-    public:
-        static void init()
-        {
-            static bool initialized = []() -> bool {
-        #ifndef NDEBUG
-                initDebug();
-        #else
-                initRelease();
-        #endif
-                return true;
-            }();
-        }
-    private:
-    #ifndef NDEBUG
-        static void initDebug()
-        {
-            const std::string pattern = "[%Y-%m-%d %H:%M:%S.%e] [%l] [%s:line %#] %!() [thread id: %t]\n%v";
-            auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-            console_sink->set_color_mode(spdlog::color_mode::always);
-            console_sink->set_pattern(std::format("%^{}%$", pattern));
-            std::filesystem::create_directories("logs");
-            auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("logs/debug.log", true);
-            file_sink->set_pattern(pattern);
-            #if defined(_WIN32)
-            auto msvc_sink = std::make_shared<spdlog::sinks::msvc_sink_mt>();
-            msvc_sink->set_pattern(pattern);
-            auto logger = std::make_shared<spdlog::logger>(
-                "multi_sink",
-                spdlog::sinks_init_list{console_sink, file_sink, msvc_sink}
-            );
-            #else
-            auto logger = std::make_shared<spdlog::logger>(
-                "multi_sink",
-                spdlog::sinks_init_list{console_sink, file_sink}
-            );
-            #endif
-            logger->set_level(spdlog::level::trace);
-            logger->flush_on(spdlog::level::debug);
-            spdlog::set_default_logger(logger);
-        }
+        const std::string pattern = "[%Y-%m-%d %H:%M:%S.%e] [%l] [%s:line %#] %!() [thread id: %t]\n%v";
+        auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+        console_sink->set_color_mode(spdlog::color_mode::always);
+        console_sink->set_pattern(std::format("%^{}%$", pattern));
+        std::filesystem::create_directories("logs");
+        auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("logs/debug.log", true);
+        file_sink->set_pattern(pattern);
+    #if defined(_WIN32)
+        auto msvc_sink = std::make_shared<spdlog::sinks::msvc_sink_mt>();
+        msvc_sink->set_pattern(pattern);
+        auto logger = std::make_shared<spdlog::logger>(
+            "multi_sink",
+            spdlog::sinks_init_list{console_sink, file_sink, msvc_sink}
+        );
     #else
-        static void initRelease()
-        {
-            const std::string pattern = "[%H:%M:%S] [%l]\n%v";
-            auto logger = spdlog::default_logger();
-            logger->set_pattern(std::format("%^{}%$", pattern));
-        }
+        auto logger = std::make_shared<spdlog::logger>(
+            "multi_sink",
+            spdlog::sinks_init_list{console_sink, file_sink}
+        );
     #endif
-    };
-}
+        logger->set_level(spdlog::level::trace);
+        logger->flush_on(spdlog::level::debug);
+        spdlog::set_default_logger(logger);
+    }
+#else
+    inline static void init_release() noexcept
+    {
+        const std::string pattern = "[%H:%M:%S] [%l]\n%v";
+        auto logger = spdlog::default_logger();
+        logger->set_pattern(std::format("%^{}%$", pattern));
+    }
+#endif
+} // namespace details
+    inline static void init() noexcept
+    {
+        static bool initialized = []() -> bool {
+    #ifndef NDEBUG
+            details::init_debug();
+    #else
+            details::init_release();
+    #endif
+            return true;
+        }();
+    }
+} // namespace lcf::log
 
+#define lcf_log_info(...) SPDLOG_INFO(__VA_ARGS__)
+#define lcf_log_warn(...) SPDLOG_WARN(__VA_ARGS__)
+#define lcf_log_error(...) SPDLOG_ERROR(__VA_ARGS__)
+#define lcf_log_critical(...) SPDLOG_CRITICAL(__VA_ARGS__)
+#define lcf_log_info_if(condition, ...) do { if (condition) { SPDLOG_INFO(__VA_ARGS__); } } while(false)
+#define lcf_log_warn_if(condition, ...) do { if (condition) { SPDLOG_WARN(__VA_ARGS__); } } while(false)
+#define lcf_log_error_if(condition, ...) do { if (condition) { SPDLOG_ERROR(__VA_ARGS__); } } while(false)
+#define lcf_log_critical_if(condition, ...) do { if (condition) { SPDLOG_CRITICAL(__VA_ARGS__); } } while(false)
 #ifndef NDEBUG
 #define lcf_log_trace(...)    SPDLOG_TRACE(__VA_ARGS__)
 #define lcf_log_debug(...)    SPDLOG_DEBUG(__VA_ARGS__)
-#define lcf_log_info(...)     SPDLOG_INFO(__VA_ARGS__)
-#define lcf_log_warn(...)     SPDLOG_WARN(__VA_ARGS__)
-#define lcf_log_error(...)    SPDLOG_ERROR(__VA_ARGS__)
-#define lcf_log_critical(...) SPDLOG_CRITICAL(__VA_ARGS__)
 #define lcf_log_trace_if(condition, ...)   do { if (condition) { SPDLOG_TRACE(__VA_ARGS__); } } while(false)
 #define lcf_log_debug_if(condition, ...)   do { if (condition) { SPDLOG_DEBUG(__VA_ARGS__); } } while(false)
-#define lcf_log_info_if(condition, ...)    do { if (condition) { SPDLOG_INFO(__VA_ARGS__); } } while(false)
-#define lcf_log_warn_if(condition, ...)    do { if (condition) { SPDLOG_WARN(__VA_ARGS__); } } while(false)
-#define lcf_log_error_if(condition, ...)   do { if (condition) { SPDLOG_ERROR(__VA_ARGS__); } } while(false)
-#define lcf_log_critical_if(condition, ...) do { if (condition) { SPDLOG_CRITICAL(__VA_ARGS__); } } while(false)
 #else
 #define lcf_log_trace(...) 
 #define lcf_log_debug(...) 
-#define lcf_log_info(...)     SPDLOG_INFO(__VA_ARGS__)
-#define lcf_log_warn(...)     SPDLOG_WARN(__VA_ARGS__)
-#define lcf_log_error(...)    SPDLOG_ERROR(__VA_ARGS__)
-#define lcf_log_critical(...) SPDLOG_CRITICAL(__VA_ARGS__)
 #define lcf_log_trace_if(condition, ...) 
 #define lcf_log_debug_if(condition, ...) 
-#define lcf_log_info_if(condition, ...)    do { if (condition) { SPDLOG_INFO(__VA_ARGS__); } } while(false)
-#define lcf_log_warn_if(condition, ...)    do { if (condition) { SPDLOG_WARN(__VA_ARGS__); } } while(false)
-#define lcf_log_error_if(condition, ...)   do { if (condition) { SPDLOG_ERROR(__VA_ARGS__); } } while(false)
-#define lcf_log_critical_if(condition, ...) do { if (condition) { SPDLOG_CRITICAL(__VA_ARGS__); } } while(false)
 #endif

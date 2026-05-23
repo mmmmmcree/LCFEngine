@@ -1,6 +1,8 @@
-cmake_minimum_required(VERSION 3.16) 
+cmake_minimum_required(VERSION 3.16)
 
 project(LCFEngine LANGUAGES CXX)
+
+option(LCF_DEPLOY "Deploy mode: bundle assets next to executable" OFF)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/build_configs")
 set(CONFIG_MODULES
