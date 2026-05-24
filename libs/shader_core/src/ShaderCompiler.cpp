@@ -9,6 +9,8 @@
 #include <ranges>
 #include "file_utils.h"
 #include "log.h"
+#include "enums/enum_name.h"
+#include "bytes.h"
 
 using namespace lcf;
 namespace stdr = std::ranges;
@@ -127,11 +129,12 @@ std::expected<spirv::UnitList, std::error_code> ShaderCompiler::compileSlangSour
         return slang::createGlobalSession(session_cp.writeRef());
     }(s_global_session_cp);
 
+    const auto & slang_config = shader_core::Config::instance().getSlangConfig();
     slang::SessionDesc session_desc{};
     std::vector<slang::TargetDesc> target_decsc;
     auto & target_desc = target_decsc.emplace_back();
     target_desc.format = SLANG_SPIRV;
-    target_desc.profile = s_global_session_cp->findProfile("spirv_1_5");
+    target_desc.profile = s_global_session_cp->findProfile(enum_name(slang_config.getTargetProfile()).data());
     session_desc.targets = target_decsc.data();
     session_desc.targetCount = target_decsc.size();
 
@@ -173,25 +176,18 @@ std::expected<spirv::UnitList, std::error_code> ShaderCompiler::compileSlangSour
         dep_paths.emplace_back(dep_path);
         dep_contents.emplace_back(std::move(expected_content.value()));
     }
-    //todo use config
-    static const std::string k_target_profile = "spirv_1_5";
-    static const std::string k_compiler_options = "VulkanUseEntryPointName=1";
-    static const std::string k_slang_version = []() -> std::string {
-        const char * tag = spGetBuildTagString();
-        return tag ? tag : "unknown";
-    }();
     std::vector<std::span<const std::byte>> chunks; chunks.reserve(2 + dep_paths.size() * 2 + 3);
-    chunks.emplace_back(std::as_bytes(std::span(source_code)));
-    chunks.emplace_back(std::as_bytes(std::span(module_name)));
+    chunks.emplace_back(as_bytes(source_code));
+    chunks.emplace_back(as_bytes(module_name));
     for (size_t i = 0; i < dep_paths.size(); ++i) {
-        chunks.emplace_back(std::as_bytes(std::span(dep_paths[i])));
-        chunks.emplace_back(std::as_bytes(std::span(dep_contents[i])));
+        chunks.emplace_back(as_bytes(dep_paths[i]));
+        chunks.emplace_back(as_bytes(dep_contents[i]));
     }
-    chunks.emplace_back(std::as_bytes(std::span(k_target_profile)));
-    chunks.emplace_back(std::as_bytes(std::span(k_compiler_options)));
-    chunks.emplace_back(std::as_bytes(std::span(k_slang_version)));
+    chunks.emplace_back(as_bytes_from_value(slang_config.getTargetProfile()));
+    chunks.emplace_back(as_bytes_from_value(slang_config.getCompilerOptionFlags()));
+    chunks.emplace_back(as_bytes(slang_config.getVersion()));
     uint64_t cache_hash = shader_core::hash(chunks);
-    shader_core::ShaderCache cache(shader_core::Config::instance().getCacheDirectory());
+    shader_core::ShaderCache cache;
     if (auto cached = cache.tryLoad(cache_hash)) { return std::move(*cached); }
 
     int32_t ep_count = slang_module->getDefinedEntryPointCount();
@@ -222,7 +218,9 @@ std::expected<spirv::UnitList, std::error_code> ShaderCompiler::compileSlangSour
         ShaderTypeFlagBits stage = enum_cast<ShaderTypeFlagBits>(ep_reflection->getStage());
         unit_list.emplace_back(stage, data_span | stdr::to<std::vector>(), ep_reflection->getName());
     }
-    cache.store(cache_hash, unit_list);
+    if (auto ec = cache.store(cache_hash, unit_list)) {
+        lcf_log_warn("slang cache store failed for '{}': {}", module_name, ec.message());
+    }
     return unit_list;
 }
 

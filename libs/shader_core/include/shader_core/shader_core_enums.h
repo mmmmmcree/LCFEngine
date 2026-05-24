@@ -153,3 +153,29 @@ namespace lcf {
         PushConstant,
     };
 }
+
+namespace lcf::shader_core {
+namespace slang {
+    enum class TargetProfile : uint8_t
+    {
+        spirv_1_0,
+        spirv_1_1,
+        spirv_1_2,
+        spirv_1_3,
+        spirv_1_4,
+        spirv_1_5,
+    };
+
+    enum class CompilerOptionFlags : uint32_t
+    {
+        eVulkanUseEntryPointName = 1,
+        eVulkanInvertY = 1 << 1,
+        eVulkanUseGLLayout = 1 << 2,
+        eSkipSPIRVValidation = 1 << 3,
+    };
+} // namespace slang
+} // namespace lcf::shader_core
+
+namespace lcf {
+    template <> inline constexpr bool is_enum_flags_v<shader_core::slang::CompilerOptionFlags> = true;
+}

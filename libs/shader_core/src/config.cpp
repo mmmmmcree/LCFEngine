@@ -34,7 +34,19 @@ auto Config::setDefaultGlslEntryPoint(std::string entry_point) noexcept -> Self 
     return *this;
 }
 
-std::filesystem::path lcf::shader_core::Config::resolvePath(const std::filesystem::path &path) const noexcept
+std::filesystem::path Config::resolvePath(const std::filesystem::path &path) const noexcept
 {
     return lcf::VirtualPathRegistry::instance().resolve(path);
+}
+
+#include <slang.h>
+
+lcf::shader_core::slang::Config::Config(
+    TargetProfile target_profile,
+    CompilerOptionFlags compiler_option_flags) :
+    m_target_profile(target_profile),
+    m_compiler_option_flags(compiler_option_flags)
+{
+    auto tag = spGetBuildTagString();
+    m_version = tag ? tag : "unknown";
 }
