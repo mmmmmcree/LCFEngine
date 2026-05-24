@@ -12,6 +12,10 @@ namespace lcf::shader_core {
     {
         using Self = Config;
         using IncludeDirectoryList = std::vector<std::filesystem::path>;
+        struct SlangConfig
+        {
+            
+        };
     public:
         static Self & instance() noexcept;
     public:
@@ -20,12 +24,15 @@ namespace lcf::shader_core {
     public:
         Self & registerVirtualPath(std::string virtual_alias, std::filesystem::path real_path) noexcept;
         Self & addIncludeDirectory(std::filesystem::path path) noexcept;
+        Self & setCacheDirectory(std::filesystem::path path) noexcept;
         Self & setDefaultGlslEntryPoint(std::string entry_point) noexcept;
         const std::string & getDefaultGlslEntryPoint() const noexcept { return m_default_glsl_entry_point; }
         std::filesystem::path resolvePath(const std::filesystem::path & path) const noexcept;
         std::span<const std::filesystem::path> getIncludeDirectories() const noexcept { return m_include_directories; }
+        const std::filesystem::path & getCacheDirectory() const noexcept { return m_cache_directory; }
     private:
         IncludeDirectoryList m_include_directories;
+        std::filesystem::path m_cache_directory = ".shader_cache";
         std::string m_default_glsl_entry_point = "main";
     };
 }

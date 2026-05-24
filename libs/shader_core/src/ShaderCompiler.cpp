@@ -1,7 +1,8 @@
 #include "shader_core/ShaderCompiler.h"
-#include "shader_core/ShaderIncluder.h"
 #include "shader_core/shader_utils.h"
 #include "shader_core/config.h"
+#include "shader_core/ShaderCache.h"
+#include "shader_core/hash.h"
 #include <shaderc/shaderc.hpp>
 #include <slang.h>
 #include <slang-com-ptr.h>
@@ -12,6 +13,56 @@
 using namespace lcf;
 namespace stdr = std::ranges;
 namespace stdv = std::views;
+
+class GlslShaderIncluder : public shaderc::CompileOptions::IncluderInterface
+{
+public:
+    GlslShaderIncluder(const std::vector<std::string> & search_paths) : m_search_paths(search_paths) {}
+public:
+    virtual shaderc_include_result * GetInclude(
+        const char* requested_source,
+        shaderc_include_type type,
+        const char* requesting_source,
+        size_t include_depth) override
+    {
+        if (type == shaderc_include_type_relative) {
+            auto requesting_dir = std::filesystem::path(requested_source).parent_path();
+            auto full_path = requesting_dir / requested_source;
+            if (auto result = this->createIncludeResult(full_path)) { return result; }
+        }
+        for (const auto &path : m_search_paths) {
+            auto full_path = std::filesystem::path(path) / requested_source;
+            if (auto result = this->createIncludeResult(full_path)) { return result; }
+        }
+        return nullptr;
+    }
+    virtual void ReleaseInclude(shaderc_include_result* include_result) override
+    {
+        delete[] include_result->source_name;
+        delete[] include_result->content;
+        delete include_result;
+    }
+private:
+    shaderc_include_result * createIncludeResult(const std::filesystem::path & path)
+    {
+        auto expected_file_content = read_file_as_string(path);
+        if (not expected_file_content) { return nullptr; }
+        auto path_str = path.string();
+        char * source_name = new char[path_str.size() + 1]; source_name[path_str.size()] = '\0';
+        stdr::copy(path_str, source_name);
+        const auto & file_content = expected_file_content.value();
+        char * content = new char[file_content.size() + 1]; content[file_content.size()] = '\0';
+        stdr::copy(file_content, content);
+        shaderc_include_result * include_result = new shaderc_include_result;
+        include_result->source_name_length = path_str.size();
+        include_result->source_name = source_name;
+        include_result->content = content;
+        include_result->content_length = file_content.size();
+        return include_result;
+    }
+private:
+    const std::vector<std::string> & m_search_paths;
+};
 
 ShaderCompiler::ShaderCompiler()
 {
@@ -39,13 +90,7 @@ std::expected<spirv::Unit, std::error_code> ShaderCompiler::compileGlslSourceToS
     for (const auto &macro_definition : m_macro_definitions) {
         options.AddMacroDefinition(macro_definition.c_str());
     }
-    if (not m_include_directories.empty()) {
-        auto includer = std::make_unique<ShaderIncluder>();
-        for (const auto &include_directory : m_include_directories) {
-            includer->addIncludeDirectory(include_directory.c_str());
-        }
-        options.SetIncluder(std::move(includer));
-    }
+    options.SetIncluder(std::make_unique<GlslShaderIncluder>(m_include_directories));
     if (optimize) { options.SetOptimizationLevel(shaderc_optimization_level_size); }
     const auto & entry_point = shader_core::Config::instance().getDefaultGlslEntryPoint();
     shaderc::SpvCompilationResult result = compiler.CompileGlslToSpv(
@@ -117,6 +162,38 @@ std::expected<spirv::UnitList, std::error_code> ShaderCompiler::compileSlangSour
         return std::unexpected(std::make_error_code(std::errc::invalid_argument));
     }
 
+    int32_t dep_count = slang_module->getDependencyFileCount();
+    std::vector<std::string> dep_paths; dep_paths.reserve(dep_count);
+    std::vector<std::string> dep_contents; dep_contents.reserve(dep_count);
+    for (int32_t i = 0; i < dep_count; ++i) {
+        const char * dep_path = slang_module->getDependencyFilePath(i);
+        if (not dep_path) { continue; }
+        auto expected_content = read_file_as_string(dep_path);
+        if (not expected_content) { continue; }
+        dep_paths.emplace_back(dep_path);
+        dep_contents.emplace_back(std::move(expected_content.value()));
+    }
+    //todo use config
+    static const std::string k_target_profile = "spirv_1_5";
+    static const std::string k_compiler_options = "VulkanUseEntryPointName=1";
+    static const std::string k_slang_version = []() -> std::string {
+        const char * tag = spGetBuildTagString();
+        return tag ? tag : "unknown";
+    }();
+    std::vector<std::span<const std::byte>> chunks; chunks.reserve(2 + dep_paths.size() * 2 + 3);
+    chunks.emplace_back(std::as_bytes(std::span(source_code)));
+    chunks.emplace_back(std::as_bytes(std::span(module_name)));
+    for (size_t i = 0; i < dep_paths.size(); ++i) {
+        chunks.emplace_back(std::as_bytes(std::span(dep_paths[i])));
+        chunks.emplace_back(std::as_bytes(std::span(dep_contents[i])));
+    }
+    chunks.emplace_back(std::as_bytes(std::span(k_target_profile)));
+    chunks.emplace_back(std::as_bytes(std::span(k_compiler_options)));
+    chunks.emplace_back(std::as_bytes(std::span(k_slang_version)));
+    uint64_t cache_hash = shader_core::hash(chunks);
+    shader_core::ShaderCache cache(shader_core::Config::instance().getCacheDirectory());
+    if (auto cached = cache.tryLoad(cache_hash)) { return std::move(*cached); }
+
     int32_t ep_count = slang_module->getDefinedEntryPointCount();
     std::vector<ComPtr<slang::IEntryPoint>> entry_points;
     entry_points.reserve(ep_count);
@@ -145,6 +222,7 @@ std::expected<spirv::UnitList, std::error_code> ShaderCompiler::compileSlangSour
         ShaderTypeFlagBits stage = enum_cast<ShaderTypeFlagBits>(ep_reflection->getStage());
         unit_list.emplace_back(stage, data_span | stdr::to<std::vector>(), ep_reflection->getName());
     }
+    cache.store(cache_hash, unit_list);
     return unit_list;
 }
 

@@ -22,6 +22,12 @@ auto Config::addIncludeDirectory(std::filesystem::path path) noexcept -> Self &
     return *this;
 }
 
+auto Config::setCacheDirectory(std::filesystem::path path) noexcept -> Self &
+{
+    m_cache_directory = std::move(path);
+    return *this;
+}
+
 auto Config::setDefaultGlslEntryPoint(std::string entry_point) noexcept -> Self &
 {
     m_default_glsl_entry_point = std::move(entry_point);
