@@ -24,6 +24,12 @@ namespace lcf {
         return span_as_bytes(std::span(data));
     }
 
+    template <span_convertible_c SpanConvertible>
+    constexpr auto as_const_bytes(const SpanConvertible & data) noexcept
+    {
+        return span_as_bytes(std::span(data));
+    }
+
     template <standard_layout_c T>
     constexpr auto as_bytes_from_ptr(T * data_p, size_t element_count) noexcept // element_count is size_in_bytes if T is void
     {
@@ -37,6 +43,12 @@ namespace lcf {
 
     template <standard_layout_c T>
     constexpr auto as_bytes_from_value(T & data) noexcept
+    {
+        return span_as_bytes(std::span(&data, 1));
+    }
+
+    template <standard_layout_c T>
+    constexpr auto as_const_bytes_from_value(const T & data) noexcept
     {
         return span_as_bytes(std::span(&data, 1));
     }
