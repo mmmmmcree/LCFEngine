@@ -1,4 +1,4 @@
-#include "Vulkan/VulkanShader.h"
+#include "Vulkan/shader/VulkanShader.h"
 #include "shader_core/ShaderCompiler.h"
 #include "shader_core/shader_utils.h"
 #include "Vulkan/vulkan_enums.h"
@@ -14,47 +14,22 @@ namespace stdv = std::views;
 static std::unordered_map<uint32_t, VulkanDescriptorSetLayout> from_shader_resources_to_layouts(
     vk::ShaderStageFlagBits shader_type, const ShaderResources & resources);
 
-VulkanShader & VulkanShader::compileGlslFile(
-    ShaderTypeFlagBits type,
-    const std::filesystem::path & file_path,
-    std::string_view entry_point) noexcept
-{
-    m_stage = type;
-    m_entry_point = entry_point;
-    ShaderCompiler compiler;
-    compiler.addMacroDefinition("VULKAN_SHADER");
-    auto include_dir = file_path.parent_path() / "include";
-    compiler.addIncludeDirectory(include_dir.string());
-    auto expected_file_content = read_file_as_string(file_path);
-    if (not expected_file_content) {
-        lcf_log_info("Error reading file {}: {}", file_path.string(), expected_file_content.error().message());
-        return *this;
-    }
-    const auto & file_content = expected_file_content.value();
-    m_spv_code = compiler.compileGlslSourceToSpv(
-        m_stage,
-        file_content,
-        file_path.filename().string(),
-        m_entry_point, false);
-    return *this;
-}
-
 std::error_code VulkanShader::create(vk::Device device) noexcept
 {
     vk::ShaderModuleCreateInfo module_info;
-    module_info.setCode(m_spv_code);
+    module_info.setCode(m_spv_unit.getCode());
     try {
         m_module = device.createShaderModuleUnique(module_info);
     } catch (const vk::SystemError & e) {
         lcf_log_debug(e.what());
         return e.code();
     }
-    m_resources = spirv::analyze(m_spv_code);
-    m_layout_map = from_shader_resources_to_layouts(enum_cast<vk::ShaderStageFlagBits>(m_stage), m_resources);
+    m_resources = spirv::analyze(m_spv_unit.getCode());
+    m_layout_map = from_shader_resources_to_layouts(enum_cast<vk::ShaderStageFlagBits>(this->getStage()), m_resources);
     for (auto & [_, layout] : m_layout_map) {
         if (auto ec = layout.create(device, vkenums::DescriptorSetStrategy::eIndividual)) { return ec; }
     }
-    std::exchange(m_spv_code, {}); //clear
+    std::exchange(m_spv_unit.m_code, {}); //clear
     return {};
 }
 
@@ -62,9 +37,9 @@ vk::PipelineShaderStageCreateInfo VulkanShader::getShaderStageInfo() const noexc
 {
     return vk::PipelineShaderStageCreateInfo(
         {},
-        enum_cast<vk::ShaderStageFlagBits>(m_stage),
+        enum_cast<vk::ShaderStageFlagBits>(this->getStage()),
         m_module.get(),
-        m_entry_point.c_str());
+        m_spv_unit.getEntryPoint().c_str());
 }
 
 std::unordered_map<uint32_t, VulkanDescriptorSetLayout> from_shader_resources_to_layouts(

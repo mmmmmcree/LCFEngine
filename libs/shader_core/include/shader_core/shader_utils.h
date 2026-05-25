@@ -3,7 +3,7 @@
 #include "ShaderResource.h"
 #include "JSON.h"
 #include <string_view>
-#include "SpvCode.h"
+#include "spirv.h"
 
 namespace lcf::spirv {
     lcf::JSON extract_pragmas(std::string_view source_code);

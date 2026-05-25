@@ -2,11 +2,12 @@
 
 #include "shader_core/shader_core_fwd_decls.h"
 #include "shader_core/shader_core_enums.h"
-#include "vulkan_fwd_decls.h"
-#include "ds/VulkanDescriptorSetLayout.h"
+#include "Vulkan/vulkan_fwd_decls.h"
+#include "Vulkan/ds/VulkanDescriptorSetLayout.h"
 #include "VulkanShader.h"
-#include "VulkanPushConstant.h"
+#include "Vulkan/VulkanPushConstant.h"
 #include "resource_utils.h"
+#include <filesystem>
 #include <vector>
 #include <map>
 #include <span>
@@ -26,7 +27,8 @@ namespace lcf::render {
         VulkanShaderProgram(const VulkanShaderProgram &) = delete;
         VulkanShaderProgram & operator=(const VulkanShaderProgram &) = delete;
         ~VulkanShaderProgram();
-        Self & addShaderFromGlslFile(ShaderTypeFlagBits stage, std::string_view file_path);
+        Self & addShaderFromGlslFile(ShaderTypeFlagBits stage, const std::filesystem::path & file_path);
+        Self & addShaderFromSlangFile(const std::filesystem::path & file_path);
         Self & specifyDescriptorSetLayout(ResourceRef<const VulkanDescriptorSetLayout> layout);
         bool isLinked() const { return m_pipeline_layout.get(); }
         std::error_code link(vk::Device device) noexcept;

@@ -30,7 +30,7 @@ void on_resource_released(const ResourceReleasedSignal & signal)
 
 int main()
 {
-    lcf::Logger::init();
+    lcf::log::init();
     
     ecs::RegistryCreateInfo registry_info {};
     ecs::Registry registry {registry_info};

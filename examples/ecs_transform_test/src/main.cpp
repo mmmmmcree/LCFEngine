@@ -155,7 +155,7 @@ void performance_test(int num_nodes, float update_ratio, float attach_probabilit
 
 int main(int argc, char *argv[])
 {
-    lcf::Logger::init();
+    lcf::log::init();
     lcf_log_warn("performance_test(10, 2f)");
     performance_test(10, 0.4f, 0.8);
     lcf_log_warn("performance_test(100, 0.4f)");

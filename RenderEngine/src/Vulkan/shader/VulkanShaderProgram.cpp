@@ -1,5 +1,7 @@
-#include "Vulkan/VulkanShaderProgram.h"
+#include "Vulkan/shader/VulkanShaderProgram.h"
+#include "shader_core/ShaderCompiler.h"
 #include "Vulkan/vulkan_enums.h"
+#include "file_utils.h"
 #include "log.h"
 #include <format>
 
@@ -7,25 +9,39 @@ using namespace lcf::render;
 namespace stdr = std::ranges;
 namespace stdv = std::views;
 
-lcf::render::VulkanShaderProgram::~VulkanShaderProgram()
+VulkanShaderProgram::~VulkanShaderProgram()
 {
 }
 
-VulkanShaderProgram & lcf::render::VulkanShaderProgram::addShaderFromGlslFile(ShaderTypeFlagBits stage, std::string_view file_path)
+VulkanShaderProgram & VulkanShaderProgram::addShaderFromGlslFile(ShaderTypeFlagBits stage, const std::filesystem::path & file_path)
 {
-    auto shader = std::make_shared<VulkanShader>();
-    shader->compileGlslFile(stage, file_path);
-    m_stage_to_shader_map[shader->getStage()] = shader;
+    ShaderCompiler compiler;
+    auto expected_result = compiler.compileGlslSourceToSpv(stage, file_path);
+    if (not expected_result) { return *this; }
+    auto & shader = m_stage_to_shader_map[stage] = std::make_shared<VulkanShader>();
+    shader->setUnit(expected_result.value());
     return *this;
 }
 
-VulkanShaderProgram & lcf::render::VulkanShaderProgram::specifyDescriptorSetLayout(ResourceRef<const VulkanDescriptorSetLayout> layout)
+auto VulkanShaderProgram::addShaderFromSlangFile(const std::filesystem::path & file_path) -> Self &
+{
+    ShaderCompiler compiler;
+    auto expected_result = compiler.compileSlangSourceToSpv(file_path);
+    if (not expected_result) { return *this; }
+    for (const auto & spv_unit : expected_result.value()) {
+        auto & shader = m_stage_to_shader_map[spv_unit.getStage()] = std::make_shared<VulkanShader>();
+        shader->setUnit(spv_unit);
+    }
+    return *this;
+}
+
+VulkanShaderProgram & VulkanShaderProgram::specifyDescriptorSetLayout(ResourceRef<const VulkanDescriptorSetLayout> layout)
 {
     m_descriptor_set_layout_ref_map.emplace(std::make_pair(layout->getIndex(), layout));
     return *this;
 }
 
-std::error_code lcf::render::VulkanShaderProgram::link(vk::Device device) noexcept
+std::error_code VulkanShaderProgram::link(vk::Device device) noexcept
 {
     if (this->isLinked()) { return std::make_error_code(std::errc::invalid_argument); }
     for (const auto &[stage, shader] : m_stage_to_shader_map) {
@@ -37,7 +53,7 @@ std::error_code lcf::render::VulkanShaderProgram::link(vk::Device device) noexce
     return {};
 }
 
-bool lcf::render::VulkanShaderProgram::hasVertexInput() const noexcept
+bool VulkanShaderProgram::hasVertexInput() const noexcept
 {
     if (not this->isLinked()) { return false; }
     bool has_vertex_stage = m_stage_to_shader_map.contains(ShaderTypeFlagBits::eVertex);
@@ -46,21 +62,21 @@ bool lcf::render::VulkanShaderProgram::hasVertexInput() const noexcept
     return not vertex_shader->getResources().stage_inputs.empty();
 }
 
-void lcf::render::VulkanShaderProgram::setPushConstantData(vk::ShaderStageFlags stage, std::span<const void *> data_list)
+void VulkanShaderProgram::setPushConstantData(vk::ShaderStageFlags stage, std::span<const void *> data_list)
 {
     auto it = m_push_constant_map.find(static_cast<uint32_t>(stage));
     if (it == m_push_constant_map.end()) { return; }
     it->second.setData(data_list);
 }
 
-void lcf::render::VulkanShaderProgram::setPushConstantData(vk::ShaderStageFlags stage, const std::initializer_list<const void *> &data_list)
+void VulkanShaderProgram::setPushConstantData(vk::ShaderStageFlags stage, const std::initializer_list<const void *> &data_list)
 {
     auto it = m_push_constant_map.find(static_cast<uint32_t>(stage));
     if (it == m_push_constant_map.end()) { return; }
     it->second.setData(data_list);
 }
 
-void lcf::render::VulkanShaderProgram::bindPushConstants(vk::CommandBuffer cmd)
+void VulkanShaderProgram::bindPushConstants(vk::CommandBuffer cmd)
 {
     for (const auto &[stage, push_constant] : m_push_constant_map) {
         push_constant.bind(cmd, this->getPipelineLayout());

@@ -295,7 +295,7 @@ namespace {
 // ---------------- main ----------------
 int main(int argc, char * argv[])
 {
-    lcf::Logger::init();
+    lcf::log::init();
     lcf_log_info("[bench] main start");
 
     auto args = parse_cli(argc, argv);

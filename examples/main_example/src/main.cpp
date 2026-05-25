@@ -11,12 +11,20 @@
 #include "log.h"
 #include "tracy_profiling.h"
 #include "UserCommandContext.h"
+#include "shader_core/config.h"
 
 using namespace std::chrono_literals;
 
 int main(int argc, char *argv[])
 {
-    lcf::Logger::init();
+    lcf::log::init();
+
+    std::filesystem::path assets_dir = LCF_EXAMPLES_ASSETS_DIR;
+    lcf::shader_core::Config::instance()
+        .registerVirtualPath("shaders", assets_dir / "shaders")
+        .addIncludeDirectory(assets_dir / "shaders" / "include")
+        .setDefaultGlslEntryPoint("main");
+
     lcf::ecs::Registry registry {{
         lcf::TaskSchedulerCreateInfo {lcf::TaskSchedulerRunMode::eNewThread}
     }};
