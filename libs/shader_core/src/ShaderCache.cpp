@@ -1,5 +1,6 @@
 #include "shader_core/ShaderCache.h"
 #include "shader_core/config.h"
+#include "shader_core/buffer_io.h"
 #include "file_utils.h"
 #include "bytes.h"
 #include "log.h"
@@ -19,41 +20,6 @@ namespace {
     {
         return Config::instance().getCacheDirectory() / std::format("{:016x}.spvbin", hash);
     }
-
-    class BufferReader
-    {
-    public:
-        BufferReader(std::span<const std::byte> data) : m_data(data) {}
-        template <typename T>
-        bool read(T & out) noexcept {
-            if (m_offset + sizeof(T) > m_data.size()) { return false; }
-            std::memcpy(&out, m_data.data() + m_offset, sizeof(T));
-            m_offset += sizeof(T);
-            return true;
-        }
-        bool readBytes(std::span<std::byte> dst) noexcept {
-            if (m_offset + dst.size() > m_data.size()) { return false; }
-            std::memcpy(dst.data(), m_data.data() + m_offset, dst.size());
-            m_offset += dst.size();
-            return true;
-        }
-    private:
-        std::span<const std::byte> m_data;
-        size_t m_offset = 0;
-    };
-
-    class BufferWriter
-    {
-    public:
-        BufferWriter(std::span<std::byte> buffer) : m_buffer(buffer) {}
-        void writeBytes(std::span<const std::byte> bytes) noexcept {
-            std::memcpy(m_buffer.data() + m_offset, bytes.data(), bytes.size());
-            m_offset += bytes.size();
-        }
-    private:
-        std::span<std::byte> m_buffer;
-        size_t m_offset = 0;
-    };
 }
 
 std::optional<spirv::UnitList> ShaderCache::tryLoad(uint64_t hash) const noexcept
@@ -98,7 +64,7 @@ std::error_code ShaderCache::store(uint64_t hash, const spirv::UnitList & units)
         total_size += k_entry_fixed_size + unit.getEntryPoint().size() + unit.getCode().size() * sizeof(uint32_t);
     }
     std::vector<std::byte> buffer(total_size);
-    BufferWriter writer(buffer);
+    FixedBufferWriter writer(buffer);
     writer.writeBytes(as_bytes_from_value(k_magic));
     writer.writeBytes(as_bytes_from_value(k_version));
     uint32_t entry_count = static_cast<uint32_t>(units.size());

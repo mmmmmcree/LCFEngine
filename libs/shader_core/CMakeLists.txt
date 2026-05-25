@@ -22,6 +22,7 @@ find_package(spirv_cross_glsl CONFIG REQUIRED)
 find_package(spirv_cross_cpp CONFIG REQUIRED)
 find_package(slang CONFIG REQUIRED)
 find_package(xxHash CONFIG REQUIRED)
+find_package(tsl-robin-map CONFIG REQUIRED)
      
 include_directories( 
   ${CMAKE_CURRENT_SOURCE_DIR}/include 
@@ -38,6 +39,7 @@ target_include_directories(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME}
     PUBLIC
         utilities
+        tsl::robin_map
     PRIVATE
         unofficial::shaderc::shaderc
         spirv-cross-core spirv-cross-glsl spirv-cross-cpp

@@ -158,6 +158,7 @@ namespace lcf::shader_core {
 namespace slang {
     enum class TargetProfile : uint8_t
     {
+        eInvalid = 0,
         spirv_1_0,
         spirv_1_1,
         spirv_1_2,
@@ -168,6 +169,7 @@ namespace slang {
 
     enum class CompilerOptionFlags : uint32_t
     {
+        eNone = 0,
         eVulkanUseEntryPointName = 1,
         eVulkanInvertY = 1 << 1,
         eVulkanUseGLLayout = 1 << 2,

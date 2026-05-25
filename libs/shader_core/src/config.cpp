@@ -1,4 +1,5 @@
 #include "shader_core/config.h"
+#include "shader_core/Manifest.h"
 #include "VirtualPathRegistry.h"
 
 using namespace lcf::shader_core;
@@ -39,13 +40,17 @@ std::filesystem::path Config::resolvePath(const std::filesystem::path &path) con
     return lcf::VirtualPathRegistry::instance().resolve(path);
 }
 
+std::error_code Config::flushShaderManifest() noexcept
+{
+    return Manifest::instance().flush();
+}
+
 #include <slang.h>
 
 lcf::shader_core::slang::Config::Config(
     TargetProfile target_profile,
     CompilerOptionFlags compiler_option_flags) :
-    m_target_profile(target_profile),
-    m_compiler_option_flags(compiler_option_flags)
+    m_settings(target_profile, compiler_option_flags)
 {
     auto tag = spGetBuildTagString();
     m_version = tag ? tag : "unknown";

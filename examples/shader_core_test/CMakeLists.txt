@@ -18,4 +18,5 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     LCF_EXAMPLES_ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../assets"
+    LCF_SHADER_CORE_TEST_SHADERS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders"
 )

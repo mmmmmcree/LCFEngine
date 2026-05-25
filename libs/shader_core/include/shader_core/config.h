@@ -7,9 +7,32 @@
 #include <vector>
 #include <unordered_map>
 #include <span>
+#include <system_error>
 
 namespace lcf::shader_core {
 namespace slang {
+
+    class CompileSettings
+    {
+        using Self = CompileSettings;
+    public:
+        CompileSettings() noexcept = default;
+        CompileSettings(TargetProfile profile, CompilerOptionFlags flags) noexcept
+            : m_target_profile(profile), m_compiler_option_flags(flags) {}
+
+        bool operator==(const Self & other) const noexcept = default;
+
+        Self & setTargetProfile(TargetProfile profile) noexcept { m_target_profile = profile; return *this; }
+        Self & setCompilerOptionFlags(CompilerOptionFlags flags) noexcept { m_compiler_option_flags = flags; return *this; }
+
+        const TargetProfile & getTargetProfile() const noexcept { return m_target_profile; }
+        const CompilerOptionFlags & getCompilerOptionFlags() const noexcept { return m_compiler_option_flags; }
+
+    public:
+        TargetProfile m_target_profile = TargetProfile::eInvalid;
+        CompilerOptionFlags m_compiler_option_flags = CompilerOptionFlags::eNone;
+    };
+
     class Config
     {
         using Self = Config;
@@ -19,15 +42,17 @@ namespace slang {
             CompilerOptionFlags compiler_option_flags = CompilerOptionFlags::eVulkanUseEntryPointName
         );
     public:
-        Self & setTargetProfile(TargetProfile profile) noexcept { m_target_profile = profile; return *this; }
-        Self & setCompilerOptionFlags(CompilerOptionFlags flags) noexcept { m_compiler_option_flags = flags; return *this; }
+        Self & setTargetProfile(TargetProfile profile) noexcept { m_settings.setTargetProfile(profile); return *this; }
+        Self & setCompilerOptionFlags(CompilerOptionFlags flags) noexcept { m_settings.setCompilerOptionFlags(flags); return *this; }
+        Self & setCompileSettings(CompileSettings s) noexcept { m_settings = s; return *this; }
+
         const std::string & getVersion() const noexcept { return m_version; }
-        const TargetProfile & getTargetProfile() const noexcept { return m_target_profile; }
-        const CompilerOptionFlags & getCompilerOptionFlags() const noexcept { return m_compiler_option_flags; }
+        const TargetProfile & getTargetProfile() const noexcept { return m_settings.getTargetProfile(); }
+        const CompilerOptionFlags & getCompilerOptionFlags() const noexcept { return m_settings.getCompilerOptionFlags(); }
+        const CompileSettings & getCompileSettings() const noexcept { return m_settings; }
     private:
         std::string m_version;
-        TargetProfile m_target_profile;
-        CompilerOptionFlags m_compiler_option_flags;  
+        CompileSettings m_settings;
     };
 }
     class Config
@@ -50,6 +75,11 @@ namespace slang {
         const std::filesystem::path & getCacheDirectory() const noexcept { return m_cache_directory; }
         slang::Config & getSlangConfig() noexcept { return m_slang_config; }
         const slang::Config & getSlangConfig() const noexcept { return m_slang_config; }
+
+        // 把内存中的 shader manifest（路径索引）强制落盘到 getCacheDirectory()/manifest.bin。
+        // 转发到 Manifest::instance().flush()。Manifest 析构时也会自动 flush；
+        // 提供该显式接口主要便于测试模拟跨进程边界、以及未来热重载场景。
+        std::error_code flushShaderManifest() noexcept;
     private:
         IncludeDirectoryList m_include_directories;
         std::filesystem::path m_cache_directory = ".shader_cache";
