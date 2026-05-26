@@ -4,7 +4,6 @@
 #include "shader_core/hash.h"
 #include "file_utils.h"
 #include "bytes.h"
-#include "log.h"
 #include <slang.h>
 #include <chrono>
 #include <ranges>
@@ -14,90 +13,148 @@ using namespace lcf::shader_core;
 
 namespace {
     constexpr uint32_t k_magic = 0x4C434D46; // "LCMF"
-    constexpr uint32_t k_version = 1;
+    constexpr uint32_t k_version = 2;        // v2: header-first 紧凑布局（每个变长域前都先甩一个定长 header struct）
 
-    std::filesystem::path manifest_file_path() noexcept
+    /* ===== manifest file layout =====
+        ManifestHeader  { magic; version; slang_ver_size; entry_count; }
+        slang_ver_bytes [slang_ver_size]
+        for each entry:
+            EntryHeader { entry_size_in_bytes; source_path_size; dep_count; product_count;
+                            profile_raw; options_raw; _reserved; }
+            source_path_bytes [source_path_size]
+            main_fingerprint  (ShaderFingerprint，trivially copyable)
+            for each dep:
+                DependencyHeader { dep_path_size; fingerprint; }
+                dep_path_bytes [dep_path_size]
+            for each product:
+                ProductHeader { variant_key_size; compile_input_hash; }
+                variant_key_bytes [variant_key_size]
+
+        entry_size_in_bytes 表示"EntryHeader 之后到下一个 EntryHeader 之前"的所有字节数，用于前向兼容：
+        未来若新增字段，旧 reader 读完已知字段后通过 entry_size 跳过未识别字节，不会错位。
+    */
+
+    struct ManifestHeader
     {
-        return Config::instance().getCacheDirectory() / "manifest.bin";
-    }
+        ManifestHeader() noexcept = default;
+        ManifestHeader(uint32_t magic, uint32_t version, uint32_t slang_ver_size, uint32_t entry_count) noexcept :
+            m_magic(magic), m_version(version), m_slang_ver_size(slang_ver_size), m_entry_count(entry_count) {}
 
-    std::string current_slang_global_version() noexcept
+        uint32_t m_magic = 0;
+        uint32_t m_version = 0;
+        uint32_t m_slang_ver_size = 0;
+        uint32_t m_entry_count = 0;
+    };
+
+    struct EntryHeader
     {
-        const char * tag = ::spGetBuildTagString();
-        return tag ? std::string(tag) : std::string("unknown");
-    }
+        EntryHeader() noexcept = default;
+        EntryHeader(
+            uint64_t entry_size,
+            uint32_t source_path_size,
+            uint32_t dep_count,
+            uint32_t product_count,
+            uint8_t profile_raw,
+            uint32_t options_raw) noexcept :
+            m_entry_size_in_bytes(entry_size) ,
+            m_source_path_size(source_path_size),
+            m_dep_count(dep_count),
+            m_product_count(product_count),
+            m_profile_raw(profile_raw),
+            m_options_raw(options_raw) {}
 
-    // 把 file_clock 的 last_write_time 转换为自 epoch 起的纳秒数（uint64）。
-    // 不在跨平台间比较——只在同一台机器上前后两次比较，所以直接 time_since_epoch().count() 即可。
-    uint64_t mtime_to_u64(std::filesystem::file_time_type t) noexcept
+        uint64_t m_entry_size_in_bytes = 0;
+        uint32_t m_source_path_size = 0;
+        uint32_t m_dep_count = 0;
+        uint32_t m_product_count = 0;
+        uint8_t  m_profile_raw = 0;
+        uint8_t  m_reserved0 = 0;
+        uint8_t  m_reserved1 = 0;
+        uint8_t  m_reserved2 = 0;
+        uint32_t m_options_raw = 0;
+        uint32_t m_reserved_tail = 0; // padding to (alignof(EntryHeader) == 8)
+    };
+
+    struct DependencyHeader
     {
-        return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(t.time_since_epoch()).count());
-    }
+        DependencyHeader() noexcept = default;
+        DependencyHeader(uint32_t dep_path_size, ShaderFingerprint fingerprint) noexcept :
+            m_dep_path_size(dep_path_size), m_fingerprint(fingerprint) {}
 
-    // 计算单文件的 content_hash（封装"读取整文件 + 单 chunk 喂 shader_core::hash"）。
-    // 读取失败返回 0——content_hash=0 与"未填充指纹"（默认构造）一致，调用方据此判 MISS。
-    uint64_t hash_file_content(const std::filesystem::path & path) noexcept
+        uint32_t m_dep_path_size = 0;
+        uint32_t m_reserved = 0; // padding to (alignof(DependencyHeader) == 8)
+        ShaderFingerprint m_fingerprint;
+    };
+
+    struct ProductHeader
     {
-        auto bytes_or = read_file_as_bytes(path);
-        if (not bytes_or) { return 0; }
-        const auto bytes = as_const_bytes(bytes_or.value());
-        return shader_core::hash(std::span<decltype(bytes)>(&bytes, 1));
-    }
+        ProductHeader() noexcept = default;
+        ProductHeader(uint32_t variant_key_size, uint64_t compile_input_hash) noexcept :
+            m_variant_key_size(variant_key_size),
+            m_compile_input_hash(compile_input_hash) {}
 
-    // ---- 序列化辅助 ----
-
-    void write_lstring(BufferWriter & w, std::string_view s) noexcept
-    {
-        uint32_t len = static_cast<uint32_t>(s.size());
-        w.write(len);
-        if (len > 0) {
-            w.writeBytes(as_bytes_from_ptr(s.data(), s.size()));
-        }
-    }
-
-    void write_path_lstring(BufferWriter & w, const std::filesystem::path & p) noexcept
-    {
-        write_lstring(w, std::string_view(p.string()));
-    }
-
-    void write_fingerprint(BufferWriter & w, const ShaderFingerprint & fingerprint) noexcept
-    {
-        w.write(fingerprint.m_mtime);
-        w.write(fingerprint.m_file_size);
-        w.write(fingerprint.m_content_hash);
-    }
-
-    bool read_lstring(BufferReader & r, std::string & out) noexcept
-    {
-        uint32_t len = 0;
-        if (not r.read(len)) { return false; }
-        out.assign(len, '\0');
-        if (len > 0 and not r.readBytes(as_bytes(out))) { return false; }
-        return true;
-    }
-
-    bool read_fingerprint(BufferReader & r, ShaderFingerprint & out) noexcept
-    {
-        return r.read(out.m_mtime) and r.read(out.m_file_size) and r.read(out.m_content_hash);
-    }
+        uint32_t m_variant_key_size = 0;
+        uint32_t m_reserved = 0; // padding to (alignof(ProductHeader) == 8)
+        uint64_t m_compile_input_hash = 0;
+    };
 }
 
-namespace lcf::shader_core {
+static std::filesystem::path manifest_file_path() noexcept
+{
+    return Config::instance().getCacheDirectory() / "manifest.bin";
+}
 
-// ---------- ShaderFingerprint ----------
+static std::string current_slang_global_version() noexcept
+{
+    const char * tag = ::spGetBuildTagString();
+    return tag ? std::string(tag) : std::string("unknown");
+}
+
+static uint64_t mtime_to_u64(std::filesystem::file_time_type t) noexcept
+{
+    return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(t.time_since_epoch()).count());
+}
+
+static uint64_t hash_file_content(const std::filesystem::path & path) noexcept
+{
+    auto expected_bytes = read_file_as_bytes(path);
+    if (not expected_bytes) { return 0; }
+    return shader_core::hash(as_const_bytes(expected_bytes.value()));
+}
+
+static uint64_t compute_entry_payload_size(const ManifestEntry & entry) noexcept
+{
+    uint64_t size = entry.m_source_path.string().size() + sizeof(ShaderFingerprint);
+    for (const auto & [dep_path, _] : entry.m_deps) {
+        size += sizeof(DependencyHeader) + dep_path.string().size();
+    }
+    for (const auto & prod : entry.m_products) {
+        size += sizeof(ProductHeader) + prod.m_variant_key.size();
+    }
+    return size;
+}
+
+static bool parse_entry_payload(BufferReader & reader, const EntryHeader & entry_header, ManifestEntry & out_entry) noexcept;
+
+static ManifestEntryMap read_manifest_from_disk(const std::filesystem::path & path, std::string_view current_slang_version) noexcept;
+
+static std::error_code write_manifest_to_disk(const std::filesystem::path & path, const ManifestEntryMap & entries, std::string_view slang_version) noexcept;
+
+// =====================================================================
+// ShaderFingerprint / Manifest (namespace lcf::shader_core)
+// =====================================================================
+
+namespace lcf::shader_core {
 
 ShaderFingerprint::ShaderFingerprint(const std::filesystem::path & path) noexcept
 {
     std::error_code ec;
     if (not std::filesystem::exists(path, ec) or ec) { return; }
-
-    auto sz = std::filesystem::file_size(path, ec);
+    auto file_size = std::filesystem::file_size(path, ec);
     if (ec) { return; }
-    m_file_size = static_cast<uint64_t>(sz);
-
+    m_file_size = static_cast<uint64_t>(file_size);
     auto mt = std::filesystem::last_write_time(path, ec);
     if (not ec) { m_mtime = mtime_to_u64(mt); }
-
     m_content_hash = hash_file_content(path);
 }
 
@@ -105,38 +162,23 @@ bool ShaderFingerprint::matches(const std::filesystem::path & path) const noexce
 {
     std::error_code ec;
     if (not std::filesystem::exists(path, ec) or ec) { return false; }
-
-    auto sz = std::filesystem::file_size(path, ec);
-    if (ec or static_cast<uint64_t>(sz) != m_file_size) {
-        // size 不等 → content_hash 也必然不等，直接判 false
-        // 注意：不能仅凭 size 相等就判 true，因为 size 相同内容可能不同
-        return false;
-    }
-
-    auto mt = std::filesystem::last_write_time(path, ec);
-    if (not ec and mtime_to_u64(mt) == m_mtime) {
-        return true;  // 快路径：mtime + size 都匹配
-    }
-
-    // 慢路径兜底：算 content_hash
+    auto file_size = std::filesystem::file_size(path, ec);
+    if (ec or m_file_size != static_cast<uint64_t>(file_size)) { return false; }
+    auto mtime = std::filesystem::last_write_time(path, ec);
+    if (not ec and m_mtime == mtime_to_u64(mtime)) { return true; }
     return hash_file_content(path) == m_content_hash;
 }
 
-// ---------- Manifest ----------
-
 std::filesystem::path normalize_manifest_path(const std::filesystem::path & path) noexcept
 {
-    auto resolved = Config::instance().resolvePath(path);
+    auto resolved_path = Config::instance().resolvePath(path);
     std::error_code ec;
-    auto canonical = std::filesystem::weakly_canonical(resolved, ec);
+    auto canonical_path = std::filesystem::weakly_canonical(resolved_path, ec);
     if (ec) {
-        // 文件不一定存在（首次编译前可能拿到的是虚拟路径已解析但文件还没创建的情形）。
-        // 退化为 absolute，再不行就原样返回。
-        ec.clear();
-        auto abs = std::filesystem::absolute(resolved, ec);
-        return ec ? resolved : abs;
+        auto abs_path = std::filesystem::absolute(resolved_path, ec);
+        return ec ? resolved_path : abs_path;
     }
-    return canonical;
+    return canonical_path;
 }
 
 Manifest & Manifest::instance() noexcept
@@ -145,19 +187,20 @@ Manifest & Manifest::instance() noexcept
     return s_instance;
 }
 
+Manifest::Manifest() noexcept :
+    m_loaded_slang_global_version(current_slang_global_version()),
+    m_entries(read_manifest_from_disk(manifest_file_path(), m_loaded_slang_global_version))
+{
+}
+
 Manifest::~Manifest() noexcept
 {
-    if (m_dirty) {
-        if (auto ec = writeToDisk()) {
-            // 析构期不能抛，仅 log。flush 失败的代价是下次启动 MISS 一次重写——功能正确。
-            lcf_log_warn("shader manifest flush on destruction failed: {}", ec.message());
-        }
-    }
+    if (not m_dirty) { return; }
+    write_manifest_to_disk(manifest_file_path(), m_entries, current_slang_global_version());
 }
 
 const ManifestEntry * Manifest::find(const std::filesystem::path & resolved_source) noexcept
 {
-    this->ensureLoaded();
     auto it = m_entries.find(resolved_source);
     if (it == m_entries.end()) { return nullptr; }
     return &it->second;
@@ -165,7 +208,6 @@ const ManifestEntry * Manifest::find(const std::filesystem::path & resolved_sour
 
 void Manifest::upsert(ManifestEntry entry) noexcept
 {
-    this->ensureLoaded();
     auto key = entry.m_source_path;
     m_entries.insert_or_assign(std::move(key), std::move(entry));
     m_dirty = true;
@@ -174,182 +216,121 @@ void Manifest::upsert(ManifestEntry entry) noexcept
 std::error_code Manifest::flush() noexcept
 {
     if (not m_dirty) { return {}; }
-    auto ec = this->writeToDisk();
+    auto ec = write_manifest_to_disk(manifest_file_path(), m_entries, current_slang_global_version());
     if (not ec) { m_dirty = false; }
     return ec;
 }
 
-void Manifest::ensureLoaded() noexcept
+} // namespace lcf::shader_core
+
+// =====================================================================
+// long helper bodies
+// =====================================================================
+
+static bool parse_entry_payload(BufferReader & reader, const EntryHeader & entry_header, ManifestEntry & entry) noexcept
 {
-    if (m_loaded) { return; }
-    m_loaded = true;
-    this->loadFromDisk();
+    std::string source_path_str(entry_header.m_source_path_size, '\0');
+    if (not reader.readBytes(as_bytes(source_path_str))) { return false; }
+    entry.m_source_path = std::filesystem::path(source_path_str);
+
+    if (not reader.read(entry.m_main_fingerprint)) { return false; }
+
+    entry.m_deps.reserve(entry_header.m_dep_count);
+    for (uint32_t d = 0; d < entry_header.m_dep_count; ++d) {
+        DependencyHeader dep_header;
+        if (not reader.read(dep_header)) { return false; }
+        std::string dep_path_str(dep_header.m_dep_path_size, '\0');
+        if (not reader.readBytes(as_bytes(dep_path_str))) { return false; }
+        entry.m_deps.emplace_back(std::filesystem::path(dep_path_str), dep_header.m_fingerprint);
+    }
+
+    entry.m_compile_settings.setTargetProfile(static_cast<shader_core::slang::TargetProfile>(entry_header.m_profile_raw));
+    entry.m_compile_settings.setCompilerOptionFlags(static_cast<shader_core::slang::CompilerOptionFlags>(entry_header.m_options_raw));
+
+    entry.m_products.reserve(entry_header.m_product_count);
+    for (uint32_t p = 0; p < entry_header.m_product_count; ++p) {
+        ProductHeader product_header;
+        if (not reader.read(product_header)) { return false; }
+        ProductRef prod;
+        prod.m_variant_key.resize(product_header.m_variant_key_size);
+        if (not reader.readBytes(as_bytes(prod.m_variant_key))) { return false; }
+        prod.m_compile_input_hash = product_header.m_compile_input_hash;
+        entry.m_products.push_back(std::move(prod));
+    }
+    return true;
 }
 
-void Manifest::loadFromDisk() noexcept
+static ManifestEntryMap read_manifest_from_disk( const std::filesystem::path & path, std::string_view current_slang_version) noexcept
 {
-    auto path = manifest_file_path();
-    auto bytes_or = read_file_as_bytes(path);
-    if (not bytes_or) {
-        // 不存在视作空 manifest，正常情况
-        return;
-    }
-    const auto & data = bytes_or.value();
-    BufferReader reader(data);
-
-    uint32_t magic = 0, version = 0;
-    if (not reader.read(magic) or magic != k_magic) {
-        lcf_log_warn("shader manifest magic mismatch, discarding");
-        return;
-    }
-    if (not reader.read(version) or version != k_version) {
-        lcf_log_warn("shader manifest version mismatch (expected {}, got {}), discarding", k_version, version);
-        return;
-    }
-
-    std::string slang_ver;
-    if (not read_lstring(reader, slang_ver)) {
-        lcf_log_warn("shader manifest header truncated, discarding");
-        return;
-    }
-    auto current_ver = current_slang_global_version();
-    if (slang_ver != current_ver) {
-        lcf_log_info("slang version changed ({} -> {}), invalidating entire manifest", slang_ver, current_ver);
-        return;  // 整 manifest 作废
-    }
-    m_loaded_slang_global_version = std::move(slang_ver);
-
-    uint32_t entry_count = 0;
-    if (not reader.read(entry_count)) {
-        lcf_log_warn("shader manifest entry_count truncated, discarding");
-        return;
-    }
-
-    for (uint32_t i = 0; i < entry_count; ++i) {
-        uint32_t entry_size = 0;
-        if (not reader.read(entry_size)) {
-            lcf_log_warn("shader manifest truncated at entry {}, abandoning rest", i);
-            m_entries.clear();
-            return;
-        }
-        size_t entry_start = reader.offset();
-
-        // 单条 entry 的解析放在 lambda 里，任何 truncation 都返回 false → 整 manifest 作废。
-        auto parse_entry = [&](ManifestEntry & entry) -> bool {
-            std::string source_path_str;
-            if (not read_lstring(reader, source_path_str)) { return false; }
-            entry.m_source_path = std::filesystem::path(source_path_str);
-
-            if (not read_fingerprint(reader, entry.m_main_fingerprint)) { return false; }
-
-            uint32_t dep_count = 0;
-            if (not reader.read(dep_count)) { return false; }
-            entry.m_deps.reserve(dep_count);
-            for (uint32_t d = 0; d < dep_count; ++d) {
-                std::string dep_path_str;
-                if (not read_lstring(reader, dep_path_str)) { return false; }
-                ShaderFingerprint dep_fingerprint{};
-                if (not read_fingerprint(reader, dep_fingerprint)) { return false; }
-                entry.m_deps.emplace_back(std::filesystem::path(dep_path_str), dep_fingerprint);
-            }
-
-            uint8_t profile_raw = 0;
-            if (not reader.read(profile_raw)) { return false; }
-            entry.m_compile_settings.setTargetProfile(static_cast<slang::TargetProfile>(profile_raw));
-
-            uint32_t options_raw = 0;
-            if (not reader.read(options_raw)) { return false; }
-            entry.m_compile_settings.setCompilerOptionFlags(static_cast<slang::CompilerOptionFlags>(options_raw));
-
-            uint32_t product_count = 0;
-            if (not reader.read(product_count)) { return false; }
-            entry.m_products.reserve(product_count);
-            for (uint32_t p = 0; p < product_count; ++p) {
-                ProductRef prod;
-                uint32_t key_size = 0;
-                if (not reader.read(key_size)) { return false; }
-                prod.m_variant_key.resize(key_size);
-                if (key_size > 0 and not reader.readBytes(std::span<std::byte>(prod.m_variant_key))) { return false; }
-                if (not reader.read(prod.m_compile_input_hash)) { return false; }
-                entry.m_products.push_back(std::move(prod));
-            }
-            return true;
-        };
-
+    auto expected_bytes = read_file_as_bytes(path);
+    if (not expected_bytes) { return {}; }
+    BufferReader reader(expected_bytes.value());
+    ManifestHeader header;
+    if (not reader.read(header)) { return {}; }
+    std::string slang_version(header.m_slang_ver_size, '\0');
+    if (not reader.readBytes(as_bytes(slang_version))) { return {}; }
+    if (header.m_magic != k_magic or
+        header.m_version != k_version or
+        slang_version != current_slang_version) { return {}; }
+    ManifestEntryMap entries;
+    for (uint32_t i = 0; i < header.m_entry_count; ++i) {
+        EntryHeader entry_header;
+        if (not reader.read(entry_header)) { break; }
+        size_t payload_start = reader.offset();
         ManifestEntry entry;
-        if (not parse_entry(entry)) {
-            lcf_log_warn("shader manifest truncated inside entry {}, discarding rest", i);
-            m_entries.clear();
-            return;
+        if (not parse_entry_payload(reader, entry_header, entry)) { break; }
+        size_t consumed = reader.offset() - payload_start;
+        if (consumed > entry_header.m_entry_size_in_bytes) { break; }
+        if (consumed < entry_header.m_entry_size_in_bytes) {
+            if (not reader.skip(entry_header.m_entry_size_in_bytes - consumed)) { break; }
         }
-
-        // 跳过未识别字段（前向兼容）：reader 当前位置 - entry_start 应该 <= entry_size。
-        size_t consumed = reader.offset() - entry_start;
-        if (consumed < entry_size) {
-            if (not reader.skip(entry_size - consumed)) {
-                lcf_log_warn("shader manifest truncated inside entry {} skip, discarding rest", i);
-                m_entries.clear();
-                return;
-            }
-        } else if (consumed > entry_size) {
-            lcf_log_warn("shader manifest entry {} over-read ({} > {}), discarding rest", i, consumed, entry_size);
-            m_entries.clear();
-            return;
-        }
-
-        m_entries.insert_or_assign(entry.m_source_path, std::move(entry));
+        entries.insert_or_assign(entry.m_source_path, std::move(entry));
     }
+    return entries;
 }
 
-std::error_code Manifest::writeToDisk() const
+static std::error_code write_manifest_to_disk(
+    const std::filesystem::path & path,
+    const ManifestEntryMap & entries,
+    std::string_view slang_version) noexcept
 {
     const auto & cache_dir = Config::instance().getCacheDirectory();
     std::error_code ec;
     std::filesystem::create_directories(cache_dir, ec);
     if (ec) { return ec; }
-
-    BufferWriter w;
-    w.write(k_magic);
-    w.write(k_version);
-    write_lstring(w, std::string_view(current_slang_global_version()));
-    uint32_t entry_count = static_cast<uint32_t>(m_entries.size());
-    w.write(entry_count);
-
-    for (const auto & [_, entry] : m_entries) {
-        size_t size_slot = w.reserveSlot<uint32_t>();
-        size_t entry_start = w.size();
-
-        write_path_lstring(w, entry.m_source_path);
-        write_fingerprint(w, entry.m_main_fingerprint);
-
-        uint32_t dep_count = static_cast<uint32_t>(entry.m_deps.size());
-        w.write(dep_count);
+    BufferWriter writer;
+    writer.write(ManifestHeader{
+        k_magic,
+        k_version,
+        static_cast<uint32_t>(slang_version.size()),
+        static_cast<uint32_t>(entries.size())
+    });
+    writer.writeBytes(as_bytes(slang_version));
+    for (const auto & [_, entry] : entries) {
+        auto source_path_str = entry.m_source_path.string();
+        writer.write(EntryHeader{
+            compute_entry_payload_size(entry),
+            static_cast<uint32_t>(source_path_str.size()),
+            static_cast<uint32_t>(entry.m_deps.size()),
+            static_cast<uint32_t>(entry.m_products.size()),
+            static_cast<uint8_t>(entry.m_compile_settings.getTargetProfile()),
+            static_cast<uint32_t>(entry.m_compile_settings.getCompilerOptionFlags())
+        });
+        writer.writeBytes(as_bytes(source_path_str));
+        writer.write(entry.m_main_fingerprint);
         for (const auto & [dep_path, dep_fingerprint] : entry.m_deps) {
-            write_path_lstring(w, dep_path);
-            write_fingerprint(w, dep_fingerprint);
+            auto dep_path_str = dep_path.string();
+            writer.write(DependencyHeader{ static_cast<uint32_t>(dep_path_str.size()), dep_fingerprint });
+            writer.writeBytes(as_bytes(dep_path_str));
         }
-
-        uint8_t profile_raw = static_cast<uint8_t>(entry.m_compile_settings.getTargetProfile());
-        w.write(profile_raw);
-        uint32_t options_raw = static_cast<uint32_t>(entry.m_compile_settings.getCompilerOptionFlags());
-        w.write(options_raw);
-
-        uint32_t product_count = static_cast<uint32_t>(entry.m_products.size());
-        w.write(product_count);
         for (const auto & prod : entry.m_products) {
-            uint32_t key_size = static_cast<uint32_t>(prod.m_variant_key.size());
-            w.write(key_size);
-            if (key_size > 0) {
-                w.writeBytes(std::span<const std::byte>(prod.m_variant_key));
-            }
-            w.write(prod.m_compile_input_hash);
+            writer.write(ProductHeader{
+                static_cast<uint32_t>(prod.m_variant_key.size()),
+                prod.m_compile_input_hash
+            });
+            writer.writeBytes(as_bytes(prod.m_variant_key));
         }
-
-        uint32_t entry_size = static_cast<uint32_t>(w.size() - entry_start);
-        w.patch(size_slot, entry_size);
     }
 
-    return write_file(manifest_file_path(), std::span<const std::byte>(w.buffer()));
+    return write_file(path, as_bytes(writer.getBuffer()));
 }
-
-} // namespace lcf::shader_core

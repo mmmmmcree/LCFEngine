@@ -1,19 +1,23 @@
 #pragma once
 
+#include "bytes.h"
+#include "concepts/standard_layout_concept.h"
+#include "concepts/trivially_copyable_concept.h"
 #include <span>
 #include <cstddef>
 #include <cstring>
 #include <vector>
-#include <string>
 
 namespace lcf::shader_core {
+
+    template <typename T>
+    concept binary_io_type_c = trivially_copyable_c<T> and standard_layout_c<T>;
 
     class BufferReader
     {
     public:
         explicit BufferReader(std::span<const std::byte> data) noexcept : m_data(data) {}
-
-        template <typename T>
+        template <binary_io_type_c T>
         bool read(T & out) noexcept
         {
             if (m_offset + sizeof(T) > m_data.size()) { return false; }
@@ -21,7 +25,6 @@ namespace lcf::shader_core {
             m_offset += sizeof(T);
             return true;
         }
-
         bool readBytes(std::span<std::byte> dst) noexcept
         {
             if (m_offset + dst.size() > m_data.size()) { return false; }
@@ -29,18 +32,15 @@ namespace lcf::shader_core {
             m_offset += dst.size();
             return true;
         }
-
         bool skip(size_t bytes) noexcept
         {
             if (m_offset + bytes > m_data.size()) { return false; }
             m_offset += bytes;
             return true;
         }
-
         size_t offset() const noexcept { return m_offset; }
         size_t remaining() const noexcept { return m_data.size() - m_offset; }
         bool eof() const noexcept { return m_offset >= m_data.size(); }
-
     private:
         std::span<const std::byte> m_data;
         size_t m_offset = 0;
@@ -48,61 +48,46 @@ namespace lcf::shader_core {
 
     class BufferWriter
     {
+        using Self = BufferWriter;
+        using Buffer = std::vector<std::byte>;
     public:
         BufferWriter() noexcept = default;
         explicit BufferWriter(size_t reserve) { m_buffer.reserve(reserve); }
-
-        template <typename T>
-        void write(const T & value) noexcept
+        template <binary_io_type_c T>
+        Self & write(const T & value) noexcept
         {
-            const auto * src = reinterpret_cast<const std::byte *>(&value);
-            m_buffer.insert(m_buffer.end(), src, src + sizeof(T));
+            m_buffer.append_range(as_const_bytes_from_value(value));
+            return *this;
         }
-
-        void writeBytes(std::span<const std::byte> bytes) noexcept
+        Self & writeBytes(std::span<const std::byte> bytes) noexcept
         {
-            m_buffer.insert(m_buffer.end(), bytes.begin(), bytes.end());
+            m_buffer.append_range(bytes);
+            return *this;
         }
-
-        template <typename T>
+        template <std::integral T>
+        Self & writeLengthAndBytes(std::span<const std::byte> bytes) noexcept
+        {
+            this->write(static_cast<T>(bytes.size()))
+               .writeBytes(bytes);
+            return *this;
+        }
+        template <binary_io_type_c T>
         size_t reserveSlot() noexcept
         {
             size_t offset = m_buffer.size();
-            T zero{};
-            write(zero);
+            write(T{});
             return offset;
         }
-
-        template <typename T>
-        void patch(size_t offset, const T & value) noexcept
+        template <binary_io_type_c T>
+        Self & patch(size_t offset, const T & value) noexcept
         {
             std::memcpy(m_buffer.data() + offset, &value, sizeof(T));
+            return *this;
         }
-
         size_t size() const noexcept { return m_buffer.size(); }
-        const std::vector<std::byte> & buffer() const noexcept { return m_buffer; }
-        std::vector<std::byte> && release() noexcept { return std::move(m_buffer); }
-
+        const Buffer & getBuffer() const noexcept { return m_buffer; }
+        Buffer && releaseBuffer() noexcept { return std::move(m_buffer); }
     private:
-        std::vector<std::byte> m_buffer;
+        Buffer m_buffer;
     };
-
-    class FixedBufferWriter
-    {
-    public:
-        explicit FixedBufferWriter(std::span<std::byte> buffer) noexcept : m_buffer(buffer) {}
-
-        void writeBytes(std::span<const std::byte> bytes) noexcept
-        {
-            std::memcpy(m_buffer.data() + m_offset, bytes.data(), bytes.size());
-            m_offset += bytes.size();
-        }
-
-        size_t offset() const noexcept { return m_offset; }
-
-    private:
-        std::span<std::byte> m_buffer;
-        size_t m_offset = 0;
-    };
-
 }
