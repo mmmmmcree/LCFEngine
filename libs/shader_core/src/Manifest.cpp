@@ -125,7 +125,7 @@ static uint64_t hash_file_content(const std::filesystem::path & path) noexcept
 static uint64_t compute_entry_payload_size(const ManifestEntry & entry) noexcept
 {
     uint64_t size = entry.m_source_path.string().size() + sizeof(ShaderFingerprint);
-    for (const auto & [dep_path, _] : entry.m_deps) {
+    for (const auto & [dep_path, _] : entry.m_dependencies) {
         size += sizeof(DependencyHeader) + dep_path.string().size();
     }
     for (const auto & prod : entry.m_products) {
@@ -235,13 +235,13 @@ static bool parse_entry_payload(BufferReader & reader, const EntryHeader & entry
 
     if (not reader.read(entry.m_main_fingerprint)) { return false; }
 
-    entry.m_deps.reserve(entry_header.m_dep_count);
+    entry.m_dependencies.reserve(entry_header.m_dep_count);
     for (uint32_t d = 0; d < entry_header.m_dep_count; ++d) {
         DependencyHeader dep_header;
         if (not reader.read(dep_header)) { return false; }
         std::string dep_path_str(dep_header.m_dep_path_size, '\0');
         if (not reader.readBytes(as_bytes(dep_path_str))) { return false; }
-        entry.m_deps.emplace_back(std::filesystem::path(dep_path_str), dep_header.m_fingerprint);
+        entry.m_dependencies.emplace_back(std::filesystem::path(dep_path_str), dep_header.m_fingerprint);
     }
 
     entry.m_compile_settings.setTargetProfile(static_cast<shader_core::slang::TargetProfile>(entry_header.m_profile_raw));
@@ -311,14 +311,14 @@ static std::error_code write_manifest_to_disk(
         writer.write(EntryHeader{
             compute_entry_payload_size(entry),
             static_cast<uint32_t>(source_path_str.size()),
-            static_cast<uint32_t>(entry.m_deps.size()),
+            static_cast<uint32_t>(entry.m_dependencies.size()),
             static_cast<uint32_t>(entry.m_products.size()),
             static_cast<uint8_t>(entry.m_compile_settings.getTargetProfile()),
             static_cast<uint32_t>(entry.m_compile_settings.getCompilerOptionFlags())
         });
         writer.writeBytes(as_bytes(source_path_str));
         writer.write(entry.m_main_fingerprint);
-        for (const auto & [dep_path, dep_fingerprint] : entry.m_deps) {
+        for (const auto & [dep_path, dep_fingerprint] : entry.m_dependencies) {
             auto dep_path_str = dep_path.string();
             writer.write(DependencyHeader{ static_cast<uint32_t>(dep_path_str.size()), dep_fingerprint });
             writer.writeBytes(as_bytes(dep_path_str));

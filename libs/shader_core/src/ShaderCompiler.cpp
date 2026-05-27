@@ -140,9 +140,21 @@ namespace {
 
     struct SlangCompileResult
     {
-        spirv::UnitList units;
-        std::vector<std::filesystem::path> dep_paths;
-        uint64_t cache_hash = 0;
+        using DependencyPathList = std::vector<std::filesystem::path>;
+        SlangCompileResult() = default;
+        SlangCompileResult(
+            spirv::UnitList units,
+            DependencyPathList dep_paths,
+            uint64_t cache_hash) noexcept :
+            m_units(std::move(units)),
+            m_dep_paths(std::move(dep_paths)),
+            m_cache_hash(cache_hash) {}
+        const spirv::UnitList & getUnits() const noexcept { return m_units; }
+        const DependencyPathList & getDependencyPaths() const noexcept { return m_dep_paths; }
+        const uint64_t & getCacheHash() const noexcept { return m_cache_hash; }
+        spirv::UnitList m_units;
+        DependencyPathList m_dep_paths;
+        uint64_t m_cache_hash = 0;
     };
 
     std::expected<SlangCompileResult, std::error_code> compile_slang(
@@ -244,14 +256,8 @@ namespace {
             unit_list.emplace_back(stage, data_span | stdr::to<std::vector>(), ep_reflection->getName());
         }
 
-        SlangCompileResult result;
-        result.units = std::move(unit_list);
-        result.cache_hash = cache_hash;
-        result.dep_paths.reserve(dep_path_strs.size());
-        for (const auto & p : dep_path_strs) {
-            result.dep_paths.emplace_back(p);
-        }
-        return result;
+        auto dep_paths = dep_path_strs | stdv::transform([](const auto & s) { return std::filesystem::path(s); }) | stdr::to<std::vector>();
+        return SlangCompileResult {std::move(unit_list), std::move(dep_paths), cache_hash};
     }
 }
 
@@ -259,15 +265,7 @@ std::expected<spirv::UnitList, std::error_code> ShaderCompiler::compileSlangSour
 {
     auto compiled = compile_slang(source_code, module_name, m_include_directories);
     if (not compiled) { return std::unexpected(compiled.error()); }
-
-    shader_core::ShaderCache cache;
-    if (auto cached = cache.tryLoad(compiled->cache_hash)) {
-        return std::move(*cached);
-    }
-    if (auto ec = cache.store(compiled->cache_hash, compiled->units)) {
-        lcf_log_warn("slang cache store failed for '{}': {}", module_name, ec.message());
-    }
-    return std::move(compiled->units);
+    return std::move(compiled->m_units);
 }
 
 std::expected<spirv::UnitList, std::error_code> ShaderCompiler::compileSlangSourceToSpv(const std::filesystem::path & file_path) noexcept
@@ -285,15 +283,13 @@ std::expected<spirv::UnitList, std::error_code> ShaderCompiler::compileSlangSour
     if (const ManifestEntry * entry = manifest.find(canonical)) {
         const auto & current_settings = sc::Config::instance().getSlangConfig().getCompileSettings();
         bool config_match = (entry->m_compile_settings == current_settings);
-        bool main_match = entry->m_main_fingerprint.matches(canonical);
-        bool deps_match = stdr::all_of(entry->m_deps, [](const auto & dep) { return dep.second.matches(dep.first); });
-        if (config_match and main_match and deps_match and not entry->m_products.empty()) {
+        bool fingerprint_match = entry->m_main_fingerprint.matches(canonical);
+        bool deps_match = stdr::all_of(entry->m_dependencies, [](const auto & dep) { return dep.second.matches(dep.first); });
+        if (config_match and fingerprint_match and deps_match and not entry->m_products.empty()) {
             sc::ShaderCache cache;
             if (auto cached = cache.tryLoad(entry->m_products.front().m_compile_input_hash)) {
-                lcf_log_info("shader manifest HIT '{}'", canonical.string());
                 return std::move(*cached);
             }
-            lcf_log_warn("shader manifest entry HIT but spvbin missing for '{}', falling back to MISS", canonical.string());
         }
     }
 
@@ -311,28 +307,23 @@ std::expected<spirv::UnitList, std::error_code> ShaderCompiler::compileSlangSour
 
     // 写 ShaderCache（产物存储）
     sc::ShaderCache cache;
-    if (auto ec = cache.store(compiled->cache_hash, compiled->units)) {
+    if (auto ec = cache.store(compiled->m_cache_hash, compiled->m_units)) {
         lcf_log_warn("slang cache store failed for '{}': {}", module_name, ec.message());
     }
 
-    // 写 Manifest（路径索引）
     ManifestEntry new_entry(canonical, sc::Config::instance().getSlangConfig().getCompileSettings());
 
     // dep 列表：对每个 slang 报告的 dep 做 weakly_canonical，过滤掉与主源相同的项。
-    new_entry.m_deps.reserve(compiled->dep_paths.size());
-    for (const auto & dep_raw : compiled->dep_paths) {
+    for (const auto & dep_raw : compiled->getDependencyPaths()) {
         std::error_code ec;
         auto dep_canonical = std::filesystem::weakly_canonical(dep_raw, ec);
         if (ec) { dep_canonical = dep_raw; }
         if (dep_canonical == canonical) { continue; }  // 主源自己不算依赖
-        new_entry.m_deps.emplace_back(dep_canonical, ShaderFingerprint(dep_canonical));
+        new_entry.addDependency(dep_canonical);
     }
-
-    sc::ProductRef prod;
-    prod.m_compile_input_hash = compiled->cache_hash;
-    new_entry.m_products.push_back(std::move(prod));
+    new_entry.addProduct(sc::ProductRef {compiled->getCacheHash()});
 
     manifest.upsert(std::move(new_entry));
 
-    return std::move(compiled->units);
+    return std::move(compiled->m_units);
 }

@@ -27,6 +27,9 @@ namespace lcf::shader_core {
     // 未来扩展变体支持时只需把 product_count 从 1 → N，variant_key 实际写入字节即可，无 breaking change。
     struct ProductRef
     {
+        ProductRef() noexcept = default;
+        ProductRef(uint64_t compile_input_hash) noexcept : m_compile_input_hash(compile_input_hash) {}
+
         std::vector<std::byte> m_variant_key;
         uint64_t m_compile_input_hash = 0;
     };
@@ -38,10 +41,18 @@ namespace lcf::shader_core {
             : m_source_path(std::move(canonical_source))
             , m_main_fingerprint(m_source_path)
             , m_compile_settings(settings) {}
+        void addDependency(const std::filesystem::path & dependency_path)
+        {
+            m_dependencies.emplace_back(dependency_path, ShaderFingerprint(dependency_path));
+        }
+        void addProduct(const ProductRef & product) noexcept
+        {
+            m_products.emplace_back(product);
+        }
 
         std::filesystem::path m_source_path;
         ShaderFingerprint m_main_fingerprint;
-        std::vector<std::pair<std::filesystem::path, ShaderFingerprint>> m_deps;
+        std::vector<std::pair<std::filesystem::path, ShaderFingerprint>> m_dependencies;
         slang::CompileSettings m_compile_settings; 
         std::vector<ProductRef> m_products;
     };
