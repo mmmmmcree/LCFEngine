@@ -2,12 +2,14 @@
 
 #include "shader_core_enums.h"
 #include "config.h"
+#include "concepts/range_concept.h"
 #include <tsl/robin_map.h>
 #include <filesystem>
 #include <vector>
 #include <string>
 #include <cstdint>
 #include <span>
+#include <ranges>
 #include <system_error>
 
 namespace lcf::shader_core {
@@ -24,6 +26,24 @@ namespace lcf::shader_core {
         uint64_t m_content_hash = 0;
     };
 
+    class FileRecord
+    {
+    public:
+        FileRecord() noexcept = default;
+        explicit FileRecord(std::filesystem::path path) noexcept;
+        FileRecord(std::filesystem::path path, const ShaderFingerprint & fingerprint) noexcept;
+        const std::filesystem::path & getPath() const noexcept { return m_path; }
+        const uint64_t & getPathHash() const noexcept { return m_path_hash; }
+        const ShaderFingerprint & getFingerprint() const noexcept { return m_fingerprint; }
+        bool isOutdated() const noexcept { return not m_fingerprint.matches(m_path); }
+        bool isSamePath(const FileRecord & other) const noexcept { return m_path_hash == other.m_path_hash and m_path == other.m_path; }
+        void refresh() noexcept { m_fingerprint = ShaderFingerprint(m_path); }
+    private:
+        std::filesystem::path m_path;
+        uint64_t m_path_hash = 0;
+        ShaderFingerprint m_fingerprint;
+    };
+
     // 未来扩展变体支持时只需把 product_count 从 1 → N，variant_key 实际写入字节即可，无 breaking change。
     struct ProductRef
     {
@@ -34,27 +54,39 @@ namespace lcf::shader_core {
         uint64_t m_compile_input_hash = 0;
     };
 
-    struct ManifestEntry
+    class ManifestEntry
     {
+        using Self = ManifestEntry;
+        using DependencyRecordList = std::vector<FileRecord>;
+        using ProductList = std::vector<ProductRef>;
+    public:
         ManifestEntry() noexcept = default;
-        ManifestEntry(std::filesystem::path canonical_source, slang::CompileSettings settings) noexcept
-            : m_source_path(std::move(canonical_source))
-            , m_main_fingerprint(m_source_path)
-            , m_compile_settings(settings) {}
-        void addDependency(const std::filesystem::path & dependency_path)
+        explicit ManifestEntry(const std::filesystem::path & source_path) noexcept;
+        Self & addDependency(const std::filesystem::path & dependency_path);
+        Self & appendDependencies(convertible_range_of_c<std::filesystem::path> auto && dependencies)
         {
-            m_dependencies.emplace_back(dependency_path, ShaderFingerprint(dependency_path));
+            if constexpr (std::ranges::sized_range<decltype(dependencies)>) {
+                m_dependency_records.reserve(m_dependency_records.size() + std::ranges::size(dependencies));
+            }
+            for (auto && dependency : dependencies) {
+                this->addDependency(std::filesystem::path(std::forward<decltype(dependency)>(dependency)));
+            }
+            return *this;
         }
-        void addProduct(const ProductRef & product) noexcept
-        {
-            m_products.emplace_back(product);
-        }
-
-        std::filesystem::path m_source_path;
-        ShaderFingerprint m_main_fingerprint;
-        std::vector<std::pair<std::filesystem::path, ShaderFingerprint>> m_dependencies;
-        slang::CompileSettings m_compile_settings; 
-        std::vector<ProductRef> m_products;
+        Self & addDependencyRecord(FileRecord record);
+        Self & addProduct(const ProductRef & product) noexcept;
+        Self & setMainRecord(FileRecord record) noexcept;
+        Self & setCompileSettings(const slang::CompileSettings & settings) noexcept;
+        const FileRecord & getMainRecord() const noexcept { return m_main_record; }
+        const DependencyRecordList & getDependencyRecords() const noexcept { return m_dependency_records; };
+        const slang::CompileSettings & getCompileSettings() const noexcept { return m_compile_settings; }
+        const ProductList & getProducts() const noexcept { return m_products; }
+        bool isOutdated() const noexcept;
+    private:
+        FileRecord m_main_record;
+        DependencyRecordList m_dependency_records;
+        slang::CompileSettings m_compile_settings;
+        ProductList m_products;
     };
 
     struct ManifestPathHash
@@ -73,19 +105,14 @@ namespace lcf::shader_core {
         Manifest(Manifest &&) = delete;
         Manifest & operator=(Manifest &&) = delete;
     public:
-        const ManifestEntry * find(const std::filesystem::path & resolved_source) noexcept;
+        const ManifestEntry * find(const std::filesystem::path & source_path) noexcept;
         void upsert(ManifestEntry entry) noexcept;
         std::error_code flush() noexcept;
     private:
-        // 构造时立即从磁盘加载 manifest——单例只构造一次，等价于"启动时一次性加载"。
-        // 不存在 / 损坏 / 版本不匹配 → 视作空 manifest。
         Manifest() noexcept;
-
     private:
         std::string m_loaded_slang_global_version;
         ManifestEntryMap m_entries;
         bool m_dirty = false;
     };
-
-    std::filesystem::path normalize_manifest_path(const std::filesystem::path & path) noexcept;
 }

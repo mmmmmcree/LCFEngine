@@ -160,26 +160,24 @@ namespace {
     std::expected<SlangCompileResult, std::error_code> compile_slang(
         const std::string & source_code,
         const std::string & module_name,
-        const std::vector<std::string> & include_directories) noexcept
+        const std::vector<std::string> & include_directories)
     {
         auto & global_session = get_slang_global_session();
 
         const auto & slang_config = shader_core::Config::instance().getSlangConfig();
         slang::SessionDesc session_desc{};
-        std::vector<slang::TargetDesc> target_decsc;
-        auto & target_desc = target_decsc.emplace_back();
+        slang::TargetDesc target_desc{};
         target_desc.format = SLANG_SPIRV;
         target_desc.profile = global_session.findProfile(enum_name(slang_config.getTargetProfile()).data());
-        session_desc.targets = target_decsc.data();
-        session_desc.targetCount = target_decsc.size();
+        session_desc.targets = &target_desc;
+        session_desc.targetCount = 1;
 
-        std::vector<slang::CompilerOptionEntry> compiler_options;
-        auto & entry_point_option = compiler_options.emplace_back();
+        slang::CompilerOptionEntry entry_point_option{};
         entry_point_option.name = slang::CompilerOptionName::VulkanUseEntryPointName;
         entry_point_option.value.kind = slang::CompilerOptionValueKind::Int;
         entry_point_option.value.intValue0 = 1;
-        session_desc.compilerOptionEntries = compiler_options.data();
-        session_desc.compilerOptionEntryCount = compiler_options.size();
+        session_desc.compilerOptionEntries = &entry_point_option;
+        session_desc.compilerOptionEntryCount = 1;
 
         auto search_paths = include_directories | stdv::transform([](const auto & dir) { return dir.c_str(); }) | stdr::to<std::vector>();
         session_desc.searchPaths = search_paths.data();
@@ -189,22 +187,30 @@ namespace {
         global_session.createSession(session_desc, session_cp.writeRef());
 
         ComPtr<slang::IBlob> diag_cp;
-        auto * slang_module = session_cp->loadModuleFromSourceString(
-            module_name.c_str(),
-            module_name.c_str(),
-            source_code.c_str(),
-            diag_cp.writeRef()
-        );
+        slang::IModule * slang_module = nullptr;
+        try {
+            slang_module = session_cp->loadModuleFromSourceString(
+                module_name.c_str(),
+                module_name.c_str(),
+                source_code.c_str(),
+                diag_cp.writeRef()
+            );
+        } catch (const std::exception & e) {
+            lcf_log_error("slang loadModuleFromSourceString threw for '{}': {}", module_name, e.what());
+            return std::unexpected(std::make_error_code(std::errc::operation_canceled));
+        }
         if (not slang_module) {
             const char * msg = (diag_cp and diag_cp->getBufferPointer()) ? static_cast<const char *>(diag_cp->getBufferPointer()) : "(no diagnostic)";
-            lcf_log_error("slang module load failed: {}", msg);
+            lcf_log_error("slang module load failed for '{}': {}", module_name, msg);
             return std::unexpected(std::make_error_code(std::errc::invalid_argument));
         }
 
-        //-- slang collect deps --
+        // 收集依赖文件路径 + 内容（用于参与 cache hash 计算）
         int32_t dep_count = slang_module->getDependencyFileCount();
-        std::vector<std::string> dep_path_strs; dep_path_strs.reserve(dep_count);
-        std::vector<std::string> dep_contents; dep_contents.reserve(dep_count);
+        std::vector<std::string> dep_path_strs;
+        std::vector<std::string> dep_contents;
+        dep_path_strs.reserve(dep_count);
+        dep_contents.reserve(dep_count);
         for (int32_t i = 0; i < dep_count; ++i) {
             const char * dep_path = slang_module->getDependencyFilePath(i);
             if (not dep_path) { continue; }
@@ -214,7 +220,9 @@ namespace {
             dep_contents.emplace_back(std::move(expected_content.value()));
         }
 
-        std::vector<std::span<const std::byte>> chunks; chunks.reserve(2 + dep_path_strs.size() * 2 + 3);
+        // 计算 cache hash
+        std::vector<std::span<const std::byte>> chunks;
+        chunks.reserve(2 + dep_path_strs.size() * 2 + 3);
         chunks.emplace_back(as_bytes(source_code));
         chunks.emplace_back(as_bytes(module_name));
         for (size_t i = 0; i < dep_path_strs.size(); ++i) {
@@ -224,36 +232,42 @@ namespace {
         chunks.emplace_back(as_bytes_from_value(slang_config.getTargetProfile()));
         chunks.emplace_back(as_bytes_from_value(slang_config.getCompilerOptionFlags()));
         chunks.emplace_back(as_bytes(slang_config.getVersion()));
-        uint64_t cache_hash = shader_core::hash(chunks);
+        const uint64_t cache_hash = shader_core::hash(chunks);
 
-        // ---- slang compile ----
+        // composite + link + emit：slang COM 调用集中在此，统一保护
         int32_t ep_count = slang_module->getDefinedEntryPointCount();
         std::vector<ComPtr<slang::IEntryPoint>> entry_points;
         entry_points.reserve(ep_count);
         std::vector<slang::IComponentType *> components;
         components.reserve(ep_count + 1);
         components.emplace_back(slang_module);
-        for (int i = 0; i < ep_count; ++i) {
-            ComPtr<slang::IEntryPoint> ep;
-            slang_module->getDefinedEntryPoint(i, ep.writeRef());
-            components.emplace_back(ep.get());
-            entry_points.emplace_back(std::move(ep));
-        }
-
-        ComPtr<slang::IComponentType> composed_cp;
-        session_cp->createCompositeComponentType(components.data(), components.size(), composed_cp.writeRef(), diag_cp.writeRef());
-
-        ComPtr<slang::IComponentType> linked_cp;
-        composed_cp->link(linked_cp.writeRef(), diag_cp.writeRef());
 
         spirv::UnitList unit_list;
-        for (int i = 0; i < ep_count; ++i) {
-            ComPtr<slang::IBlob> spv_blob;
-            linked_cp->getEntryPointCode(i, 0, spv_blob.writeRef(), diag_cp.writeRef());
-            std::span<const uint32_t> data_span(static_cast<const uint32_t *>(spv_blob->getBufferPointer()), spv_blob->getBufferSize() / sizeof(uint32_t));
-            auto * ep_reflection = linked_cp->getLayout()->getEntryPointByIndex(i);
-            ShaderTypeFlagBits stage = enum_cast<ShaderTypeFlagBits>(ep_reflection->getStage());
-            unit_list.emplace_back(stage, data_span | stdr::to<std::vector>(), ep_reflection->getName());
+        try {
+            for (int i = 0; i < ep_count; ++i) {
+                ComPtr<slang::IEntryPoint> ep;
+                slang_module->getDefinedEntryPoint(i, ep.writeRef());
+                components.emplace_back(ep.get());
+                entry_points.emplace_back(std::move(ep));
+            }
+
+            ComPtr<slang::IComponentType> composed_cp;
+            session_cp->createCompositeComponentType(components.data(), components.size(), composed_cp.writeRef(), diag_cp.writeRef());
+
+            ComPtr<slang::IComponentType> linked_cp;
+            composed_cp->link(linked_cp.writeRef(), diag_cp.writeRef());
+
+            for (int i = 0; i < ep_count; ++i) {
+                ComPtr<slang::IBlob> spv_blob;
+                linked_cp->getEntryPointCode(i, 0, spv_blob.writeRef(), diag_cp.writeRef());
+                std::span<const uint32_t> data_span(static_cast<const uint32_t *>(spv_blob->getBufferPointer()), spv_blob->getBufferSize() / sizeof(uint32_t));
+                auto * ep_reflection = linked_cp->getLayout()->getEntryPointByIndex(i);
+                ShaderTypeFlagBits stage = enum_cast<ShaderTypeFlagBits>(ep_reflection->getStage());
+                unit_list.emplace_back(stage, data_span | stdr::to<std::vector>(), ep_reflection->getName());
+            }
+        } catch (const std::exception & e) {
+            lcf_log_error("slang link/emit threw for '{}': {}", module_name, e.what());
+            return std::unexpected(std::make_error_code(std::errc::operation_canceled));
         }
 
         auto dep_paths = dep_path_strs | stdv::transform([](const auto & s) { return std::filesystem::path(s); }) | stdr::to<std::vector>();
@@ -273,57 +287,35 @@ std::expected<spirv::UnitList, std::error_code> ShaderCompiler::compileSlangSour
     namespace sc = shader_core;
     using sc::Manifest;
     using sc::ManifestEntry;
-    using sc::ShaderFingerprint;
 
-    auto resolved = sc::Config::instance().resolvePath(file_path);
-    auto canonical = sc::normalize_manifest_path(file_path);
+    auto resolved_path = sc::Config::instance().resolvePath(file_path);
 
-    // ---- 快路径：查 manifest ----
-    auto & manifest = Manifest::instance();
-    if (const ManifestEntry * entry = manifest.find(canonical)) {
-        const auto & current_settings = sc::Config::instance().getSlangConfig().getCompileSettings();
-        bool config_match = (entry->m_compile_settings == current_settings);
-        bool fingerprint_match = entry->m_main_fingerprint.matches(canonical);
-        bool deps_match = stdr::all_of(entry->m_dependencies, [](const auto & dep) { return dep.second.matches(dep.first); });
-        if (config_match and fingerprint_match and deps_match and not entry->m_products.empty()) {
-            sc::ShaderCache cache;
-            if (auto cached = cache.tryLoad(entry->m_products.front().m_compile_input_hash)) {
-                return std::move(*cached);
-            }
+    sc::ShaderCache cache;
+    if (const ManifestEntry * entry = Manifest::instance().find(resolved_path)) {
+        if (not entry->isOutdated()) {
+            auto cached = cache.tryLoad(entry->getProducts().front().m_compile_input_hash);
+            if (cached) { return std::move(*cached); }
         }
     }
-
-    // ---- 慢路径：MISS，走完整 slang 编译 ----
-    lcf_log_info("shader manifest MISS '{}'", canonical.string());
-
-    auto expected_file_content = read_file_as_string(resolved);
+    
+    auto expected_file_content = read_file_as_string(resolved_path);
     if (not expected_file_content) {
-        lcf_log_error("failed to read file {}: {}", file_path.string(), expected_file_content.error().message());
+        lcf_log_error("failed to read file {}: {}", resolved_path.string(), expected_file_content.error().message());
         return std::unexpected(expected_file_content.error());
     }
-    auto module_name = file_path.stem().string();
+
+    auto module_name = resolved_path.stem().string();
     auto compiled = compile_slang(expected_file_content.value(), module_name, m_include_directories);
     if (not compiled) { return std::unexpected(compiled.error()); }
 
-    // 写 ShaderCache（产物存储）
-    sc::ShaderCache cache;
-    if (auto ec = cache.store(compiled->m_cache_hash, compiled->m_units)) {
+    if (auto ec = cache.store(compiled->getCacheHash(), compiled->getUnits())) {
         lcf_log_warn("slang cache store failed for '{}': {}", module_name, ec.message());
     }
 
-    ManifestEntry new_entry(canonical, sc::Config::instance().getSlangConfig().getCompileSettings());
-
-    // dep 列表：对每个 slang 报告的 dep 做 weakly_canonical，过滤掉与主源相同的项。
-    for (const auto & dep_raw : compiled->getDependencyPaths()) {
-        std::error_code ec;
-        auto dep_canonical = std::filesystem::weakly_canonical(dep_raw, ec);
-        if (ec) { dep_canonical = dep_raw; }
-        if (dep_canonical == canonical) { continue; }  // 主源自己不算依赖
-        new_entry.addDependency(dep_canonical);
-    }
-    new_entry.addProduct(sc::ProductRef {compiled->getCacheHash()});
-
-    manifest.upsert(std::move(new_entry));
+    ManifestEntry new_entry {resolved_path};
+    new_entry.appendDependencies(compiled->getDependencyPaths())
+        .addProduct(sc::ProductRef{compiled->getCacheHash()});
+    Manifest::instance().upsert(std::move(new_entry));
 
     return std::move(compiled->m_units);
 }
