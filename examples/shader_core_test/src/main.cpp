@@ -183,9 +183,11 @@ int main()
     guard_common.restore();
     compile_abc(compiler, "P8");
 
-    // 显式 flush，让最后一轮的 manifest 写入也落盘——便于下次启动验证跨进程 HIT。
-    if (auto ec = shader_core::Manifest::instance().flush()) {
-        lcf_log_warn("final flushShaderManifest failed: {}", ec.message());
+    // 显式 shutdown：先按 setGcOnShutdown 决定是否 GC，再 flush 落盘。
+    // 不能依赖 ~Manifest()——在 DLL/Meyers-singleton 场景下静态局部对象的析构
+    // 在某些 toolchain 上不会被触发，会导致 GC 与最终 flush 都被跳过。
+    if (auto ec = shader_core::Manifest::instance().shutdown()) {
+        lcf_log_warn("Manifest shutdown failed: {}", ec.message());
     }
     return 0;
 }

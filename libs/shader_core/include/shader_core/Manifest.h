@@ -11,6 +11,7 @@
 #include <span>
 #include <ranges>
 #include <system_error>
+#include <unordered_set>
 
 namespace lcf::shader_core {
 
@@ -95,6 +96,14 @@ namespace lcf::shader_core {
     };
     using ManifestEntryMap = tsl::robin_map<std::filesystem::path, ManifestEntry, ManifestPathHash>;
 
+    // collectGarbage() / shutdown() 的统计结果。三者都为 0 表示这次没有真正回收任何东西。
+    struct ManifestGcStats
+    {
+        size_t m_entries_removed = 0;       // main source 已不存在被剔除的 manifest entry 数
+        size_t m_orphan_files_removed = 0;  // 被删掉的孤立 .spvbin 文件数
+        size_t m_bytes_reclaimed = 0;       // 删除孤立 .spvbin 释放的总字节数
+    };
+
     class Manifest
     {
     public:
@@ -108,11 +117,14 @@ namespace lcf::shader_core {
         const ManifestEntry * find(const std::filesystem::path & source_path) noexcept;
         void upsert(ManifestEntry entry) noexcept;
         std::error_code flush() noexcept;
+        std::error_code shutdown() noexcept;
+        ManifestGcStats removeGarbage() noexcept;
     private:
         Manifest() noexcept;
     private:
         std::string m_loaded_slang_global_version;
         ManifestEntryMap m_entries;
+        std::unordered_set<uint64_t> m_pending_orphan_hashes;
         bool m_dirty = false;
     };
 }

@@ -8,6 +8,9 @@
 #include <chrono>
 #include <ranges>
 #include <algorithm>
+#include <unordered_set>
+#include <cctype>
+#include <format>
 
 using namespace lcf;
 using namespace lcf::shader_core;
@@ -106,6 +109,14 @@ static stdfs::path manifest_file_path() noexcept
     return Config::instance().getCacheDirectory() / "manifest.bin";
 }
 
+// 与 ShaderCache::make_cache_entry_path() 同步：cache_dir / "<16-hex>.spvbin"。
+// 这里是 Manifest 的私有镜像，避免把 ShaderCache 的内部命名细节升级成公共 API；
+// 一旦命名规则需要变化，两处必须同步修改（已在文档/comment 里强调）。
+static stdfs::path cache_path_for_hash(uint64_t hash) noexcept
+{
+    return Config::instance().getCacheDirectory() / std::format("{:016x}.spvbin", hash);
+}
+
 static std::string current_slang_global_version() noexcept
 {
     const char * tag = ::spGetBuildTagString();
@@ -124,7 +135,6 @@ static uint64_t hash_file_content(const stdfs::path & path) noexcept
     return shader_core::hash(as_const_bytes(expected_bytes.value()));
 }
 
-// 假定调用方已对路径做过 resolve（包括 shaders:// 等虚拟协议解析）。
 static stdfs::path normalize_manifest_path(const stdfs::path & resolved_path) noexcept
 {
     std::error_code ec;
@@ -197,8 +207,11 @@ Manifest::Manifest() noexcept :
 
 Manifest::~Manifest() noexcept
 {
-    if (not m_dirty) { return; }
-    write_manifest_to_disk(manifest_file_path(), m_entries, current_slang_global_version());
+    // 注意：在 DLL（Meyers-singleton）+ 某些 Windows toolchain（clang + WINDOWS_EXPORT_ALL_SYMBOLS）
+    // 下，这个析构函数在进程退出路径上**不一定会被调用**。所以不要在这里放任何业务关键逻辑（GC、写盘等）—
+    // 一切持久化都必须通过显式 shutdown()/flush() 完成。这里仅作 fallback：如果析构真的跑了且还有
+    // 未 flush 的脏数据，尽力写一次盘以减少数据丢失。
+    this->flush();
 }
 
 const ManifestEntry * Manifest::find(const stdfs::path & source_path) noexcept
@@ -212,6 +225,22 @@ const ManifestEntry * Manifest::find(const stdfs::path & source_path) noexcept
 void Manifest::upsert(ManifestEntry entry) noexcept
 {
     auto key = entry.getMainRecord().getPath();
+
+    // 增量记账：对比新旧 product，凡是被新版本"丢弃"的 hash，就把它推入待删队列。
+    // shutdown() 删之前会再次用全量 live-hashes 二次过滤，避免误删——所以这里宽松入队即可。
+    if (auto it = m_entries.find(key); it != m_entries.end()) {
+        const auto & old_products = it->second.getProducts();
+        const auto & new_products = entry.getProducts();
+        for (const auto & old_prod : old_products) {
+            bool still_alive_in_new = std::ranges::any_of(new_products, [&](const auto & np) {
+                return np.m_compile_input_hash == old_prod.m_compile_input_hash;
+            });
+            if (not still_alive_in_new) {
+                m_pending_orphan_hashes.insert(old_prod.m_compile_input_hash);
+            }
+        }
+    }
+
     m_entries.insert_or_assign(std::move(key), std::move(entry));
     m_dirty = true;
 }
@@ -222,6 +251,97 @@ std::error_code Manifest::flush() noexcept
     auto ec = write_manifest_to_disk(manifest_file_path(), m_entries, current_slang_global_version());
     if (not ec) { m_dirty = false; }
     return ec;
+}
+
+std::error_code Manifest::shutdown() noexcept
+{
+    std::unordered_set<uint64_t> live_hashes;
+    for (const auto & [_, entry] : m_entries) {
+        for (const auto & prod : entry.getProducts()) {
+            live_hashes.insert(prod.m_compile_input_hash);
+        }
+    }
+    for (auto hash : m_pending_orphan_hashes) {
+        if (live_hashes.contains(hash)) { continue; }
+        std::error_code rm_ec;
+        stdfs::remove(cache_path_for_hash(hash), rm_ec); // 失败忽略，不影响 flush。
+    }
+    m_pending_orphan_hashes.clear();
+
+    const auto & cache_dir = Config::instance().getCacheDirectory();
+    std::error_code dir_ec;
+    if (stdfs::is_directory(cache_dir, dir_ec) and not dir_ec) {
+        size_t disk_spvbin_count = 0;
+        auto iter = stdfs::directory_iterator(cache_dir, dir_ec), end = stdfs::directory_iterator{};
+        for (iter; not dir_ec and iter != end; iter.increment(dir_ec)) {
+            if (iter->path().extension() == ".spvbin") { ++disk_spvbin_count; }
+        }
+        if (not dir_ec and disk_spvbin_count > live_hashes.size()) { this->removeGarbage(); }
+    }
+
+    return this->flush();
+}
+
+ManifestGcStats Manifest::removeGarbage() noexcept
+{
+    ManifestGcStats stats;
+
+    // 阶段 1: 剔除 main source 已不存在的 manifest entry。
+    // 注意：此处只清"路径都没了"的极端情况——单纯 outdated（mtime/hash 不同但文件还在）的 entry
+    // 留到下一次实际编译时由 upsert() 自然覆盖；这样可以保留依赖图，避免 GC 误伤还在编辑中的文件。
+    for (auto it = m_entries.begin(); it != m_entries.end(); ) {
+        const auto & main_path = it->second.getMainRecord().getPath();
+        std::error_code ec;
+        bool exists = stdfs::exists(main_path, ec);
+        if (ec or not exists) {
+            it = m_entries.erase(it);
+            ++stats.m_entries_removed;
+        } else {
+            ++it;
+        }
+    }
+    if (stats.m_entries_removed > 0) { m_dirty = true; }
+
+    // 阶段 2: 收集还在被引用的 product hash 集合。
+    std::unordered_set<uint64_t> live_hashes;
+    for (const auto & [_, entry] : m_entries) {
+        for (const auto & prod : entry.getProducts()) {
+            live_hashes.insert(prod.m_compile_input_hash);
+        }
+    }
+
+    // 阶段 3: 扫描 cache_dir，删除文件名匹配 `<16-hex>.spvbin` 但 hash 不在 live 集合中的孤立产物。
+    const auto & cache_dir = Config::instance().getCacheDirectory();
+    std::error_code dir_ec;
+    if (not stdfs::is_directory(cache_dir, dir_ec) or dir_ec) { return stats; }
+
+    for (auto iter = stdfs::directory_iterator(cache_dir, dir_ec);
+         not dir_ec and iter != stdfs::directory_iterator{};
+         iter.increment(dir_ec))
+    {
+        const auto & dirent = *iter;
+        if (not dirent.is_regular_file(dir_ec) or dir_ec) { dir_ec.clear(); continue; }
+        if (dirent.path().extension() != ".spvbin") { continue; }
+
+        const auto stem = dirent.path().stem().string();
+        if (stem.size() != 16) { continue; }
+        if (not std::ranges::all_of(stem, [](char c) { return std::isxdigit(static_cast<unsigned char>(c)); })) { continue; }
+
+        uint64_t hash = 0;
+        try { hash = std::stoull(stem, nullptr, 16); }
+        catch (...) { continue; }
+
+        if (live_hashes.contains(hash)) { continue; }
+
+        std::error_code size_ec;
+        auto file_size = stdfs::file_size(dirent.path(), size_ec);
+        std::error_code rm_ec;
+        if (stdfs::remove(dirent.path(), rm_ec) and not rm_ec) {
+            ++stats.m_orphan_files_removed;
+            if (not size_ec) { stats.m_bytes_reclaimed += static_cast<size_t>(file_size); }
+        }
+    }
+    return stats;
 }
 
 } // namespace lcf::shader_core
