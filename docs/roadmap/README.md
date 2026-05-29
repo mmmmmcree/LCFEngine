@@ -12,7 +12,7 @@ The single authoritative source for **future-facing engine vision**. This is *no
 | Module | Scope | What it covers |
 | --- | --- | --- |
 | [`shader_system/`](./shader_system/overview.md) | vision | Slang language adoption, variant sparsity, reflection-driven editor, Editor/Runtime split, three-tier DDC, lighting model as replaceable interface |
-| [`modern_rhi/`](./modern_rhi/overview.md) | vision | CPU-side command recording layer + backend translator, cross-API abstraction (Vulkan / DX12 / Metal) |
+| [`modern_rhi/`](./modern_rhi/overview.md) | vision | `libs/gfx/{frontend,backend/vulkan}` split; compile-time extension/shader-path profiles, opt-in runtime API switching, Vulkan Timeline baseline |
 | [`ecs_async/`](./ecs_async/overview.md) | vision | EnTT + Taskflow + coroutines integration, async signal dispatch, system scheduling model |
 | [`vulkan_optimizations/`](./vulkan_optimizations/overview.md) | short-term | Break SSBO single-copy GPU serialization, interface convergence, near-term Vulkan backend wins |
 

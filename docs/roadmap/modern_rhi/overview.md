@@ -1,58 +1,65 @@
 ---
 module: modern_rhi
 scope: vision
-last-anchor-commit: 755fc72
+last-anchor-commit: 04247ac
 ---
 
 # Modern RHI — Overview
 
-> A record-then-translate render hardware interface, not a Vulkan wrapper.
+> A record-then-translate gfx layer, not a Vulkan wrapper.
 
 ## Current State
 
-The engine talks to Vulkan through hand-written code that mixes high-level intent (draw a frame) with low-level mechanics (queue submission, descriptor sets, pipeline barriers). There is no API-agnostic recording layer; cross-API portability would require rewriting most of `RenderEngine/`. Resource state tracking is implicit and scattered across call sites.
+The engine talks to Vulkan through hand-written code in `RenderEngine/` that mixes high-level intent (draw a frame) with low-level mechanics (queue submission, descriptor sets, pipeline barriers). There is no API-agnostic recording layer; cross-API portability would require rewriting most of `RenderEngine/`. Resource state tracking is implicit and scattered across call sites. Vulkan extensions are toggled ad-hoc at instance/device creation with no central capability policy.
 
 ## Target Design
 
-- **Two layers, sharply separated.** Front-end: a CPU-side *command recorder* that produces a typed, allocator-backed command stream. Back-end: per-API translators (Vulkan first, DX12 / Metal later) that consume the stream and emit native calls.
-- **Commands are POD-ish.** No virtuals, no per-call heap allocs; the recorder owns a frame arena.
-- **Resource handles are opaque indices.** The front-end never sees `VkImage`. Backends own the native objects keyed by handle.
-- **State tracking lives in the backend.** The front-end records *intent*; the backend infers barriers, layout transitions, and queue ownership.
-- **Multi-threaded recording is first class.** Per-thread recorders, deterministic merge at submit time. No locks on hot paths.
-- **Submit is explicit and coarse.** A single `submit(stream, target)` call per pass; the backend may split, reorder, or merge passes as long as observable order is preserved.
+- **Two layers in `libs/gfx/`.** `libs/gfx/frontend/` exposes a CPU-side, API-agnostic *command recorder* (typed POD command stream, frame-arena allocated). `libs/gfx/backend/<api>/` translates the stream — `vulkan` is first; `dx12` / `metal` follow the same contract.
+- **Backend selection is layered.** *Compile-time* by default (single-backend builds drop indirection via `if constexpr`); a *runtime-switchable* mode is opt-in via CMake for tools/editor scenarios that need it. Game shipping builds pin one backend.
+- **Vulkan baseline = Timeline Semaphores (VK 1.2+).** No fallback path below this; `VkFence`-based sync is removed from the new layer.
+- **Vulkan extensions are compile-time switches.** CMake options generate a `constexpr bool` capability header. Backend code uses `if constexpr` so disabled features cost zero binary size. Runtime device probing only *validates* the compile-time set — it does not branch into per-extension fallback ladders.
+- **Devices use the highest level they support.** When an extension is compiled in, the backend always picks the strongest available path (e.g. prefer `VK_EXT_*_indirect_*` when present) and reports unsupported devices as unusable rather than silently degrading.
+- **Shader Object vs Module is a build profile.** Engine/editor profile compiles `VK_EXT_shader_object` on for fast iteration; game/runtime profile compiles only `VkShaderModule` + PSO cache. Mixed mode is explicitly rejected (see deep-dive).
+- **Resource handles are opaque indices.** Frontend never sees `VkImage`. Backends own native objects keyed by handle.
+- **State tracking lives in the backend.** Frontend records *intent*; backend infers barriers, layout transitions, queue ownership.
+- **Multi-threaded recording is first class.** Per-thread recorders, deterministic merge at submit. No locks on hot paths.
 - **Validation is a separate decorator backend.** No `#ifdef DEBUG` validation interleaved with production code paths.
 
 ## Gap vs Code
 
 | Area | Today | Target |
 | --- | --- | --- |
-| API coupling | Vulkan calls scattered through RenderEngine | All Vulkan calls live behind one backend translator |
-| Recording | Direct `vkCmd*` calls on a `vk::CommandBuffer` | Typed command stream with backend-agnostic verbs |
+| Layer split | Vulkan calls scattered through `RenderEngine/` | `libs/gfx/frontend/` + `libs/gfx/backend/vulkan/` |
+| API choice | Vulkan only, hard-wired | Compile-time backend pick; opt-in runtime switch |
+| Vulkan baseline | Mixed sync primitives | Timeline Semaphore mandatory (VK 1.2+) |
+| Extensions | Ad-hoc `vkGetDeviceProcAddr` checks | CMake → `constexpr` config; `if constexpr` in backend |
+| Shader path | One code path | Compile-time profile: shader object *or* shader module |
+| Recording | Direct `vkCmd*` on `vk::CommandBuffer` | Typed command stream, backend-agnostic verbs |
 | Barriers | Manual / implicit | Backend-inferred from recorded resource access |
 | Multi-thread | Single-threaded record | Per-thread recorders, deterministic merge |
-| Cross-API | Vulkan only | Vulkan + DX12 + Metal share front-end |
 
 ## Deep-Dive Index
 
 | File | One-line summary |
 | --- | --- |
-| _(none yet)_ | First deep-dive should be `command-recorder-design.md`. |
+| [`vulkan-extension-strategy.md`](./deep-dive/vulkan-extension-strategy.md) | Compile-time extension config, shader object/module profiles, Timeline baseline. |
 
 ## Planned Deep-Dives (TODO)
 
 - [ ] `command-recorder-design.md` — command stream encoding, arena allocation, per-thread recorders.
 - [ ] `backend-translation-strategy.md` — recorded stream → native API; Vulkan first, DX12/Metal contract notes.
+- [ ] `backend-selection-modes.md` — compile-time vs runtime backend switching; vtable-vs-`if constexpr` cost model.
 - [ ] `resource-state-tracking.md` — automatic barrier inference, queue ownership transfers, alias analysis.
 - [ ] `pso-and-shader-integration.md` — how `shader_system` packages bind to RHI PSO objects (cross-module contract goes through PRINCIPLES).
 - [ ] `validation-decorator-backend.md` — separate validation backend, capture/replay support.
-- [ ] `multi-queue-submission.md` — graphics/compute/transfer queues, async compute scheduling.
 
 ## Open Questions
 
-- Should the front-end model render passes / dynamic rendering uniformly, or expose both as recorded verbs?
+- Should the frontend model render passes / dynamic rendering uniformly, or expose both as recorded verbs?
 - Where does the line sit between "recorder" and "render graph"? Are they the same thing or stacked?
-- Is per-frame GC of the command arena cheap enough at our target draw counts, or do we need pooled segments?
+- For the runtime-switch backend mode: vtable dispatch on the command stream, or per-call-site type erasure?
 
 ## Changelog
 
+- 2026-05-29 04247ac: split into `libs/gfx/{frontend,backend/vulkan}`; pin Timeline baseline; extensions & shader path become compile-time profiles
 - 2026-05-21 755fc72: initial overview, no deep-dives yet
