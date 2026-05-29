@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Vulkan/vulkan_fwd_decls.h"
 #include <vulkan/vulkan.hpp>
 #include <vma/vk_mem_alloc.h>
 
@@ -28,9 +27,9 @@ namespace lcf::render {
         VulkanImage(Self &&) noexcept;
         Self & operator=(Self &&) noexcept;
         const vk::Image & getHandle() const noexcept { return m_image; }
+        const vk::DeviceSize & getSize() const noexcept { return m_size; }
+        vk::Result flush(VkDeviceSize offset = 0, VkDeviceSize size = vk::WholeSize);
         std::span<std::byte> getMappedMemorySpan() const noexcept { return m_mapped_data_p ? std::span<std::byte>(m_mapped_data_p, m_size) : std::span<std::byte>{}; }
-        vk::DeviceSize getSize() const noexcept { return m_size; }
-        vk::Result flush(VkDeviceSize offset = 0, VkDeviceSize size = VK_WHOLE_SIZE);
     private:
         VmaAllocator m_allocator = nullptr;
         VmaAllocation m_allocation = nullptr;
@@ -54,9 +53,9 @@ namespace lcf::render {
         VulkanBuffer(Self &&) noexcept;
         Self & operator=(Self &&) noexcept;
         const vk::Buffer & getHandle() const noexcept { return m_buffer; }
+        const vk::DeviceSize & getSize() const noexcept { return m_size; }
+        vk::Result flush(VkDeviceSize offset = 0, VkDeviceSize size = vk::WholeSize);
         std::span<std::byte> getMappedMemorySpan() const noexcept { return m_mapped_data_p ? std::span<std::byte>(m_mapped_data_p, m_size) : std::span<std::byte>{}; }
-        vk::DeviceSize getSize() const noexcept { return m_size; }
-        vk::Result flush(VkDeviceSize offset = 0, VkDeviceSize size = VK_WHOLE_SIZE);
     private:
         VmaAllocator m_allocator = nullptr;
         VmaAllocation m_allocation = nullptr;

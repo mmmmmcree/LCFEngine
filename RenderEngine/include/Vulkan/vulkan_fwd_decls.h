@@ -38,8 +38,6 @@ namespace lcf::render {
 
     class VulkanDescriptorSet;
 
-    class VulkanDescriptorSetLayout2;
-
     class VulkanBindlessDescriptorSet;
 
     class VulkanDescriptorSetManager;

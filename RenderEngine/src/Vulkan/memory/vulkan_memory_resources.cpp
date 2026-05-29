@@ -13,7 +13,9 @@ VulkanBuffer::VulkanBuffer(VmaAllocator allocator, VmaAllocation allocation, vk:
 
 VulkanBuffer::~VulkanBuffer() noexcept
 {
-    vmaDestroyBuffer(m_allocator, m_buffer, m_allocation);
+    if (m_allocator and m_allocation) {
+        vmaDestroyBuffer(m_allocator, m_buffer, m_allocation);
+    }
 }
 
 VulkanBuffer::VulkanBuffer(Self && other) noexcept :
