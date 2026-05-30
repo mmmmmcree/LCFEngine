@@ -96,13 +96,6 @@ namespace lcf::sc {
     };
     using ManifestEntryMap = tsl::robin_map<std::filesystem::path, ManifestEntry, ManifestPathHash>;
 
-    struct ManifestGcStats
-    {
-        size_t m_entries_removed = 0;
-        size_t m_orphan_files_removed = 0;
-        size_t m_bytes_reclaimed = 0;
-    };
-
     class Manifest
     {
     public:
@@ -117,7 +110,6 @@ namespace lcf::sc {
         void upsert(ManifestEntry entry) noexcept;
         std::error_code flush() noexcept;
         std::error_code shutdown() noexcept;
-        ManifestGcStats removeGarbage() noexcept;
     private:
         Manifest() noexcept;
     private:

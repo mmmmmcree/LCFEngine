@@ -109,7 +109,7 @@ namespace {
 
 static stdfs::path manifest_file_path() noexcept
 {
-    return Config::instance().getCacheDirectory() / "manifest.bin";
+    return Config::instance().getCacheDirectory() / ".mnfbin";
 }
 
 static stdfs::path cache_path_for_hash(uint64_t hash) noexcept
@@ -158,7 +158,10 @@ static uint64_t compute_entry_payload_size(const ManifestEntry & entry) noexcept
     return size;
 }
 
+
 static bool parse_entry_payload(BufferReader & reader, const EntryHeader & entry_header, ManifestEntry & out_entry) noexcept;
+
+static void remove_cache_garbage(const stdfs::path & cache_dir, const std::unordered_set<uint64_t> & live_hashes) noexcept;
 
 static ManifestEntryMap read_manifest_from_disk(const stdfs::path & path, std::string_view current_slang_version) noexcept;
 
@@ -249,70 +252,27 @@ std::error_code Manifest::shutdown() noexcept
 
     const auto & cache_dir = Config::instance().getCacheDirectory();
     std::error_code ec;
-    if (stdfs::is_directory(cache_dir, ec) and not ec) {
-        std::size_t file_count = std::distance(stdfs::directory_iterator(cache_dir, ec), {});
-        if (not ec and file_count > live_hashes.size() + 1u) { this->removeGarbage(); }
-    }
+    std::size_t file_count = std::distance(stdfs::directory_iterator(cache_dir, ec), {});
+    if (not ec and file_count > live_hashes.size() + 1u) { remove_cache_garbage(cache_dir, live_hashes); }
     return this->flush();
 }
 
-ManifestGcStats Manifest::removeGarbage() noexcept
+static void remove_cache_garbage(const stdfs::path & cache_dir, const std::unordered_set<uint64_t> & live_hashes) noexcept
 {
-    ManifestGcStats stats;
-
-    // 阶段 1: 剔除 main source 已不存在的 manifest entry。
-    // 注意：此处只清"路径都没了"的极端情况——单纯 outdated（mtime/hash 不同但文件还在）的 entry
-    // 留到下一次实际编译时由 upsert() 自然覆盖；这样可以保留依赖图，避免 GC 误伤还在编辑中的文件。
-    // for (auto it = m_entries.begin(); it != m_entries.end(); ) {
-    //     const auto & main_path = it->second.getMainRecord().getPath();
-    //     std::error_code ec;
-    //     bool exists = stdfs::exists(main_path, ec);
-    //     if (ec or not exists) {
-    //         it = m_entries.erase(it);
-    //         ++stats.m_entries_removed;
-    //     } else {
-    //         ++it;
-    //     }
-    // }
-
-    // 阶段 2: 收集还在被引用的 product hash 集合。
-    std::unordered_set<uint64_t> live_hashes;
-    for (const auto & [_, entry] : m_entries) {
-        for (const auto & prod : entry.getProducts()) {
-            live_hashes.insert(prod.m_compile_input_hash);
-        }
-    }
-
-    // 阶段 3: 扫描 cache_dir，删除文件名匹配 `<16-hex>.spvbin` 但 hash 不在 live 集合中的孤立产物。
-    const auto & cache_dir = Config::instance().getCacheDirectory();
     std::error_code ec;
-    if (not stdfs::is_directory(cache_dir, ec) or ec) { return stats; }
-
+    if (not stdfs::is_directory(cache_dir, ec) or ec) { return; }
     auto iter = stdfs::directory_iterator(cache_dir, ec), end = stdfs::directory_iterator{};
     for (; not ec and iter != end; iter.increment(ec)) {
-        const auto & dirent = *iter;
-        if (not dirent.is_regular_file(ec) or ec) { ec.clear(); continue; }
-        if (dirent.path().extension() != ".spvbin") { continue; }
-
-        const auto stem = dirent.path().stem().string();
-        if (stem.size() != 16) { continue; }
-        if (not std::ranges::all_of(stem, [](char c) { return std::isxdigit(static_cast<unsigned char>(c)); })) { continue; }
-
+        const auto & directory = *iter;
+        if (not directory.is_regular_file(ec) or ec) { ec.clear(); continue; }
+        if (directory.path().extension() == ".mnfbin") { continue; }
+        const auto stem = directory.path().stem().string();
         uint64_t hash = 0;
         try { hash = std::stoull(stem, nullptr, 16); }
         catch (...) { continue; }
-
         if (live_hashes.contains(hash)) { continue; }
-
-        std::error_code size_ec;
-        auto file_size = stdfs::file_size(dirent.path(), size_ec);
-        std::error_code rm_ec;
-        if (stdfs::remove(dirent.path(), rm_ec) and not rm_ec) {
-            ++stats.m_orphan_files_removed;
-            if (not size_ec) { stats.m_bytes_reclaimed += static_cast<size_t>(file_size); }
-        }
+        stdfs::remove(directory.path());
     }
-    return stats;
 }
 
 FileRecord::FileRecord(stdfs::path path) noexcept :
