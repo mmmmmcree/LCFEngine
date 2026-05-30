@@ -13,7 +13,7 @@
 #include <system_error>
 #include <unordered_set>
 
-namespace lcf::shader_core {
+namespace lcf::sc {
 
     struct ShaderFingerprint
     {
@@ -77,16 +77,16 @@ namespace lcf::shader_core {
         Self & addDependencyRecord(FileRecord record);
         Self & addProduct(const ProductRef & product) noexcept;
         Self & setMainRecord(FileRecord record) noexcept;
-        Self & setCompileSettings(const slang::CompileSettings & settings) noexcept;
+        Self & setCompileSettings(const sl::CompileSettings & settings) noexcept;
         const FileRecord & getMainRecord() const noexcept { return m_main_record; }
         const DependencyRecordList & getDependencyRecords() const noexcept { return m_dependency_records; };
-        const slang::CompileSettings & getCompileSettings() const noexcept { return m_compile_settings; }
+        const sl::CompileSettings & getCompileSettings() const noexcept { return m_compile_settings; }
         const ProductList & getProducts() const noexcept { return m_products; }
         bool isOutdated() const noexcept;
     private:
         FileRecord m_main_record;
         DependencyRecordList m_dependency_records;
-        slang::CompileSettings m_compile_settings;
+        sl::CompileSettings m_compile_settings;
         ProductList m_products;
     };
 
@@ -96,12 +96,11 @@ namespace lcf::shader_core {
     };
     using ManifestEntryMap = tsl::robin_map<std::filesystem::path, ManifestEntry, ManifestPathHash>;
 
-    // collectGarbage() / shutdown() 的统计结果。三者都为 0 表示这次没有真正回收任何东西。
     struct ManifestGcStats
     {
-        size_t m_entries_removed = 0;       // main source 已不存在被剔除的 manifest entry 数
-        size_t m_orphan_files_removed = 0;  // 被删掉的孤立 .spvbin 文件数
-        size_t m_bytes_reclaimed = 0;       // 删除孤立 .spvbin 释放的总字节数
+        size_t m_entries_removed = 0;
+        size_t m_orphan_files_removed = 0;
+        size_t m_bytes_reclaimed = 0;
     };
 
     class Manifest

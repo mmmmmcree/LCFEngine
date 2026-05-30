@@ -8,7 +8,7 @@
 #include <vector>
 #include <expected>
 
-namespace lcf {
+namespace lcf::sc {
     class ShaderCompiler
     {
     public:

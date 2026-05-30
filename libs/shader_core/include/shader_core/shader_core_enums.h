@@ -154,8 +154,8 @@ namespace lcf {
     };
 }
 
-namespace lcf::shader_core {
-namespace slang {
+namespace lcf::sc {
+namespace sl {
     enum class TargetProfile : uint8_t
     {
         eInvalid = 0,
@@ -179,5 +179,5 @@ namespace slang {
 } // namespace lcf::shader_core
 
 namespace lcf {
-    template <> inline constexpr bool is_enum_flags_v<shader_core::slang::CompilerOptionFlags> = true;
+    template <> inline constexpr bool is_enum_flags_v<sc::sl::CompilerOptionFlags> = true;
 }

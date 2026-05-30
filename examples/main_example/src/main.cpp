@@ -20,7 +20,7 @@ int main(int argc, char *argv[])
     lcf::log::init();
 
     std::filesystem::path assets_dir = LCF_EXAMPLES_ASSETS_DIR;
-    lcf::shader_core::Config::instance()
+    lcf::sc::Config::instance()
         .registerVirtualPath("shaders", assets_dir / "shaders")
         .addIncludeDirectory(assets_dir / "shaders" / "include")
         .setDefaultGlslEntryPoint("main");

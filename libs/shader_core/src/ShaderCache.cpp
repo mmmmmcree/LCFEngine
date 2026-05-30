@@ -8,7 +8,7 @@
 #include <cstring>
 
 using namespace lcf;
-using namespace lcf::shader_core;
+using namespace lcf::sc;
 
 namespace {
     constexpr uint32_t k_magic = 0x4C434653;
@@ -47,7 +47,7 @@ namespace {
     }
 }
 
-std::optional<spirv::UnitList> ShaderCache::tryLoad(uint64_t hash) const noexcept
+std::optional<spirv::UnitList> spirv::ShaderCache::tryLoad(uint64_t hash) const noexcept
 {
     auto path = make_cache_entry_path(hash);
     auto expected_data = read_file_as_bytes(path);
@@ -72,7 +72,7 @@ std::optional<spirv::UnitList> ShaderCache::tryLoad(uint64_t hash) const noexcep
     return units;
 }
 
-std::error_code ShaderCache::store(uint64_t hash, const spirv::UnitList & units) const noexcept
+std::error_code spirv::ShaderCache::store(uint64_t hash, const spirv::UnitList & units) const noexcept
 {
     const auto & cache_dir = Config::instance().getCacheDirectory();
     std::error_code ec;

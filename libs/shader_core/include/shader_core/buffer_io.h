@@ -8,7 +8,7 @@
 #include <cstring>
 #include <vector>
 
-namespace lcf::shader_core {
+namespace lcf::sc {
 
     template <typename T>
     concept binary_io_type_c = trivially_copyable_c<T> and standard_layout_c<T>;

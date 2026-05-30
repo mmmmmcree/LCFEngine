@@ -22,7 +22,7 @@ namespace lcf::render {
 		VulkanShader& operator=(VulkanShader && other) noexcept = default;
 		operator bool() const noexcept { return this->isCreated(); }
 	public:
-		Self & setUnit(const spirv::Unit & spv_unit) noexcept { m_spv_unit = spv_unit; return *this; }
+		Self & setUnit(const sc::spirv::Unit & spv_unit) noexcept { m_spv_unit = spv_unit; return *this; }
 		std::error_code create(vk::Device device) noexcept;
 		bool isCreated() const noexcept { return m_module.get(); }
         ShaderTypeFlagBits getStage() const noexcept { return m_spv_unit.getStage(); }
@@ -30,7 +30,7 @@ namespace lcf::render {
 		const LayoutMap & getDescriptorLayouts() const noexcept { return m_layout_map; }
 		vk::PipelineShaderStageCreateInfo getShaderStageInfo() const noexcept;
 	private:
-		spirv::Unit m_spv_unit;
+		sc::spirv::Unit m_spv_unit;
 		ShaderResources m_resources;
 		LayoutMap m_layout_map;
 		vk::UniqueShaderModule m_module;

@@ -5,6 +5,7 @@
 #include <regex>
 
 using namespace lcf;
+using namespace lcf::sc;
 
 namespace {
     ShaderResource parse_resource(const spirv_cross::Compiler &spv_compiler, const spirv_cross::Resource &resource) noexcept;
@@ -18,7 +19,7 @@ namespace {
     void parse_input_resource_members(ShaderResourceMember &resource, const spirv_cross::Compiler &spv_compiler, spirv_cross::TypeID type_id) noexcept;
 }
 
-lcf::JSON lcf::spirv::extract_pragmas(std::string_view source_code)
+lcf::JSON spirv::extract_pragmas(std::string_view source_code)
 {
     lcf::JSON result = lcf::JSON::object();
     static const std::regex pragma_pattern(R"(#\s*pragma\s+lcf\s+(\w+)\s*\(\s*([^)]*)\s*\)\s*;?)");
@@ -37,7 +38,7 @@ lcf::JSON lcf::spirv::extract_pragmas(std::string_view source_code)
     return result;
 }
 
-ShaderResources lcf::spirv::analyze(const Code &spv_code) noexcept
+ShaderResources spirv::analyze(const spirv::Code &spv_code) noexcept
 {
     spirv_cross::Compiler spv_compiler(spv_code);
     spirv_cross::ShaderResources resources = spv_compiler.get_shader_resources();

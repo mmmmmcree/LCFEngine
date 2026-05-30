@@ -13,6 +13,7 @@
 
 using namespace std::chrono;
 using namespace lcf;
+using namespace lcf::sc;
 
 namespace {
 
@@ -123,7 +124,7 @@ int main()
     fs::path assets_dir = LCF_EXAMPLES_ASSETS_DIR;
     fs::path test_shaders_dir = LCF_SHADER_CORE_TEST_SHADERS_DIR;
 
-    shader_core::Config::instance()
+    sc::Config::instance()
         .registerVirtualPath("shaders", assets_dir / "shaders")
         .registerVirtualPath("test_shaders", test_shaders_dir)
         // include 目录里加 test_shaders_dir，slang 才能解析 `import common`。
@@ -159,7 +160,7 @@ int main()
     }
 
     // 阶段 1-3 完成，强制 flush manifest：模拟跨进程边界（即使本进程崩溃，下次启动也能继续验证 HIT）。
-    if (auto ec = shader_core::Manifest::instance().flush()) {
+    if (auto ec = sc::Manifest::instance().flush()) {
         lcf_log_warn("flushShaderManifest after phase 3 failed: {}", ec.message());
     } else {
         lcf_log_info("manifest flushed to disk after phase 3");
@@ -186,7 +187,7 @@ int main()
     // 显式 shutdown：先按 setGcOnShutdown 决定是否 GC，再 flush 落盘。
     // 不能依赖 ~Manifest()——在 DLL/Meyers-singleton 场景下静态局部对象的析构
     // 在某些 toolchain 上不会被触发，会导致 GC 与最终 flush 都被跳过。
-    if (auto ec = shader_core::Manifest::instance().shutdown()) {
+    if (auto ec = sc::Manifest::instance().shutdown()) {
         lcf_log_warn("Manifest shutdown failed: {}", ec.message());
     }
     return 0;

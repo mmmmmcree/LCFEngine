@@ -5,7 +5,7 @@
 #include <vector>
 #include <string>
 
-namespace lcf::spirv {
+namespace lcf::sc::spirv {
     using Code = std::vector<uint32_t>;
 
     struct Unit

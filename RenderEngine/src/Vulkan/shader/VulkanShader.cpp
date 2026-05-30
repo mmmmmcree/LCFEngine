@@ -24,7 +24,7 @@ std::error_code VulkanShader::create(vk::Device device) noexcept
         lcf_log_debug(e.what());
         return e.code();
     }
-    m_resources = spirv::analyze(m_spv_unit.getCode());
+    m_resources = sc::spirv::analyze(m_spv_unit.getCode());
     m_layout_map = from_shader_resources_to_layouts(enum_cast<vk::ShaderStageFlagBits>(this->getStage()), m_resources);
     for (auto & [_, layout] : m_layout_map) {
         if (auto ec = layout.create(device, vkenums::DescriptorSetStrategy::eIndividual)) { return ec; }

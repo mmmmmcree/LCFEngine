@@ -9,8 +9,9 @@
 #include <span>
 #include <system_error>
 
-namespace lcf::shader_core {
-namespace slang {
+namespace lcf::sc {
+
+namespace sl {  // slang namespace
 
     class CompileSettings
     {
@@ -45,14 +46,17 @@ namespace slang {
         Self & setTargetProfile(TargetProfile profile) noexcept { m_settings.setTargetProfile(profile); return *this; }
         Self & setCompilerOptionFlags(CompilerOptionFlags flags) noexcept { m_settings.setCompilerOptionFlags(flags); return *this; }
         Self & setCompileSettings(CompileSettings s) noexcept { m_settings = s; return *this; }
+        Self & setSpvCacheExtension(std::filesystem::path extension) noexcept { m_spv_cache_extension = extension; return *this; }
 
         const std::string & getVersion() const noexcept { return m_version; }
         const TargetProfile & getTargetProfile() const noexcept { return m_settings.getTargetProfile(); }
         const CompilerOptionFlags & getCompilerOptionFlags() const noexcept { return m_settings.getCompilerOptionFlags(); }
         const CompileSettings & getCompileSettings() const noexcept { return m_settings; }
+        const std::filesystem::path & getSpvCacheExtension() const noexcept { return m_spv_cache_extension; }
     private:
         std::string m_version;
         CompileSettings m_settings;
+        std::filesystem::path m_spv_cache_extension = ".spvbin";
     };
 }
     class Config
@@ -73,17 +77,13 @@ namespace slang {
         std::filesystem::path resolvePath(const std::filesystem::path & path) const noexcept;
         std::span<const std::filesystem::path> getIncludeDirectories() const noexcept { return m_include_directories; }
         const std::filesystem::path & getCacheDirectory() const noexcept { return m_cache_directory; }
-        slang::Config & getSlangConfig() noexcept { return m_slang_config; }
-        const slang::Config & getSlangConfig() const noexcept { return m_slang_config; }
-
-        // 把内存中的 shader manifest（路径索引）强制落盘到 getCacheDirectory()/manifest.bin。
-        // 转发到 Manifest::instance().flush()。Manifest 析构时也会自动 flush；
-        // 提供该显式接口主要便于测试模拟跨进程边界、以及未来热重载场景。
-        std::error_code flushShaderManifest() noexcept;
+        sl::Config & getSlangConfig() noexcept { return m_slang_config; }
+        const sl::Config & getSlangConfig() const noexcept { return m_slang_config; }
+        std::filesystem::path makeSpvCachePath(uint64_t hash) const noexcept;
     private:
         IncludeDirectoryList m_include_directories;
         std::filesystem::path m_cache_directory = ".shader_cache";
         std::string m_default_glsl_entry_point = "main";
-        slang::Config m_slang_config;
+        sl::Config m_slang_config;
     };
 }

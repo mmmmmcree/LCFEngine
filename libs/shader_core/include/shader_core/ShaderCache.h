@@ -5,7 +5,7 @@
 #include <optional>
 #include <system_error>
 
-namespace lcf::shader_core {
+namespace lcf::sc::spirv {
     class ShaderCache
     {
     public:

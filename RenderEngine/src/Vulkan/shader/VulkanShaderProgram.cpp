@@ -15,7 +15,7 @@ VulkanShaderProgram::~VulkanShaderProgram()
 
 VulkanShaderProgram & VulkanShaderProgram::addShaderFromGlslFile(ShaderTypeFlagBits stage, const std::filesystem::path & file_path)
 {
-    ShaderCompiler compiler;
+    sc::ShaderCompiler compiler;
     auto expected_result = compiler.compileGlslSourceToSpv(stage, file_path);
     if (not expected_result) { return *this; }
     auto & shader = m_stage_to_shader_map[stage] = std::make_shared<VulkanShader>();
@@ -25,7 +25,7 @@ VulkanShaderProgram & VulkanShaderProgram::addShaderFromGlslFile(ShaderTypeFlagB
 
 auto VulkanShaderProgram::addShaderFromSlangFile(const std::filesystem::path & file_path) -> Self &
 {
-    ShaderCompiler compiler;
+    sc::ShaderCompiler compiler;
     auto expected_result = compiler.compileSlangSourceToSpv(file_path);
     if (not expected_result) { return *this; }
     for (const auto & spv_unit : expected_result.value()) {

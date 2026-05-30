@@ -14,6 +14,7 @@
 #include "bytes.h"
 
 using namespace lcf;
+using namespace lcf::sc;
 namespace stdr = std::ranges;
 namespace stdv = std::views;
 
@@ -69,7 +70,7 @@ private:
 
 ShaderCompiler::ShaderCompiler()
 {
-    m_include_directories.assign_range(shader_core::Config::instance().getIncludeDirectories() | stdv::transform([](const auto & dir) { return dir.string(); }));
+    m_include_directories.assign_range(sc::Config::instance().getIncludeDirectories() | stdv::transform([](const auto & dir) { return dir.string(); }));
 }
 
 void ShaderCompiler::addMacroDefinition(std::string_view macro_definition)
@@ -95,7 +96,7 @@ std::expected<spirv::Unit, std::error_code> ShaderCompiler::compileGlslSourceToS
     }
     options.SetIncluder(std::make_unique<GlslShaderIncluder>(m_include_directories));
     if (optimize) { options.SetOptimizationLevel(shaderc_optimization_level_size); }
-    const auto & entry_point = shader_core::Config::instance().getDefaultGlslEntryPoint();
+    const auto & entry_point = sc::Config::instance().getDefaultGlslEntryPoint();
     shaderc::SpvCompilationResult result = compiler.CompileGlslToSpv(
         source_code,
         enum_cast<shaderc_shader_kind>(type),
@@ -111,7 +112,7 @@ std::expected<spirv::Unit, std::error_code> ShaderCompiler::compileGlslSourceToS
 
 std::expected<spirv::Unit, std::error_code> ShaderCompiler::compileGlslSourceToSpv(ShaderTypeFlagBits type, const std::filesystem::path &file_path) noexcept
 {
-    auto expected_file_content = read_file_as_string(shader_core::Config::instance().resolvePath(file_path));
+    auto expected_file_content = read_file_as_string(sc::Config::instance().resolvePath(file_path));
     if (not expected_file_content) {
         lcf_log_error("failed to read file {}: {}", file_path.string(), expected_file_content.error().message());
         return std::unexpected(expected_file_content.error());
@@ -164,7 +165,7 @@ namespace {
     {
         auto & global_session = get_slang_global_session();
 
-        const auto & slang_config = shader_core::Config::instance().getSlangConfig();
+        const auto & slang_config = sc::Config::instance().getSlangConfig();
         slang::SessionDesc session_desc{};
         slang::TargetDesc target_desc{};
         target_desc.format = SLANG_SPIRV;
@@ -232,7 +233,7 @@ namespace {
         chunks.emplace_back(as_bytes_from_value(slang_config.getTargetProfile()));
         chunks.emplace_back(as_bytes_from_value(slang_config.getCompilerOptionFlags()));
         chunks.emplace_back(as_bytes(slang_config.getVersion()));
-        const uint64_t cache_hash = shader_core::hash(chunks);
+        const uint64_t cache_hash = sc::hash(chunks);
 
         // composite + link + emit：slang COM 调用集中在此，统一保护
         int32_t ep_count = slang_module->getDefinedEntryPointCount();
@@ -258,9 +259,9 @@ namespace {
             composed_cp->link(linked_cp.writeRef(), diag_cp.writeRef());
 
             for (int i = 0; i < ep_count; ++i) {
-                ComPtr<slang::IBlob> spv_blob;
-                linked_cp->getEntryPointCode(i, 0, spv_blob.writeRef(), diag_cp.writeRef());
-                std::span<const uint32_t> data_span(static_cast<const uint32_t *>(spv_blob->getBufferPointer()), spv_blob->getBufferSize() / sizeof(uint32_t));
+                ComPtr<slang::IBlob> spirv_blob;
+                linked_cp->getEntryPointCode(i, 0, spirv_blob.writeRef(), diag_cp.writeRef());
+                std::span<const uint32_t> data_span(static_cast<const uint32_t *>(spirv_blob->getBufferPointer()), spirv_blob->getBufferSize() / sizeof(uint32_t));
                 auto * ep_reflection = linked_cp->getLayout()->getEntryPointByIndex(i);
                 ShaderTypeFlagBits stage = enum_cast<ShaderTypeFlagBits>(ep_reflection->getStage());
                 unit_list.emplace_back(stage, data_span | stdr::to<std::vector>(), ep_reflection->getName());
@@ -284,13 +285,12 @@ std::expected<spirv::UnitList, std::error_code> ShaderCompiler::compileSlangSour
 
 std::expected<spirv::UnitList, std::error_code> ShaderCompiler::compileSlangSourceToSpv(const std::filesystem::path & file_path) noexcept
 {
-    namespace sc = shader_core;
     using sc::Manifest;
     using sc::ManifestEntry;
 
     auto resolved_path = sc::Config::instance().resolvePath(file_path);
 
-    sc::ShaderCache cache;
+    sc::spirv::ShaderCache cache;
     if (const ManifestEntry * entry = Manifest::instance().find(resolved_path)) {
         if (not entry->isOutdated()) {
             auto cached = cache.tryLoad(entry->getProducts().front().m_compile_input_hash);
