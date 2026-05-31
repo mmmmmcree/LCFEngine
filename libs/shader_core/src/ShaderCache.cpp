@@ -1,6 +1,7 @@
 #include "shader_core/ShaderCache.h"
 #include "shader_core/config.h"
 #include "shader_core/buffer_io.h"
+#include "shader_core/Manifest.h"
 #include "file_utils.h"
 #include "bytes.h"
 #include "log.h"

@@ -112,12 +112,22 @@ namespace lcf::sc {
         void upsert(ManifestEntry entry) noexcept;
         std::error_code flush() noexcept;
         std::error_code shutdown() noexcept;
-    private:
+    // private:
         Manifest() noexcept;
     private:
         std::string m_loaded_slang_global_version;
         ManifestEntryMap m_entries;
         std::unordered_set<uint64_t> m_pending_orphan_hashes;
         bool m_dirty = false;
+    };
+
+    class ManifestManager
+    {
+    public:
+        static ManifestManager & instance() noexcept;
+        void registerStaticManifest(Manifest * manifest) noexcept;
+        void shutdown() noexcept;
+    private:
+        std::vector<Manifest *> m_registered_manifests;
     };
 }

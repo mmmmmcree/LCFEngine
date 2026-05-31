@@ -22,6 +22,7 @@ namespace stdv = std::views;
 namespace {
     constexpr uint32_t k_magic = 0x4C434D46; // "LCMF"
     constexpr uint32_t k_version = 2;        // v2: header-first 紧凑布局（每个变长域前都先甩一个定长 header struct）
+    constexpr std::string_view k_manifest_file_name {".manfbin"};
 
     /* ===== manifest file layout =====
         ManifestHeader  { magic; version; slang_ver_size; entry_count; }
@@ -124,7 +125,7 @@ namespace {
 
 static stdfs::path manifest_file_path() noexcept
 {
-    return Config::instance().getCacheDirectory() / ".mnfbin";
+    return Config::instance().getCacheDirectory() / k_manifest_file_name;
 }
 
 static stdfs::path cache_path_for_hash(uint64_t hash) noexcept
@@ -223,7 +224,7 @@ Manifest::Manifest() noexcept :
 
 Manifest::~Manifest() noexcept
 {
-    this->flush();
+    this->shutdown();
 }
 
 const ManifestEntry * Manifest::find(const stdfs::path & source_path) noexcept
@@ -384,7 +385,7 @@ static void remove_cache_garbage(const stdfs::path & cache_dir, const std::unord
     for (; not ec and iter != end; iter.increment(ec)) {
         const auto & directory = *iter;
         if (not directory.is_regular_file(ec) or ec) { ec.clear(); continue; }
-        if (directory.path().extension() == ".mnfbin") { continue; }
+        if (directory.path().extension() == k_manifest_file_name) { continue; }
         const auto stem = directory.path().stem().string();
         uint64_t hash = 0;
         try { hash = std::stoull(stem, nullptr, 16); }
@@ -467,4 +468,22 @@ static std::error_code write_manifest_to_disk(
     }
 
     return write_file(path, as_bytes(writer.getBuffer()));
+}
+
+ManifestManager & ManifestManager::instance() noexcept
+{
+    static ManifestManager s_instance;
+    return s_instance;
+}
+
+void ManifestManager::registerStaticManifest(Manifest *manifest) noexcept
+{
+    m_registered_manifests.emplace_back(manifest);
+}
+
+void ManifestManager::shutdown() noexcept
+{
+    for (auto manifest : m_registered_manifests) {
+        manifest->shutdown();
+    }
 }

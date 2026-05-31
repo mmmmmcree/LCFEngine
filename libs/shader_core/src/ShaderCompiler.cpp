@@ -139,26 +139,7 @@ namespace {
         return *s_global_session_cp;
     }
 
-    struct SlangCompileResult
-    {
-        using DependencyPathList = std::vector<std::filesystem::path>;
-        SlangCompileResult() = default;
-        SlangCompileResult(
-            spirv::UnitList units,
-            DependencyPathList dep_paths,
-            uint64_t cache_hash) noexcept :
-            m_units(std::move(units)),
-            m_dep_paths(std::move(dep_paths)),
-            m_cache_hash(cache_hash) {}
-        const spirv::UnitList & getUnits() const noexcept { return m_units; }
-        const DependencyPathList & getDependencyPaths() const noexcept { return m_dep_paths; }
-        const uint64_t & getCacheHash() const noexcept { return m_cache_hash; }
-        spirv::UnitList m_units;
-        DependencyPathList m_dep_paths;
-        uint64_t m_cache_hash = 0;
-    };
-
-    std::expected<SlangCompileResult, std::error_code> compile_slang(
+    std::expected<spirv::CompileResult, std::error_code> compile_slang(
         const std::string & source_code,
         const std::string & module_name,
         const std::vector<std::string> & include_directories)
@@ -272,7 +253,7 @@ namespace {
         }
 
         auto dep_paths = dep_path_strs | stdv::transform([](const auto & s) { return std::filesystem::path(s); }) | stdr::to<std::vector>();
-        return SlangCompileResult {std::move(unit_list), std::move(dep_paths), cache_hash};
+        return spirv::CompileResult {std::move(unit_list), std::move(dep_paths), cache_hash};
     }
 }
 

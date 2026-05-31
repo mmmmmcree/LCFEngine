@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <vector>
 #include <string>
+#include <filesystem>
 
 namespace lcf::sc::spirv {
     using Code = std::vector<uint32_t>;
@@ -24,4 +25,24 @@ namespace lcf::sc::spirv {
     };
 
     using UnitList = std::vector<Unit>;
+
+    struct CompileResult
+    {
+        using DependencyPathList = std::vector<std::filesystem::path>;
+        CompileResult() = default;
+        CompileResult(
+            spirv::UnitList units,
+            DependencyPathList dep_paths,
+            uint64_t cache_hash) noexcept :
+            m_units(std::move(units)),
+            m_dep_paths(std::move(dep_paths)),
+            m_cache_hash(cache_hash) {}
+        const spirv::UnitList & getUnits() const noexcept { return m_units; }
+        const DependencyPathList & getDependencyPaths() const noexcept { return m_dep_paths; }
+        const uint64_t & getCacheHash() const noexcept { return m_cache_hash; }
+
+        spirv::UnitList m_units;
+        DependencyPathList m_dep_paths;
+        uint64_t m_cache_hash = 0;
+    };
 }
