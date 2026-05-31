@@ -266,13 +266,10 @@ std::expected<spirv::UnitList, std::error_code> ShaderCompiler::compileSlangSour
 
 std::expected<spirv::UnitList, std::error_code> ShaderCompiler::compileSlangSourceToSpv(const std::filesystem::path & file_path) noexcept
 {
-    using sc::Manifest;
-    using sc::ManifestEntry;
-
     auto resolved_path = sc::Config::instance().resolvePath(file_path);
 
     sc::spirv::ShaderCache cache;
-    auto cached_opt = cache.tryLoad(resolved_path);
+    auto cached_opt = cache.tryLoad(resolved_path, {});
     if (cached_opt) { return std::move(*cached_opt); }
 
     
@@ -285,7 +282,7 @@ std::expected<spirv::UnitList, std::error_code> ShaderCompiler::compileSlangSour
     auto module_name = resolved_path.stem().string();
     auto compiled = compile_slang(expected_file_content.value(), module_name, m_include_directories);
     if (not compiled) { return std::unexpected(compiled.error()); }
-    cache.store(resolved_path, *compiled);
-
+    cache.store(resolved_path, {}, *compiled);
+    
     return std::move(compiled->m_units);
 }

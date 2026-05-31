@@ -1,7 +1,5 @@
 #pragma once
 
-#include "shader_core_enums.h"
-#include "config.h"
 #include "concepts/range_concept.h"
 #include <tsl/robin_map.h>
 #include <filesystem>
@@ -12,6 +10,8 @@
 #include <ranges>
 #include <system_error>
 #include <unordered_set>
+#include <unordered_map>
+#include <optional>
 
 namespace lcf::sc {
 
@@ -45,51 +45,29 @@ namespace lcf::sc {
         FileFingerprint m_fingerprint;
     };
 
-    // 未来扩展变体支持时只需把 product_count 从 1 → N，variant_key 实际写入字节即可，无 breaking change。
-    struct ProductRef
-    {
-        ProductRef() noexcept = default;
-        ProductRef(uint64_t compile_input_hash) noexcept : m_compile_input_hash(compile_input_hash) {}
-
-        const uint64_t & getCompileInputHash() const noexcept { return m_compile_input_hash; }
-
-        std::vector<std::byte> m_variant_key;
-        uint64_t m_compile_input_hash = 0;
-    };
-
     class ManifestEntry
     {
         using Self = ManifestEntry;
-        using DependencyRecordList = std::vector<FileRecord>;
-        using ProductList = std::vector<ProductRef>;
+        using FileRecordList = std::vector<FileRecord>;
+        using ProductHashMap = std::unordered_map<std::string, uint64_t>;
     public:
         ManifestEntry() noexcept = default;
-        explicit ManifestEntry(const std::filesystem::path & source_path) noexcept;
-        Self & addDependency(const std::filesystem::path & dependency_path);
-        Self & appendDependencies(convertible_range_of_c<std::filesystem::path> auto && dependencies)
-        {
-            if constexpr (std::ranges::sized_range<decltype(dependencies)>) {
-                m_dependency_records.reserve(m_dependency_records.size() + std::ranges::size(dependencies));
-            }
-            for (auto && dependency : dependencies) {
-                this->addDependency(std::filesystem::path(std::forward<decltype(dependency)>(dependency)));
-            }
-            return *this;
-        }
-        Self & addDependencyRecord(FileRecord record);
-        Self & addProduct(const ProductRef & product) noexcept;
-        Self & setMainRecord(FileRecord record) noexcept;
-        Self & setCompileSettings(const sl::CompileSettings & settings) noexcept;
-        const FileRecord & getMainRecord() const noexcept { return m_main_record; }
-        const DependencyRecordList & getDependencyRecords() const noexcept { return m_dependency_records; };
-        const sl::CompileSettings & getCompileSettings() const noexcept { return m_compile_settings; }
-        const ProductList & getProducts() const noexcept { return m_products; }
+        template <convertible_range_of_c<FileRecord> FileRange>
+        explicit ManifestEntry(FileRange && file_range) noexcept :
+            m_file_records(std::forward<FileRange>(file_range) | std::ranges::to<FileRecordList>()) {}
+        template <convertible_range_of_c<std::filesystem::path> PathRange>
+        explicit ManifestEntry(PathRange && path_range) noexcept :
+            m_file_records(std::forward<PathRange>(path_range) | std::ranges::to<FileRecordList>()) {}
+        const FileRecordList & getFileRecords() const noexcept { return m_file_records; }
+        auto getProductHashes() const noexcept { return m_product_hashes | std::views::values; }
+        ProductHashMap & getProductHashMap() noexcept { return m_product_hashes; }
+        const ProductHashMap & getProductHashMap() const noexcept { return m_product_hashes; }
+        std::optional<uint64_t> getProductHash(const std::string & product_key) const noexcept;
         bool isOutdated() const noexcept;
+        void addProductHash(const std::string & product_key, uint64_t product_hash) { m_product_hashes.emplace(std::make_pair(product_key, product_hash)); }
     private:
-        FileRecord m_main_record;
-        DependencyRecordList m_dependency_records;
-        sl::CompileSettings m_compile_settings;
-        ProductList m_products;
+        FileRecordList m_file_records;
+        ProductHashMap m_product_hashes;
     };
 
     using ManifestEntryMap = tsl::robin_map<std::filesystem::path, ManifestEntry>;
@@ -98,22 +76,20 @@ namespace lcf::sc {
     {
     public:
         ~Manifest() noexcept;
-        explicit Manifest(std::filesystem::path work_dir) noexcept;
+        Manifest(std::filesystem::path work_dir, std::filesystem::path cache_ext) noexcept;
         Manifest(const Manifest &) = delete;
         Manifest & operator=(const Manifest &) = delete;
         Manifest(Manifest &&) = delete;
         Manifest & operator=(Manifest &&) = delete;
     public:
         const ManifestEntry * find(const std::filesystem::path & source_path) noexcept;
-        void upsert(ManifestEntry entry) noexcept;
-        std::error_code flush() noexcept;
+        void upsert(const std::filesystem::path & source_path, ManifestEntry entry) noexcept;
         std::error_code shutdown() noexcept;
     private:
         std::filesystem::path m_work_dir;
-        std::string m_loaded_slang_global_version;
+        std::filesystem::path m_cache_ext;
         ManifestEntryMap m_entries;
         std::unordered_set<uint64_t> m_pending_orphan_hashes;
-        bool m_dirty = false;
     };
 
     class ManifestManager

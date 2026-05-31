@@ -20,10 +20,7 @@ namespace lcf::sc::spirv {
         ShaderCache(ShaderCache &&) = delete;
         ShaderCache& operator=(ShaderCache &&) = delete;
     public:
-        std::optional<spirv::UnitList> tryLoad(uint64_t hash) const noexcept;
-        std::error_code store(uint64_t hash, const spirv::UnitList & units) const noexcept;
-
-        std::optional<spirv::UnitList> tryLoad(const std::filesystem::path & source_path) const noexcept;
-        void store(const std::filesystem::path & source_path, const CompileResult & compile_result) const noexcept;
+        std::optional<spirv::UnitList> tryLoad(const std::filesystem::path & source_path, const std::string & compile_command) const noexcept;
+        void store(const std::filesystem::path & source_path, const std::string & compile_command, const CompileResult & compile_result) const noexcept;
     };
 }
