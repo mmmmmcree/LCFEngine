@@ -51,6 +51,8 @@ namespace lcf::sc {
         ProductRef() noexcept = default;
         ProductRef(uint64_t compile_input_hash) noexcept : m_compile_input_hash(compile_input_hash) {}
 
+        const uint64_t & getCompileInputHash() const noexcept { return m_compile_input_hash; }
+
         std::vector<std::byte> m_variant_key;
         uint64_t m_compile_input_hash = 0;
     };

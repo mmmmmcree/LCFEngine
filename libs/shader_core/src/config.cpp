@@ -51,8 +51,3 @@ sl::Config::Config(
     auto tag = spGetBuildTagString();
     m_version = tag ? tag : "unknown";
 }
-
-std::filesystem::path Config::makeSpvCachePath(uint64_t hash) const noexcept
-{
-    return m_cache_directory / "spv_cache" / std::format("{:016x}{}", hash, m_slang_config.getSpvCacheExtension().string());
-}

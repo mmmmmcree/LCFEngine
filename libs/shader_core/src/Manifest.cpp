@@ -45,12 +45,15 @@ namespace {
     struct ManifestHeader
     {
         ManifestHeader() noexcept = default;
-        ManifestHeader(uint32_t magic, uint32_t version, uint32_t slang_ver_size, uint32_t entry_count) noexcept :
-            m_magic(magic), m_version(version), m_slang_ver_size(slang_ver_size), m_entry_count(entry_count) {}
+        ManifestHeader(uint32_t magic, uint32_t version, uint32_t slang_version_size_in_bytes, uint32_t entry_count) noexcept :
+            m_magic(magic),
+            m_version(version),
+            m_slang_version_size_in_bytes(slang_version_size_in_bytes),
+            m_entry_count(entry_count) {}
 
         uint32_t m_magic = 0;
         uint32_t m_version = 0;
-        uint32_t m_slang_ver_size = 0;
+        uint32_t m_slang_version_size_in_bytes = 0;
         uint32_t m_entry_count = 0;
     };
 
@@ -58,21 +61,28 @@ namespace {
     {
         EntryHeader() noexcept = default;
         EntryHeader(
-            uint64_t entry_size,
-            uint32_t source_path_size,
+            uint64_t entry_size_in_bytes,
+            uint32_t source_path_size_in_bytes,
             uint32_t dep_count,
             uint32_t product_count,
             uint8_t profile_raw,
             uint32_t options_raw) noexcept :
-            m_entry_size_in_bytes(entry_size) ,
-            m_source_path_size(source_path_size),
+            m_entry_size_in_bytes(entry_size_in_bytes) ,
+            m_source_path_size_in_bytes(source_path_size_in_bytes),
             m_dep_count(dep_count),
             m_product_count(product_count),
             m_profile_raw(profile_raw),
             m_options_raw(options_raw) {}
 
+        const uint64_t & getEntrySizeInBytes() const noexcept { return m_entry_size_in_bytes; }
+        const uint32_t & getSourcePathSizeInBytes() const noexcept { return m_source_path_size_in_bytes; }
+        const uint32_t & getDependencyCount() const noexcept { return m_dep_count; }
+        const uint32_t & getProductCount() const noexcept { return m_product_count; }
+        sl::TargetProfile getSlangTargetProfile() const noexcept { return static_cast<sl::TargetProfile>(m_profile_raw); }
+        sl::CompilerOptionFlags getSlangCompilerOptions() const noexcept { return static_cast<sl::CompilerOptionFlags>(m_options_raw); }
+
         uint64_t m_entry_size_in_bytes = 0;
-        uint32_t m_source_path_size = 0;
+        uint32_t m_source_path_size_in_bytes = 0;
         uint32_t m_dep_count = 0;
         uint32_t m_product_count = 0;
         uint8_t  m_profile_raw = 0;
@@ -86,10 +96,13 @@ namespace {
     struct DependencyHeader
     {
         DependencyHeader() noexcept = default;
-        DependencyHeader(uint32_t dep_path_size, ShaderFingerprint fingerprint) noexcept :
-            m_dep_path_size(dep_path_size), m_fingerprint(fingerprint) {}
+        DependencyHeader(uint32_t dep_path_size_in_bytes, ShaderFingerprint fingerprint) noexcept :
+            m_dep_path_size_in_bytes(dep_path_size_in_bytes), m_fingerprint(fingerprint) {}
 
-        uint32_t m_dep_path_size = 0;
+        const uint32_t & getDependencyPathSizeInBytes() const noexcept { return m_dep_path_size_in_bytes; }
+        const ShaderFingerprint & getFingerprint() const noexcept { return m_fingerprint; }
+
+        uint32_t m_dep_path_size_in_bytes = 0;
         uint32_t m_reserved = 0; // padding to (alignof(DependencyHeader) == 8)
         ShaderFingerprint m_fingerprint;
     };
@@ -100,6 +113,8 @@ namespace {
         ProductHeader(uint32_t variant_key_size, uint64_t compile_input_hash) noexcept :
             m_variant_key_size(variant_key_size),
             m_compile_input_hash(compile_input_hash) {}
+        
+        const uint64_t & getCompileInputHash() const noexcept { return m_compile_input_hash; }
 
         uint32_t m_variant_key_size = 0;
         uint32_t m_reserved = 0; // padding to (alignof(ProductHeader) == 8)
@@ -159,7 +174,7 @@ static uint64_t compute_entry_payload_size(const ManifestEntry & entry) noexcept
 }
 
 
-static bool parse_entry_payload(BufferReader & reader, const EntryHeader & entry_header, ManifestEntry & out_entry) noexcept;
+static bool read_manifest_entry(BufferReader & reader, const EntryHeader & entry_header, ManifestEntry & out_entry) noexcept;
 
 static void remove_cache_garbage(const stdfs::path & cache_dir, const std::unordered_set<uint64_t> & live_hashes) noexcept;
 
@@ -222,9 +237,10 @@ const ManifestEntry * Manifest::find(const stdfs::path & source_path) noexcept
 void Manifest::upsert(ManifestEntry entry) noexcept
 {
     auto key = entry.getMainRecord().getPath();
-    auto orphan_hashes = m_entries[key].getProducts() |
-        stdv::transform([](const auto & prod) { return prod.m_compile_input_hash; });
-    m_pending_orphan_hashes.insert_range(orphan_hashes);
+    m_pending_orphan_hashes.insert_range(
+        m_entries[key].getProducts() |
+        stdv::transform([](const auto & prod) { return prod.m_compile_input_hash; })
+    );
     m_entries[key] = std::move(entry);
     m_dirty = true;
 }
@@ -255,24 +271,6 @@ std::error_code Manifest::shutdown() noexcept
     std::size_t file_count = std::distance(stdfs::directory_iterator(cache_dir, ec), {});
     if (not ec and file_count > live_hashes.size() + 1u) { remove_cache_garbage(cache_dir, live_hashes); }
     return this->flush();
-}
-
-static void remove_cache_garbage(const stdfs::path & cache_dir, const std::unordered_set<uint64_t> & live_hashes) noexcept
-{
-    std::error_code ec;
-    if (not stdfs::is_directory(cache_dir, ec) or ec) { return; }
-    auto iter = stdfs::directory_iterator(cache_dir, ec), end = stdfs::directory_iterator{};
-    for (; not ec and iter != end; iter.increment(ec)) {
-        const auto & directory = *iter;
-        if (not directory.is_regular_file(ec) or ec) { ec.clear(); continue; }
-        if (directory.path().extension() == ".mnfbin") { continue; }
-        const auto stem = directory.path().stem().string();
-        uint64_t hash = 0;
-        try { hash = std::stoull(stem, nullptr, 16); }
-        catch (...) { continue; }
-        if (live_hashes.contains(hash)) { continue; }
-        stdfs::remove(directory.path());
-    }
 }
 
 FileRecord::FileRecord(stdfs::path path) noexcept :
@@ -344,26 +342,26 @@ bool ManifestEntry::isOutdated() const noexcept
 // long helper bodies
 // =====================================================================
 
-static bool parse_entry_payload(BufferReader & reader, const EntryHeader & entry_header, ManifestEntry & entry) noexcept
+static bool read_manifest_entry(BufferReader & reader, const EntryHeader & entry_header, ManifestEntry & entry) noexcept
 {
-    std::string source_path_str(entry_header.m_source_path_size, '\0');
+    std::string source_path_str(entry_header.getSourcePathSizeInBytes(), '\0');
     if (not reader.readBytes(as_bytes(source_path_str))) { return false; }
 
-    ShaderFingerprint main_fp;
-    if (not reader.read(main_fp)) { return false; }
-    entry.setMainRecord(FileRecord{stdfs::path(source_path_str), main_fp});
+    ShaderFingerprint main_fingerprint;
+    if (not reader.read(main_fingerprint)) { return false; }
+    entry.setMainRecord(FileRecord{stdfs::path(source_path_str), main_fingerprint});
 
-    for (uint32_t d = 0; d < entry_header.m_dep_count; ++d) {
+    for (uint32_t i = 0; i < entry_header.getDependencyCount(); ++i) {
         DependencyHeader dep_header;
         if (not reader.read(dep_header)) { return false; }
-        std::string dep_path_str(dep_header.m_dep_path_size, '\0');
+        std::string dep_path_str(dep_header.getDependencyPathSizeInBytes(), '\0');
         if (not reader.readBytes(as_bytes(dep_path_str))) { return false; }
-        entry.addDependencyRecord(FileRecord{stdfs::path(dep_path_str), dep_header.m_fingerprint});
+        entry.addDependencyRecord(FileRecord{stdfs::path(dep_path_str), dep_header.getFingerprint()});
     }
 
     sl::CompileSettings settings;
-    settings.setTargetProfile(static_cast<sl::TargetProfile>(entry_header.m_profile_raw));
-    settings.setCompilerOptionFlags(static_cast<sl::CompilerOptionFlags>(entry_header.m_options_raw));
+    settings.setTargetProfile(entry_header.getSlangTargetProfile())
+        .setCompilerOptionFlags(entry_header.getSlangCompilerOptions());
     entry.setCompileSettings(settings);
 
     for (uint32_t p = 0; p < entry_header.m_product_count; ++p) {
@@ -378,6 +376,24 @@ static bool parse_entry_payload(BufferReader & reader, const EntryHeader & entry
     return true;
 }
 
+static void remove_cache_garbage(const stdfs::path & cache_dir, const std::unordered_set<uint64_t> & live_hashes) noexcept
+{
+    std::error_code ec;
+    if (not stdfs::is_directory(cache_dir, ec) or ec) { return; }
+    auto iter = stdfs::directory_iterator(cache_dir, ec), end = stdfs::directory_iterator{};
+    for (; not ec and iter != end; iter.increment(ec)) {
+        const auto & directory = *iter;
+        if (not directory.is_regular_file(ec) or ec) { ec.clear(); continue; }
+        if (directory.path().extension() == ".mnfbin") { continue; }
+        const auto stem = directory.path().stem().string();
+        uint64_t hash = 0;
+        try { hash = std::stoull(stem, nullptr, 16); }
+        catch (...) { continue; }
+        if (live_hashes.contains(hash)) { continue; }
+        stdfs::remove(directory.path());
+    }
+}
+
 static ManifestEntryMap read_manifest_from_disk( const stdfs::path & path, std::string_view current_slang_version) noexcept
 {
     auto expected_bytes = read_file_as_bytes(path);
@@ -385,7 +401,7 @@ static ManifestEntryMap read_manifest_from_disk( const stdfs::path & path, std::
     BufferReader reader(expected_bytes.value());
     ManifestHeader header;
     if (not reader.read(header)) { return {}; }
-    std::string slang_version(header.m_slang_ver_size, '\0');
+    std::string slang_version(header.m_slang_version_size_in_bytes, '\0');
     if (not reader.readBytes(as_bytes(slang_version))) { return {}; }
     if (header.m_magic != k_magic or
         header.m_version != k_version or
@@ -396,10 +412,10 @@ static ManifestEntryMap read_manifest_from_disk( const stdfs::path & path, std::
         if (not reader.read(entry_header)) { break; }
         size_t payload_start = reader.offset();
         ManifestEntry entry;
-        if (not parse_entry_payload(reader, entry_header, entry)) { break; }
+        if (not read_manifest_entry(reader, entry_header, entry)) { break; }
         size_t consumed = reader.offset() - payload_start;
-        if (consumed > entry_header.m_entry_size_in_bytes) { break; }
-        if (consumed < entry_header.m_entry_size_in_bytes) {
+        if (consumed > entry_header.getEntrySizeInBytes()) { break; }
+        if (consumed < entry_header.getEntrySizeInBytes()) {
             if (not reader.skip(entry_header.m_entry_size_in_bytes - consumed)) { break; }
         }
         entries.insert_or_assign(entry.getMainRecord().getPath(), std::move(entry));
@@ -444,7 +460,7 @@ static std::error_code write_manifest_to_disk(
         for (const auto & prod : entry.getProducts()) {
             writer.write(ProductHeader{
                 static_cast<uint32_t>(prod.m_variant_key.size()),
-                prod.m_compile_input_hash
+                prod.getCompileInputHash()
             });
             writer.writeBytes(as_bytes(prod.m_variant_key));
         }

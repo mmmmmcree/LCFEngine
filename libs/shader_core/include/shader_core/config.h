@@ -46,17 +46,14 @@ namespace sl {  // slang namespace
         Self & setTargetProfile(TargetProfile profile) noexcept { m_settings.setTargetProfile(profile); return *this; }
         Self & setCompilerOptionFlags(CompilerOptionFlags flags) noexcept { m_settings.setCompilerOptionFlags(flags); return *this; }
         Self & setCompileSettings(CompileSettings s) noexcept { m_settings = s; return *this; }
-        Self & setSpvCacheExtension(std::filesystem::path extension) noexcept { m_spv_cache_extension = extension; return *this; }
 
         const std::string & getVersion() const noexcept { return m_version; }
         const TargetProfile & getTargetProfile() const noexcept { return m_settings.getTargetProfile(); }
         const CompilerOptionFlags & getCompilerOptionFlags() const noexcept { return m_settings.getCompilerOptionFlags(); }
         const CompileSettings & getCompileSettings() const noexcept { return m_settings; }
-        const std::filesystem::path & getSpvCacheExtension() const noexcept { return m_spv_cache_extension; }
     private:
         std::string m_version;
         CompileSettings m_settings;
-        std::filesystem::path m_spv_cache_extension = ".spvbin";
     };
 }
     class Config
@@ -79,7 +76,6 @@ namespace sl {  // slang namespace
         const std::filesystem::path & getCacheDirectory() const noexcept { return m_cache_directory; }
         sl::Config & getSlangConfig() noexcept { return m_slang_config; }
         const sl::Config & getSlangConfig() const noexcept { return m_slang_config; }
-        std::filesystem::path makeSpvCachePath(uint64_t hash) const noexcept;
     private:
         IncludeDirectoryList m_include_directories;
         std::filesystem::path m_cache_directory = ".shader_cache";
