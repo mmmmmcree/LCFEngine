@@ -57,6 +57,17 @@ namespace {
 
         uint32_t m_path_size_in_bytes = 0;
     };
+
+    struct ProductEntryHeader
+    {
+        ProductEntryHeader() noexcept = default;
+        ProductEntryHeader(uint32_t key_size_in_bytes, uint64_t product_hash) noexcept :
+            m_key_size_in_bytes(key_size_in_bytes), m_product_hash(product_hash) {}
+
+        uint32_t m_key_size_in_bytes = 0;
+        uint32_t m_reserved = 0;
+        uint64_t m_product_hash = 0;
+    };
 }
 
 static stdfs::path make_manifest_file_path(const stdfs::path & work_dir) noexcept
@@ -254,16 +265,6 @@ static void remove_cache_garbage(const stdfs::path & cache_dir, const stdfs::pat
     }
 }
 
-struct ProductEntryHeader
-{
-    ProductEntryHeader() noexcept = default;
-    ProductEntryHeader(uint32_t key_size_in_bytes, uint64_t product_hash) noexcept :
-        m_key_size_in_bytes(key_size_in_bytes), m_product_hash(product_hash) {}
-
-    uint32_t m_key_size_in_bytes = 0;
-    uint32_t m_reserved = 0;
-    uint64_t m_product_hash = 0;
-};
 
 static bool read_manifest_entry(BufferReader & reader, const ManifestEntryHeader & entry_header, ManifestEntry & entry) noexcept
 {
