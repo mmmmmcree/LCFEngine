@@ -97,15 +97,15 @@ namespace {
     struct DependencyHeader
     {
         DependencyHeader() noexcept = default;
-        DependencyHeader(uint32_t dep_path_size_in_bytes, ShaderFingerprint fingerprint) noexcept :
+        DependencyHeader(uint32_t dep_path_size_in_bytes, FileFingerprint fingerprint) noexcept :
             m_dep_path_size_in_bytes(dep_path_size_in_bytes), m_fingerprint(fingerprint) {}
 
         const uint32_t & getDependencyPathSizeInBytes() const noexcept { return m_dep_path_size_in_bytes; }
-        const ShaderFingerprint & getFingerprint() const noexcept { return m_fingerprint; }
+        const FileFingerprint & getFingerprint() const noexcept { return m_fingerprint; }
 
         uint32_t m_dep_path_size_in_bytes = 0;
         uint32_t m_reserved = 0; // padding to (alignof(DependencyHeader) == 8)
-        ShaderFingerprint m_fingerprint;
+        FileFingerprint m_fingerprint;
     };
 
     struct ProductHeader
@@ -164,7 +164,7 @@ static stdfs::path normalize_manifest_path(const stdfs::path & resolved_path) no
 
 static uint64_t compute_entry_payload_size(const ManifestEntry & entry) noexcept
 {
-    uint64_t size = entry.getMainRecord().getPath().string().size() + sizeof(ShaderFingerprint);
+    uint64_t size = entry.getMainRecord().getPath().string().size() + sizeof(FileFingerprint);
     for (const auto & dep : entry.getDependencyRecords()) {
         size += sizeof(DependencyHeader) + dep.getPath().string().size();
     }
@@ -184,10 +184,10 @@ static ManifestEntryMap read_manifest_from_disk(const stdfs::path & work_dir, st
 static std::error_code write_manifest_to_disk(const stdfs::path & work_dir, const ManifestEntryMap & entries, std::string_view slang_version) noexcept;
 
 // =====================================================================
-// ShaderFingerprint / Manifest (namespace lcf::shader_core)
+// FileFingerprint / Manifest (namespace lcf::shader_core)
 // =====================================================================
 
-ShaderFingerprint::ShaderFingerprint(const stdfs::path & path) noexcept
+FileFingerprint::FileFingerprint(const stdfs::path & path) noexcept
 {
     std::error_code ec;
     if (not stdfs::exists(path, ec) or ec) { return; }
@@ -199,7 +199,7 @@ ShaderFingerprint::ShaderFingerprint(const stdfs::path & path) noexcept
     m_content_hash = hash_file_content(path);
 }
 
-bool ShaderFingerprint::matches(const stdfs::path & path) const noexcept
+bool FileFingerprint::matches(const stdfs::path & path) const noexcept
 {
     std::error_code ec;
     if (not stdfs::exists(path, ec) or ec) { return false; }
@@ -280,7 +280,7 @@ FileRecord::FileRecord(stdfs::path path) noexcept :
 {
 }
 
-FileRecord::FileRecord(stdfs::path path, const ShaderFingerprint &fingerprint) noexcept :
+FileRecord::FileRecord(stdfs::path path, const FileFingerprint &fingerprint) noexcept :
     m_path(std::move(path)),
     m_path_hash(stdfs::hash_value(m_path)),
     m_fingerprint(fingerprint)
@@ -347,7 +347,7 @@ static bool read_manifest_entry(BufferReader & reader, const EntryHeader & entry
     std::string source_path_str(entry_header.getSourcePathSizeInBytes(), '\0');
     if (not reader.readBytes(as_bytes(source_path_str))) { return false; }
 
-    ShaderFingerprint main_fingerprint;
+    FileFingerprint main_fingerprint;
     if (not reader.read(main_fingerprint)) { return false; }
     entry.setMainRecord(FileRecord{stdfs::path(source_path_str), main_fingerprint});
 

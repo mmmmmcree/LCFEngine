@@ -15,11 +15,11 @@
 
 namespace lcf::sc {
 
-    struct ShaderFingerprint
+    struct FileFingerprint
     {
-        ShaderFingerprint() noexcept = default;
-        explicit ShaderFingerprint(const std::filesystem::path & path) noexcept;
-        bool operator==(const ShaderFingerprint & other) const noexcept = default;
+        FileFingerprint() noexcept = default;
+        explicit FileFingerprint(const std::filesystem::path & path) noexcept;
+        bool operator==(const FileFingerprint & other) const noexcept = default;
         bool matches(const std::filesystem::path & path) const noexcept;
 
         mutable uint64_t m_mtime = 0;
@@ -32,17 +32,17 @@ namespace lcf::sc {
     public:
         FileRecord() noexcept = default;
         explicit FileRecord(std::filesystem::path path) noexcept;
-        FileRecord(std::filesystem::path path, const ShaderFingerprint & fingerprint) noexcept;
+        FileRecord(std::filesystem::path path, const FileFingerprint & fingerprint) noexcept;
         const std::filesystem::path & getPath() const noexcept { return m_path; }
         const uint64_t & getPathHash() const noexcept { return m_path_hash; }
-        const ShaderFingerprint & getFingerprint() const noexcept { return m_fingerprint; }
+        const FileFingerprint & getFingerprint() const noexcept { return m_fingerprint; }
         bool isOutdated() const noexcept { return not m_fingerprint.matches(m_path); }
         bool isSamePath(const FileRecord & other) const noexcept { return m_path_hash == other.m_path_hash and m_path == other.m_path; }
-        void refresh() noexcept { m_fingerprint = ShaderFingerprint(m_path); }
+        void refresh() noexcept { m_fingerprint = FileFingerprint(m_path); }
     private:
         std::filesystem::path m_path;
         uint64_t m_path_hash = 0;
-        ShaderFingerprint m_fingerprint;
+        FileFingerprint m_fingerprint;
     };
 
     // 未来扩展变体支持时只需把 product_count 从 1 → N，variant_key 实际写入字节即可，无 breaking change。
