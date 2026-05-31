@@ -8,6 +8,7 @@
 #include <slang.h>
 #include <slang-com-ptr.h>
 #include <ranges>
+#include <format>
 #include "file_utils.h"
 #include "log.h"
 #include "enums/enum_name.h"
@@ -268,11 +269,16 @@ std::expected<spirv::UnitList, std::error_code> ShaderCompiler::compileSlangSour
 {
     auto resolved_path = sc::Config::instance().resolvePath(file_path);
 
+    const auto & slang_config = sc::Config::instance().getSlangConfig();
+    auto compile_command = std::format("slang:{};profile:{};flags:{}",
+        slang_config.getVersion(),
+        static_cast<uint8_t>(slang_config.getTargetProfile()),
+        static_cast<uint32_t>(slang_config.getCompilerOptionFlags()));
+
     sc::spirv::ShaderCache cache;
-    auto cached_opt = cache.tryLoad(resolved_path, {});
+    auto cached_opt = cache.tryLoad(resolved_path, compile_command);
     if (cached_opt) { return std::move(*cached_opt); }
 
-    
     auto expected_file_content = read_file_as_string(resolved_path);
     if (not expected_file_content) {
         lcf_log_error("failed to read file {}: {}", resolved_path.string(), expected_file_content.error().message());
@@ -282,7 +288,7 @@ std::expected<spirv::UnitList, std::error_code> ShaderCompiler::compileSlangSour
     auto module_name = resolved_path.stem().string();
     auto compiled = compile_slang(expected_file_content.value(), module_name, m_include_directories);
     if (not compiled) { return std::unexpected(compiled.error()); }
-    cache.store(resolved_path, {}, *compiled);
-    
+    cache.store(resolved_path, compile_command, *compiled);
+
     return std::move(compiled->m_units);
 }

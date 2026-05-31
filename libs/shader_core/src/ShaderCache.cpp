@@ -14,18 +14,21 @@ namespace stdfs = std::filesystem;
 
 namespace {
     constexpr uint32_t k_magic = 0x4C434653;
-    constexpr uint32_t k_version = 2;
+    constexpr uint32_t k_version = 3;
 
     struct CacheHeader
     {
         CacheHeader() noexcept = default;
-        CacheHeader(uint32_t magic, uint32_t version, uint64_t unit_count) noexcept :
+        CacheHeader(uint32_t magic, uint32_t version, uint32_t compile_command_size, uint64_t unit_count) noexcept :
             m_magic(magic),
             m_version(version),
+            m_compile_command_size(compile_command_size),
             m_unit_count(unit_count) {}
 
         uint32_t m_magic = 0;
         uint32_t m_version = 0;
+        uint32_t m_compile_command_size = 0;
+        uint32_t m_reserved = 0;
         uint64_t m_unit_count = 0;
     };
 
@@ -79,7 +82,7 @@ std::optional<spirv::UnitList> spirv::ShaderCache::tryLoad(
     if (not entry or entry->isOutdated()) { return std::nullopt; }
     auto product_hash_opt = entry->getProductHash(compile_command);
     if (not product_hash_opt) { return std::nullopt; }
-    
+
     auto path = make_cache_entry_path(*product_hash_opt);
     auto expected_data = read_file_as_bytes(path);
     if (not expected_data) { return std::nullopt; }
@@ -88,6 +91,9 @@ std::optional<spirv::UnitList> spirv::ShaderCache::tryLoad(
     CacheHeader header;
     if (not reader.read(header)) { return std::nullopt; }
     if (header.m_magic != k_magic or header.m_version != k_version) { return std::nullopt; }
+    std::string stored_command(header.m_compile_command_size, '\0');
+    if (not reader.readBytes(as_bytes(stored_command))) { return std::nullopt; }
+    if (stored_command != compile_command) { return std::nullopt; }
     spirv::UnitList units;
     units.reserve(header.m_unit_count);
     for (uint64_t i = 0; i < header.m_unit_count; ++i) {
@@ -110,7 +116,8 @@ void spirv::ShaderCache::store(
 {
     const auto & units = compile_result.getUnits();
     BufferWriter writer;
-    writer.write(CacheHeader{ k_magic, k_version, units.size() });
+    writer.write(CacheHeader{ k_magic, k_version, static_cast<uint32_t>(compile_command.size()), units.size() });
+    writer.writeBytes(as_bytes(compile_command));
     for (const auto & unit : units) {
         auto name_bytes = as_bytes(unit.getEntryPoint());
         auto code_bytes = as_bytes(unit.getCode());
@@ -118,7 +125,10 @@ void spirv::ShaderCache::store(
             .writeBytes(name_bytes)
             .writeBytes(code_bytes);
     }
-    auto ec = write_file(make_cache_entry_path(compile_result.getCacheHash()), as_bytes(writer.getBuffer()));
+    std::error_code ec;
+    stdfs::create_directories(get_cache_directory(), ec);
+    if (ec) { return; }
+    ec = write_file(make_cache_entry_path(compile_result.getCacheHash()), as_bytes(writer.getBuffer()));
 
     ManifestEntry new_entry {compile_result.getDependencyPaths()};
     new_entry.addProductHash(compile_command, compile_result.getCacheHash());

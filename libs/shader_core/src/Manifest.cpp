@@ -17,7 +17,7 @@ namespace stdv = std::views;
 
 namespace {
     constexpr uint32_t k_version = 3;
-    constexpr std::string_view k_manifest_file_name {".mnfbin"};
+    constexpr std::string_view k_manifest_file_ext {".mnfbin"};
 
     struct ManifestHeader
     {
@@ -72,7 +72,7 @@ namespace {
 
 static stdfs::path make_manifest_file_path(const stdfs::path & work_dir) noexcept
 {
-    return work_dir / k_manifest_file_name;
+    return work_dir / k_manifest_file_ext;
 }
 
 static stdfs::path cache_path_for_hash(const stdfs::path & work_dir, uint64_t hash, const stdfs::path & cache_ext) noexcept
@@ -100,7 +100,7 @@ static stdfs::path normalize_manifest_path(const stdfs::path & resolved_path) no
 
 static bool read_manifest_entry(BufferReader & reader, const ManifestEntryHeader & entry_header, ManifestEntry & out_entry) noexcept;
 
-static void remove_cache_garbage(const stdfs::path & cache_dir, const stdfs::path & cache_ext, const std::unordered_set<uint64_t> & live_hashes) noexcept;
+static void remove_cache_garbage(const stdfs::path & cache_dir, const std::unordered_set<uint64_t> & live_hashes) noexcept;
 
 static ManifestEntryMap read_manifest_from_disk(const stdfs::path & work_dir, std::unordered_set<uint64_t> & orphan_hashes) noexcept;
 
@@ -199,7 +199,7 @@ std::error_code Manifest::shutdown() noexcept
     m_pending_orphan_hashes.clear();
     std::error_code ec;
     std::size_t file_count = std::distance(stdfs::directory_iterator(m_work_dir, ec), {});
-    if (not ec and file_count > live_hashes.size() + 1u) { remove_cache_garbage(m_work_dir, m_cache_ext, live_hashes); }
+    if (not ec and file_count > live_hashes.size() + 1u) { remove_cache_garbage(m_work_dir, live_hashes); }
     return write_manifest_to_disk(m_work_dir, m_entries);
 }
 
@@ -247,7 +247,7 @@ void ManifestManager::shutdown() noexcept
     }
 }
 
-static void remove_cache_garbage(const stdfs::path & cache_dir, const stdfs::path & cache_ext, const std::unordered_set<uint64_t> & live_hashes) noexcept
+static void remove_cache_garbage(const stdfs::path & cache_dir, const std::unordered_set<uint64_t> & live_hashes) noexcept
 {
     std::error_code ec;
     if (not stdfs::is_directory(cache_dir, ec) or ec) { return; }
@@ -255,11 +255,13 @@ static void remove_cache_garbage(const stdfs::path & cache_dir, const stdfs::pat
     for (; not ec and iter != end; iter.increment(ec)) {
         const auto & dir_entry = *iter;
         if (not dir_entry.is_regular_file(ec) or ec) { ec.clear(); continue; }
-        if (dir_entry.path().extension() != cache_ext) { continue; }
+        if (dir_entry.path().extension() == k_manifest_file_ext) { continue; }
         const auto stem = dir_entry.path().stem().string();
         uint64_t hash = 0;
         try { hash = std::stoull(stem, nullptr, 16); }
-        catch (...) { continue; }
+        catch (...) {
+            continue;
+        }
         if (live_hashes.contains(hash)) { continue; }
         stdfs::remove(dir_entry.path());
     }
