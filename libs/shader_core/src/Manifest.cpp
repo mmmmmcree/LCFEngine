@@ -178,10 +178,13 @@ void Manifest::upsert(const stdfs::path & source_path, ManifestEntry entry) noex
         m_entries.emplace(canonical_path, std::move(entry));
         return;
     }
+    m_pending_orphan_hashes.insert_range(it->second.getProductHashes());
     if (same_dependency_paths(it->second, entry)) {
-        it.value().getProductHashMap().insert_range(entry.getProductHashMap());
+        auto & existing_map = it.value().getProductHashMap();
+        for (auto & [key, hash] : entry.getProductHashMap()) {
+            existing_map.insert_or_assign(std::move(key), hash);
+        }
     } else {
-        m_pending_orphan_hashes.insert_range(it->second.getProductHashes());
         it.value() = std::move(entry);
     }
 }
@@ -259,9 +262,7 @@ static void remove_cache_garbage(const stdfs::path & cache_dir, const std::unord
         const auto stem = dir_entry.path().stem().string();
         uint64_t hash = 0;
         try { hash = std::stoull(stem, nullptr, 16); }
-        catch (...) {
-            continue;
-        }
+        catch (...) { continue; }
         if (live_hashes.contains(hash)) { continue; }
         stdfs::remove(dir_entry.path());
     }
