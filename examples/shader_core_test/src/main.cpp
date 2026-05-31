@@ -125,6 +125,7 @@ int main()
     fs::path test_shaders_dir = LCF_SHADER_CORE_TEST_SHADERS_DIR;
 
     sc::Config::instance()
+        .setCacheDirectory("shader_core_test/.shader_cache")
         .registerVirtualPath("shaders", assets_dir / "shaders")
         .registerVirtualPath("test_shaders", test_shaders_dir)
         // include 目录里加 test_shaders_dir，slang 才能解析 `import common`。
