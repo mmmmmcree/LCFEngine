@@ -206,8 +206,12 @@ bool ShaderFingerprint::matches(const stdfs::path & path) const noexcept
     auto file_size = stdfs::file_size(path, ec);
     if (ec or m_file_size != static_cast<uint64_t>(file_size)) { return false; }
     auto mtime = stdfs::last_write_time(path, ec);
-    if (not ec and m_mtime == mtime_to_u64(mtime)) { return true; }
-    return hash_file_content(path) == m_content_hash;
+    if (ec) { return false; }
+    uint64_t mtime_u64 = mtime_to_u64(mtime);
+    if (not ec and m_mtime == mtime_u64) { return true; }
+    if (hash_file_content(path) != m_content_hash) { return false; }
+    m_mtime = mtime_u64;
+    return true;
 }
 
 Manifest::Manifest(stdfs::path work_dir) noexcept :

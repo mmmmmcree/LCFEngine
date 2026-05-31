@@ -22,7 +22,7 @@ namespace lcf::sc {
         bool operator==(const ShaderFingerprint & other) const noexcept = default;
         bool matches(const std::filesystem::path & path) const noexcept;
 
-        uint64_t m_mtime = 0;
+        mutable uint64_t m_mtime = 0;
         uint64_t m_file_size = 0;
         uint64_t m_content_hash = 0;
     };
@@ -92,11 +92,7 @@ namespace lcf::sc {
         ProductList m_products;
     };
 
-    struct ManifestPathHash
-    {
-        size_t operator()(const std::filesystem::path & p) const noexcept { return std::filesystem::hash_value(p); }
-    };
-    using ManifestEntryMap = tsl::robin_map<std::filesystem::path, ManifestEntry, ManifestPathHash>;
+    using ManifestEntryMap = tsl::robin_map<std::filesystem::path, ManifestEntry>;
 
     class Manifest
     {
