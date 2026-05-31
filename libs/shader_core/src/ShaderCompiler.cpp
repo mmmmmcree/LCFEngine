@@ -272,12 +272,9 @@ std::expected<spirv::UnitList, std::error_code> ShaderCompiler::compileSlangSour
     auto resolved_path = sc::Config::instance().resolvePath(file_path);
 
     sc::spirv::ShaderCache cache;
-    if (const ManifestEntry * entry = Manifest::instance().find(resolved_path)) {
-        if (not entry->isOutdated()) {
-            auto cached = cache.tryLoad(entry->getProducts().front().m_compile_input_hash);
-            if (cached) { return std::move(*cached); }
-        }
-    }
+    auto cached_opt = cache.tryLoad(resolved_path);
+    if (cached_opt) { return std::move(*cached_opt); }
+
     
     auto expected_file_content = read_file_as_string(resolved_path);
     if (not expected_file_content) {
@@ -288,15 +285,7 @@ std::expected<spirv::UnitList, std::error_code> ShaderCompiler::compileSlangSour
     auto module_name = resolved_path.stem().string();
     auto compiled = compile_slang(expected_file_content.value(), module_name, m_include_directories);
     if (not compiled) { return std::unexpected(compiled.error()); }
-
-    if (auto ec = cache.store(compiled->getCacheHash(), compiled->getUnits())) {
-        lcf_log_warn("slang cache store failed for '{}': {}", module_name, ec.message());
-    }
-
-    ManifestEntry new_entry {resolved_path};
-    new_entry.appendDependencies(compiled->getDependencyPaths())
-        .addProduct(sc::ProductRef{compiled->getCacheHash()});
-    Manifest::instance().upsert(std::move(new_entry));
+    cache.store(resolved_path, *compiled);
 
     return std::move(compiled->m_units);
 }

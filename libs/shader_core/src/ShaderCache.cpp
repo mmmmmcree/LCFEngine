@@ -10,6 +10,7 @@
 
 using namespace lcf;
 using namespace lcf::sc;
+namespace stdfs = std::filesystem;
 
 namespace {
     constexpr uint32_t k_magic = 0x4C434653;
@@ -42,9 +43,28 @@ namespace {
         uint64_t m_spv_size_in_bytes = 0;
     };
 
-    std::filesystem::path make_cache_entry_path(uint64_t hash) noexcept
+}
+
+namespace lcf::sc::spirv {
+    static const stdfs::path & get_cache_directory() noexcept
     {
-        return Config::instance().getCacheDirectory() / std::format("{:016x}.spvbin", hash);
+        static const stdfs::path s_cache_dir = Config::instance().getCacheDirectory() / "spirv";
+        return s_cache_dir;
+    }
+
+    static std::filesystem::path make_cache_entry_path(uint64_t hash) noexcept
+    {
+        return get_cache_directory() / std::format("{:016x}.spvbin", hash);
+    }
+
+    static Manifest & get_manifest_instance() noexcept
+    {
+        static Manifest s_manifest {get_cache_directory()};
+        static bool s_initialized = [](Manifest & manifest) {
+            ManifestManager::instance().registerStaticManifest(&manifest);
+            return true;
+        }(s_manifest);
+        return s_manifest;
     }
 }
 
@@ -75,10 +95,6 @@ std::optional<spirv::UnitList> spirv::ShaderCache::tryLoad(uint64_t hash) const 
 
 std::error_code spirv::ShaderCache::store(uint64_t hash, const spirv::UnitList & units) const noexcept
 {
-    const auto & cache_dir = Config::instance().getCacheDirectory();
-    std::error_code ec;
-    std::filesystem::create_directories(cache_dir, ec);
-    if (ec) { return ec; }
     BufferWriter writer;
     writer.write(CacheHeader{ k_magic, k_version, units.size() });
     for (const auto & unit : units) {
@@ -89,4 +105,24 @@ std::error_code spirv::ShaderCache::store(uint64_t hash, const spirv::UnitList &
             .writeBytes(code_bytes);
     }
     return write_file(make_cache_entry_path(hash), as_bytes(writer.getBuffer()));
+}
+
+std::optional<spirv::UnitList> spirv::ShaderCache::tryLoad(const std::filesystem::path &source_path) const noexcept
+{
+    auto & manifest = get_manifest_instance();
+    const ManifestEntry * entry = manifest.find(source_path);
+    if (not entry or entry->isOutdated()) { return std::nullopt; }
+    return this->tryLoad(entry->getProducts().front().m_compile_input_hash);
+}
+
+void spirv::ShaderCache::store(const std::filesystem::path & source_path, const CompileResult &compile_result) const noexcept
+{
+    this->store(compile_result.getCacheHash(), compile_result.getUnits());
+
+    ManifestEntry new_entry {source_path};
+    new_entry.appendDependencies(compile_result.getDependencyPaths())
+        .addProduct(sc::ProductRef{compile_result.getCacheHash()});
+    auto & manifest = get_manifest_instance();
+    manifest.upsert(std::move(new_entry));
+    manifest.flush();
 }

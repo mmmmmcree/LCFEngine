@@ -22,7 +22,7 @@ namespace stdv = std::views;
 namespace {
     constexpr uint32_t k_magic = 0x4C434D46; // "LCMF"
     constexpr uint32_t k_version = 2;        // v2: header-first 紧凑布局（每个变长域前都先甩一个定长 header struct）
-    constexpr std::string_view k_manifest_file_name {".manfbin"};
+    constexpr std::string_view k_manifest_file_name {".mnfbin"};
 
     /* ===== manifest file layout =====
         ManifestHeader  { magic; version; slang_ver_size; entry_count; }
@@ -123,14 +123,14 @@ namespace {
     };
 }
 
-static stdfs::path manifest_file_path() noexcept
+static stdfs::path manifest_file_path(const stdfs::path & work_dir) noexcept
 {
-    return Config::instance().getCacheDirectory() / k_manifest_file_name;
+    return work_dir / k_manifest_file_name;
 }
 
-static stdfs::path cache_path_for_hash(uint64_t hash) noexcept
+static stdfs::path cache_path_for_hash(const stdfs::path & work_dir, uint64_t hash) noexcept
 {
-    return Config::instance().getCacheDirectory() / std::format("{:016x}.spvbin", hash);
+    return work_dir / std::format("{:016x}.spvbin", hash);
 }
 
 static std::string current_slang_global_version() noexcept
@@ -179,9 +179,9 @@ static bool read_manifest_entry(BufferReader & reader, const EntryHeader & entry
 
 static void remove_cache_garbage(const stdfs::path & cache_dir, const std::unordered_set<uint64_t> & live_hashes) noexcept;
 
-static ManifestEntryMap read_manifest_from_disk(const stdfs::path & path, std::string_view current_slang_version) noexcept;
+static ManifestEntryMap read_manifest_from_disk(const stdfs::path & work_dir, std::string_view current_slang_version) noexcept;
 
-static std::error_code write_manifest_to_disk(const stdfs::path & path, const ManifestEntryMap & entries, std::string_view slang_version) noexcept;
+static std::error_code write_manifest_to_disk(const stdfs::path & work_dir, const ManifestEntryMap & entries, std::string_view slang_version) noexcept;
 
 // =====================================================================
 // ShaderFingerprint / Manifest (namespace lcf::shader_core)
@@ -210,15 +210,10 @@ bool ShaderFingerprint::matches(const stdfs::path & path) const noexcept
     return hash_file_content(path) == m_content_hash;
 }
 
-Manifest & Manifest::instance() noexcept
-{
-    static Manifest s_instance;
-    return s_instance;
-}
-
-Manifest::Manifest() noexcept :
+Manifest::Manifest(stdfs::path work_dir) noexcept :
+    m_work_dir(std::move(work_dir)),
     m_loaded_slang_global_version(current_slang_global_version()),
-    m_entries(read_manifest_from_disk(manifest_file_path(), m_loaded_slang_global_version))
+    m_entries(read_manifest_from_disk(manifest_file_path(m_work_dir), m_loaded_slang_global_version))
 {
 }
 
@@ -249,7 +244,7 @@ void Manifest::upsert(ManifestEntry entry) noexcept
 std::error_code Manifest::flush() noexcept
 {
     if (not m_dirty) { return {}; }
-    auto ec = write_manifest_to_disk(manifest_file_path(), m_entries, current_slang_global_version());
+    auto ec = write_manifest_to_disk(m_work_dir, m_entries, current_slang_global_version());
     if (not ec) { m_dirty = false; }
     return ec;
 }
@@ -263,7 +258,7 @@ std::error_code Manifest::shutdown() noexcept
     }
     for (auto hash : m_pending_orphan_hashes) {
         if (live_hashes.contains(hash)) { continue; }
-        stdfs::remove(cache_path_for_hash(hash));
+        stdfs::remove(cache_path_for_hash(m_work_dir, hash));
     }
     m_pending_orphan_hashes.clear();
 
@@ -395,8 +390,9 @@ static void remove_cache_garbage(const stdfs::path & cache_dir, const std::unord
     }
 }
 
-static ManifestEntryMap read_manifest_from_disk( const stdfs::path & path, std::string_view current_slang_version) noexcept
+static ManifestEntryMap read_manifest_from_disk( const stdfs::path & work_dir, std::string_view current_slang_version) noexcept
 {
+    auto path = manifest_file_path(work_dir);
     auto expected_bytes = read_file_as_bytes(path);
     if (not expected_bytes) { return {}; }
     BufferReader reader(expected_bytes.value());
@@ -425,13 +421,12 @@ static ManifestEntryMap read_manifest_from_disk( const stdfs::path & path, std::
 }
 
 static std::error_code write_manifest_to_disk(
-    const stdfs::path & path,
+    const stdfs::path & work_dir,
     const ManifestEntryMap & entries,
     std::string_view slang_version) noexcept
 {
-    const auto & cache_dir = Config::instance().getCacheDirectory();
     std::error_code ec;
-    stdfs::create_directories(cache_dir, ec);
+    stdfs::create_directories(work_dir, ec);
     if (ec) { return ec; }
     BufferWriter writer;
     writer.write(ManifestHeader{
@@ -467,7 +462,7 @@ static std::error_code write_manifest_to_disk(
         }
     }
 
-    return write_file(path, as_bytes(writer.getBuffer()));
+    return write_file(manifest_file_path(work_dir), as_bytes(writer.getBuffer()));
 }
 
 ManifestManager & ManifestManager::instance() noexcept

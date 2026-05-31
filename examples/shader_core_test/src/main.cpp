@@ -159,13 +159,6 @@ int main()
         lcf_log_info("[P3] sphere_to_cube -> {} ms ({})", r.elapsed_ms, r.ok ? "OK" : "FAIL");
     }
 
-    // 阶段 1-3 完成，强制 flush manifest：模拟跨进程边界（即使本进程崩溃，下次启动也能继续验证 HIT）。
-    if (auto ec = sc::Manifest::instance().flush()) {
-        lcf_log_warn("flushShaderManifest after phase 3 failed: {}", ec.message());
-    } else {
-        lcf_log_info("manifest flushed to disk after phase 3");
-    }
-
     // ---------- Phase 4 + 5: 改 shader_c 后再编 a/b/c ----------
     log_phase(4, "append marker to shader_c.slang (should affect only shader_c)");
     append_marker(shader_c_path);
@@ -184,11 +177,8 @@ int main()
     guard_common.restore();
     compile_abc(compiler, "P8");
 
-    // 显式 shutdown：先按 setGcOnShutdown 决定是否 GC，再 flush 落盘。
+
     // 不能依赖 ~Manifest()——在 DLL/Meyers-singleton 场景下静态局部对象的析构
-    // 在某些 toolchain 上不会被触发，会导致 GC 与最终 flush 都被跳过。
-    if (auto ec = sc::Manifest::instance().shutdown()) {
-        lcf_log_warn("Manifest shutdown failed: {}", ec.message());
-    }
+    sc::ManifestManager::instance().shutdown();
     return 0;
 }

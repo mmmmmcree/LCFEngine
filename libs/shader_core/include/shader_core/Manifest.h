@@ -101,8 +101,8 @@ namespace lcf::sc {
     class Manifest
     {
     public:
-        static Manifest & instance() noexcept;
         ~Manifest() noexcept;
+        explicit Manifest(std::filesystem::path work_dir) noexcept;
         Manifest(const Manifest &) = delete;
         Manifest & operator=(const Manifest &) = delete;
         Manifest(Manifest &&) = delete;
@@ -112,9 +112,8 @@ namespace lcf::sc {
         void upsert(ManifestEntry entry) noexcept;
         std::error_code flush() noexcept;
         std::error_code shutdown() noexcept;
-    // private:
-        Manifest() noexcept;
     private:
+        std::filesystem::path m_work_dir;
         std::string m_loaded_slang_global_version;
         ManifestEntryMap m_entries;
         std::unordered_set<uint64_t> m_pending_orphan_hashes;
