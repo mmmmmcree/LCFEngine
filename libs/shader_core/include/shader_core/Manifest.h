@@ -49,7 +49,7 @@ namespace lcf::sc {
     {
         using Self = ManifestEntry;
         using FileRecordList = std::vector<FileRecord>;
-        using ProductHashMap = std::unordered_map<std::string, uint64_t>;
+        using ProductHashMap = tsl::robin_map<std::string, uint64_t>;
     public:
         ManifestEntry() noexcept = default;
         template <convertible_range_of_c<FileRecord> FileRange>
