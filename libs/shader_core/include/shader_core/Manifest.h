@@ -54,7 +54,7 @@ namespace lcf::sc {
         ManifestEntry() noexcept = default;
         template <convertible_range_of_c<FileRecord> FileRange>
         explicit ManifestEntry(FileRange && file_range) noexcept :
-            m_file_records(std::forward<FileRange>(file_range) | std::ranges::to<FileRecordList>()) {}
+            m_file_records(std::forward<FileRange>(file_range)) {}
         template <convertible_range_of_c<std::filesystem::path> PathRange>
         explicit ManifestEntry(PathRange && path_range) noexcept :
             m_file_records(std::forward<PathRange>(path_range) | std::ranges::to<FileRecordList>()) {}
