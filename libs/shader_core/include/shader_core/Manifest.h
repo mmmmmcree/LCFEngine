@@ -60,8 +60,8 @@ namespace lcf::sc {
             m_file_records(std::forward<PathRange>(path_range) | std::ranges::to<FileRecordList>()) {}
         const FileRecordList & getFileRecords() const noexcept { return m_file_records; }
         auto getProductHashes() const noexcept { return m_product_hashes | std::views::values; }
-        ProductHashMap & getProductHashMap() noexcept { return m_product_hashes; }
-        const ProductHashMap & getProductHashMap() const noexcept { return m_product_hashes; }
+        auto & getProductHashMap() noexcept { return m_product_hashes; }
+        const auto & getProductHashMap() const noexcept { return m_product_hashes; }
         std::optional<uint64_t> getProductHash(const std::string & product_key) const noexcept;
         bool isOutdated() const noexcept;
         void addProductHash(const std::string & product_key, uint64_t product_hash) { m_product_hashes.emplace(std::make_pair(product_key, product_hash)); }
