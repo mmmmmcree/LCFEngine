@@ -1,0 +1,9 @@
+{
+  "dependencies": [
+    { "name": "magic-enum" },
+    { "name": "nlohmann-json" },
+    { "name": "spdlog" },
+    { "name": "half" },
+    { "name": "boost-align" }
+  ]
+}

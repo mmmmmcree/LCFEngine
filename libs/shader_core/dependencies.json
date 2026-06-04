@@ -1,0 +1,9 @@
+{
+  "dependencies": [
+    { "name": "shaderc" },
+    { "name": "spirv-cross" },
+    { "name": "shader-slang" },
+    { "name": "xxhash" },
+    { "name": "robin-map" }
+  ]
+}

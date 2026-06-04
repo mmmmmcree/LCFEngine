@@ -9,10 +9,9 @@ set(WINDOW_BACKEND_DEFAULT "SDL3")
 
 set(WINDOW_BACKEND "${WINDOW_BACKEND_DEFAULT}" CACHE STRING "Select window backend")
 set_property(CACHE WINDOW_BACKEND PROPERTY STRINGS ${WINDOW_BACKEND_OPTIONS})
-# 创建接口库
+
 add_library(${config_target} INTERFACE)
 
-# 根据选择的后端进行配置
 if(WINDOW_BACKEND STREQUAL "SDL3")
     target_compile_definitions(${config_target} INTERFACE USE_SDL3=1)
     find_package(SDL3 REQUIRED)

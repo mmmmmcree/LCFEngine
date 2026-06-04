@@ -1,0 +1,9 @@
+{
+  "dependencies": [
+    { "name": "stb" },
+    { "name": "libpng" },
+    { "name": "libjpeg-turbo" },
+    { "name": "boost-gil" },
+    { "name": "boost-algorithm" }
+  ]
+}

@@ -19,6 +19,7 @@ set_target_properties(main_example PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
 
+
 if(LCF_DEPLOY)
     target_compile_definitions(${PROJECT_NAME} PRIVATE
         LCF_EXAMPLES_ASSETS_DIR="./assets"

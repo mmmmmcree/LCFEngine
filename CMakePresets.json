@@ -1,119 +1,124 @@
-﻿{
+{
   "version": 3,
-  "cmakeMinimumRequired": {
-    "major": 3,
-    "minor": 21,
-    "patch": 0
-  },
+  "cmakeMinimumRequired": { "major": 3, "minor": 21, "patch": 0 },
+
   "configurePresets": [
     {
-      "name": "msvc",
-      "description": "MSVC (Visual Studio) — x64-windows",
-      "binaryDir": "${sourceDir}/build/build-msvc",
-      "generator": "Visual Studio 18 2026",
-      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+      "name": "_base",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
-        "VCPKG_TARGET_TRIPLET": "x64-windows"
+        "DEPS_BACKEND": "auto",
+        "DEPS_KEEP_SOURCES": "off"
+      }
+    },
+    {
+      "name": "msvc",
+      "inherits": "_base",
+      "displayName": "MSVC (Ninja Multi-Config, x64)",
+      "description": "MSVC cl.exe via Ninja Multi-Config; vcpkg triplet x64-windows",
+      "generator": "Ninja Multi-Config",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER":     "cl",
+        "CMAKE_CXX_COMPILER":   "cl",
+        "DEPS_BACKEND": "vcpkg",
+        "DEPS_KEEP_SOURCES": "on"
       }
     },
     {
       "name": "clang",
-      "description": "Clang-CL (Ninja Multi-Config) — x64-windows",
-      "binaryDir": "${sourceDir}/build/build-clang",
+      "inherits": "_base",
+      "displayName": "Clang-CL (Ninja Multi-Config, x64)",
+      "description": "Clang-CL via Ninja Multi-Config; vcpkg triplet x64-windows",
       "generator": "Ninja Multi-Config",
-      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
       "cacheVariables": {
-        "CMAKE_C_COMPILER": "clang-cl",
-        "CMAKE_CXX_COMPILER": "clang-cl",
-        "VCPKG_TARGET_TRIPLET": "x64-windows"
+        "CMAKE_C_COMPILER":     "clang-cl",
+        "CMAKE_CXX_COMPILER":   "clang-cl"
       }
     },
     {
       "name": "gcc",
-      "description": "GCC (Ninja Multi-Config, MinGW) — x64-mingw-dynamic",
-      "binaryDir": "${sourceDir}/build/build-gcc",
+      "inherits": "_base",
+      "displayName": "GCC / MinGW (Ninja Multi-Config, x64)",
+      "description": "MinGW g++ via Ninja Multi-Config; vcpkg triplet x64-mingw-dynamic",
       "generator": "Ninja Multi-Config",
-      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
       "cacheVariables": {
-        "CMAKE_C_COMPILER": "gcc",
-        "CMAKE_CXX_COMPILER": "g++",
-        "VCPKG_TARGET_TRIPLET": "x64-mingw-dynamic"
+        "CMAKE_C_COMPILER":     "gcc",
+        "CMAKE_CXX_COMPILER":   "g++"
       }
     },
+
     {
       "name": "msvc-tests",
-      "description": "MSVC, tests-only minimal build (gtest via vcpkg 'tests' feature). Skips RenderEngine/libs/examples to keep the build fast.",
       "inherits": "msvc",
-      "binaryDir": "${sourceDir}/build/build-msvc-tests",
+      "displayName": "MSVC tests-only",
+      "description": "Minimal test build: only utilities/containers/tests are registered",
       "cacheVariables": {
-        "LCF_BUILD_TESTS": "ON",
-        "LCF_TESTS_ONLY": "ON",
-        "VCPKG_MANIFEST_FEATURES": "containers;tests"
+        "LCF_BUILD_TESTS":  "ON",
+        "LCF_TESTS_ONLY":   "ON"
       }
     },
     {
       "name": "msvc-bench",
-      "description": "MSVC, tests-only minimal build + performance benchmarks (google-benchmark).",
       "inherits": "msvc-tests",
-      "binaryDir": "${sourceDir}/build/build-msvc-bench",
-      "cacheVariables": {
-        "LCF_BUILD_BENCHMARKS": "ON"
-      }
+      "displayName": "MSVC tests + benchmarks",
+      "cacheVariables": { "LCF_BUILD_BENCHMARKS": "ON" }
     },
     {
       "name": "clang-tests",
-      "description": "Clang-CL, tests-only minimal build.",
       "inherits": "clang",
-      "binaryDir": "${sourceDir}/build/build-clang-tests",
+      "displayName": "Clang tests-only",
       "cacheVariables": {
-        "LCF_BUILD_TESTS": "ON",
-        "LCF_TESTS_ONLY": "ON",
-        "VCPKG_MANIFEST_FEATURES": "containers;tests"
+        "LCF_BUILD_TESTS":  "ON",
+        "LCF_TESTS_ONLY":   "ON"
       }
     },
     {
       "name": "clang-bench",
-      "description": "Clang-CL, tests-only minimal build + performance benchmarks.",
       "inherits": "clang-tests",
-      "binaryDir": "${sourceDir}/build/build-clang-bench",
-      "cacheVariables": {
-        "LCF_BUILD_BENCHMARKS": "ON"
-      }
+      "displayName": "Clang tests + benchmarks",
+      "cacheVariables": { "LCF_BUILD_BENCHMARKS": "ON" }
     },
     {
       "name": "gcc-tests",
-      "description": "GCC, tests-only minimal build.",
       "inherits": "gcc",
-      "binaryDir": "${sourceDir}/build-gcc-tests",
+      "displayName": "GCC tests-only",
       "cacheVariables": {
-        "LCF_BUILD_TESTS": "ON",
-        "LCF_TESTS_ONLY": "ON",
-        "VCPKG_MANIFEST_FEATURES": "containers;tests"
+        "LCF_BUILD_TESTS":  "ON",
+        "LCF_TESTS_ONLY":   "ON"
       }
+    },
+    {
+      "name": "gcc-bench",
+      "inherits": "gcc-tests",
+      "displayName": "GCC tests + benchmarks",
+      "cacheVariables": { "LCF_BUILD_BENCHMARKS": "ON" }
     }
   ],
-  "buildPresets": [
-    { "name": "msvc-debug",          "configurePreset": "msvc",        "configuration": "Debug" },
-    { "name": "msvc-release",        "configurePreset": "msvc",        "configuration": "Release" },
-    { "name": "msvc-relwithdebinfo", "configurePreset": "msvc",        "configuration": "RelWithDebInfo" },
 
-    { "name": "clang-debug",          "configurePreset": "clang",       "configuration": "Debug" },
-    { "name": "clang-release",        "configurePreset": "clang",       "configuration": "Release" },
+  "buildPresets": [
+    { "name": "msvc-debug",           "configurePreset": "msvc",        "configuration": "Debug"          },
+    { "name": "msvc-release",         "configurePreset": "msvc",        "configuration": "Release"        },
+    { "name": "msvc-relwithdebinfo",  "configurePreset": "msvc",        "configuration": "RelWithDebInfo" },
+
+    { "name": "clang-debug",          "configurePreset": "clang",       "configuration": "Debug"          },
+    { "name": "clang-release",        "configurePreset": "clang",       "configuration": "Release"        },
     { "name": "clang-relwithdebinfo", "configurePreset": "clang",       "configuration": "RelWithDebInfo" },
 
-    { "name": "gcc-debug",            "configurePreset": "gcc",         "configuration": "Debug" },
-    { "name": "gcc-release",          "configurePreset": "gcc",         "configuration": "Release" },
+    { "name": "gcc-debug",            "configurePreset": "gcc",         "configuration": "Debug"          },
+    { "name": "gcc-release",          "configurePreset": "gcc",         "configuration": "Release"        },
     { "name": "gcc-relwithdebinfo",   "configurePreset": "gcc",         "configuration": "RelWithDebInfo" },
 
-    { "name": "msvc-tests-debug",     "configurePreset": "msvc-tests",  "configuration": "Debug" },
-    { "name": "msvc-tests-release",   "configurePreset": "msvc-tests",  "configuration": "Release" },
-    { "name": "msvc-bench-release",   "configurePreset": "msvc-bench",  "configuration": "Release" },
+    { "name": "msvc-tests-debug",     "configurePreset": "msvc-tests",  "configuration": "Debug"          },
+    { "name": "msvc-tests-release",   "configurePreset": "msvc-tests",  "configuration": "Release"        },
+    { "name": "msvc-bench-release",   "configurePreset": "msvc-bench",  "configuration": "Release"        },
 
-    { "name": "clang-tests-debug",    "configurePreset": "clang-tests", "configuration": "Debug" },
-    { "name": "clang-tests-release",  "configurePreset": "clang-tests", "configuration": "Release" },
-    { "name": "clang-bench-release",  "configurePreset": "clang-bench", "configuration": "Release" },
+    { "name": "clang-tests-debug",    "configurePreset": "clang-tests", "configuration": "Debug"          },
+    { "name": "clang-tests-release",  "configurePreset": "clang-tests", "configuration": "Release"        },
+    { "name": "clang-bench-release",  "configurePreset": "clang-bench", "configuration": "Release"        },
 
-    { "name": "gcc-tests-debug",      "configurePreset": "gcc-tests",   "configuration": "Debug" },
-    { "name": "gcc-tests-release",    "configurePreset": "gcc-tests",   "configuration": "Release" }
+    { "name": "gcc-tests-debug",      "configurePreset": "gcc-tests",   "configuration": "Debug"          },
+    { "name": "gcc-tests-release",    "configurePreset": "gcc-tests",   "configuration": "Release"        },
+    { "name": "gcc-bench-release",    "configurePreset": "gcc-bench",   "configuration": "Release"        }
   ]
 }

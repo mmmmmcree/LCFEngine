@@ -1,0 +1,10 @@
+{
+  "dependencies": [
+    { "name": "boost-beast" },
+    { "name": "boost-url" },
+    { "name": "boost-pool" },
+    { "name": "boost-unordered" },
+    { "name": "openssl" },
+    { "name": "cli11" }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "dependencies": [
+    { "name": "boost-circular-buffer" },
+    { "name": "boost-lockfree" }
+  ]
+}

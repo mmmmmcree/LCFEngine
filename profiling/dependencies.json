@@ -1,0 +1,5 @@
+{
+  "dependencies": [
+    { "name": "tracy", "features": ["on-demand"] }
+  ]
+}

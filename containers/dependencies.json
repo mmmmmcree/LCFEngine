@@ -1,0 +1,7 @@
+{
+  "dependencies": [
+    { "name": "robin-map" },
+    { "name": "boost-graph" },
+    { "name": "boost-icl" }
+  ]
+}

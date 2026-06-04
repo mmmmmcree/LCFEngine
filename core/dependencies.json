@@ -1,0 +1,8 @@
+{
+  "dependencies": [
+    { "name": "entt" },
+    { "name": "taskflow" },
+    { "name": "boost-asio" },
+    { "name": "boost-uuid" }
+  ]
+}

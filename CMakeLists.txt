@@ -1,47 +1,42 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.21)
+
+list(APPEND CMAKE_MODULE_PATH
+     "${CMAKE_CURRENT_SOURCE_DIR}/cmake/scripts"
+     "${CMAKE_CURRENT_SOURCE_DIR}/cmake/build_configs")
+include(deps)
 
 project(LCFEngine LANGUAGES CXX)
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/build_configs")
-set(CONFIG_MODULES
-    global_config
-    graphic_api_config
-    window_config
-    profiling_config
-    tests_config
-)
-foreach(module ${CONFIG_MODULES})
-    include(${module})
-endforeach()
+include(global_config)
+include(graphic_api_config)
+include(tests_config)
 
-# ============================================================
-# Module subdirectories.
-#
-# When LCF_TESTS_ONLY=ON, we skip heavyweight modules (RenderEngine,
-# libs, examples, ...) and only configure the minimum needed by the
-# test executables. This makes test-only builds dramatically faster
-# and avoids pulling in unrelated vcpkg dependencies (vulkan, sdl3,
-# assimp, etc.) when only running ctest.
-#
-# Modules required by tests/:
-#   - utilities  (Logger / spdlog / lcf_log_*)
-#   - containers (target under test)
-# ============================================================
-add_subdirectory(utilities)
-add_subdirectory(containers)
+find_package(Threads)
+
+add_pending_subdir(utilities)
+add_pending_subdir(containers)
 
 if(NOT LCF_TESTS_ONLY)
-    add_subdirectory(profiling)
-    add_subdirectory(input)
-    add_subdirectory(GUI)
-    add_subdirectory(libs)
-    add_subdirectory(RenderEngine)
-    add_subdirectory(examples)
-    add_subdirectory(core)
-    add_subdirectory(Modules)
-    add_subdirectory(Systems)
+    add_pending_subdir(profiling)
+    add_pending_subdir(input)
+    add_pending_subdir(GUI)
+    add_pending_subdir(libs)
+    add_pending_subdir(RenderEngine)
+    add_pending_subdir(examples)
+    add_pending_subdir(core)
+    add_pending_subdir(Modules)
+    add_pending_subdir(Systems)
 endif()
 
 if(LCF_BUILD_TESTS)
-    add_subdirectory(tests)
+    add_pending_subdir(tests)
 endif()
+
+install_dependencies()
+
+if(NOT LCF_TESTS_ONLY)
+    include(window_config)
+    include(profiling_config)
+endif()
+
+resolve_pending_subdirs()
