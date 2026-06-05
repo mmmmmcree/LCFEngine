@@ -64,6 +64,7 @@ namespace sl {  // slang namespace
         static Self & instance() noexcept;
     public:
         ~Config() noexcept = default;
+    private:
         Config() = default;
     public:
         Self & registerVirtualPath(std::string virtual_alias, std::filesystem::path real_path) noexcept;

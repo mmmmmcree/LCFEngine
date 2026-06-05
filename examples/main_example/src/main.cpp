@@ -12,6 +12,8 @@
 #include "tracy_profiling.h"
 #include "UserCommandContext.h"
 #include "shader_core/config.h"
+#include "render_assets/configs/config.h"
+#include "VirtualPathRegistry.h"
 
 using namespace std::chrono_literals;
 
@@ -24,6 +26,10 @@ int main(int argc, char *argv[])
         .registerVirtualPath("shaders", assets_dir / "shaders")
         .addIncludeDirectory(assets_dir / "shaders" / "include")
         .setDefaultGlslEntryPoint("main");
+    lcf::ra::Config::instance()
+        .registerVirtualPath("models", assets_dir / "models");
+    lcf::VirtualPathRegistry::instance().registerAlias("assets", assets_dir);
+
 
     lcf::ecs::Registry registry {{
         lcf::TaskSchedulerCreateInfo {lcf::TaskSchedulerRunMode::eNewThread}

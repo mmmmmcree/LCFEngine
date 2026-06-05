@@ -38,7 +38,7 @@ auto Config::setDefaultGlslEntryPoint(std::string entry_point) noexcept -> Self 
 
 std::filesystem::path Config::resolvePath(const std::filesystem::path &path) const noexcept
 {
-    return lcf::VirtualPathRegistry::instance().resolve(path);
+    return VirtualPathRegistry::instance().resolve(path);
 }
 
 #include <slang.h>

@@ -17,6 +17,7 @@
 #include "ResourceSystem.h"
 #include "ecs/Registry.h"
 #include "array/FlexArray.h"
+#include "VirtualPathRegistry.h"
 
 using namespace lcf;
 namespace stdr = std::ranges;
@@ -172,10 +173,11 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         m_per_renderable_ssbo_group[std::to_underlying(vkenums::BindlessBufferBinding::eBoundingVolume)].generateBufferInfo()
     ).commitUpdate(device);
 
+    auto image_assets_dir = VirtualPathRegistry::instance().resolve("assets://images");
     auto image1_sp = Texture2D::makeShared();
-    image1_sp->loadFromFileGpuFriendly({"assets/images/bk.jpg"});
+    image1_sp->loadFromFileGpuFriendly(image_assets_dir / "bk.jpg");
     auto image2_sp = Texture2D::makeShared();
-    image2_sp->loadFromFileGpuFriendly({"assets/images/qt256.png"});
+    image2_sp->loadFromFileGpuFriendly(image_assets_dir / "qt256.png");
     
     std::unordered_map<const Texture2D *, uint32_t> texture_id_map;
     VulkanBindlessTextureIdTable bindless_texture_id_table;
@@ -225,11 +227,11 @@ void lcf::VulkanRenderer::create(VulkanContext * context_p, const std::pair<uint
         }
     };
 
-    auto load_mode_result = ModelLoader {}.load("./assets/models/FlightHelmet/glTF/FlightHelmet.gltf");
+    auto load_mode_result = ModelLoader {}.load("models://FlightHelmet/glTF/FlightHelmet.gltf");
     vkutils::immediate_submit(m_context_p, vk::QueueFlagBits::eTransfer, [&model = load_mode_result.value(), &upload_model_to_gpu] (VulkanCommandBufferObject & cmd) {
         upload_model_to_gpu(cmd, model);
     });
-    load_mode_result = ModelLoader {}.load("./assets/models/DamagedHelmet/DamagedHelmet.gltf");
+    load_mode_result = ModelLoader {}.load("models://DamagedHelmet/DamagedHelmet.gltf");
     vkutils::immediate_submit(m_context_p, vk::QueueFlagBits::eTransfer, [&model = load_mode_result.value(), &upload_model_to_gpu] (VulkanCommandBufferObject & cmd) {
         upload_model_to_gpu(cmd, model);
     });

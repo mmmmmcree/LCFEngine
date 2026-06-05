@@ -1,5 +1,6 @@
 #include "render_assets/ModelLoader.h"
 #include "render_assets/Texture2D.h"
+#include "render_assets/configs/config.h"
 #include "enums/enum_cast.h"
 #include "log.h"
 #include "bytes.h"
@@ -96,7 +97,8 @@ ModelLoader::~ModelLoader()
 
 std::optional<Model> ModelLoader::load(const std::filesystem::path &path) const noexcept
 {
-    return m_impl_up->load(path);
+    auto resolved_path = ra::Config::instance().resolvePath(path);
+    return m_impl_up->load(resolved_path);
 }
 
 std::optional<Model> ModelLoader::Impl::load(const std::filesystem::path &path) noexcept
