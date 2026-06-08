@@ -1,0 +1,6 @@
+{
+  "dependencies": [
+    { "name": "vulkan" },
+    { "name": "vulkan-memory-allocator" }
+  ]
+}

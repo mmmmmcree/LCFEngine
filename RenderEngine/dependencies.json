@@ -1,7 +1,5 @@
 {
   "dependencies": [
-    { "name": "vulkan" },
-    { "name": "vulkan-memory-allocator" },
     { "name": "boost-container" },
     { "name": "boost-functional" },
     { "name": "boost-align" }

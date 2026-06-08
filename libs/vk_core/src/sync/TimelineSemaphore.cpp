@@ -1,15 +1,15 @@
-#include "Vulkan/VulkanTimelineSemaphore.h"
+#include "vk_core/sync/TimelineSemaphore.h"
 
-using namespace lcf::render;
+using namespace lcf::vkc;
 
-VulkanTimelineSemaphore::VulkanTimelineSemaphore(VulkanTimelineSemaphore &&other) noexcept :
+TimelineSemaphore::TimelineSemaphore(Self && other) noexcept :
     m_device(std::exchange(other.m_device, nullptr)),
     m_semaphore(std::move(other.m_semaphore)),
     m_target_value(std::exchange(other.m_target_value, 0))
 {
 }
 
-VulkanTimelineSemaphore & VulkanTimelineSemaphore::operator=(VulkanTimelineSemaphore &&other) noexcept
+auto TimelineSemaphore::operator=(Self && other) noexcept -> Self &
 {
     if (this == &other) { return *this; }
     m_device = std::exchange(other.m_device, nullptr);
@@ -18,7 +18,7 @@ VulkanTimelineSemaphore & VulkanTimelineSemaphore::operator=(VulkanTimelineSemap
     return *this;
 }
 
-std::error_code VulkanTimelineSemaphore::create(vk::Device device)
+std::error_code TimelineSemaphore::create(vk::Device device)
 {
     if (not device) { return std::make_error_code(std::errc::invalid_argument); }
     m_device = device;
@@ -35,7 +35,7 @@ std::error_code VulkanTimelineSemaphore::create(vk::Device device)
     return {};
 }
 
-std::error_code VulkanTimelineSemaphore::waitFor(uint64_t value) const noexcept
+std::error_code TimelineSemaphore::waitFor(uint64_t value) const noexcept
 {
     vk::SemaphoreWaitInfo wait_info;
     wait_info.setSemaphores(m_semaphore.get())
@@ -47,12 +47,12 @@ std::error_code VulkanTimelineSemaphore::waitFor(uint64_t value) const noexcept
     return {};
 }
 
-uint64_t VulkanTimelineSemaphore::getCurrentValue() const
+uint64_t TimelineSemaphore::getCurrentValue() const
 {
     return m_device.getSemaphoreCounterValue(m_semaphore.get());
 }
 
-vk::SemaphoreSubmitInfo VulkanTimelineSemaphore::generateSubmitInfo() const noexcept
+vk::SemaphoreSubmitInfo TimelineSemaphore::generateSubmitInfo() const noexcept
 {
     return vk::SemaphoreSubmitInfo(m_semaphore.get(), m_target_value);
 }

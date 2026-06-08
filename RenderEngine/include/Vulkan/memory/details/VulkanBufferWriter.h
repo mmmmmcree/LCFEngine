@@ -6,6 +6,10 @@
 #include "BufferWriteSegment.h"
 #include <vector>
 
+namespace lcf::vkc {
+    class TimelineSemaphore;
+}
+
 namespace lcf::render {
     class VulkanBufferWriter
     {
@@ -45,7 +49,7 @@ namespace lcf::render {
             uint64_t dst_offset_in_bytes = 0u) const noexcept;
     private:
         VulkanContext * m_context_p = nullptr;
-        mutable std::unique_ptr<VulkanTimelineSemaphore> m_timeline_semaphore_up;
+        mutable std::unique_ptr<vkc::TimelineSemaphore> m_timeline_semaphore_up;
         GPUBufferPattern m_pattern = GPUBufferPattern::eDynamic;
         mutable WriteBufferRequestList m_write_requests;
     };

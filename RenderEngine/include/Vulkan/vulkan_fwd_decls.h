@@ -4,8 +4,6 @@
 namespace lcf::render {
     class VulkanContext;
 
-    class VulkanTimelineSemaphore;
-
     class VulkanCommandBufferObject;
 
     class VulkanImage;
