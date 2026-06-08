@@ -1,7 +1,7 @@
 ---
 module: modern_rhi
 scope: vision
-last-anchor-commit: 04247ac
+last-anchor-commit: f1cd84f
 ---
 
 # Modern RHI — Overview
@@ -14,7 +14,7 @@ The engine talks to Vulkan through hand-written code in `RenderEngine/` that mix
 
 ## Target Design
 
-- **Two layers in `libs/gfx/`.** `libs/gfx/frontend/` exposes a CPU-side, API-agnostic *command recorder* (typed POD command stream, frame-arena allocated). `libs/gfx/backend/<api>/` translates the stream — `vulkan` is first; `dx12` / `metal` follow the same contract.
+- **Three layers.** `libs/render/frontend/` records an API-agnostic CPU command stream (typed POD verbs, frame-arena allocated). `libs/render/backend/<api>/` translates that stream — owns barrier inference, PSO/descriptor policy, queue ownership. `libs/<api>_core/` is the SDK substrate underneath (handles, init, sync, memory, swapchain) — engine-policy-free and reusable by tools / headless compute. See [`render-layer-split`](./deep-dive/render-layer-split.md).
 - **Backend selection is layered.** *Compile-time* by default (single-backend builds drop indirection via `if constexpr`); a *runtime-switchable* mode is opt-in via CMake for tools/editor scenarios that need it. Game shipping builds pin one backend.
 - **Vulkan baseline = Timeline Semaphores (VK 1.2+).** No fallback path below this; `VkFence`-based sync is removed from the new layer.
 - **Vulkan extensions are compile-time switches.** CMake options generate a `constexpr bool` capability header. Backend code uses `if constexpr` so disabled features cost zero binary size. Runtime device probing only *validates* the compile-time set — it does not branch into per-extension fallback ladders.
@@ -29,7 +29,7 @@ The engine talks to Vulkan through hand-written code in `RenderEngine/` that mix
 
 | Area | Today | Target |
 | --- | --- | --- |
-| Layer split | Vulkan calls scattered through `RenderEngine/` | `libs/gfx/frontend/` + `libs/gfx/backend/vulkan/` |
+| Layer split | Vulkan calls scattered through `RenderEngine/` | `libs/render/frontend/` + `libs/render/backend/vulkan/` + `libs/vk_core/` |
 | API choice | Vulkan only, hard-wired | Compile-time backend pick; opt-in runtime switch |
 | Vulkan baseline | Mixed sync primitives | Timeline Semaphore mandatory (VK 1.2+) |
 | Extensions | Ad-hoc `vkGetDeviceProcAddr` checks | CMake → `constexpr` config; `if constexpr` in backend |
@@ -42,7 +42,11 @@ The engine talks to Vulkan through hand-written code in `RenderEngine/` that mix
 
 | File | One-line summary |
 | --- | --- |
+| [`render-layer-split.md`](./deep-dive/render-layer-split.md) | Three-layer split: `render/frontend` (CPU command stream) → `render/backend/<api>` (translation) → `<api>_core` (SDK substrate). |
 | [`vulkan-extension-strategy.md`](./deep-dive/vulkan-extension-strategy.md) | Compile-time extension config, shader object/module profiles, Timeline baseline. |
+| [`context-decomposition.md`](./deep-dive/context-decomposition.md) | Leaf classes hold handles only; `VulkanContext` splits into role-typed providers; init becomes free functions returning bundles. |
+| [`swapchain-gui-decoupling.md`](./deep-dive/swapchain-gui-decoupling.md) | `SurfaceProvider` callback bundle; vk_core owns `vk::SurfaceKHR`; pull+push resize notification. |
+| [`vk-core-non-blocking-contract.md`](./deep-dive/vk-core-non-blocking-contract.md) | vk_core never blocks; forbidden-API list; `RetireQueue` keyed by timeline value; module scope boundary. |
 
 ## Planned Deep-Dives (TODO)
 
@@ -61,5 +65,7 @@ The engine talks to Vulkan through hand-written code in `RenderEngine/` that mix
 
 ## Changelog
 
+- 2026-06-08 f1cd84f: 3-layer split (frontend / backend / api_core); add render-layer-split deep-dive
+- 2026-06-08 f1cd84f: add context-decomposition, swapchain-gui-decoupling, vk-core-non-blocking-contract deep-dives
 - 2026-05-29 04247ac: split into `libs/gfx/{frontend,backend/vulkan}`; pin Timeline baseline; extensions & shader path become compile-time profiles
 - 2026-05-21 755fc72: initial overview, no deep-dives yet
