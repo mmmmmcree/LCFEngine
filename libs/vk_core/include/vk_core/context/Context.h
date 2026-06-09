@@ -16,6 +16,8 @@ public:
 
 private:
     vk::UniqueInstance m_instance;
+    //physical devices
+    //unique devices
 };
 
 } // namespace lcf::vkc

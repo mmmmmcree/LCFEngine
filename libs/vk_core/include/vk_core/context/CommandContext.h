@@ -16,6 +16,7 @@ public:
 
 private:
     vk::CommandBuffer m_cmd;
+    // resource leases
 };
 
 } // namespace lcf::vkc
