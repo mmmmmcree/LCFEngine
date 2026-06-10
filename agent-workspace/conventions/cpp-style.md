@@ -6,7 +6,8 @@ Living document. Updated by the agent on every style correction from the human (
 
 - **Class methods**: camelCase (per CLAUDE.md). **Free functions**: `snake_case` — including helpers in anonymous namespaces and `init`-style module functions (`prefer_most_queue_parallelism`, `device_extension_union`).
 - **constexpr / file-scope constants**: `k_snake_case` (`k_sync`, `k_max_variable_descriptor_count`).
-- **No abbreviated names** for folders, namespaces, or types. `manifest`, not `mnf`/`caps`. If a reviewer must ask what it means, the name is wrong.
+- **No abbreviated names** for folders or types. **Namespaces are the exception**: short forms the human has established are preferred (`vkc`, `conf`, `bs`, `surf`); do not invent new abbreviations without confirmation.
+- **Avoid C++ keywords as identifiers** even where context-sensitive (`module`); prefer encoding identity in the variable name over a name/tag field.
 - **No stutter with the enclosing namespace**: inside `namespace manifest` the type is `Entry`, not `ManifestEntry`.
 - Pointer-typed locals/members carry `_p` suffix (`entry_p`, `m_head_p`); optionals carry `_opt`.
 

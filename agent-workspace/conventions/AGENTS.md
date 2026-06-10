@@ -28,6 +28,7 @@ A style correction that lands only in chat is a bug in this protocol.
 ## 2. Writing rules
 
 - One file per language/domain (`cpp-style.md`, future: `cmake-style.md`, `shader-style.md`). No per-module style files.
+- [`project-modules.md`](./project-modules.md) indexes existing project modules/tools to reuse. It grows **incrementally**: add an entry when the human points at a module, never by bulk scanning the repo.
 - Rules are **atomic and imperative**, grouped by topic. Each rule may carry a one-line *why* when the reason is not obvious; include a minimal good/bad example only when words are ambiguous.
 - **Iterate in place**: superseded rules are rewritten or deleted, never annotated with "EDIT:" trails. Git is the history.
 - Record only rules the human has stated or confirmed. Do not invent rules from general taste; if the codebase is inconsistent and the human has not ruled, list it under **Unsettled** and ask when it next matters.

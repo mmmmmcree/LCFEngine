@@ -21,4 +21,8 @@ Five sibling directories, five different roles:
 | Write code, or receive style feedback on written code | [`conventions/AGENTS.md`](./conventions/AGENTS.md) |
 | Look up shared principles | [`roadmap/PRINCIPLES.md`](./roadmap/PRINCIPLES.md) (future) **or** [`rationale/PRINCIPLES.md`](./rationale/PRINCIPLES.md) (history) — they are deliberately disjoint |
 
+## Update cadence (applies to every subdirectory)
+
+Documents here are updated **once, at the end of a task**, after the work (discussion, code) has settled — batch all edits then. Do not interleave doc edits with every intermediate step: mid-task conclusions get superseded minutes later, and each churn burns tokens and review attention for nothing.
+
 Nothing else lives here yet. Adding a new top-level subdirectory under `agent-workspace/` requires an ADR filed in roadmap's `_archive/` (proposed) or the relevant module's `decisions/`.

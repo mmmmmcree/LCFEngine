@@ -29,9 +29,10 @@ target_include_directories(${PROJECT_NAME}
 )          
 
 target_link_libraries(${PROJECT_NAME}
-    PUBLIC   
+    PUBLIC
+        utilities
     PRIVATE
-)  
+)
 
 find_package(Vulkan REQUIRED)
 find_package(VulkanMemoryAllocator CONFIG REQUIRED)

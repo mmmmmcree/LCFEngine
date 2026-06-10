@@ -16,10 +16,10 @@ last-anchor-commit: aaaa573
 
 - **Lowest layer of the three-layer render split** (PRINCIPLES §6.7). Consumed by `render/backend/vulkan` and by tools / headless compute. Knows nothing about engine policy, frames-in-flight, scenes, or ECS.
 - **Leaf classes hold handles, not contexts.** `Buffer`, `Image`, `Swapchain`, `CommandBuffer` etc. store only the `vk::*` handles they call on; resources needed per-operation are passed at the call site. See [`context-decomposition`](./deep-dive/context-decomposition.md).
-- **Three context lifetimes.** `Context` (instance, debug, instance dispatch) → `DeviceContext` (physical+logical device, capability snapshot, device dispatch, VMA, `QueueTable`) → `QueueContext` per queue. Init is free functions returning `expected<Bundle, error_code>`.
+- **Three context lifetimes, strictly nested ownership.** `Context` (instance, debug, instance dispatch) owns n `DeviceContext`s (physical+logical device, capability snapshot, device dispatch, VMA); each owns its `QueueContext`s. `bs::bootstrap` returns `expected<Context, error_code>`.
 - **Queue + Timeline is the only sync model** (PRINCIPLES §6.8). `QueueContext` solely owns its `vk::Queue`, `TimelineSemaphore`, and submission counter — the single submission funnel; raw queues are never exposed. `vk::SemaphoreSubmitInfo` is the one cross-layer sync token; `VkFence` does not appear in vkc.
-- **Full queue topology.** Bootstrap creates every queue of every family; `QueueTable` exposes them by family index + native `vk::QueueFlags`. Role naming (graphics/transfer) is a render-layer query, not a vkc concept.
-- **Capability slices + manifest registry.** Each submodule declares a constexpr manifest; including a slice header registers it. The registry is a wish list: `init::bootstrap` enables what the device supports into a capability snapshot; only caller-declared `required` entries reject devices. Namespaces mirror caller roles (`vkc` / `init` / `manifest` / `enums` / `details`); no umbrella header. See [`bootstrap-and-manifests`](./deep-dive/bootstrap-and-manifests.md).
+- **Full topology + role index, at both levels.** Bootstrap creates every queue of every family (ownership: flat array per device). Deterministic collapse ladders map `enums::QueueRole` (eMainGraphics / eSubGraphics / eCompute / eTransfer) onto queues and `enums::DeviceRole` (eMain / eCompute) onto devices — dedicated hardware preferred, scarce machines alias several roles to one queue/device, safe because `QueueContext` is the single funnel. What each role is *used for* remains render-layer policy.
+- **Per-module feature dependencies.** Each module ships `feature_dependencies.h` — its single dependency entry point (`vkc::<module>::k_module_dependency`, optional `k_xxx_dependency` children), analogous to `deps.cmake`. Callers pass the dependencies they use to `bs::bootstrap`, which dedups extensions and enables what the device supports into a capability snapshot; vkc never rejects devices — render-layer routing reads the snapshot. Namespaces mirror caller roles (`vkc` / `bs` / `conf` / `enums` / `details`). See [`bootstrap-and-feature-dependencies`](./deep-dive/bootstrap-and-feature-dependencies.md).
 - **Buffer/Image are thin proxies over `details::Memory<vk::Buffer|vk::Image>`**, held via `ResourcePointer`, exposing vk-native usage semantics plus `vk::DeviceAddress` — no engine-level usage enums.
 - **Non-blocking public surface.** No `waitIdle` wrappers, no default-blocking waits; deferred destruction via timeline-keyed `RetireQueue`. See [`non-blocking-contract`](./deep-dive/non-blocking-contract.md).
 - **Zero `gui/` dependency.** Swapchain consumes a `SurfaceProvider` callback bundle and owns `vk::UniqueSurfaceKHR` itself. See [`swapchain-gui-decoupling`](./deep-dive/swapchain-gui-decoupling.md).
@@ -41,7 +41,7 @@ last-anchor-commit: aaaa573
 
 | File | One-line summary |
 | --- | --- |
-| [`bootstrap-and-manifests.md`](./deep-dive/bootstrap-and-manifests.md) | Include-driven manifest registry; `init::bootstrap` folds slices into instance/device creation; namespace roles. |
+| [`bootstrap-and-feature-dependencies.md`](./deep-dive/bootstrap-and-feature-dependencies.md) | Per-module `feature_dependencies.h` entry points; explicit selection folded by `bs::bootstrap` into a `Context`; capability snapshot; namespace roles. |
 | [`context-decomposition.md`](./deep-dive/context-decomposition.md) | Leaf classes hold handles only; context splits into role-typed providers; init becomes free functions returning bundles. |
 | [`non-blocking-contract.md`](./deep-dive/non-blocking-contract.md) | vkc never blocks; forbidden-API list; `RetireQueue` keyed by timeline value; module scope boundary. |
 | [`swapchain-gui-decoupling.md`](./deep-dive/swapchain-gui-decoupling.md) | `SurfaceProvider` callback bundle; vkc owns `vk::SurfaceKHR`; pull+push resize notification. |
@@ -61,5 +61,8 @@ last-anchor-commit: aaaa573
 
 ## Changelog
 
-- 2026-06-10 aaaa573: Queue+Timeline ownership, manifest registry, namespaces; add bootstrap deep-dive
+- 2026-06-10 aaaa573: QueueRole collapse-ladder index over full topology; devices sorted by score
+- 2026-06-10 aaaa573: bootstrap returns Context; nested Context→DeviceContext→QueueContext ownership
+- 2026-06-10 aaaa573: explicit feature_dependencies selection replaces registry (decisions/0001)
+- 2026-06-10 aaaa573: Queue+Timeline ownership, manifest mechanism, namespaces; add bootstrap deep-dive
 - 2026-06-10 aaaa573: module created — substrate deep-dives split out of modern_rhi
