@@ -1,6 +1,6 @@
 # PRINCIPLES.md — Principles for Recording Landed Rationale
 
-These principles govern `docs/rationale/`. They are deliberately **disjoint** from `../roadmap/PRINCIPLES.md`: roadmap principles describe how to *explore the future*; these describe how to *preserve the past*. A module document **must not** restate these — it may only reference them by section number (e.g. `see PRINCIPLES §2.1`).
+These principles govern `agent-workspace/rationale/`. They are deliberately **disjoint** from `../roadmap/PRINCIPLES.md`: roadmap principles describe how to *explore the future*; these describe how to *preserve the past*. A module document **must not** restate these — it may only reference them by section number (e.g. `see PRINCIPLES §2.1`).
 
 ## 1. History is immutable
 
@@ -28,7 +28,7 @@ These principles govern `docs/rationale/`. They are deliberately **disjoint** fr
 
 ## 5. Modularity (shared with roadmap)
 
-5.1 A rationale module is a closed world. It references its own files, this `PRINCIPLES.md`, and nothing else under `docs/rationale/`.
+5.1 A rationale module is a closed world. It references its own files, this `PRINCIPLES.md`, and nothing else under `agent-workspace/rationale/`.
 5.2 Cross-module facts are promoted to `../roadmap/PRINCIPLES.md §6` (engine-wide invariants). There is no separate cross-cutting surface on the rationale side — invariants are invariants regardless of which directory observes them.
 
 ## 6. Anti-bloat

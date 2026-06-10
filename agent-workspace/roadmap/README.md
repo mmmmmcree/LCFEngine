@@ -12,7 +12,8 @@ The single authoritative source for **future-facing engine vision**. This is *no
 | Module | Scope | What it covers |
 | --- | --- | --- |
 | [`shader_system/`](./shader_system/overview.md) | vision | Slang language adoption, variant sparsity, reflection-driven editor, Editor/Runtime split, three-tier DDC, lighting model as replaceable interface |
-| [`modern_rhi/`](./modern_rhi/overview.md) | vision | `libs/gfx/{frontend,backend/vulkan}` split; compile-time extension/shader-path profiles, opt-in runtime API switching, Vulkan Timeline baseline |
+| [`modern_rhi/`](./modern_rhi/overview.md) | vision | `libs/render/{frontend,backend/<api>}` record-then-translate layers; compile-time extension/shader-path profiles, opt-in runtime API switching, per-frame resource isolation, data exchange pass |
+| [`vk_core/`](./vk_core/overview.md) | vision | `libs/vk_core` (`lcf::vkc`) engine-policy-free Vulkan substrate: role-typed contexts, non-blocking contract, swapchain↔GUI decoupling |
 | [`ecs_async/`](./ecs_async/overview.md) | vision | EnTT + Taskflow + coroutines integration, async signal dispatch, system scheduling model |
 | [`vulkan_optimizations/`](./vulkan_optimizations/overview.md) | short-term | Break SSBO single-copy GPU serialization, interface convergence, near-term Vulkan backend wins |
 

@@ -8,7 +8,7 @@ last-anchor-commit: f1cd84f
 
 ## Problem
 
-The overview's earlier two-layer split (`libs/gfx/{frontend, backend/vulkan}`) elides a third layer that already exists in `libs/vk_core/` and is needed independently of the render path. Backends translate engine intent (passes, draws, barriers) and own state tracking — they should not also own SDK init, queue management, swapchain, or VMA wrapping. Lumping those into "backend" makes vk_core's primitives unreusable for tools (asset baker, headless compute, validation utilities) and lets backend code casually reach for blocking sync APIs that vk_core has [forbidden](./vk-core-non-blocking-contract.md). The boundary needs to be three-layer, not two.
+The overview's earlier two-layer split (`libs/gfx/{frontend, backend/vulkan}`) elides a third layer that already exists in `libs/vk_core/` and is needed independently of the render path. Backends translate engine intent (passes, draws, barriers) and own state tracking — they should not also own SDK init, queue management, swapchain, or VMA wrapping. Lumping those into "backend" makes vk_core's primitives unreusable for tools (asset baker, headless compute, validation utilities) and lets backend code casually reach for blocking sync APIs that vk_core forbids (PRINCIPLES §6.7). The boundary needs to be three-layer, not two.
 
 ## Design
 
@@ -29,7 +29,7 @@ libs/<api>_core/             ← Thin SDK substrate (vk_core today)
 
 - **`render/frontend`** records typed commands (`Draw`, `Dispatch`, `BeginPass`, `BindResources`, …) into a per-thread arena, parameterized by opaque handles. Has no `vk::` / `D3D12_*` / `MTL*` types. Multi-thread record is first-class; merge is deterministic at submit.
 - **`render/backend/<api>`** translates the recorded stream into native calls, infers barriers/layout transitions, manages queue ownership, and resolves opaque handles to native resources. Owns `<api>`-specific objects that are *render-shaped* (PSO cache, render-pass cache, descriptor allocator strategy).
-- **`<api>_core`** owns the SDK substrate: handles, init, sync primitives, memory, command pools, swapchain. Engine-policy-free. Defined by the contracts in [`context-decomposition`](./context-decomposition.md), [`swapchain-gui-decoupling`](./swapchain-gui-decoupling.md), [`vk-core-non-blocking-contract`](./vk-core-non-blocking-contract.md).
+- **`<api>_core`** owns the SDK substrate: handles, init, sync primitives, memory, command pools, swapchain. Engine-policy-free per PRINCIPLES §6.7; its contracts are detailed in the sibling `vk_core` roadmap module.
 
 ### Boundary contracts
 
@@ -76,7 +76,7 @@ Compile-time backend pick (CMake option → `if constexpr`) stays the single sou
 ## Landing Plan
 
 - [ ] Phase 1 — Create empty `libs/render/frontend/` and `libs/render/backend/vulkan/` skeletons; lock include directories so cross-layer reach is a compile error.
-- [ ] Phase 2 — Migrate SDK-substrate code from `RenderEngine/Vulkan/` into `libs/vk_core/` per the context/swapchain/non-blocking deep-dives.
+- [ ] Phase 2 — Migrate SDK-substrate code from `RenderEngine/Vulkan/` into `libs/vk_core/` per the `vk_core` module's deep-dives.
 - [ ] Phase 3 — Move PSO/descriptor/barrier-policy code from `RenderEngine/Vulkan/` into `libs/render/backend/vulkan/`. Backend depends only on `vk_core` + `shader_core`.
 - [ ] Phase 4 — Define frontend command verb set and arena recorder; port one render pass end-to-end through the new stack as PoC.
 - [ ] Phase 5 — Drop `RenderEngine/` once all call sites consume `libs/render/frontend/` directly; the directory either becomes the application shell or is deleted.

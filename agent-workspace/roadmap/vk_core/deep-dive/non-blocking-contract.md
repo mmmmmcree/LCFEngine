@@ -1,7 +1,7 @@
 ---
-parent: modern_rhi
-title: vk-core-non-blocking-contract
-last-anchor-commit: f1cd84f
+parent: vk_core
+title: non-blocking-contract
+last-anchor-commit: aaaa573
 ---
 
 # vk_core Non-Blocking Contract
@@ -24,12 +24,12 @@ CPU↔GPU stalls in the current code surface as `vk::Device::waitIdle()` in dest
 | Public `vk::Queue::waitIdle()` wrapper | Per-queue stall; same problem at smaller scale |
 | `TimelineSemaphore::wait()` as default name | Default-named API gets used by reflex; blocking must be opt-in lexically |
 | `vkAcquireNextImageKHR(timeout = UINT64_MAX)` | Implicit frame-pacing stall; swallows present-engine policy |
-| `waitForFences` anywhere | Timeline is the baseline (`vulkan-extension-strategy.md`); `VkFence` is not in the new layer |
+| `waitForFences` anywhere | Timeline is the baseline (PRINCIPLES §6.8); `VkFence` is not in the new layer |
 
 ### Required shapes
 
 - **Sync primitive:** `TimelineSemaphore::isReached()`, `currentValue()`, `tryWaitFor(deadline)` returning `bool`. Any blocking variant is named `waitBlocking()` and tagged `[[nodiscard]]` so accidental use stands out.
-- **Submission:** `Submission` carries CB list + wait/signal semaphores + retire timeline value. `QueueSubmitter::submit(Submission)` returns the signaled timeline value. It does not wait.
+- **Submission:** `QueueContext` solely owns its `vk::Queue`, `TimelineSemaphore`, and value counter — the single submission funnel; raw queues are never exposed. `submit(SubmitBatch)` appends its own timeline signal and returns the signaled `vk::SemaphoreSubmitInfo`. It does not wait.
 - **Acquire/present:** swapchain exposes `tryAcquire(timeout = 0)` returning `expected<AcquiredImage, AcquireError>`. `OutOfDate`/`Suboptimal` are values, not exceptions; the caller decides recreate timing.
 - **Resource retirement by timeline value:**
 
@@ -49,11 +49,11 @@ public:
 | Category | Contents |
 | --- | --- |
 | Context | `InstanceContext`, `DeviceContext`, `CommandContext` (see [`context-decomposition`](./context-decomposition.md)) |
-| Sync | `TimelineSemaphore`, `FrameTimeline` (monotonic counter; query-only) |
+| Sync | `TimelineSemaphore` (stateless handle wrapper — submission counter lives in `QueueContext`) |
 | Memory | VMA wrapper, `StagingArena` (persistently mapped, segmented by timeline value) |
 | Resources | `Buffer`, `Image`, `Sampler` — value types, handle-only |
 | Recording | `CommandRecorder`, `BarrierBatch` builder |
-| Submission | `Submission`, `QueueSubmitter::submit` (non-blocking) |
+| Submission | `SubmitBatch`, `QueueContext::submit` (non-blocking, sole queue owner) |
 | Pools | `CommandPoolSet` (per-thread × per-family), reset by timeline value |
 | Retire | `RetireQueue<T>` — deferred deleter keyed by timeline value |
 | Descriptors | Layout cache, allocator |
@@ -76,11 +76,13 @@ Frame loop, render graph, render pass orchestration, frame pacing, descriptor ma
 ## Landing Plan
 
 - [ ] Phase 1 — Rename `TimelineSemaphore::wait()` → `waitBlocking()`; add `isReached()`, `currentValue()`, `tryWaitFor()`. Mark blocking variant `[[nodiscard]]`.
-- [ ] Phase 2 — Introduce `RetireQueue<T>` and `Submission`/`QueueSubmitter` skeletons under `vk_core/sync/` and `vk_core/queue/`.
+- [ ] Phase 2 — Introduce `RetireQueue<T>` and `SubmitBatch`/`QueueContext` skeletons under `vk_core/sync/` and `vk_core/queue/`.
 - [ ] Phase 3 — Migrate `VulkanCommandBufferObject` to non-blocking submit; remove `waitUntilAvailable` from public API; resource leases retire via `RetireQueue` instead of fences.
 - [ ] Phase 4 — Convert swapchain to `tryAcquire`/`tickRetire` (cross-references [`swapchain-gui-decoupling`](./swapchain-gui-decoupling.md) Phase 3).
 - [ ] Phase 5 — Forbid public `waitIdle` wrappers; document `~DeviceContext()` as the only sanctioned drain point.
 
 ## Changelog
 
+- 2026-06-10 aaaa573: QueueSubmitter merged into QueueContext; SemaphoreSubmitInfo is the sync token
+- 2026-06-10 aaaa573: moved into vk_core module; renamed from vk-core-non-blocking-contract
 - 2026-06-08 f1cd84f: created — non-blocking contract, RetireQueue, vk_core scope boundary

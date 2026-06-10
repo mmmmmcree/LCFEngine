@@ -1,7 +1,7 @@
 ---
-parent: modern_rhi
+parent: vk_core
 title: context-decomposition
-last-anchor-commit: f1cd84f
+last-anchor-commit: aaaa573
 ---
 
 # Context Decomposition
@@ -70,4 +70,5 @@ Init is procedural. `vk_core::init` exposes pure functions taking config structs
 
 ## Changelog
 
+- 2026-06-10 aaaa573: moved into vk_core module
 - 2026-06-08 f1cd84f: created — context split, leaf-handles-only invariant, procedural init

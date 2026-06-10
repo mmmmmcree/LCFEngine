@@ -53,7 +53,7 @@ Optional but encouraged:
 
 ## 4. Naming
 
-`docs/explainers/<topic-slug>.md` — kebab-case, no date prefix (these are not ephemeral).
+`agent-workspace/explainers/<topic-slug>.md` — kebab-case, no date prefix (these are not ephemeral).
 
 ## 5. Forbidden content
 
@@ -69,6 +69,6 @@ No hard cap. But if a single explainer exceeds ~400 lines, split it: probably it
 
 ## See Also
 
-- [`../AGENTS.md`](../AGENTS.md) — top-level routing across `docs/`
+- [`../AGENTS.md`](../AGENTS.md) — top-level routing across `agent-workspace/`
 - [`../rationale/AGENTS.md`](../rationale/AGENTS.md) — for the "why this design landed" record
 - [`../roadmap/AGENTS.md`](../roadmap/AGENTS.md) — for forward-looking visions

@@ -1,7 +1,7 @@
 ---
-parent: modern_rhi
+parent: vk_core
 title: swapchain-gui-decoupling
-last-anchor-commit: f1cd84f
+last-anchor-commit: aaaa573
 ---
 
 # Swapchain ↔ GUI Decoupling
@@ -42,7 +42,7 @@ Both must coexist. Implicit recreate inside `acquire` is rejected — it silentl
 
 ### Non-blocking acquire/present surface
 
-Aligned with the [`vk-core-non-blocking-contract`](./vk-core-non-blocking-contract.md): the swapchain exposes `tryAcquire(timeout = 0)` returning `expected<AcquiredImage, AcquireError>`, plus `present(...)`, `tickRetire(timeline_value)`, `markSurfaceDirty()`. No blocking acquire. `RenderEngine`'s frame loop, not the swapchain, decides what to do on `OutOfDate`.
+Aligned with the [`non-blocking-contract`](./non-blocking-contract.md): the swapchain exposes `tryAcquire(timeout = 0)` returning `expected<AcquiredImage, AcquireError>`, plus `present(...)`, `tickRetire(timeline_value)`, `markSurfaceDirty()`. No blocking acquire. `RenderEngine`'s frame loop, not the swapchain, decides what to do on `OutOfDate`.
 
 ### Headless mock falls out for free
 
@@ -67,4 +67,5 @@ A test or compute-only build provides a `SurfaceProvider` whose `create_surface`
 
 ## Changelog
 
+- 2026-06-10 aaaa573: moved into vk_core module
 - 2026-06-08 f1cd84f: created — SurfaceProvider callback bundle, surface ownership in vk_core, dual resize notification

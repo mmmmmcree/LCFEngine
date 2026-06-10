@@ -1,6 +1,6 @@
 # AGENTS.md — Protocol for LLM Collaboration
 
-Any LLM or autonomous agent editing files under `docs/roadmap/` **must** follow this protocol. Humans should follow it too, but it is written primarily for machine readers because that is the harder constraint.
+Any LLM or autonomous agent editing files under `agent-workspace/roadmap/` **must** follow this protocol. Humans should follow it too, but it is written primarily for machine readers because that is the harder constraint.
 
 ## 0. Read order on entry
 
@@ -65,7 +65,7 @@ Material direction changes require an ADR before merging. ADRs are short (`Conte
 - ❌ Reading or editing two modules' contents in a single task.
 - ❌ Copying source code into roadmap docs.
 - ❌ Adding implementation TODO comments to source files from this directory's text.
-- ❌ Creating new top-level files (`*.md` directly under `docs/roadmap/`) without first proposing it via ADR.
+- ❌ Creating new top-level files (`*.md` directly under `agent-workspace/roadmap/`) without first proposing it via ADR.
 - ❌ Mentioning specific LLM/model names or vendor branding inside roadmap content.
 
 ## 5. When in doubt
@@ -93,7 +93,7 @@ Execute in order. Each step is mechanical; deviation requires an ADR.
 
 | # | Action |
 | --- | --- |
-| 1 | `git mv docs/roadmap/<module>/ docs/rationale/<module>/` — preserves history. |
+| 1 | `git mv agent-workspace/roadmap/<module>/ agent-workspace/rationale/<module>/` — preserves history. |
 | 2 | Edit frontmatter: `scope: vision` → `scope: landed`; add `landed-at-commit: <hash>`; keep `last-anchor-commit` (semantics shift to "last reconciliation against HEAD"). |
 | 3 | Delete sections that no longer apply: `Open Questions`, `Planned Deep-Dives`, `Gap vs Code`. |
 | 4 | Rewrite the body to match `../rationale/_template/module.template.md`: rename `Target Design` → `Design`; add a fresh `Why This Design` section recording **why each rejected alternative was rejected** (this is the section roadmap docs deliberately did not have). |

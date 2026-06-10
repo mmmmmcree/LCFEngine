@@ -13,7 +13,7 @@ agent-notes/  = how we are pushing this feature right now
                                                (hours — days, deleted when done)
 ```
 
-`agent-notes/` is the only directory under `docs/` whose contents are **expected to disappear**.
+`agent-notes/` is the only directory under `agent-workspace/` whose contents are **expected to disappear**.
 
 ## 1. When to create a plan file
 
@@ -40,7 +40,7 @@ agent: proposes plan in chat
    └── plan needs human-side iteration
        │
        ▼  (human says: "落成文档")
-       agent writes docs/agent-notes/<file>.md
+       agent writes agent-workspace/agent-notes/<file>.md
        │
        ▼
        human edits CODE while reading the plan
@@ -74,7 +74,7 @@ The human **does not edit the plan file**. They express intent through chat; the
 
 ## 4. File naming
 
-`docs/agent-notes/<YYYY-MM-DD>-<short-slug>.md`
+`agent-workspace/agent-notes/<YYYY-MM-DD>-<short-slug>.md`
 
 - Date is the **creation date**, never updated.
 - Slug is kebab-case, ≤ 5 words, describes the feature (`add-shader-hot-reload`, not `task1`).
@@ -147,6 +147,6 @@ There is no hard line cap, because long plans are exactly the use case for this 
 
 ## See Also
 
-- [`../AGENTS.md`](../AGENTS.md) — top-level routing across `docs/`.
+- [`../AGENTS.md`](../AGENTS.md) — top-level routing across `agent-workspace/`.
 - [`../roadmap/AGENTS.md`](../roadmap/AGENTS.md) — long-horizon vision protocol.
 - [`../rationale/AGENTS.md`](../rationale/AGENTS.md) — landed-history append-only protocol.

@@ -1,6 +1,6 @@
 # PRINCIPLES.md — Cross-cutting Design Principles
 
-These are the rules every module in `docs/roadmap/` shares. A module document **must not** restate them; it may only reference them by section number (e.g. `see PRINCIPLES §3.2`).
+These are the rules every module in `agent-workspace/roadmap/` shares. A module document **must not** restate them; it may only reference them by section number (e.g. `see PRINCIPLES §3.2`).
 
 If a principle here is in tension with a module's design, the module wins **only after** filing an ADR that makes the deviation explicit.
 
@@ -19,7 +19,7 @@ If a principle here is in tension with a module's design, the module wins **only
 
 ## 3. Modularity
 
-3.1 A module is a **closed world**. Its docs reference its own files plus this `PRINCIPLES.md` and nothing else under `docs/roadmap/`.
+3.1 A module is a **closed world**. Its docs reference its own files plus this `PRINCIPLES.md` and nothing else under `agent-workspace/roadmap/`.
 3.2 If two modules need to agree on something, that something is promoted into `PRINCIPLES.md`. There is no other shared surface.
 3.3 A module that grows beyond 6 deep-dives is a sign it should be split. Splitting is cheap; entanglement is not.
 
@@ -47,6 +47,8 @@ These are non-negotiable assumptions shared by all subsystems. Modules that need
 | 6.4 | All cross-thread communication goes through the task system or explicit lock-free queues — never bare `std::mutex` on hot paths. |
 | 6.5 | Asset identity is stable under content edits; runtime paths are content-hash-addressed, not name-addressed. |
 | 6.6 | No subsystem may introduce its own logging, allocator, or job pool — use the engine-wide ones. |
+| 6.7 | `<api>_core` SDK substrate layers (e.g. `libs/vk_core`) are engine-policy-free: non-blocking public surface, leaf classes hold handles not context pointers, no dependency on `gui/` or engine modules, no frame-loop concepts. |
+| 6.8 | Vulkan baseline is 1.2 Timeline Semaphores; new render-stack code has no `VkFence` path. |
 
 ## 7. Glossary
 

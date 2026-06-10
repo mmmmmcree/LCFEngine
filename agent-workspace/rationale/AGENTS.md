@@ -1,6 +1,6 @@
 # AGENTS.md — Protocol for LLM Collaboration on Landed Rationale
 
-Any LLM or autonomous agent editing files under `docs/rationale/` **must** follow this protocol. The rules differ from `../roadmap/AGENTS.md` in one critical way: **rationale is history, not work-in-progress**. Most edits you might want to make are forbidden here.
+Any LLM or autonomous agent editing files under `agent-workspace/rationale/` **must** follow this protocol. The rules differ from `../roadmap/AGENTS.md` in one critical way: **rationale is history, not work-in-progress**. Most edits you might want to make are forbidden here.
 
 ## 0. Read order on entry
 
