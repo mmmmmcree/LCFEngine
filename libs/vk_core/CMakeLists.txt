@@ -36,6 +36,13 @@ target_link_libraries(${PROJECT_NAME}
 
 find_package(Vulkan REQUIRED)
 find_package(VulkanMemoryAllocator CONFIG REQUIRED)
+if(WIN32)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE VK_USE_PLATFORM_WIN32_KHR NOMINMAX)
+elseif(APPLE)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE VK_USE_PLATFORM_METAL_EXT)
+elseif(UNIX)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE VK_USE_PLATFORM_XCB_KHR VK_USE_PLATFORM_WAYLAND_KHR)
+endif()
 if(DYNAMIC_LOAD_GRAPHICS_API)
     target_compile_definitions(${PROJECT_NAME} PUBLIC
         VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1

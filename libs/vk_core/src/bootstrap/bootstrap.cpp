@@ -145,8 +145,7 @@ std::vector<const FeatureDependency *> supported_dependencies(
     vk::PhysicalDevice physical_device, std::span<const FeatureDependency * const> wished, uint32_t api_version)
 {
     auto queried = requested_chain(wished);
-    // physical_device.getFeatures2(&queried.root()) — the driver overwrites every
-    // requested field with the supported value, so the same chain shape serves the query
+    queried.queryFrom(physical_device); // overwrites the wished bits with driver truth
     std::vector<const FeatureDependency *> supported;
     for (auto dependency_p : wished) {
         bool extensions_ok = is_core(*dependency_p, api_version)

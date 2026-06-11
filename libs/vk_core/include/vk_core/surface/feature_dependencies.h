@@ -18,8 +18,23 @@ inline constexpr conf::FeatureDependency k_swapchain_maintenance_dependency {
     .features = k_swapchain_maintenance_features,
 };
 
+// VK_KHR_surface plus the platform window-system extension, selected by the
+// VK_USE_PLATFORM_* macro the build injects; vkc owns surface creation (see
+// create_surface), so this manifest declares the extensions, not the GUI
 inline constexpr std::array k_module_instance_extensions {
     vk::KHRSurfaceExtensionName,
+#if defined(VK_USE_PLATFORM_WIN32_KHR)
+    vk::KHRWin32SurfaceExtensionName,
+#endif
+#if defined(VK_USE_PLATFORM_XCB_KHR)
+    vk::KHRXcbSurfaceExtensionName,
+#endif
+#if defined(VK_USE_PLATFORM_WAYLAND_KHR)
+    vk::KHRWaylandSurfaceExtensionName,
+#endif
+#if defined(VK_USE_PLATFORM_METAL_EXT)
+    vk::EXTMetalSurfaceExtensionName,
+#endif
 };
 
 inline constexpr std::array k_module_device_extensions {
@@ -30,8 +45,6 @@ inline constexpr std::array k_module_optional {
     &k_swapchain_maintenance_dependency,
 };
 
-// platform window-system instance extensions (VK_KHR_win32_surface, ...) are
-// provided by the GUI side together with SurfaceProvider, not by this manifest
 inline constexpr conf::FeatureDependency k_module_dependency {
     .instance_extensions = k_module_instance_extensions,
     .device_extensions = k_module_device_extensions,

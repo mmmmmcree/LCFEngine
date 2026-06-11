@@ -1,73 +1,47 @@
 #pragma once
 
+#include "type_traits/member_pointer_traits.h"
 #include <vulkan/vulkan.hpp>
-#include <algorithm>
 #include <any>
-#include <deque>
 #include <span>
 #include <typeindex>
+#include <unordered_map>
 #include <utility>
 
 namespace lcf::vkc::conf {
 
-// runtime counterpart of vk::StructureChain: the struct set is determined by
-// which dependencies the caller passes to bootstrap, which a compile-time chain cannot host
+template <typename T>
+concept feature_struct_c = vk::StructExtends<T, vk::PhysicalDeviceFeatures2>::value;
+
 class FeatureChain
 {
+    using Root = vk::PhysicalDeviceFeatures2;
+    using NodeMap = std::unordered_map<std::type_index, std::any>; // node-based steady map
 public:
-    template <typename FeatureStruct>
+    FeatureChain() { m_nodes.try_emplace(typeid(Root), Root{}); }
+public:
+    template <feature_struct_c FeatureStruct>
     FeatureStruct & request()
     {
-        if (void * existing_p = this->find(typeid(FeatureStruct))) {
-            return *static_cast<FeatureStruct *>(existing_p);
-        }
-        auto & node = m_nodes.emplace_back(FeatureStruct{});
-        auto & feature = std::any_cast<FeatureStruct &>(node.storage);
-        node.value_p = &feature;
-        feature.pNext = std::exchange(m_root.pNext, &feature);
+        auto [it, inserted] = m_nodes.try_emplace(typeid(FeatureStruct), FeatureStruct{});
+        auto & feature = std::any_cast<FeatureStruct &>(it->second);
+        if (inserted) { feature.pNext = std::exchange(this->root().pNext, &feature); }
         return feature;
     }
-
-    template <typename FeatureStruct>
+    template <feature_struct_c FeatureStruct>
     const FeatureStruct & get() const
     {
-        // precondition: some dependency requested FeatureStruct before the query
-        return *static_cast<const FeatureStruct *>(this->find(typeid(FeatureStruct)));
+        // precondition: the same feature was requested while building this chain
+        return std::any_cast<const FeatureStruct &>(m_nodes.at(typeid(FeatureStruct)));
     }
-
-    vk::PhysicalDeviceFeatures2 & root() noexcept { return m_root; }
-    const vk::PhysicalDeviceFeatures2 & root() const noexcept { return m_root; }
-
+    void queryFrom(vk::PhysicalDevice physical_device) { physical_device.getFeatures2(&this->root()); }
+    const Root & root() const noexcept { return std::any_cast<const Root &>(m_nodes.at(typeid(Root))); }
 private:
-    struct Node
-    {
-        template <typename FeatureStruct>
-        explicit Node(FeatureStruct feature) : storage(std::move(feature)), type(typeid(FeatureStruct)) {}
-        std::any storage;
-        std::type_index type;
-        void * value_p = nullptr;
-    };
-
-    void * find(std::type_index type) const noexcept
-    {
-        auto it = std::ranges::find(m_nodes, type, &Node::type);
-        return it == m_nodes.end() ? nullptr : it->value_p;
-    }
-
-    vk::PhysicalDeviceFeatures2 m_root;
-    std::deque<Node> m_nodes;
+    Root & root() noexcept { return std::any_cast<Root &>(m_nodes.at(typeid(Root))); }
+private:
+    NodeMap m_nodes;
 };
 
-template <typename>
-struct MemberPointerTraits;
-
-template <typename Value, typename Class>
-struct MemberPointerTraits<Value Class::*>
-{
-    using class_type = Class;
-};
-
-// one boolean member of a vk feature struct that must be set to true
 struct FeatureBit
 {
     void (*enable)(FeatureChain &);
@@ -77,18 +51,13 @@ struct FeatureBit
 template <auto k_member>
 inline constexpr FeatureBit k_feature {
     .enable = [](FeatureChain & chain) {
-        using FeatureStruct = typename MemberPointerTraits<decltype(k_member)>::class_type;
-        chain.request<FeatureStruct>().*k_member = true;
+        chain.request<typename member_pointer_traits<decltype(k_member)>::class_type>().*k_member = true;
     },
     .test = [](const FeatureChain & queried) {
-        using FeatureStruct = typename MemberPointerTraits<decltype(k_member)>::class_type;
-        return bool(queried.get<FeatureStruct>().*k_member);
+        return bool(queried.get<typename member_pointer_traits<decltype(k_member)>::class_type>().*k_member);
     },
 };
 
-// one k_module_dependency per module, declared in <module>/feature_dependencies.h:
-// everything the module's classes unconditionally require; nice-to-have capabilities
-// are separate k_xxx_dependency objects hung off `optional` and never gate the module
 struct FeatureDependency
 {
     uint32_t core_since = 0;
