@@ -1,16 +1,24 @@
-#include "vk_core/bootstrap/bootstrap.h"
+#include "vk_core/context/Context.h"
+#include "log.h"
 
-#include <SDL3/SDL.h>
-#include <SDL3/SDL_vulkan.h>
 
 using namespace lcf;
 
 int main()
 {
-    vkc::bs::BootstrapConfig config;
-    auto context = vkc::bs::bootstrap(config);
-    SDL_Window * w_p;
-    
+    log::init();
+    vk::ApplicationInfo app_info;
+    app_info.setPApplicationName("LCFEngine")
+        .setPEngineName("LCFEngine")
+        .setApplicationVersion(vk::makeVersion(1, 0, 0))
+        .setEngineVersion(vk::makeVersion(1, 0, 0))
+        .setApiVersion(vk::HeaderVersionComplete);
+    vkc::ContextCreateInfo context_info;
+    context_info.setApplicationInfo(app_info);
+    vkc::Context context;
+    if (auto ec = context.create(context_info)) {
+        lcf_log_error(ec.message());
+    }
     
     return 0;
 }

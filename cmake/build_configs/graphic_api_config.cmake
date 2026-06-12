@@ -1,6 +1,6 @@
 option(USE_VULKAN "Enable Vulkan rendering support" ON)
 option(USE_OPENGL "Enable OpenGL rendering support" OFF)
-option(DYNAMIC_LOAD_GRAPHICS_API "Dynamically load graphics API function pointers at runtime" OFF)
+option(DYNAMIC_LOAD_GRAPHICS_API "Dynamically load graphics API function pointers at runtime" ON)
 
 set(config_target "graphic_api_config")
 
