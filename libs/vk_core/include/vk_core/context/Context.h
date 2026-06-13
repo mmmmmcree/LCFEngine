@@ -48,9 +48,19 @@ public:
         m_application_info = application_info;
         return *this;
     }
+    Self & addRequiredInstanceExtension(std::string_view instance_extension) noexcept
+    {
+        m_required_instance_extensions.insert(std::string(instance_extension));
+        return *this;
+    }
     Self & addRequiredInstanceExtensions(convertible_range_of_c<std::string> auto && instance_extensions) noexcept
     {
         m_required_instance_extensions.insert_range(instance_extensions);
+        return *this;
+    }
+    Self & addRequiredInstanceLayer(std::string_view instance_layer) noexcept
+    {
+        m_required_instance_layers.insert(std::string(instance_layer));
         return *this;
     }
     Self & addRequiredInstanceLayers(convertible_range_of_c<std::string> auto && instance_layers) noexcept

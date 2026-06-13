@@ -1,5 +1,5 @@
 #include "vk_core/context/Context.h"
-#include "vk_core/details/instance_extensions/debug_utils.h"
+#include "vk_core/details/instance_extensions/instance_extensions.h"
 #include "vk_core/details/api_dispatch.h"
 #include <expected>
 
@@ -9,6 +9,8 @@ namespace stdv = std::views;
 namespace {
 
 using namespace lcf::vkc;
+
+vk::UniqueInstance create_instance_maythrow(const ContextCreateInfo &create_info);
 
 std::expected<vk::UniqueInstance, std::error_code> create_instance(const ContextCreateInfo &create_info) noexcept;
 
@@ -23,9 +25,7 @@ std::error_code Context::create(const ContextCreateInfo &create_info) noexcept
     if (not expected_instance.has_value()) { return expected_instance.error(); }
     m_instance = std::move(expected_instance.value());
     details::initialize_instance(this->getInstance());
-    if (auto lease = details::enable_debug_utils(this->getInstance())) {
-        m_extension_resource_leases.emplace_back(std::move(lease));
-    }
+    m_extension_resource_leases = details::enable_instance_extensions(this->getInstance());
     return {};
 }
 
@@ -33,29 +33,36 @@ std::error_code Context::create(const ContextCreateInfo &create_info) noexcept
 
 namespace {
 
-std::expected<vk::UniqueInstance, std::error_code> create_instance(const ContextCreateInfo &create_info) noexcept
+vk::UniqueInstance create_instance_maythrow(const ContextCreateInfo &create_info)
 {
-    auto instance_layer_names = vk::enumerateInstanceLayerProperties() |
-        stdv::transform([](const vk::LayerProperties & layer) { return layer.layerName.data(); })  |
-        stdv::filter([&create_info](const char * layer_name) {
-            return create_info.requiresLayer(layer_name);
-        }) | stdr::to<std::vector>();
-    auto instance_extension_names = vk::enumerateInstanceExtensionProperties() |
+    auto instance_layer_properties = vk::enumerateInstanceLayerProperties() |
+        stdv::filter([&](const vk::LayerProperties & layer) { return create_info.requiresLayer(layer.layerName.data()); }) |
+        stdr::to<std::vector>();
+    auto instance_extension_properties = vk::enumerateInstanceExtensionProperties() |
+        stdv::filter([&](const vk::ExtensionProperties & extension) { return create_info.requiresExtension(extension.extensionName.data()); }) |
+        stdr::to<std::vector>();
+    auto instance_layer_names_cstr = instance_layer_properties |
+        stdv::transform([](const vk::LayerProperties & layer) { return layer.layerName.data(); }) |
+        stdr::to<std::vector>();
+    auto instance_extension_names_cstr = instance_extension_properties |
         stdv::transform([](const vk::ExtensionProperties & extension) { return extension.extensionName.data(); }) |
-        stdv::filter([&create_info](const char * extension_name) {
-            return create_info.requiresExtension(extension_name);
-        }) | stdr::to<std::vector>();
+        stdr::to<std::vector>();
+
     vk::InstanceCreateInfo instance_create_info;
     instance_create_info.setPApplicationInfo(&create_info.getApplicationInfo())
-        .setPEnabledLayerNames(instance_layer_names)
-        .setPEnabledExtensionNames(instance_extension_names);
-    vk::UniqueInstance instance;
+        .setPEnabledLayerNames(instance_layer_names_cstr)
+        .setPEnabledExtensionNames(instance_extension_names_cstr);
+    return vk::createInstanceUnique(instance_create_info);
+}
+
+std::expected<vk::UniqueInstance, std::error_code> create_instance(const ContextCreateInfo &create_info) noexcept
+{
     try {
-        instance = vk::createInstanceUnique(instance_create_info);
+        return create_instance_maythrow(create_info);
     } catch (const vk::SystemError & e) {
         return std::unexpected(e.code());
     }
-    return instance;
+    return {};
 }
 
 } // namespace

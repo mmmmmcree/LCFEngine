@@ -43,18 +43,18 @@ elseif(APPLE)
 elseif(UNIX)
     target_compile_definitions(${PROJECT_NAME} PRIVATE VK_USE_PLATFORM_XCB_KHR VK_USE_PLATFORM_WAYLAND_KHR)
 endif()
-if(DYNAMIC_LOAD_GRAPHICS_API)
-    target_compile_definitions(${PROJECT_NAME} PUBLIC
-        VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
-        VK_NO_PROTOTYPES
-    )
-    target_compile_definitions(${PROJECT_NAME} PRIVATE
-        VMA_STATIC_VULKAN_FUNCTIONS=0
-        VMA_DYNAMIC_VULKAN_FUNCTIONS=1
-    )
-    target_link_libraries(${PROJECT_NAME} PUBLIC Vulkan::Headers)
-else()
-    target_link_libraries(${PROJECT_NAME} PUBLIC Vulkan::Vulkan)
+target_compile_definitions(${PROJECT_NAME} PUBLIC
+    VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
+    VK_NO_PROTOTYPES
+)
+option(LCF_VKC_USE_DEVICE_DISPATCH "vk_core: driver-direct device-level dispatch (may blind some profilers)" OFF)
+if(LCF_VKC_USE_DEVICE_DISPATCH)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE LCF_VKC_USE_DEVICE_DISPATCH)
 endif()
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+    VMA_STATIC_VULKAN_FUNCTIONS=0
+    VMA_DYNAMIC_VULKAN_FUNCTIONS=1
+)
+target_link_libraries(${PROJECT_NAME} PUBLIC Vulkan::Headers)
 target_link_libraries(${PROJECT_NAME} PUBLIC GPUOpen::VulkanMemoryAllocator)
 #todo link libraries in private once the encaptulation is done

@@ -10,6 +10,8 @@
 
 namespace lcf::vkc {
 
+class DeviceContextCreateInfo;
+
 class DeviceContext
 {
     using Self = DeviceContext;
@@ -26,18 +28,20 @@ public:
     std::span<QueueContext> queueContexts() noexcept { return m_queue_contexts; }
     QueueContext & getQueueContext(enums::QueueRole role) noexcept
     {
-        return *m_queue_table[std::to_underlying(role)];
+        return *m_mapped_queue_contexts[std::to_underlying(role)];
     }
 
 private:
     vk::PhysicalDevice m_physical_device;
     vk::Device m_device;
-    // capability snapshot, device-level dispatch, VMA allocator
-    std::vector<QueueContext> m_queue_contexts; // ownership: every queue of every family
-    // role index built by bootstrap's collapse ladder: dedicated family first, spare
-    // same-family queue second, eMainGraphics last; several roles may alias one queue
-    // on scarce devices — safe because QueueContext is the single submission funnel
-    std::array<QueueContext *, enum_count_v<enums::QueueRole>> m_queue_table {};
+    std::vector<QueueContext> m_queue_contexts;
+    std::array<QueueContext *, enum_count_v<enums::QueueRole>> m_mapped_queue_contexts = {};
+};
+
+class DeviceContextCreateInfo
+{
+public:
+private:
 };
 
 } // namespace lcf::vkc

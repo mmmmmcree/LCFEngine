@@ -23,32 +23,6 @@ ResourceLease enable_debug_utils(vk::Instance instance) noexcept
 namespace {
 
 // ============================================================================
-//  Static dispatch: extension functions must be loaded manually via getProcAddr
-// ============================================================================
-
-#if !VULKAN_HPP_DISPATCH_LOADER_DYNAMIC
-static PFN_vkCreateDebugUtilsMessengerEXT  s_pfnCreateDebugUtilsMessengerEXT  = nullptr;
-static PFN_vkDestroyDebugUtilsMessengerEXT s_pfnDestroyDebugUtilsMessengerEXT = nullptr;
-
-VKAPI_ATTR VkResult VKAPI_CALL vkCreateDebugUtilsMessengerEXT(
-    VkInstance instance,
-    const VkDebugUtilsMessengerCreateInfoEXT * pCreateInfo,
-    const VkAllocationCallbacks * pAllocator,
-    VkDebugUtilsMessengerEXT * pMessenger)
-{
-    return s_pfnCreateDebugUtilsMessengerEXT(instance, pCreateInfo, pAllocator, pMessenger);
-}
-
-VKAPI_ATTR void VKAPI_CALL vkDestroyDebugUtilsMessengerEXT(
-    VkInstance instance,
-    VkDebugUtilsMessengerEXT messenger,
-    const VkAllocationCallbacks * pAllocator)
-{
-    return s_pfnDestroyDebugUtilsMessengerEXT(instance, messenger, pAllocator);
-}
-#endif // !VULKAN_HPP_DISPATCH_LOADER_DYNAMIC
-
-// ============================================================================
 //  Debug callback
 // ============================================================================
 
@@ -131,18 +105,13 @@ static bool is_renderdoc_environment()
 
 vk::UniqueDebugUtilsMessengerEXT create_debug_utils_messenger(vk::Instance instance) noexcept
 {
-#if !VULKAN_HPP_DISPATCH_LOADER_DYNAMIC
-    s_pfnCreateDebugUtilsMessengerEXT = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
-        instance.getProcAddr("vkCreateDebugUtilsMessengerEXT"));
-    s_pfnDestroyDebugUtilsMessengerEXT = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(
-        instance.getProcAddr("vkDestroyDebugUtilsMessengerEXT"));
-#endif
-
+    if (not VULKAN_HPP_DEFAULT_DISPATCHER.vkCreateDebugUtilsMessengerEXT) {
+        return {};
+    }
     if (is_renderdoc_environment()) {
         lcf_log_warn("RenderDoc environment detected — skipping debug messenger creation");
         return {}; //! RenderDoc is contradictory to custom debug callback
     }
-
     vk::DebugUtilsMessengerCreateInfoEXT debug_messenger_info;
     debug_messenger_info.setMessageSeverity(vk::FlagTraits<vk::DebugUtilsMessageSeverityFlagBitsEXT>::allFlags)
         .setMessageType(vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral |
