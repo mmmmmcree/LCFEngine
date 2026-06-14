@@ -44,9 +44,13 @@ elseif(UNIX)
     target_compile_definitions(${PROJECT_NAME} PRIVATE VK_USE_PLATFORM_XCB_KHR VK_USE_PLATFORM_WAYLAND_KHR)
 endif()
 target_compile_definitions(${PROJECT_NAME} PUBLIC
+    VULKAN_HPP_STORAGE_SHARED
     VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
     VK_NO_PROTOTYPES
 )
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+      VULKAN_HPP_STORAGE_SHARED_EXPORT
+  )
 option(LCF_VKC_USE_DEVICE_DISPATCH "vk_core: driver-direct device-level dispatch (may blind some profilers)" OFF)
 if(LCF_VKC_USE_DEVICE_DISPATCH)
     target_compile_definitions(${PROJECT_NAME} PRIVATE LCF_VKC_USE_DEVICE_DISPATCH)

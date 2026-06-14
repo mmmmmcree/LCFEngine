@@ -42,6 +42,14 @@ class ContextCreateInfo
 {
     using Self = ContextCreateInfo;
     using StringSet = std::unordered_set<std::string>;
+    using DeviceContextCreateInfoList = std::array<DeviceContextCreateInfo, enum_count_v<enums::DeviceRole>>;
+public:
+    ~ContextCreateInfo() noexcept = default;
+    ContextCreateInfo() noexcept = default;
+    ContextCreateInfo(const Self &) = delete;
+    ContextCreateInfo(Self &&) noexcept = default;
+    Self & operator =(const Self &) = delete;
+    Self & operator =(Self &&) noexcept = default;
 public:
     Self & setApplicationInfo(const vk::ApplicationInfo & application_info) noexcept
     {
@@ -73,7 +81,6 @@ public:
         m_capabilities_flags |= capabilities_flags;
         return *this;
     }
-
     const vk::ApplicationInfo & getApplicationInfo() const noexcept { return m_application_info; }
     bool requiresLayer(const std::string & layer_name) const noexcept { return m_required_instance_extensions.contains(layer_name); }
     bool requiresExtension(const std::string & extension_name) const noexcept { return m_required_instance_extensions.contains(extension_name); }

@@ -1,4 +1,4 @@
-#include "vk_core/details/instance_extensions/debug_utils.h"
+#include "vk_core/debug/debug_utils.h"
 #include "log.h"
 #include <format>
 
@@ -8,7 +8,7 @@ vk::UniqueDebugUtilsMessengerEXT create_debug_utils_messenger(vk::Instance insta
 
 } // namespace
 
-namespace lcf::vkc::details {
+namespace lcf::vkc::dbg {
 
 ResourceLease enable_debug_utils(vk::Instance instance) noexcept
 {

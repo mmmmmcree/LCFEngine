@@ -1,6 +1,5 @@
 #include "vk_core/context/Context.h"
-#include "vk_core/details/instance_extensions/instance_extensions.h"
-#include "vk_core/details/api_dispatch.h"
+#include "vk_core/bootstrap/api_dispatch.h"
 #include <expected>
 
 namespace stdr = std::ranges;
@@ -20,12 +19,11 @@ namespace lcf::vkc {
 
 std::error_code Context::create(const ContextCreateInfo &create_info) noexcept
 {
-    details::initialize_loader();
+    bs::initialize_loader();
     auto expected_instance = create_instance(create_info);
     if (not expected_instance.has_value()) { return expected_instance.error(); }
     m_instance = std::move(expected_instance.value());
-    details::initialize_instance(this->getInstance());
-    m_extension_resource_leases = details::enable_instance_extensions(this->getInstance());
+    bs::initialize_instance(this->getInstance());
     return {};
 }
 
