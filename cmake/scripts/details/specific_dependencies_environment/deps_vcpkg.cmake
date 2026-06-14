@@ -82,10 +82,31 @@ function(_vcpkg_locate_root OUT_VAR)
     set(${OUT_VAR} "" PARENT_SCOPE)
 endfunction()
 
+# Resolve the default triplet. Must work BOTH post-project() (MINGW and
+# CMAKE_CXX_COMPILER_ID are populated) AND pre-project() — _vcpkg_setup() calls
+# this before project() to seed VCPKG_TARGET_TRIPLET in the cache before the
+# vcpkg toolchain runs. The toolchain's own `elseif(MINGW)` detection is useless
+# that early: MINGW is only set after compiler identification, so the toolchain
+# would default to x64-windows and FORCE-cache it, locking out the mingw triplet
+# (and failing with "Unable to find a valid Visual Studio instance"). Pre-
+# project we therefore infer "Windows GNU/MinGW" from the requested compiler.
 function(_vcpkg_default_triplet OUT_VAR)
+    set(_gnu_win FALSE)
     if(MINGW OR (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND WIN32))
+        set(_gnu_win TRUE)
+    elseif(CMAKE_HOST_WIN32 AND NOT CMAKE_CXX_COMPILER_ID)
+        # pre-project(): no compiler-id yet — sniff the configured compiler name.
+        get_filename_component(_cxx "${CMAKE_CXX_COMPILER}" NAME_WE)
+        get_filename_component(_cc  "${CMAKE_C_COMPILER}"   NAME_WE)
+        if(_cxx MATCHES "(^|-)(g\\+\\+|gcc)$" OR _cc MATCHES "(^|-)gcc$"
+           OR _cxx MATCHES "mingw" OR _cc MATCHES "mingw")
+            set(_gnu_win TRUE)
+        endif()
+    endif()
+
+    if(_gnu_win)
         set(${OUT_VAR} "x64-mingw-dynamic" PARENT_SCOPE)
-    elseif(WIN32)
+    elseif(WIN32 OR CMAKE_HOST_WIN32)
         set(${OUT_VAR} "x64-windows"       PARENT_SCOPE)
     elseif(APPLE)
         set(${OUT_VAR} "x64-osx"           PARENT_SCOPE)
@@ -283,10 +304,16 @@ ${_deps_block}
     #    With DEPS_KEEP_SOURCES=ON, pin both under the install root for
     #    per-preset isolation and pass --no-binarycaching so the build is
     #    forced to extract source.
+    # Pin the host triplet to the target. Otherwise vcpkg defaults the host
+    # triplet to its detected host (x64-windows on Windows), so any dep with a
+    # host-tool dependency forces an x64-windows build — which needs Visual
+    # Studio and fails in a pure-MinGW environment. Matching host=target builds
+    # those tools with the same toolchain we're already using.
     set(_install_args
         "--x-manifest-root=${_manifest_dir}"
         "--x-install-root=${_install_root}"
         "--triplet=${VCPKG_TARGET_TRIPLET}"
+        "--host-triplet=${VCPKG_TARGET_TRIPLET}"
         "--feature-flags=manifests,versions"
     )
     if(DEPS_KEEP_SOURCES)
@@ -357,6 +384,15 @@ function(_vcpkg_setup)
     _vcpkg_locate_root(_root)
     if(NOT _root OR NOT EXISTS "${_root}/scripts/buildsystems/vcpkg.cmake")
         return()
+    endif()
+    # Seed the triplet BEFORE the toolchain loads. The toolchain FORCE-caches
+    # whatever it computes — and pre-compiler-id that's x64-windows, since its
+    # MINGW branch can't fire yet — which would shadow our mingw default. Set it
+    # first and the toolchain honours it (vcpkg.cmake short-circuits on
+    # `if(VCPKG_TARGET_TRIPLET)`). An explicit user/preset override still wins.
+    if(NOT VCPKG_TARGET_TRIPLET)
+        _vcpkg_default_triplet(_t)
+        set(VCPKG_TARGET_TRIPLET "${_t}" CACHE STRING "vcpkg target triplet")
     endif()
     set(CMAKE_TOOLCHAIN_FILE
         "${_root}/scripts/buildsystems/vcpkg.cmake"
