@@ -1,9 +1,10 @@
-#include "vk_core/bootstrap/create_infos.h"
-#include "vk_core/bootstrap/create_instance.h"
 #include "vk_core/manifest/InstanceExtensionManifest.h"
 #include "vk_core/manifest/DeviceExtensionManifest.h"
 #include "vk_core/debug/entry.h"
 #include "vk_core/surface/entry.h"
+#include "vk_core/bootstrap/create_infos.h"
+#include "vk_core/bootstrap/create_instance.h"
+#include "vk_core/bootstrap/select_physical_device.h"
 #include "log.h"
 
 using namespace lcf;
@@ -32,20 +33,23 @@ int main()
     auto expected_instance = vkc::bs::create_instance(instance_info);
     if (not expected_instance.has_value()) {
         lcf_log_error(expected_instance.error().message());
-    } else {
-        lcf_log_info("Instance created successfully");
+        return 1;
     }
+    lcf_log_info("Instance created successfully");
     auto _instance = std::move(expected_instance.value());
     auto instance = _instance.get();
     auto instance_ext_leases = inst_ext_manifest.enableExtensions(instance);
     lcf_log_info("leases count: {}", instance_ext_leases.size());
-
-    auto physical_devices = instance.enumeratePhysicalDevices();
-    for (const auto & physical_device : physical_devices) {
-        lcf_log_info_if(device_ext_manifest.isRequiredFeaturesSupported(physical_device), "xxx");
+    vkc::bs::PhysicalDeviceSelectInfo physical_device_select_info;
+    physical_device_select_info.setRequiredDeviceExtensionManifest(device_ext_manifest)
+        .setPreferredType(vk::PhysicalDeviceType::eDiscreteGpu);
+    auto expected_physical_device = vkc::bs::select_physical_device(instance, physical_device_select_info);
+    if (not expected_physical_device.has_value()) {
+        lcf_log_error(expected_physical_device.error().message());
+        return 1;
     }
-
-    // device_ext_manifest.    
+    auto physical_device = std::move(expected_physical_device.value());
+    lcf_log_info("Physical device selected successfully, device name: {}", std::string(physical_device.getProperties().deviceName.data()));
 
     return 0;
 }

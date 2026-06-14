@@ -20,7 +20,7 @@ class InstanceCreateInfo
     using Self = InstanceCreateInfo;
     using StringSet = std::unordered_set<std::string>;
 public:
-    ~InstanceCreateInfo() noexcept;
+    ~InstanceCreateInfo() noexcept = default;
     InstanceCreateInfo() noexcept = default;
     InstanceCreateInfo(const Self &) = delete;
     InstanceCreateInfo(Self &&) noexcept = default;
@@ -42,19 +42,23 @@ public:
         m_required_instance_layers.insert_range(instance_layers);
         return *this;
     }
-    Self & setRequiredInstanceExtensionManifest(const InstanceExtensionManifest & extension_manifest) noexcept;
-
+    Self & setRequiredInstanceExtensionManifest(const InstanceExtensionManifest & extension_manifest) noexcept
+    {
+        m_extension_manifest_p = &extension_manifest;
+        return *this;
+    }
     const vk::ApplicationInfo & getApplicationInfo() const noexcept { return m_application_info; }
     bool isLayerRequired(const std::string & layer_name) const noexcept { return m_required_instance_layers.contains(layer_name); }
     bool isExtensionRequired(const std::string & extension_name) const noexcept;
+    std::size_t getRequiredInstanceLayerCount() const noexcept { return m_required_instance_layers.size(); }
+    std::size_t getRequiredInstanceExtensionCount() const noexcept;
 private:
     vk::ApplicationInfo m_application_info;
-    StringSet m_required_instance_extensions;
     StringSet m_required_instance_layers;
     const InstanceExtensionManifest * m_extension_manifest_p = nullptr;
 };
 
-class PhysicalDeviceSelectInfo 
+class PhysicalDeviceSelectInfo
 {
     using Self = PhysicalDeviceSelectInfo;
 public:
@@ -65,9 +69,31 @@ public:
     Self & operator =(const Self &) = delete;
     Self & operator =(Self &&) noexcept = default;
 public:
+    Self & setPreferredType(vk::PhysicalDeviceType type) noexcept
+    {
+        m_preferred_type = type;
+        return *this;
+    }
+    Self & setRequiredDeviceExtensionManifest(const DeviceExtensionManifest & manifest) noexcept
+    {
+        m_extension_manifest_p = &manifest;
+        return *this;
+    }
+    Self & addRequiredQueueFlags(vk::QueueFlags flags) noexcept
+    {
+        m_required_queue_flags |= flags;
+        return *this;
+    }
+    const std::optional<vk::PhysicalDeviceType> & getPreferredTypeOptional() const noexcept { return m_preferred_type; }
+    vk::QueueFlags getRequiredQueueFlags() const noexcept { return m_required_queue_flags; }
     
+    bool isRequiredFeaturesSupported(vk::PhysicalDevice physical_device) const noexcept;
+    bool isExtensionRequired(const std::string & extension_name) const noexcept;
+    std::size_t getRequiredDeviceExtensionCount() const noexcept;
 private:
-    vk::PhysicalDeviceType m_preffered_type;
+    std::optional<vk::PhysicalDeviceType> m_preferred_type;
+    vk::QueueFlags m_required_queue_flags = {};
+    const DeviceExtensionManifest * m_extension_manifest_p = nullptr;
 };
 
 class DeviceCreateInfo 
