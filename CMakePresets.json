@@ -93,6 +93,13 @@
       "inherits": "gcc-tests",
       "displayName": "GCC tests + benchmarks",
       "cacheVariables": { "LCF_BUILD_BENCHMARKS": "ON" }
+    },
+    {
+      "name": "gcc-vkc",
+      "inherits": "gcc",
+      "displayName": "GCC vk_core-only",
+      "description": "Minimal vk_core iteration build: only utilities/math/input/GUI/core/vk_core/vkc_test are registered",
+      "cacheVariables": { "LCF_VKC_ONLY": "ON" }
     }
   ],
 
@@ -119,6 +126,9 @@
 
     { "name": "gcc-tests-debug",      "configurePreset": "gcc-tests",   "configuration": "Debug"          },
     { "name": "gcc-tests-release",    "configurePreset": "gcc-tests",   "configuration": "Release"        },
-    { "name": "gcc-bench-release",    "configurePreset": "gcc-bench",   "configuration": "Release"        }
+    { "name": "gcc-bench-release",    "configurePreset": "gcc-bench",   "configuration": "Release"        },
+
+    { "name": "gcc-vkc-debug",        "configurePreset": "gcc-vkc",     "configuration": "Debug"          },
+    { "name": "gcc-vkc-release",      "configurePreset": "gcc-vkc",     "configuration": "Release"        }
   ]
 }

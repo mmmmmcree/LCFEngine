@@ -13,28 +13,43 @@ include(tests_config)
 
 find_package(Threads)
 
-add_pending_subdir(utilities)
-add_pending_subdir(containers)
-
-if(NOT LCF_TESTS_ONLY)
-    add_pending_subdir(profiling)
-    add_pending_subdir(input)
-    add_pending_subdir(GUI)
-    add_pending_subdir(libs)
-    add_pending_subdir(RenderEngine)
-    add_pending_subdir(examples)
-    add_pending_subdir(core)
-    add_pending_subdir(Modules)
-    add_pending_subdir(Systems)
+if(LCF_VKC_ONLY)
+    set(LCF_SUBDIRS
+        utilities
+        libs/vk_core
+        examples/vkc_test)
+elseif(LCF_TESTS_ONLY)
+    set(LCF_SUBDIRS
+        utilities
+        containers)
+else()
+    set(LCF_SUBDIRS
+        utilities
+        containers
+        profiling
+        input
+        GUI
+        libs
+        RenderEngine
+        examples
+        core
+        Modules
+        Systems)
 endif()
 
 if(LCF_BUILD_TESTS)
-    add_pending_subdir(tests)
+    list(APPEND LCF_SUBDIRS tests)
 endif()
+
+foreach(_dir IN LISTS LCF_SUBDIRS)
+    add_pending_subdir(${_dir})
+endforeach()
 
 install_dependencies()
 
-if(NOT LCF_TESTS_ONLY)
+if(LCF_VKC_ONLY)
+    include(window_config)
+elseif(NOT LCF_TESTS_ONLY)
     include(window_config)
     include(profiling_config)
 endif()

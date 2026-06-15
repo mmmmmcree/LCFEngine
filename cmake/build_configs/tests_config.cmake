@@ -18,3 +18,4 @@
 option(LCF_BUILD_TESTS "Build LCFEngine unit tests" OFF)
 option(LCF_BUILD_BENCHMARKS "Build LCFEngine performance benchmarks (requires LCF_BUILD_TESTS)" OFF)
 option(LCF_TESTS_ONLY "Skip non-test modules (RenderEngine/libs/examples/...) for a minimal test build" OFF)
+option(LCF_VKC_ONLY "Build only vk_core and its runnable chain (GUI/core/input/math + vkc_test) for fast vk_core iteration" OFF)
