@@ -1,32 +1,15 @@
 project(utilities)
 
-file(GLOB_RECURSE HEADERS "include/*.h")
+add_subdirectory(core)
+add_subdirectory(enums)
+add_subdirectory(log)
+add_subdirectory(json)
 
 add_library(${PROJECT_NAME} INTERFACE)
-target_sources(${PROJECT_NAME} INTERFACE ${HEADERS})
-
-find_package(Boost CONFIG REQUIRED COMPONENTS align)
-find_package(magic_enum CONFIG REQUIRED)
-find_package(nlohmann_json CONFIG REQUIRED)
-find_package(spdlog REQUIRED)
-find_path(HALF_INCLUDE_DIRS "half.hpp")
-
-include_directories(
-  ${CMAKE_CURRENT_SOURCE_DIR}/include 
-)
- 
-target_include_directories(${PROJECT_NAME}
+target_link_libraries(${PROJECT_NAME}
   INTERFACE
-      $<INSTALL_INTERFACE:include>
-      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-      ${CMAKE_CURRENT_SOURCE_DIR}/src
-      ${HALF_INCLUDE_DIRS}
+    utilities_core
+    utilities_enums
+    utilities_log
+    utilities_json
 )
-
-target_link_libraries(${PROJECT_NAME} 
-  INTERFACE
-    magic_enum::magic_enum
-    Boost::align
-    nlohmann_json::nlohmann_json
-    spdlog::spdlog
-)    

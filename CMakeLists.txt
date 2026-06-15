@@ -15,7 +15,9 @@ find_package(Threads)
 
 if(LCF_VKC_ONLY)
     set(LCF_SUBDIRS
-        utilities
+        utilities/core
+        utilities/enums
+        utilities/log
         libs/vk_core
         examples/vkc_test)
 elseif(LCF_TESTS_ONLY)

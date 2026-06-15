@@ -10,6 +10,7 @@ add_executable(${PROJECT_NAME} ${SOURCES})
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
         vk_core
+        utilities_log
         window_config
 )
 
