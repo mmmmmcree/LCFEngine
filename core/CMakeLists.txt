@@ -16,7 +16,8 @@ if(WIN32)
 endif() 
 
 find_package(EnTT CONFIG REQUIRED)
-find_package(Boost CONFIG REQUIRED COMPONENTS asio uuid)
+find_package(Boost CONFIG REQUIRED COMPONENTS uuid)
+find_package(asio CONFIG REQUIRED)
 find_package(Taskflow CONFIG REQUIRED)
  
 file(GLOB_RECURSE INCLUDE_DIRS CONFIGURE_DEPENDS LIST_DIRECTORIES true "${CMAKE_CURRENT_SOURCE_DIR}/include/*")
@@ -42,10 +43,11 @@ target_include_directories(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME}
     PUBLIC
       utilities
+      asio::asio
       $<$<AND:$<BOOL:${WIN32}>,$<NOT:$<CXX_COMPILER_ID:MSVC>>>:ws2_32 mswsock>
     PRIVATE
       EnTT::EnTT
-      Boost::asio Boost::uuid
+      Boost::uuid
       Taskflow::Taskflow
 )
 

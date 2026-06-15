@@ -1,7 +1,0 @@
-{
-  "dependencies": [
-    "boost-beast",
-    "cli11",
-    "boost-url"
-  ]
-}

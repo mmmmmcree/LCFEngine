@@ -1,16 +1,15 @@
 #include "user_commands/async_user_command_loop.h"
 #include "log.h"
-#include <boost/asio/steady_timer.hpp>
-#include <boost/asio/use_awaitable.hpp>
+#include <asio/steady_timer.hpp>
+#include <asio/use_awaitable.hpp>
 #include <array>
 
 using namespace lcf;
-namespace asio = boost::asio;
 
 #ifdef _WIN32
 
 #include <windows.h>
-#include <boost/asio/windows/object_handle.hpp>
+#include <asio/windows/object_handle.hpp>
 #include <boost/circular_buffer.hpp>
 #include <iostream>
 
@@ -45,7 +44,7 @@ private:
 #else
 
 #include <unistd.h>
-#include <boost/asio/posix/stream_descriptor.hpp>
+#include <asio/posix/stream_descriptor.hpp>
 
 asio::awaitable<std::string> read_line_from_posix(asio::posix::stream_descriptor & stdin_descriptor)
 

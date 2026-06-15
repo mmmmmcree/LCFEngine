@@ -55,7 +55,7 @@ inline void lcf::TaskScheduler::post(Callable &&invocable)
 }
 
 template <lcf::invocable_c Callable, lcf::crt_invocable_c<bool> ContinuePredicate, typename... Args>
-inline boost::asio::awaitable<void> lcf::TaskScheduler::makeAwaitable(
+inline asio::awaitable<void> lcf::TaskScheduler::makeAwaitable(
     PeriodicTask<Callable, ContinuePredicate> task,
     Args &&...args)
 {

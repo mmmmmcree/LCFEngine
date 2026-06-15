@@ -1,11 +1,11 @@
 #include "UserCommandContext.h"
 #include "user_commands/async_user_command_loop.h"
 #include <boost/algorithm/string.hpp>
-#include <boost/asio.hpp>
+#include <asio.hpp>
 #include "log.h"
 
 
-lcf::UserCommandContext::UserCommandContext(boost::asio::io_context &io_context)
+lcf::UserCommandContext::UserCommandContext(asio::io_context &io_context)
 {
 }
 
@@ -16,7 +16,7 @@ void lcf::UserCommandContext::execute(const std::string & command_line) noexcept
     if (trimmed_command_line == "quit") { m_is_active = false; }
 }
 
-boost::asio::awaitable<void> lcf::UserCommandContext::loop()
+asio::awaitable<void> lcf::UserCommandContext::loop()
 {
     return async_user_command_loop(*this);
 }
