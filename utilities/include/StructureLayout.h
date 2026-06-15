@@ -2,10 +2,10 @@
 
 #include "StrideIterator.h"
 #include "type_traits/lcf_type_traits.h"
+#include "align.h"
 #include <vector>
 #include <ranges>
 #include <bit>
-#include <boost/align.hpp>
 
 namespace lcf {
     template <typename T>
@@ -46,10 +46,10 @@ namespace lcf {
             for (int i = 1; i < n; ++i) {
                 size_t cur_alignment = m_offsets[i * 2];
                 size_t prev_size = m_offsets[i * 2 - 1];
-                offsets.emplace_back(boost::alignment::align_up(offsets.back() + prev_size, cur_alignment));
+                offsets.emplace_back(align_up(offsets.back() + prev_size, cur_alignment));
                 m_structural_alignment = std::max(m_structural_alignment, cur_alignment);
             }
-            size_t structural_size = boost::alignment::align_up(offsets.back() + m_offsets.back(), m_structural_alignment);
+            size_t structural_size = align_up(offsets.back() + m_offsets.back(), m_structural_alignment);
             offsets.emplace_back(structural_size);
             m_offsets.swap(offsets);
         }
