@@ -1,30 +1,64 @@
 #include "vk_core/debug/debug_utils.h"
-#include "log.h"
+#include "vk_core/debug/entry.h"
+#include "vk_core/manifest/InstanceExtensionManifest.h"
+#include <array>
 #include <format>
+#include <print>
+
 
 namespace {
 
-vk::UniqueDebugUtilsMessengerEXT create_debug_utils_messenger(vk::Instance instance) noexcept;
+struct DebugUtilsContext
+{
+    lcf::vkc::dbg::DebugLogCallbacks callbacks;
+    vk::DebugUtilsMessageSeverityFlagsEXT severity;
+    vk::UniqueDebugUtilsMessengerEXT messenger;
+};
+
+vk::UniqueDebugUtilsMessengerEXT create_debug_utils_messenger(vk::Instance instance, void * user_data) noexcept;
 
 } // namespace
 
 namespace lcf::vkc::dbg {
 
-ResourceLease enable_debug_utils(vk::Instance instance) noexcept
+ResourceLease enable_debug_utils(
+    vk::Instance instance,
+    vk::DebugUtilsMessageSeverityFlagsEXT severity,
+    DebugLogCallbacks callbacks) noexcept
 {
-    auto debug_messenger = create_debug_utils_messenger(instance);
-    if (not debug_messenger) { return {}; }
-    auto debug_messenger_rp = make_resource_ptr<vk::UniqueDebugUtilsMessengerEXT>(std::move(debug_messenger));
-    return debug_messenger_rp.lease();
+    auto context_rp = make_resource_ptr<DebugUtilsContext>(std::move(callbacks), severity, vk::UniqueDebugUtilsMessengerEXT{});
+    context_rp->messenger = create_debug_utils_messenger(instance, context_rp.get());
+    if (not context_rp->messenger) { return {}; }
+    return context_rp.lease();
 }
 
-} // namespace lcf::vkc::details
+void register_debug_utils(
+    InstanceExtensionManifest & manifest,
+    vk::DebugUtilsMessageSeverityFlagsEXT severity,
+    const DebugLogCallbacks & callbacks) noexcept
+{
+    static constexpr std::array s_ext_names { vk::EXTDebugUtilsExtensionName };
+    manifest.addRequiredExtensions(s_ext_names);
+    manifest.addExtensionEnableCallback([severity, callbacks](vk::Instance instance) {
+        return enable_debug_utils(instance, severity, callbacks);
+    });
+}
+
+void register_debug_utils(InstanceExtensionManifest & manifest) noexcept
+{
+    return register_debug_utils(manifest, SeverityFlags::eWarning | SeverityFlags::eError, {});
+}
+
+DebugLogCallbacks::DebugLogCallbacks() noexcept :
+    m_verbose_log_sink([](std::string_view message) { std::println(stderr, "verbose: {}", message); }),
+    m_info_log_sink([](std::string_view message) { std::println(stderr, "info: {}", message); }),
+    m_warning_log_sink([](std::string_view message) { std::println(stderr, "warning: {}", message); }),
+    m_error_log_sink([](std::string_view message) { std::println(stderr, "error: {}", message); })
+{}
+
+} // namespace lcf::vkc::dbg
 
 namespace {
-
-// ============================================================================
-//  Debug callback
-// ============================================================================
 
 static VKAPI_ATTR vk::Bool32 VKAPI_CALL debug_callback(
     vk::DebugUtilsMessageSeverityFlagBitsEXT severity_flags,
@@ -32,8 +66,9 @@ static VKAPI_ATTR vk::Bool32 VKAPI_CALL debug_callback(
     const vk::DebugUtilsMessengerCallbackDataEXT * callback_data,
     void * user_data)
 {
-    (void)user_data;
-    if (not callback_data->pMessage) { return false; }
+    if (not user_data or not callback_data->pMessage) { return false; }
+    const auto * context = static_cast<DebugUtilsContext *>(user_data);
+    if (not (severity_flags & context->severity)) { return false; }
     std::string log_output = std::format(
         "{:=^80}\n"
         "[Type] {}\n"
@@ -78,16 +113,14 @@ static VKAPI_ATTR vk::Bool32 VKAPI_CALL debug_callback(
                 obj.pObjectName ? obj.pObjectName : "Unnamed");
         }
     }
-    if (severity_flags & vk::DebugUtilsMessageSeverityFlagBitsEXT::eError) { lcf_log_error(log_output); }
-    else if (severity_flags & vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning) { lcf_log_warn(log_output); }
-    // else if (severity_flags & vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo) { lcf_log_info(log_output); }
-    // else if (severity_flags & vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose) { lcf_log_trace(log_output); }
+    using SeverityFlags = vk::DebugUtilsMessageSeverityFlagBitsEXT;
+    const auto & callbacks = context->callbacks;
+    if (severity_flags & SeverityFlags::eError) { callbacks.logError(log_output); }
+    else if (severity_flags & SeverityFlags::eWarning) { callbacks.logWarning(log_output); }
+    else if (severity_flags & SeverityFlags::eInfo) { callbacks.logInfo(log_output); }
+    else if (severity_flags & SeverityFlags::eVerbose) { callbacks.logVerbose(log_output); }
     return false;
 }
-
-// ============================================================================
-//  RenderDoc environment detection
-// ============================================================================
 
 static bool is_renderdoc_environment()
 {
@@ -103,13 +136,12 @@ static bool is_renderdoc_environment()
 #endif
 }
 
-vk::UniqueDebugUtilsMessengerEXT create_debug_utils_messenger(vk::Instance instance) noexcept
+vk::UniqueDebugUtilsMessengerEXT create_debug_utils_messenger(vk::Instance instance, void * user_data) noexcept
 {
     if (not VULKAN_HPP_DEFAULT_DISPATCHER.vkCreateDebugUtilsMessengerEXT) {
         return {};
     }
     if (is_renderdoc_environment()) {
-        lcf_log_warn("RenderDoc environment detected — skipping debug messenger creation");
         return {}; //! RenderDoc is contradictory to custom debug callback
     }
     vk::DebugUtilsMessengerCreateInfoEXT debug_messenger_info;
@@ -117,12 +149,13 @@ vk::UniqueDebugUtilsMessengerEXT create_debug_utils_messenger(vk::Instance insta
         .setMessageType(vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral |
             vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation |
             vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance)
-        .setPfnUserCallback(&debug_callback);
+        .setPfnUserCallback(&debug_callback)
+        .setPUserData(user_data);
     vk::UniqueDebugUtilsMessengerEXT debug_messenger {};
     try {
         debug_messenger = instance.createDebugUtilsMessengerEXTUnique(debug_messenger_info);
-    } catch (const vk::SystemError & e) {
-        lcf_log_error("Failed to create debug utils messenger: {}", e.what());
+    } catch (const vk::SystemError &) {
+        return {};
     }
     return debug_messenger;
 }

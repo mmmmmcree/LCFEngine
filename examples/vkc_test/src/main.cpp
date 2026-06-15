@@ -1,6 +1,7 @@
 #include "vk_core/manifest/InstanceExtensionManifest.h"
 #include "vk_core/manifest/DeviceExtensionManifest.h"
 #include "vk_core/debug/entry.h"
+#include "vk_core/debug/debug_utils.h"
 #include "vk_core/surface/entry.h"
 #include "vk_core/bootstrap/create_infos.h"
 #include "vk_core/bootstrap/create_instance.h"
@@ -15,7 +16,10 @@ int main()
     vkc::InstanceExtensionManifest inst_ext_manifest;
     vkc::DeviceExtensionManifest device_ext_manifest;
 
-    vkc::dbg::register_debug_utils(inst_ext_manifest);
+    vkc::dbg::DebugLogCallbacks debug_callbacks;
+    debug_callbacks.setWarningSink([](std::string_view message) { lcf_log_warn(message); })
+        .setErrorSink([](std::string_view message) { lcf_log_error(message); });
+    vkc::dbg::register_debug_utils(inst_ext_manifest, vkc::dbg::SeverityFlags::eError | vkc::dbg::SeverityFlags::eWarning, debug_callbacks);
     vkc::surf::register_surface(inst_ext_manifest);
     vkc::surf::register_swapchain(device_ext_manifest);
 
