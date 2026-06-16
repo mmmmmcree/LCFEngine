@@ -21,7 +21,6 @@ enum class DeviceRole : uint8_t
 enum class QueueRole : uint8_t
 {
     eGraphics = 0,
-    eAsyncCompute,
     eCompute,
     eTransfer,
 };

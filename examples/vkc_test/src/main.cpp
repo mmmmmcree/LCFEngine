@@ -55,5 +55,12 @@ int main()
     auto physical_device = std::move(expected_physical_device.value());
     lcf_log_info("Physical device selected successfully, device name: {}", std::string(physical_device.getProperties().deviceName.data()));
 
-    return 0;
+    auto queue_family_props_list = physical_device.getQueueFamilyProperties2();
+    for (const auto & queue_family_props : queue_family_props_list) {
+        const auto & props = queue_family_props.queueFamilyProperties;
+        lcf_log_info("flags{}, queueCount: {}", vk::to_string(props.queueFlags), props.queueCount);
+        
+    }
+    // physical_device.enumerateDeviceExtensionProperties();
+    return 0;;
 }
