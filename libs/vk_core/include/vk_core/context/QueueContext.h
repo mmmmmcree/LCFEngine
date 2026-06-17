@@ -18,7 +18,6 @@ public:
 public:
     std::error_code create(vk::Device device, uint32_t family_index, uint32_t queue_index) noexcept;
 private:
-    uint32_t m_family_index = 0;
     vk::Queue m_queue;
     TimelineSemaphore m_timeline;
 };

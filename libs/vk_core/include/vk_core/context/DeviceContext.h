@@ -29,7 +29,7 @@ public:
     std::error_code create(vk::Instance instance, const DeviceContextCreateInfo & create_info) noexcept;
     const vk::PhysicalDevice & getPhysicalDevice() const noexcept { return m_physical_device; }
     const vk::Device & getDevice() const noexcept { return m_device; }
-    QueueContext & getQueueContext(enums::QueueRole role) noexcept { return *m_queue_context_table[std::to_underlying(role)]; }
+    const QueueContext & getQueueContext(enums::QueueRole role) const noexcept { return *m_queue_context_table[std::to_underlying(role)]; }
 private:
     vk::PhysicalDevice m_physical_device;
     vk::Device m_device;
