@@ -22,7 +22,8 @@ public:
     void increaseTargetValue() noexcept { ++m_target_value; }
     const uint64_t & getTargetValue() const noexcept { return m_target_value; }
     uint64_t getCurrentValue() const;
-    bool isTargetReached() const noexcept { return m_target_value <= this->getCurrentValue(); }
+    bool isTargetReached(uint64_t value) const noexcept { return value <= this->getCurrentValue(); }
+    bool isCurrentTargetReached() const noexcept { return this->isTargetReached(m_target_value); }
     vk::SemaphoreSubmitInfo generateSubmitInfo() const noexcept;
 private:
     vk::Device m_device;

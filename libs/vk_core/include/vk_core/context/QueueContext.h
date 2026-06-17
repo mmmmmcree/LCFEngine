@@ -1,7 +1,7 @@
 #pragma once
 
-#include "vk_core/sync/TimelineSemaphore.h"
 #include <vulkan/vulkan.hpp>
+#include "vk_core/sync/TimelineSemaphore.h"
 
 namespace lcf::vkc {
 
