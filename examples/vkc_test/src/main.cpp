@@ -9,6 +9,7 @@
 #include "log.h"
 
 using namespace lcf;
+namespace stdv = std::views;
 
 int main()
 {
@@ -53,10 +54,8 @@ int main()
     auto physical_device = std::move(expected_physical_device.value());
     lcf_log_info("Physical device selected successfully, device name: {}", std::string(physical_device.getProperties().deviceName.data()));
 
-    auto queue_family_props_list = physical_device.getQueueFamilyProperties2();
     uint32_t queue_family_index = 0;
-    for (const auto & [index, queue_family_props] : queue_family_props_list | std::views::enumerate) {
-        const auto & props = queue_family_props.queueFamilyProperties;
+    for (const auto & [index, props] : physical_device.getQueueFamilyProperties() | stdv::enumerate) {
         if (props.queueFlags & vk::QueueFlagBits::eGraphics) {
             queue_family_index = index;
             break;
@@ -81,5 +80,5 @@ int main()
         .setSharingMode(vk::SharingMode::eExclusive);
     auto bad_buffer = device.createBufferUnique(bad_buffer_info);
 
-    return 0;;
+    return 0;
 }
