@@ -20,7 +20,7 @@ public:
                 return "no physical device satisfies the selection requirements";
             case errc::no_suitable_queue_family:
                 return "no queue family provides the required capabilities";
-            case errc::preferred_device_type_anavailable:
+            case errc::preferred_device_type_unavailable:
                 return "no physical device of the preferred type is available";
             case errc::no_suitable_surface_format:
                 return "surface exposes no supported format";

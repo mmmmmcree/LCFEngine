@@ -2,10 +2,10 @@
 #include "vk_core/manifest/DeviceExtensionManifest.h"
 #include "vk_core/debug/entry.h"
 #include "vk_core/debug/debug_utils.h"
-#include "vk_core/surface/entry.h"
 #include "vk_core/bootstrap/create_infos.h"
 #include "vk_core/bootstrap/create_instance.h"
 #include "vk_core/bootstrap/select_physical_device.h"
+#include "vk_core/bootstrap/create_device.h"
 #include "log.h"
 
 using namespace lcf;
@@ -20,8 +20,6 @@ int main()
     debug_callbacks.setWarningSink([](std::string_view message) { lcf_log_warn(message); })
         .setErrorSink([](std::string_view message) { lcf_log_error(message); });
     vkc::dbg::register_debug_utils(inst_ext_manifest, vkc::dbg::SeverityFlags::eError | vkc::dbg::SeverityFlags::eWarning, debug_callbacks);
-    vkc::surf::register_surface(inst_ext_manifest);
-    vkc::surf::register_swapchain(device_ext_manifest);
 
     vk::ApplicationInfo app_info;
     app_info.setPApplicationName("LCFEngine")
@@ -56,11 +54,32 @@ int main()
     lcf_log_info("Physical device selected successfully, device name: {}", std::string(physical_device.getProperties().deviceName.data()));
 
     auto queue_family_props_list = physical_device.getQueueFamilyProperties2();
-    for (const auto & queue_family_props : queue_family_props_list) {
+    uint32_t queue_family_index = 0;
+    for (const auto & [index, queue_family_props] : queue_family_props_list | std::views::enumerate) {
         const auto & props = queue_family_props.queueFamilyProperties;
-        lcf_log_info("flags{}, queueCount: {}", vk::to_string(props.queueFlags), props.queueCount);
-        
+        if (props.queueFlags & vk::QueueFlagBits::eGraphics) {
+            queue_family_index = index;
+            break;
+        }
     }
-    // physical_device.enumerateDeviceExtensionProperties();
+    vkc::bs::DeviceCreateInfo device_info;
+    device_info.setRequiredDeviceExtensionManifest(device_ext_manifest)
+        .addQueueFamilyRequest({queue_family_index, 1});
+    auto expected_device = vkc::bs::create_device(physical_device, device_info);
+    if (not expected_device.has_value()) {
+        lcf_log_error(expected_device.error().message());
+        return 1;
+    }
+    auto _device = std::move(expected_device.value());
+    auto device = _device.get();
+    lcf_log_info("Device created successfully");
+
+    lcf_log_info("Triggering a deliberate validation error to test the debug messenger...");
+    vk::BufferCreateInfo bad_buffer_info;
+    bad_buffer_info.setSize(0)
+        .setUsage(vk::BufferUsageFlagBits::eVertexBuffer)
+        .setSharingMode(vk::SharingMode::eExclusive);
+    auto bad_buffer = device.createBufferUnique(bad_buffer_info);
+
     return 0;;
 }

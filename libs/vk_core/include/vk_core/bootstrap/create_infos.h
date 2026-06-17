@@ -96,9 +96,11 @@ private:
     const DeviceExtensionManifest * m_extension_manifest_p = nullptr;
 };
 
-class DeviceCreateInfo 
+class DeviceCreateInfo
 {
     using Self = DeviceCreateInfo;
+    using QueueFamilyRequest = std::pair<uint32_t, uint32_t>;   // {family_index, queue_count}
+    using QueueFamilyRequestList = std::vector<QueueFamilyRequest>;
 public:
     ~DeviceCreateInfo() noexcept = default;
     DeviceCreateInfo() noexcept = default;
@@ -107,8 +109,33 @@ public:
     Self & operator =(const Self &) = delete;
     Self & operator =(Self &&) noexcept = default;
 public:
-    
+    Self & setRequiredDeviceExtensionManifest(const DeviceExtensionManifest & manifest) noexcept
+    {
+        m_extension_manifest_p = &manifest;
+        return *this;
+    }
+    Self & addQueueFamilyRequest(uint32_t family_index, uint32_t queue_count) noexcept
+    {
+        m_queue_family_requests.emplace_back(family_index, queue_count);
+        return *this;
+    }
+    Self & addQueueFamilyRequest(const QueueFamilyRequest & request) noexcept
+    {
+        m_queue_family_requests.emplace_back(request);
+        return *this;
+    }
+    Self & addQueueFamilyRequests(convertible_range_of_c<QueueFamilyRequest> auto && requests) noexcept
+    {
+        m_queue_family_requests.insert_range(requests);
+        return *this;
+    }
+    std::span<const QueueFamilyRequest> getQueueFamilyRequests() const noexcept { return m_queue_family_requests; }
+    bool isExtensionRequired(const std::string & extension_name) const noexcept;
+    std::size_t getRequiredDeviceExtensionCount() const noexcept;
+    const vk::PhysicalDeviceFeatures2 * getRequiredFeatures() const noexcept;
 private:
+    const DeviceExtensionManifest * m_extension_manifest_p = nullptr;
+    QueueFamilyRequestList m_queue_family_requests;
 };
 
 } // namespace lcf::vkc::bs

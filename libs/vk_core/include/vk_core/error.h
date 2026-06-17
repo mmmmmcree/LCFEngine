@@ -10,7 +10,7 @@ enum class errc
     no_suitable_instance,
     no_suitable_physical_device,
     no_suitable_queue_family,
-    preferred_device_type_anavailable,
+    preferred_device_type_unavailable,
     no_suitable_surface_format,
     no_suitable_present_mode,
     no_suitable_present_queue_family,

@@ -24,6 +24,14 @@ void register_surface(InstanceExtensionManifest & manifest) noexcept
     #endif
     };
     manifest.addRequiredExtensions(k_extensions);
+    //todo optional
+    static constexpr std::array k_surface_maintenance1_extensions
+    {
+        vk::KHRGetSurfaceCapabilities2ExtensionName,
+        vk::KHRSurfaceMaintenance1ExtensionName,
+    };
+    // if constexpr xxx
+    manifest.addRequiredExtensions(k_surface_maintenance1_extensions);
 }
 
 void register_swapchain(DeviceExtensionManifest & manifest) noexcept
@@ -31,14 +39,21 @@ void register_swapchain(DeviceExtensionManifest & manifest) noexcept
     static constexpr std::array k_extensions
     {
         vk::KHRSwapchainExtensionName,
-        vk::EXTSwapchainMaintenance1ExtensionName,
     };
-    static constexpr std::array k_features
+    manifest.addRequiredExtensions(k_extensions);
+    
+    // todo optional
+    static constexpr std::array k_swapchain_maintenance1_extensions
+    {
+        vk::KHRSwapchainMaintenance1ExtensionName
+    };
+    static constexpr std::array k_swapchain_maintenance1_features
     {
         utils::t_feature_bit<&vk::PhysicalDeviceSwapchainMaintenance1FeaturesEXT::swapchainMaintenance1>,
     };
-    manifest.addRequiredExtensions(k_extensions)
-        .addRequiredFeatures(k_features);
+    // if constexpr xxx
+    manifest.addRequiredExtensions(k_swapchain_maintenance1_extensions)
+        .addRequiredFeatures(k_swapchain_maintenance1_features);
 }
 
 } // namespace lcf::vkc::sync
