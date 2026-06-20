@@ -46,7 +46,7 @@ namespace metal {
 
 struct WindowHandle
 {
-    WindowHandle(void * layer) : m_layer(layer) {}
+    WindowHandle(const void * layer) : m_layer(layer) {}
 
     const void * m_layer;
 };
