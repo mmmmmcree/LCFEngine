@@ -2,8 +2,11 @@
 
 #include <vulkan/vulkan.hpp>
 #include <unordered_set>
+#include <unordered_map>
 #include <optional>
+#include <functional>
 #include "concepts/range_concept.h"
+#include "resource_utils.h"
 
 namespace lcf::vkc {
 
@@ -19,12 +22,14 @@ class InstanceCreateInfo
 {
     using Self = InstanceCreateInfo;
     using StringSet = std::unordered_set<std::string>;
+    using ResourceLeaseList = std::vector<ResourceLease>;
+    using ExtEnableCallback = std::function<ResourceLeaseList(vk::Instance)>;
 public:
     ~InstanceCreateInfo() noexcept = default;
     InstanceCreateInfo() noexcept = default;
-    InstanceCreateInfo(const Self &) = delete;
+    InstanceCreateInfo(const Self &) = default;
     InstanceCreateInfo(Self &&) noexcept = default;
-    Self & operator =(const Self &) = delete;
+    Self & operator =(const Self &) = default;
     Self & operator =(Self &&) noexcept = default;
 public:
     Self & setApplicationInfo(const vk::ApplicationInfo & application_info) noexcept
@@ -52,6 +57,7 @@ public:
     bool isExtensionRequired(const std::string & extension_name) const noexcept;
     std::size_t getRequiredInstanceLayerCount() const noexcept { return m_required_instance_layers.size(); }
     std::size_t getRequiredInstanceExtensionCount() const noexcept;
+    ExtEnableCallback getExtensionEnableCallback() const noexcept;
 private:
     vk::ApplicationInfo m_application_info;
     StringSet m_required_instance_layers;
@@ -64,9 +70,9 @@ class PhysicalDeviceSelectInfo
 public:
     ~PhysicalDeviceSelectInfo() noexcept = default;
     PhysicalDeviceSelectInfo() noexcept = default;
-    PhysicalDeviceSelectInfo(const Self &) = delete;
+    PhysicalDeviceSelectInfo(const Self &) = default;
     PhysicalDeviceSelectInfo(Self &&) noexcept = default;
-    Self & operator =(const Self &) = delete;
+    Self & operator =(const Self &) = default;
     Self & operator =(Self &&) noexcept = default;
 public:
     Self & setPreferredType(vk::PhysicalDeviceType type) noexcept
@@ -100,13 +106,13 @@ class DeviceCreateInfo
 {
     using Self = DeviceCreateInfo;
     using QueueFamilyRequest = std::pair<uint32_t, uint32_t>;   // {family_index, queue_count}
-    using QueueFamilyRequestList = std::vector<QueueFamilyRequest>;
+    using QueueFamilyRequestMap = std::unordered_map<uint32_t, uint32_t>; // {family_index, queue_count}
 public:
     ~DeviceCreateInfo() noexcept = default;
     DeviceCreateInfo() noexcept = default;
-    DeviceCreateInfo(const Self &) = delete;
+    DeviceCreateInfo(const Self &) = default;
     DeviceCreateInfo(Self &&) noexcept = default;
-    Self & operator =(const Self &) = delete;
+    Self & operator =(const Self &) = default;
     Self & operator =(Self &&) noexcept = default;
 public:
     Self & setRequiredDeviceExtensionManifest(const DeviceExtensionManifest & manifest) noexcept
@@ -114,14 +120,9 @@ public:
         m_extension_manifest_p = &manifest;
         return *this;
     }
-    Self & addQueueFamilyRequest(uint32_t family_index, uint32_t queue_count) noexcept
-    {
-        m_queue_family_requests.emplace_back(family_index, queue_count);
-        return *this;
-    }
     Self & addQueueFamilyRequest(const QueueFamilyRequest & request) noexcept
     {
-        m_queue_family_requests.emplace_back(request);
+        m_queue_family_requests.insert(request);
         return *this;
     }
     Self & addQueueFamilyRequests(convertible_range_of_c<QueueFamilyRequest> auto && requests) noexcept
@@ -129,13 +130,13 @@ public:
         m_queue_family_requests.insert_range(requests);
         return *this;
     }
-    std::span<const QueueFamilyRequest> getQueueFamilyRequests() const noexcept { return m_queue_family_requests; }
+    const QueueFamilyRequestMap & getQueueFamilyRequests() const noexcept { return m_queue_family_requests; }
     bool isExtensionRequired(const std::string & extension_name) const noexcept;
     std::size_t getRequiredDeviceExtensionCount() const noexcept;
     const vk::PhysicalDeviceFeatures2 * getRequiredFeatures() const noexcept;
 private:
     const DeviceExtensionManifest * m_extension_manifest_p = nullptr;
-    QueueFamilyRequestList m_queue_family_requests;
+    QueueFamilyRequestMap m_queue_family_requests;
 };
 
 } // namespace lcf::vkc::bs

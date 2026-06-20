@@ -19,8 +19,8 @@ class DeviceContext
     using Self = DeviceContext;
     using QueueContextUP = std::unique_ptr<QueueContext>;
 public:
+    ~DeviceContext() noexcept;
     DeviceContext() = default;
-    ~DeviceContext() noexcept = default;
     DeviceContext(const Self &) = delete;
     DeviceContext(Self &&) = default;
     Self & operator =(const Self &) = delete;
@@ -28,13 +28,13 @@ public:
 public:
     std::error_code create(vk::Instance instance, const DeviceContextCreateInfo & create_info) noexcept;
     const vk::PhysicalDevice & getPhysicalDevice() const noexcept { return m_physical_device; }
-    const vk::Device & getDevice() const noexcept { return m_device; }
-    const QueueContext & getQueueContext(enums::QueueRole role) const noexcept { return *m_queue_context_table[std::to_underlying(role)]; }
+    const vk::Device & getDevice() const noexcept { return m_device.get(); }
+    const QueueContext & getQueueContext(QueueRole role) const noexcept { return *m_queue_context_table[std::to_underlying(role)]; }
 private:
     vk::PhysicalDevice m_physical_device;
-    vk::Device m_device;
+    vk::UniqueDevice m_device;
     std::vector<QueueContextUP> m_queue_contexts;
-    std::array<QueueContext *, enum_count_v<enums::QueueRole>> m_queue_context_table = {};
+    std::array<QueueContext *, enum_count_v<QueueRole>> m_queue_context_table = {};
 };
 
 

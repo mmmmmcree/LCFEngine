@@ -3,7 +3,7 @@
 #include <cstdint>
 #include "enums/enum_flags.h"
 
-namespace lcf::vkc::enums {
+namespace lcf::vkc {
 
 enum class ContextCapabilitiesFlags : uint32_t
 {
@@ -25,10 +25,10 @@ enum class QueueRole : uint8_t
     eTransfer,
 };
 
-} // namespace lcf::vkc::enums
+} // namespace lcf::vkc
 
 namespace lcf {
 
-template <> inline constexpr bool is_enum_flags_v<vkc::enums::ContextCapabilitiesFlags> = true;
+template <> inline constexpr bool is_enum_flags_v<vkc::ContextCapabilitiesFlags> = true;
 
 } // namespace lcf

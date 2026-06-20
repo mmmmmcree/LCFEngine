@@ -19,8 +19,8 @@ class Context
     using ResourceLeaseList = std::vector<ResourceLease>;
     using DeviceContextUP = std::unique_ptr<DeviceContext>;
 public:
+    ~Context() noexcept;
     Context() = default;
-    ~Context() noexcept = default;
     Context(const Self &) = delete;
     Context(Self &&) noexcept = default;
     Self & operator =(const Self &) = delete;
@@ -28,12 +28,12 @@ public:
 public:
     std::error_code create(const ContextCreateInfo & create_info) noexcept;
     const vk::Instance & getInstance() const noexcept { return m_instance.get(); }
-    const DeviceContext & getDeviceContext(enums::DeviceRole role) const noexcept { return *m_device_context_table[std::to_underlying(role)]; }
+    const DeviceContext & getDeviceContext(DeviceRole role) const noexcept { return *m_device_context_table[std::to_underlying(role)]; }
 private:
     vk::UniqueInstance m_instance;
-    ResourceLeaseList m_extension_resource_leases;
+    ResourceLeaseList m_ext_resource_leases;
     std::vector<DeviceContextUP> m_device_contexts;
-    std::array<DeviceContext *, enum_count_v<enums::DeviceRole>> m_device_context_table {};
+    std::array<DeviceContext *, enum_count_v<DeviceRole>> m_device_context_table {};
 };
 
 } // namespace lcf::vkc

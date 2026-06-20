@@ -16,6 +16,12 @@ std::size_t InstanceCreateInfo::getRequiredInstanceExtensionCount() const noexce
     return m_extension_manifest_p->getRequiredExtensionCount();
 }
 
+auto InstanceCreateInfo::getExtensionEnableCallback() const noexcept -> ExtEnableCallback
+{
+    if (not m_extension_manifest_p) { return {}; }
+    return [manifest_p = m_extension_manifest_p](vk::Instance instance) { return manifest_p->enableExtensions(instance); };
+}
+
 bool PhysicalDeviceSelectInfo::isRequiredFeaturesSupported(vk::PhysicalDevice physical_device) const noexcept
 {
     if (not m_extension_manifest_p) { return false; }

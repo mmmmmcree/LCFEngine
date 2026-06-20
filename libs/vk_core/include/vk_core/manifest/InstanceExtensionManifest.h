@@ -34,7 +34,7 @@ public:
     {
         return m_required_extensions.contains(extension_name);
     }
-    ResourceLeaseList enableExtensions(vk::Instance instance) noexcept
+    ResourceLeaseList enableExtensions(vk::Instance instance) const noexcept
     {
         ResourceLeaseList ext_leases;
         for (const auto & callback : m_ext_enable_callbacks)
