@@ -2,8 +2,11 @@
 #include "vk_core/manifest/DeviceExtensionManifest.h"
 #include "vk_core/debug/entry.h"
 #include "vk_core/debug/debug_utils.h"
+#include "vk_core/context/entry.h"
 #include "vk_core/context/create_infos.h"
 #include "vk_core/context/InstanceContext.h"
+#include "vk_core/context/RenderDeviceContext.h"
+#include "vk_core/context/QueueContext.h"
 #include "log.h"
 
 using namespace lcf;
@@ -15,10 +18,7 @@ int main()
     vkc::InstanceExtensionManifest inst_ext_manifest;
     vkc::DeviceExtensionManifest device_ext_manifest;
 
-    vkc::dbg::DebugLogCallbacks debug_callbacks;
-    debug_callbacks.setWarningSink([](std::string_view message) { lcf_log_warn(message); })
-        .setErrorSink([](std::string_view message) { lcf_log_error(message); });
-    vkc::dbg::register_debug_utils(inst_ext_manifest, vkc::dbg::SeverityFlags::eError | vkc::dbg::SeverityFlags::eWarning, debug_callbacks);
+    vkc::register_context_module(inst_ext_manifest, device_ext_manifest);
 
     vk::ApplicationInfo app_info;
     app_info.setPApplicationName("LCFEngine")
@@ -27,9 +27,8 @@ int main()
         .setEngineVersion(vk::makeVersion(1, 0, 0))
         .setApiVersion(vk::HeaderVersionComplete);
     
-    vkc::bs::InstanceCreateInfo instance_info;
+    vkc::InstanceContextCreateInfo instance_info; // same as bs::InstanceCreateInfo
     instance_info.setApplicationInfo(app_info)
-        .addRequiredInstanceLayer("VK_LAYER_KHRONOS_validation")
         .setRequiredInstanceExtensionManifest(inst_ext_manifest);
 
     vkc::bs::PhysicalDeviceSelectInfo physical_device_select_info;
@@ -38,9 +37,6 @@ int main()
     vkc::DeviceContextCreateInfo device_context_info;
     device_context_info.setRequiredDeviceExtensionManifest(device_ext_manifest)
         .setPhysicalDeviceSelectInfo(physical_device_select_info);
-    vkc::ContextCreateInfo context_info;
-    context_info.setInstanceCreateInfo(instance_info)
-        .setDeviceContextCreateInfo(device_context_info);
     
     vkc::InstanceContext instance_context;
     if (auto ec = instance_context.create(instance_info)) {
@@ -49,6 +45,15 @@ int main()
     }
     lcf_log_info("InstanceContext created successfully.");
 
+    vkc::RenderDeviceContext render_device_context;
+    if (auto ec = render_device_context.create(instance_context.getInstance(), device_context_info)) {
+        lcf_log_error("Failed to create render_device_context: {}", ec.message());
+        return 1;
+    }
+    lcf_log_info("graphics queue context address: {},\ncompute queue context address: {},\ntransfer queue context address: {}",
+        static_cast<const void *>(&render_device_context.getGraphicsQueueContext()),
+        static_cast<const void *>(&render_device_context.getComputeQueueContext()),
+        static_cast<const void *>(&render_device_context.getTransferQueueContext()));
 
     return 0;
 }
