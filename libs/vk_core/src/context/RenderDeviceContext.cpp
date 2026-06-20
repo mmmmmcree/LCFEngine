@@ -34,16 +34,16 @@ std::error_code RenderDeviceContext::create(vk::Instance instance, const DeviceC
         { vk::QueueFlagBits::eCompute, vk::QueueFlagBits::eTransfer },
         { vk::QueueFlagBits::eTransfer, vk::QueueFlagBits::eCompute },
     };
-    DeviceContextCreateInfo device_context_info = create_info;
-    auto expected_physical_device = bs::select_physical_device(instance, device_context_info.getPhysicalDeviceSelectInfo());
+    auto expected_physical_device = bs::select_physical_device(instance, create_info.getPhysicalDeviceSelectInfo());
     if (not expected_physical_device) { return expected_physical_device.error(); }
     m_physical_device = expected_physical_device.value();
     auto queue_family_properties = m_physical_device.getQueueFamilyProperties();   
     auto queue_family_map = find_queue_families(queue_family_properties, s_required_flags_pairs);   
     if (queue_family_map.empty()) { return errc::no_suitable_queue_family; }
-    device_context_info.addQueueFamilyRequests(queue_family_map | stdv::keys |
+    bs::DeviceCreateInfo device_info = create_info.getDeviceCreateInfo();
+    device_info.addQueueFamilyRequests(queue_family_map | stdv::keys |
         stdv::transform([](uint32_t family_index) { return std::make_pair(family_index, 1); }));
-    auto expected_device = bs::create_device(m_physical_device, device_context_info.getDeviceCreateInfo());
+    auto expected_device = bs::create_device(m_physical_device, device_info);
     if (not expected_device) { return expected_device.error(); }
     m_device = std::move(expected_device.value());
     for (const auto & [family_index, desired_flags] : queue_family_map) {

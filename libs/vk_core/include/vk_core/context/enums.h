@@ -12,18 +12,18 @@ enum class ContextCapabilitiesFlags : uint32_t
     eAll = eSurface
 };
 
-enum class DeviceRole : uint8_t
-{
-    eMain = 0,
-    eCompute,
-};
+// enum class DeviceRole : uint8_t
+// {
+//     eMain = 0,
+//     eCompute,
+// };
 
-enum class QueueRole : uint8_t
-{
-    eGraphics = 0,
-    eCompute,
-    eTransfer,
-};
+// enum class QueueRole : uint8_t
+// {
+//     eGraphics = 0,
+//     eCompute,
+//     eTransfer,
+// };
 
 } // namespace lcf::vkc
 

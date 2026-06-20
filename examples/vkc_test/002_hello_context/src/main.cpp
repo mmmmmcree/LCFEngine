@@ -1,7 +1,5 @@
 #include "vk_core/manifest/InstanceExtensionManifest.h"
 #include "vk_core/manifest/DeviceExtensionManifest.h"
-#include "vk_core/debug/entry.h"
-#include "vk_core/debug/debug_utils.h"
 #include "vk_core/context/entry.h"
 #include "vk_core/context/create_infos.h"
 #include "vk_core/context/InstanceContext.h"
