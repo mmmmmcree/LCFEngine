@@ -67,7 +67,6 @@ std::error_code Swapchain::present(
     if (not expected_fence) { return expected_fence.error(); }
     auto expected_present_ready_semaphore = this->acquireSemaphore();
     if (not expected_present_ready_semaphore) { return expected_present_ready_semaphore.error(); }
-    vk::UniqueSemaphore present_ready = std::move(expected_present_ready_semaphore.value());
     m_present_resources.m_cmd = std::move(expected_cmd.value());
     m_present_resources.m_present_fence = std::move(expected_fence.value());
     m_present_resources.m_present_ready = std::move(expected_present_ready_semaphore.value());
@@ -100,7 +99,7 @@ std::error_code Swapchain::present(
     blit_region.setSrcSubresource(src_subresource_layers)
         .setDstSubresource({vk::ImageAspectFlagBits::eColor, 0, 0, 1})
         .setSrcOffsets(src_offsets)
-        .setDstOffsets({vk::Offset3D {0, 0, 0}, {m_width, m_height, 1}});
+        .setDstOffsets({vk::Offset3D {0, 0, 0}, {static_cast<int32_t>(m_width), static_cast<int32_t>(m_height), 1}});
     vk::BlitImageInfo2 blit_info = {};
     blit_info.setSrcImage(src_image)
         .setSrcImageLayout(vk::ImageLayout::eTransferSrcOptimal)
@@ -137,11 +136,11 @@ std::error_code Swapchain::present(
         .setWaitSemaphores(m_present_resources.m_present_ready.get())
         .setSwapchains(m_swapchain.get())
         .setPImageIndices(&m_image_index);
-    vk::Result present_result = vk::Result::eErrorUnknown;   
+    vk::Result present_result = vk::Result::eSuccess;   
     try {
         present_result = present_queue.presentKHR(present_info_chain.get<vk::PresentInfoKHR>());
     } catch (const vk::OutOfDateKHRError &e) {
-        //- no need to recreate, recreation will happen in acquireNextImage
+        //- no need to recreate, recreation will happen in acquireNextImage, keep present_result as vk::Result::eSuccess
     } catch (const vk::SystemError &e) {
         present_result = static_cast<vk::Result>(e.code().value());
     }
