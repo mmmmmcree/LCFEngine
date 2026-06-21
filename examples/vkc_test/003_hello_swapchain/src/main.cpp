@@ -10,9 +10,13 @@
 #include "vk_core/context/InstanceContext.h"
 #include "vk_core/context/RenderDeviceContext.h"
 #include "vk_core/context/QueueContext.h"
+#include "vk_core/error.h"
 #include <SDL3/SDL.h>
 #include <atomic>
+#include <thread>
 #include <variant>
+#include <array>
+#include <optional>
 #include "log.h"
 
 using namespace lcf;
@@ -75,6 +79,16 @@ using WindowHandle = std::variant<
 WindowHandle make_window_handle(SDL_Window * window_p) noexcept;
 
 vkc::wsi::WindowHandle to_wsi_window_handle(const WindowHandle & window_handle) noexcept;
+
+// A 1x1 device-local image cleared to white, left in eTransferSrcOptimal so it
+// can be used as the blit source for Swapchain::present.
+struct WhiteImage
+{
+    vk::UniqueImage m_image;
+    vk::UniqueDeviceMemory m_memory;
+};
+
+std::optional<WhiteImage> create_white_image(vkc::RenderDeviceContext & device_context) noexcept;
 
 
 int main()
@@ -145,7 +159,24 @@ int main()
         return 1;
     }
     lcf_log_info("Swapchain created successfully.");
+
+    auto white_image_opt = create_white_image(render_device_context);
+    if (not white_image_opt) {
+        lcf_log_error("Failed to create white source image.");
+        return 1;
+    }
+    vk::Image white_image = white_image_opt->m_image.get();
+    const std::array<vk::Offset3D, 2> src_offsets {{ {0, 0, 0}, {1, 1, 1} }};
+
     std::atomic<bool> running {true};
+    std::thread render_thread([&] {
+        while (running.load(std::memory_order_relaxed)) {
+            auto ec = swapchain.present(white_image, src_offsets);
+            if (not ec or ec == vkc::errc::surface_zero_size) { continue; }
+            lcf_log_error("present failed: {}", ec.message());
+        }
+    });
+
     while (running.load(std::memory_order_relaxed)) {
         for (SDL_Event event; SDL_PollEvent(&event);) {
             switch (event.type) {
@@ -154,7 +185,9 @@ int main()
             }
         }
     }
-    
+
+    render_thread.join();
+    render_device_context.getDevice().waitIdle();
     SDL_DestroyWindow(window_p);
     SDL_Quit();
     return 0;
@@ -195,4 +228,86 @@ vkc::wsi::WindowHandle to_wsi_window_handle(const WindowHandle & window_handle) 
             return vkc::wsi::metal::WindowHandle(handle.m_layer);
         }
     }, window_handle);
+}
+
+std::optional<WhiteImage> create_white_image(vkc::RenderDeviceContext & device_context) noexcept
+{
+    vk::Device device = device_context.getDevice();
+    vk::PhysicalDevice physical_device = device_context.getPhysicalDevice();
+    uint32_t gfx_family = device_context.getGraphicsQueueContext().getFamilyIndex();
+    vk::Queue gfx_queue = device_context.getGraphicsQueueContext().getQueue();
+
+    WhiteImage white;
+    try {
+        vk::ImageCreateInfo image_info;
+        image_info.setImageType(vk::ImageType::e2D)
+            .setFormat(vk::Format::eR8G8B8A8Unorm)
+            .setExtent({1u, 1u, 1u})
+            .setMipLevels(1u)
+            .setArrayLayers(1u)
+            .setSamples(vk::SampleCountFlagBits::e1)
+            .setTiling(vk::ImageTiling::eOptimal)
+            .setUsage(vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc)
+            .setInitialLayout(vk::ImageLayout::eUndefined);
+        white.m_image = device.createImageUnique(image_info);
+
+        vk::MemoryRequirements req = device.getImageMemoryRequirements(white.m_image.get());
+        vk::PhysicalDeviceMemoryProperties mem_props = physical_device.getMemoryProperties();
+        uint32_t mem_type_index = UINT32_MAX;
+        for (uint32_t i = 0; i < mem_props.memoryTypeCount; ++i) {
+            bool type_ok = req.memoryTypeBits & (1u << i);
+            bool device_local = bool(mem_props.memoryTypes[i].propertyFlags & vk::MemoryPropertyFlagBits::eDeviceLocal);
+            if (type_ok and device_local) { mem_type_index = i; break; }
+        }
+        if (mem_type_index == UINT32_MAX) {
+            lcf_log_error("No device-local memory type for white image.");
+            return std::nullopt;
+        }
+        white.m_memory = device.allocateMemoryUnique({req.size, mem_type_index});
+        device.bindImageMemory(white.m_image.get(), white.m_memory.get(), 0);
+
+        // one-time submit: undefined -> transferDst, clear white, transferDst -> transferSrc
+        vk::UniqueCommandPool pool = device.createCommandPoolUnique(
+            {vk::CommandPoolCreateFlagBits::eTransient, gfx_family});
+        vk::CommandBuffer cmd = device.allocateCommandBuffers(
+            {pool.get(), vk::CommandBufferLevel::ePrimary, 1u}).front();
+
+        vk::ImageSubresourceRange range {vk::ImageAspectFlagBits::eColor, 0u, 1u, 0u, 1u};
+        vk::ImageMemoryBarrier2 to_dst, to_src;
+        to_dst.setImage(white.m_image.get())
+            .setOldLayout(vk::ImageLayout::eUndefined)
+            .setNewLayout(vk::ImageLayout::eTransferDstOptimal)
+            .setSubresourceRange(range)
+            .setSrcStageMask(vk::PipelineStageFlagBits2::eTopOfPipe)
+            .setSrcAccessMask(vk::AccessFlagBits2::eNone)
+            .setDstStageMask(vk::PipelineStageFlagBits2::eClear)
+            .setDstAccessMask(vk::AccessFlagBits2::eTransferWrite);
+        to_src.setImage(white.m_image.get())
+            .setOldLayout(vk::ImageLayout::eTransferDstOptimal)
+            .setNewLayout(vk::ImageLayout::eTransferSrcOptimal)
+            .setSubresourceRange(range)
+            .setSrcStageMask(vk::PipelineStageFlagBits2::eClear)
+            .setSrcAccessMask(vk::AccessFlagBits2::eTransferWrite)
+            .setDstStageMask(vk::PipelineStageFlagBits2::eBlit)
+            .setDstAccessMask(vk::AccessFlagBits2::eTransferRead);
+
+        vk::ClearColorValue white_color {std::array<float, 4>{1.0f, 1.0f, 1.0f, 1.0f}};
+        cmd.begin(vk::CommandBufferBeginInfo(vk::CommandBufferUsageFlagBits::eOneTimeSubmit));
+        cmd.pipelineBarrier2(vk::DependencyInfo().setImageMemoryBarriers(to_dst));
+        cmd.clearColorImage(white.m_image.get(), vk::ImageLayout::eTransferDstOptimal, white_color, range);
+        cmd.pipelineBarrier2(vk::DependencyInfo().setImageMemoryBarriers(to_src));
+        cmd.end();
+
+        vk::UniqueFence fence = device.createFenceUnique({});
+        gfx_queue.submit(vk::SubmitInfo().setCommandBuffers(cmd), fence.get());
+        auto wait_result = device.waitForFences(fence.get(), VK_TRUE, UINT64_MAX);
+        if (wait_result != vk::Result::eSuccess) {
+            lcf_log_error("waitForFences failed while preparing white image.");
+            return std::nullopt;
+        }
+    } catch (const vk::SystemError & e) {
+        lcf_log_error("create_white_image failed: {}", e.what());
+        return std::nullopt;
+    }
+    return white;
 }
