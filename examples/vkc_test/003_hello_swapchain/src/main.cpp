@@ -4,7 +4,7 @@
 #include "vk_core/debug/debug_utils.h"
 #include "vk_core/WSI/entry.h"
 #include "vk_core/WSI/WindowHandle.h"
-#include "vk_core/WSI/create_surface.h"
+#include "vk_core/WSI/Swapchain.h"
 #include "vk_core/context/entry.h"
 #include "vk_core/context/create_infos.h"
 #include "vk_core/context/InstanceContext.h"
@@ -74,7 +74,7 @@ using WindowHandle = std::variant<
 
 WindowHandle make_window_handle(SDL_Window * window_p) noexcept;
 
-vkc::wsi::WindowHandle to_surf_window_handle(const WindowHandle & window_handle) noexcept;
+vkc::wsi::WindowHandle to_wsi_window_handle(const WindowHandle & window_handle) noexcept;
 
 
 int main()
@@ -138,13 +138,13 @@ int main()
     
     SDL_ShowWindow(window_p);
     WindowHandle window_handle = make_window_handle(window_p);
-    vk::UniqueSurfaceKHR surface = vkc::wsi::create_surface(
-        instance_context.getInstance(), to_surf_window_handle(window_handle));
-    if (not surface) {
-        lcf_log_error("Failed to create surface.");
+    vkc::wsi::WindowHandle wsi_window_handle = to_wsi_window_handle(window_handle);
+    vkc::wsi::Swapchain swapchain;
+    if (auto ec = swapchain.create(instance_context.getInstance(), render_device_context, wsi_window_handle, 4)) {
+        lcf_log_error("Failed to create swapchain: {}", ec.message());
         return 1;
     }
-    lcf_log_info("Surface created successfully.");
+    lcf_log_info("Swapchain created successfully.");
     std::atomic<bool> running {true};
     while (running.load(std::memory_order_relaxed)) {
         for (SDL_Event event; SDL_PollEvent(&event);) {
@@ -181,7 +181,7 @@ WindowHandle make_window_handle(SDL_Window * window_p) noexcept
 #endif
 }
 
-vkc::wsi::WindowHandle to_surf_window_handle(const WindowHandle & window_handle) noexcept
+vkc::wsi::WindowHandle to_wsi_window_handle(const WindowHandle & window_handle) noexcept
 {
     return std::visit([](const auto & handle) -> vkc::wsi::WindowHandle {
         using T = std::decay_t<decltype(handle)>;

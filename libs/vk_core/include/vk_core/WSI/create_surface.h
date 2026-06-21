@@ -2,12 +2,13 @@
 
 #include "WindowHandle.h"
 #include <vulkan/vulkan.hpp>
+#include <expected>
 
 namespace lcf::vkc::wsi {
 
-vk::UniqueSurfaceKHR create_surface(
+std::expected<vk::UniqueSurfaceKHR, std::error_code> create_surface(
     vk::Instance instance,
     const WindowHandle & window_handle,
-    const vk::AllocationCallbacks * allocator = nullptr);
+    const vk::AllocationCallbacks * allocator = nullptr) noexcept;
 
 } // namespace lcf::vkc::surf

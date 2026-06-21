@@ -1,5 +1,13 @@
 #include "vk_core/WSI/create_surface.h"
 
+namespace {
+
+using namespace lcf::vkc::wsi;
+
+vk::UniqueSurfaceKHR create_surface_maythrow(vk::Instance instance, const WindowHandle & window_handle, const vk::AllocationCallbacks * allocator);
+
+} // anoymous namespace
+
 namespace lcf::vkc::wsi {
 
 namespace win32 {
@@ -67,7 +75,22 @@ vk::UniqueSurfaceKHR create_surface(vk::Instance instance, const WindowHandle & 
 
 } // namespace metal
 
-vk::UniqueSurfaceKHR create_surface(vk::Instance instance, const WindowHandle & window_handle, const vk::AllocationCallbacks * allocator)
+
+std::expected<vk::UniqueSurfaceKHR, std::error_code> create_surface(vk::Instance instance, const WindowHandle & window_handle, const vk::AllocationCallbacks * allocator) noexcept
+{
+    try {
+        return create_surface_maythrow(instance, window_handle, allocator);
+    } catch (vk::SystemError & e) {
+        return std::unexpected {e.code()};
+    }
+    return {};
+}
+
+} // namespace lcf::vkc::wsi
+
+namespace {
+
+vk::UniqueSurfaceKHR create_surface_maythrow(vk::Instance instance, const WindowHandle & window_handle, const vk::AllocationCallbacks * allocator)
 {
     return std::visit( [&]<typename Handle>(const Handle & handle) {
         if constexpr (std::same_as<Handle, win32::WindowHandle>) { return win32::create_surface(instance, handle, allocator); }
@@ -78,4 +101,4 @@ vk::UniqueSurfaceKHR create_surface(vk::Instance instance, const WindowHandle & 
     }, window_handle);
 }
 
-} // namespace lcf::vkc::surf
+} // anoymous namespace
