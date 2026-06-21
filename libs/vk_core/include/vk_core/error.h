@@ -15,6 +15,7 @@ enum class errc
     no_suitable_present_mode,
     no_suitable_present_queue_family,
     main_device_role_not_configured,
+    surface_zero_size,
 };
 
 std::error_code make_error_code(errc error) noexcept;

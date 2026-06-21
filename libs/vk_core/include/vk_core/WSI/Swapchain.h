@@ -63,11 +63,12 @@ private:
     RenderDeviceContext * m_device_context_p;
     vk::UniqueSurfaceKHR m_surface;
     vk::UniqueSwapchainKHR m_swapchain;
-    uint32_t m_width = 0u, m_height = 0u;
     vk::SurfaceFormatKHR m_surface_format;
     vk::PresentModeKHR  m_present_mode;
-    ImageList m_swapchain_images;
+    uint32_t m_width = 0u, m_height = 0u;
+    uint32_t m_desired_image_count = 0u;
     uint32_t m_image_index = 0u;
+    ImageList m_swapchain_images;
     PresentResources m_present_resources;
     PendingRecycleResourcesQueue m_pending_resources_queue;
     vk::UniqueCommandPool m_cmd_pool;
