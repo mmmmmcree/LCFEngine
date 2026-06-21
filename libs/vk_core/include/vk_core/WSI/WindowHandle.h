@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <variant>
 
-namespace lcf::vkc::surf {
+namespace lcf::vkc::wsi {
 
 namespace win32 {
 

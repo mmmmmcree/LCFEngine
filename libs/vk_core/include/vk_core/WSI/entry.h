@@ -8,7 +8,7 @@ class DeviceExtensionManifest;
 
 } // namespace lcf::vkc::mnf
 
-namespace lcf::vkc::surf {
+namespace lcf::vkc::wsi {
 
 void register_surface(InstanceExtensionManifest & manifest) noexcept;
 

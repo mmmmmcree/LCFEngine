@@ -1,6 +1,6 @@
-#include "vk_core/surface/create_surface.h"
+#include "vk_core/WSI/create_surface.h"
 
-namespace lcf::vkc::surf {
+namespace lcf::vkc::wsi {
 
 namespace win32 {
 
@@ -67,7 +67,7 @@ vk::UniqueSurfaceKHR create_surface(vk::Instance instance, const WindowHandle & 
 
 } // namespace metal
 
-vk::UniqueSurfaceKHR create_surface( vk::Instance instance, const WindowHandle & window_handle, const vk::AllocationCallbacks * allocator)
+vk::UniqueSurfaceKHR create_surface(vk::Instance instance, const WindowHandle & window_handle, const vk::AllocationCallbacks * allocator)
 {
     return std::visit( [&]<typename Handle>(const Handle & handle) {
         if constexpr (std::same_as<Handle, win32::WindowHandle>) { return win32::create_surface(instance, handle, allocator); }

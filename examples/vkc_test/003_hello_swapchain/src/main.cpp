@@ -2,9 +2,9 @@
 #include "vk_core/manifest/DeviceExtensionManifest.h"
 #include "vk_core/debug/entry.h"
 #include "vk_core/debug/debug_utils.h"
-#include "vk_core/surface/entry.h"
-#include "vk_core/surface/WindowHandle.h"
-#include "vk_core/surface/create_surface.h"
+#include "vk_core/WSI/entry.h"
+#include "vk_core/WSI/WindowHandle.h"
+#include "vk_core/WSI/create_surface.h"
 #include "vk_core/context/entry.h"
 #include "vk_core/context/create_infos.h"
 #include "vk_core/context/InstanceContext.h"
@@ -74,7 +74,7 @@ using WindowHandle = std::variant<
 
 WindowHandle make_window_handle(SDL_Window * window_p) noexcept;
 
-vkc::surf::WindowHandle to_surf_window_handle(const WindowHandle & window_handle) noexcept;
+vkc::wsi::WindowHandle to_surf_window_handle(const WindowHandle & window_handle) noexcept;
 
 
 int main()
@@ -88,8 +88,8 @@ int main()
     debug_callbacks.setWarningSink([](std::string_view message) { lcf_log_warn(message); })
         .setErrorSink([](std::string_view message) { lcf_log_error(message); });
     vkc::dbg::register_debug_utils(inst_ext_manifest, vkc::dbg::SeverityFlags::eError | vkc::dbg::SeverityFlags::eWarning, debug_callbacks);
-    vkc::surf::register_surface(inst_ext_manifest);
-    vkc::surf::register_swapchain(device_ext_manifest);
+    vkc::wsi::register_surface(inst_ext_manifest);
+    vkc::wsi::register_swapchain(device_ext_manifest);
 
     vk::ApplicationInfo app_info;
     app_info.setPApplicationName("LCFEngine")
@@ -138,7 +138,7 @@ int main()
     
     SDL_ShowWindow(window_p);
     WindowHandle window_handle = make_window_handle(window_p);
-    vk::UniqueSurfaceKHR surface = vkc::surf::create_surface(
+    vk::UniqueSurfaceKHR surface = vkc::wsi::create_surface(
         instance_context.getInstance(), to_surf_window_handle(window_handle));
     if (not surface) {
         lcf_log_error("Failed to create surface.");
@@ -181,18 +181,18 @@ WindowHandle make_window_handle(SDL_Window * window_p) noexcept
 #endif
 }
 
-vkc::surf::WindowHandle to_surf_window_handle(const WindowHandle & window_handle) noexcept
+vkc::wsi::WindowHandle to_surf_window_handle(const WindowHandle & window_handle) noexcept
 {
-    return std::visit([](const auto & handle) -> vkc::surf::WindowHandle {
+    return std::visit([](const auto & handle) -> vkc::wsi::WindowHandle {
         using T = std::decay_t<decltype(handle)>;
         if constexpr (std::is_same_v<T, win32::WindowHandle>) {
-            return vkc::surf::win32::WindowHandle(handle.m_hinstance, handle.m_hwnd);
+            return vkc::wsi::win32::WindowHandle(handle.m_hinstance, handle.m_hwnd);
         } else if constexpr (std::is_same_v<T, xcb::WindowHandle>) {
-            return vkc::surf::xcb::WindowHandle(handle.m_connection, handle.m_window);
+            return vkc::wsi::xcb::WindowHandle(handle.m_connection, handle.m_window);
         } else if constexpr (std::is_same_v<T, wayland::WindowHandle>) {
-            return vkc::surf::wayland::WindowHandle(handle.m_display, handle.m_surface);
+            return vkc::wsi::wayland::WindowHandle(handle.m_display, handle.m_surface);
         } else {
-            return vkc::surf::metal::WindowHandle(handle.m_layer);
+            return vkc::wsi::metal::WindowHandle(handle.m_layer);
         }
     }, window_handle);
 }

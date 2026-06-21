@@ -3,7 +3,7 @@
 #include "WindowHandle.h"
 #include <vulkan/vulkan.hpp>
 
-namespace lcf::vkc::surf {
+namespace lcf::vkc::wsi {
 
 vk::UniqueSurfaceKHR create_surface(
     vk::Instance instance,

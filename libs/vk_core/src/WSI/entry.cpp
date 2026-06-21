@@ -1,9 +1,9 @@
-#include "vk_core/surface/entry.h"
+#include "vk_core/WSI/entry.h"
 #include "vk_core/manifest/InstanceExtensionManifest.h"
 #include "vk_core/manifest/DeviceExtensionManifest.h"
 #include <array>
 
-namespace lcf::vkc::surf {
+namespace lcf::vkc::wsi {
 
 void register_surface(InstanceExtensionManifest & manifest) noexcept
 {
