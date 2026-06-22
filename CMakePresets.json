@@ -98,7 +98,7 @@
       "name": "gcc-vkc",
       "inherits": "gcc",
       "displayName": "GCC vk_core-only",
-      "description": "Minimal vk_core iteration build: only utilities/math/input/GUI/core/vk_core/vkc_test are registered",
+      "description": "Minimal vk_core iteration build: only utilities/math/input/GUI/core/vk_core/vkc_examples are registered",
       "cacheVariables": { "LCF_VKC_ONLY": "ON" }
     }
   ],

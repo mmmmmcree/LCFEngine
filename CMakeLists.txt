@@ -19,7 +19,7 @@ if(LCF_VKC_ONLY)
         utilities/enums
         utilities/log
         libs/vk_core
-        examples/vkc_test)
+        examples/vkc_examples)
 elseif(LCF_TESTS_ONLY)
     set(LCF_SUBDIRS
         utilities
