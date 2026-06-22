@@ -5,35 +5,11 @@
 #include "vk_core/context/QueueContext.h"
 #include "vk_core/error.h"
 #include <limits>
+#include <algorithm>
 
 namespace stdr = std::ranges;
 
 namespace lcf::vkc::wsi {
-
-
-auto Swapchain::setDesiredSwapchainImageCount(uint32_t desired_count) noexcept -> Self &
-{
-    if (m_desired_image_count == desired_count) { return *this; }
-    m_desired_image_count = desired_count;   
-    m_is_dirty.store(true, std::memory_order_release);   
-    return *this; 
-}
-
-auto Swapchain::setDesiredSurfaceFormat(const vk::SurfaceFormatKHR &surface_format) noexcept -> Self &
-{
-    if (m_surface_format == surface_format) { return *this; }
-    m_surface_format = surface_format;
-    m_is_dirty.store(true, std::memory_order_release);
-    return *this; 
-}
-
-auto Swapchain::setDesiredPresentMode(const vk::PresentModeKHR &present_mode) noexcept -> Self &
-{
-    if (m_present_mode == present_mode) { return *this; }
-    m_present_mode = present_mode;
-    m_is_dirty.store(true, std::memory_order_release);
-    return *this; 
-}
 
 std::error_code Swapchain::create(
     vk::Instance instance,
@@ -58,7 +34,7 @@ std::error_code Swapchain::create(
     } catch (vk::SystemError &e) {
         return e.code();
     }
-    m_is_dirty.store(true, std::memory_order_release);
+    m_consumed_desired_params_sp = {};
     return {};
 }
 
@@ -70,11 +46,12 @@ std::error_code Swapchain::present(
     vk::ImageSubresourceLayers src_subresource_layers) noexcept
 {
     //- 1. check pre-conditions
-    if (m_is_dirty.exchange(false, std::memory_order_acquire)) {
-        if (auto ec = this->recreate()) {
-            m_is_dirty.store(true, std::memory_order_release);
-            return ec;
-        }
+    //- recreate if the published intent differs from what we last consumed
+    //- first present after create, recreation is guaranteed (m_consumed_desired_params_sp is nullptr, m_provided_desired_params_asp is not)
+    auto desired_params_sp = m_provided_desired_params_asp.load(std::memory_order_acquire);
+    if (desired_params_sp != m_consumed_desired_params_sp) {
+        if (auto ec = this->recreate(*desired_params_sp)) { return ec; } //- leave m_consumed_desired_params_sp stale -> retry next frame
+        m_consumed_desired_params_sp = std::move(desired_params_sp);
     }
     if (auto ec = this->acquireNextImage()) { return ec; }
     //- 2. fill m_present_resources
@@ -188,7 +165,7 @@ std::error_code Swapchain::present(
     return this->present({}, src_image, {}, src_offsets, src_subresource_layers);
 }
 
-std::error_code Swapchain::recreate() noexcept
+std::error_code Swapchain::recreate(const DesiredParams & desired_params) noexcept
 {
     vk::PhysicalDevice physical_device = m_device_context_p->getPhysicalDevice();
     vk::SurfaceCapabilitiesKHR surface_capabilities;
@@ -201,7 +178,7 @@ std::error_code Swapchain::recreate() noexcept
     m_width = std::clamp(cur_width, surface_capabilities.minImageExtent.width, surface_capabilities.maxImageExtent.width);
     m_height = std::clamp(cur_height, surface_capabilities.minImageExtent.height, surface_capabilities.maxImageExtent.height);
     if (m_width == 0 or m_height == 0) { return errc::surface_zero_size; };
-    //- validate, fallback if invalid
+    //- validate desired params against device support, fall back if unsupported
     std::vector<vk::SurfaceFormatKHR> surface_formats;
     std::vector<vk::PresentModeKHR> present_modes;
     try {
@@ -210,8 +187,8 @@ std::error_code Swapchain::recreate() noexcept
     } catch (vk::SystemError &e) {
         return e.code();
     }
-    auto surface_it = stdr::find_if(surface_formats, [this](const auto& f) { return f == m_surface_format; });
-    auto present_it = stdr::find_if(present_modes, [this](const auto& m) { return m == m_present_mode; });
+    auto surface_it = stdr::find(surface_formats, desired_params.surface_format);
+    auto present_it = stdr::find(present_modes, desired_params.present_mode);
     m_surface_format = surface_it != surface_formats.end() ? *surface_it : surface_formats.front();
     m_present_mode = present_it != present_modes.end() ? *present_it : vk::PresentModeKHR::eFifo;  
 
@@ -225,9 +202,9 @@ std::error_code Swapchain::recreate() noexcept
     vk::Device device = m_device_context_p->getDevice();
     vk::UniqueSwapchainKHR new_swapchain;
     std::vector<vk::Image> swapchain_images;
-    uint32_t image_count = std::clamp(m_desired_image_count,
+    uint32_t image_count = std::clamp(desired_params.image_count,
         surface_capabilities.minImageCount,
-        std::max(surface_capabilities.maxImageCount, m_desired_image_count));
+        std::max(surface_capabilities.maxImageCount, desired_params.image_count));
     
     vk::SwapchainCreateInfoKHR swapchain_info;
     swapchain_info.setSurface(m_surface.get())
@@ -272,7 +249,8 @@ std::error_code Swapchain::acquireNextImage() noexcept
             target_available.get(), nullptr);
     } catch (const vk::OutOfDateKHRError &) {
         m_semaphore_pool.emplace(std::move(target_available));
-        if (auto ec = this->recreate()) { return ec; }
+        //- m_consumed_desired_params_sp is guaranteed non-null here (set by present()'s precondition block)
+        if (auto ec = this->recreate(*m_consumed_desired_params_sp)) { return ec; }
         return this->acquireNextImage();
     } catch (const vk::SystemError & e) {
         m_semaphore_pool.emplace(std::move(target_available));
@@ -364,6 +342,36 @@ std::expected<vk::UniqueSemaphore, std::error_code> Swapchain::acquireSemaphore(
         return std::unexpected(e.code());
     }
     return semaphore;
+}
+
+template <typename Mutator>
+auto Swapchain::updateDesired(Mutator && mutator) noexcept -> Self &
+{
+    auto current = m_provided_desired_params_asp.load(std::memory_order_acquire);
+    while (true) {
+        auto next = std::make_shared<DesiredParams>(*current);
+        mutator(*next);
+        if (*next == *current) { return *this; }
+        if (m_provided_desired_params_asp.compare_exchange_weak(
+            current, std::move(next),
+            std::memory_order_release, std::memory_order_acquire)) { return *this; }
+    }
+    return *this;
+}
+
+auto Swapchain::setDesiredSwapchainImageCount(uint32_t desired_count) noexcept -> Self &
+{
+    return this->updateDesired([&](DesiredParams & p) { p.image_count = desired_count; });
+}
+
+auto Swapchain::setDesiredSurfaceFormat(const vk::SurfaceFormatKHR &surface_format) noexcept -> Self &
+{
+    return this->updateDesired([&](DesiredParams & p) { p.surface_format = surface_format; });
+}
+
+auto Swapchain::setDesiredPresentMode(const vk::PresentModeKHR &present_mode) noexcept -> Self &
+{
+    return this->updateDesired([&](DesiredParams & p) { p.present_mode = present_mode; });
 }
 
 } // namespace lcf::vkc
