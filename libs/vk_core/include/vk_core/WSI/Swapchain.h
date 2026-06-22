@@ -7,6 +7,7 @@
 #include <vector>
 #include <queue>
 #include <expected>
+#include <atomic>
 
 namespace lcf::vkc {
 
@@ -16,6 +17,7 @@ namespace wsi {
 
 class Swapchain
 {
+    using Self = Swapchain;
     using ImageList = std::vector<vk::Image>;
     struct PresentResources
     {
@@ -30,12 +32,20 @@ class Swapchain
     using SemaphorePool = std::queue<vk::UniqueSemaphore>;
     using PendingRecycleResourcesQueue = std::queue<PresentResources>;
 public:
+    ~Swapchain() noexcept = default;
     Swapchain() noexcept = default;
+    Swapchain(const Self &) = delete;
+    Swapchain(Swapchain &&) = default;
+    Swapchain & operator=(const Self &) = delete;
+    Swapchain & operator=(Swapchain &&) = default;
+public:
+    Self & setDesiredSwapchainImageCount(uint32_t desired_count) noexcept;
+    Self & setDesiredSurfaceFormat(const vk::SurfaceFormatKHR & surface_format) noexcept;
+    Self & setDesiredPresentMode(const vk::PresentModeKHR & present_mode) noexcept;
     std::error_code create(
         vk::Instance instance,
         RenderDeviceContext & device_context,
-        const WindowHandle & window_handle,
-        uint32_t swapchain_image_count) noexcept;
+        const WindowHandle & window_handle) noexcept;
     std::error_code present(
         vk::SemaphoreSubmitInfo wait_info,
         vk::Image src_image,
@@ -63,10 +73,10 @@ private:
     RenderDeviceContext * m_device_context_p;
     vk::UniqueSurfaceKHR m_surface;
     vk::UniqueSwapchainKHR m_swapchain;
-    vk::SurfaceFormatKHR m_surface_format;
-    vk::PresentModeKHR  m_present_mode;
+    vk::SurfaceFormatKHR m_surface_format = {vk::Format::eB8G8R8A8Srgb, vk::ColorSpaceKHR::eSrgbNonlinear};
+    vk::PresentModeKHR m_present_mode = vk::PresentModeKHR::eMailbox;
     uint32_t m_width = 0u, m_height = 0u;
-    uint32_t m_desired_image_count = 0u;
+    uint32_t m_desired_image_count = 4u;
     uint32_t m_image_index = 0u;
     ImageList m_swapchain_images;
     PresentResources m_present_resources;
@@ -75,6 +85,7 @@ private:
     CmdBufferPool m_cmd_buffer_pool;
     FencePool m_fence_pool;
     SemaphorePool m_semaphore_pool;
+    std::atomic<bool> m_is_dirty = true;
 };
 
 } // namespace lcf::vkc::wsi

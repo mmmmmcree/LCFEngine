@@ -10,14 +10,37 @@ namespace stdr = std::ranges;
 
 namespace lcf::vkc::wsi {
 
+
+auto Swapchain::setDesiredSwapchainImageCount(uint32_t desired_count) noexcept -> Self &
+{
+    if (m_desired_image_count == desired_count) { return *this; }
+    m_desired_image_count = desired_count;   
+    m_is_dirty.store(true, std::memory_order_release);   
+    return *this; 
+}
+
+auto Swapchain::setDesiredSurfaceFormat(const vk::SurfaceFormatKHR &surface_format) noexcept -> Self &
+{
+    if (m_surface_format == surface_format) { return *this; }
+    m_surface_format = surface_format;
+    m_is_dirty.store(true, std::memory_order_release);
+    return *this; 
+}
+
+auto Swapchain::setDesiredPresentMode(const vk::PresentModeKHR &present_mode) noexcept -> Self &
+{
+    if (m_present_mode == present_mode) { return *this; }
+    m_present_mode = present_mode;
+    m_is_dirty.store(true, std::memory_order_release);
+    return *this; 
+}
+
 std::error_code Swapchain::create(
     vk::Instance instance,
     RenderDeviceContext &device_context,
-    const WindowHandle &window_handle,
-    uint32_t swapchain_image_count) noexcept
+    const WindowHandle &window_handle) noexcept
 {
     m_device_context_p = &device_context;
-    m_desired_image_count = swapchain_image_count;
     auto expected_surface = create_surface(instance, window_handle);
     if (not expected_surface) { return expected_surface.error(); }
     m_surface = std::move(expected_surface.value());
@@ -28,25 +51,14 @@ std::error_code Swapchain::create(
         supported = physical_device.getSurfaceSupportKHR(present_family_index, m_surface.get());
     } catch (const vk::SystemError & e) { return e.code(); }
     if (not supported) { return errc::no_suitable_present_queue_family; }
-    std::vector<vk::SurfaceFormatKHR> surface_formats;
-    std::vector<vk::PresentModeKHR> present_modes;
-    vk::SurfaceCapabilitiesKHR surface_capabilities;
     vk::CommandPoolCreateInfo pool_info {vk::CommandPoolCreateFlagBits::eResetCommandBuffer, present_family_index };
     vk::Device device = device_context.getDevice();
     try {
-        surface_formats = physical_device.getSurfaceFormatsKHR(m_surface.get());
-        present_modes = physical_device.getSurfacePresentModesKHR(m_surface.get());
-        surface_capabilities = physical_device.getSurfaceCapabilitiesKHR(m_surface.get());
         m_cmd_pool = device.createCommandPoolUnique(pool_info);
     } catch (vk::SystemError &e) {
         return e.code();
     }
-    auto surface_it = stdr::find_if(surface_formats, [](const auto& f) {
-        return f == vk::SurfaceFormatKHR{vk::Format::eB8G8R8A8Srgb, vk::ColorSpaceKHR::eSrgbNonlinear};
-    });
-    auto present_it = stdr::find_if(present_modes, [](const auto& m) { return m == vk::PresentModeKHR::eMailbox; });
-    m_surface_format = surface_it != surface_formats.end() ? *surface_it : surface_formats.front();
-    m_present_mode = present_it != present_modes.end() ? *present_it : vk::PresentModeKHR::eFifo;   
+    m_is_dirty.store(true, std::memory_order_release);
     return {};
 }
 
@@ -58,7 +70,12 @@ std::error_code Swapchain::present(
     vk::ImageSubresourceLayers src_subresource_layers) noexcept
 {
     //- 1. check pre-conditions
-    if (not m_swapchain) {if (auto ec = this->recreate()) { return ec; } }
+    if (m_is_dirty.exchange(false, std::memory_order_acquire)) {
+        if (auto ec = this->recreate()) {
+            m_is_dirty.store(true, std::memory_order_release);
+            return ec;
+        }
+    }
     if (auto ec = this->acquireNextImage()) { return ec; }
     //- 2. fill m_present_resources
     auto expected_cmd = this->acquireCmdBuffer();
@@ -181,9 +198,22 @@ std::error_code Swapchain::recreate() noexcept
         return e.code();
     }
     auto [cur_width, cur_height] = surface_capabilities.currentExtent;
-    m_width = cur_width;
-    m_height = cur_height;
+    m_width = std::clamp(cur_width, surface_capabilities.minImageExtent.width, surface_capabilities.maxImageExtent.width);
+    m_height = std::clamp(cur_height, surface_capabilities.minImageExtent.height, surface_capabilities.maxImageExtent.height);
     if (m_width == 0 or m_height == 0) { return errc::surface_zero_size; };
+    //- validate, fallback if invalid
+    std::vector<vk::SurfaceFormatKHR> surface_formats;
+    std::vector<vk::PresentModeKHR> present_modes;
+    try {
+        surface_formats = physical_device.getSurfaceFormatsKHR(m_surface.get());
+        present_modes = physical_device.getSurfacePresentModesKHR(m_surface.get());
+    } catch (vk::SystemError &e) {
+        return e.code();
+    }
+    auto surface_it = stdr::find_if(surface_formats, [this](const auto& f) { return f == m_surface_format; });
+    auto present_it = stdr::find_if(present_modes, [this](const auto& m) { return m == m_present_mode; });
+    m_surface_format = surface_it != surface_formats.end() ? *surface_it : surface_formats.front();
+    m_present_mode = present_it != present_modes.end() ? *present_it : vk::PresentModeKHR::eFifo;  
 
     vk::CompositeAlphaFlagBitsKHR composite_bit = vk::CompositeAlphaFlagBitsKHR::eOpaque;
     while (composite_bit & vk::FlagTraits<vk::CompositeAlphaFlagBitsKHR>::allFlags) {
@@ -218,6 +248,7 @@ std::error_code Swapchain::recreate() noexcept
         swapchain_images = device.getSwapchainImagesKHR(new_swapchain.get());
     } catch (const vk::OutOfDateKHRError &e) {
         //- no need to recreate, recreation will happen in acquireNextImage
+        return vk::Result::eSuccess;
     } catch (const vk::SystemError &e) {
         return e.code();
     }
