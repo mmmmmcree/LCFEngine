@@ -62,15 +62,18 @@ std::error_code Swapchain::present(
     if (auto ec = this->acquireNextImage()) { return ec; }
     //- 2. fill m_present_resources
     auto expected_cmd = this->acquireCmdBuffer();
-    if (not expected_cmd) { return expected_cmd.error(); }
     auto expected_fence = this->acquireFence();
-    if (not expected_fence) { return expected_fence.error(); }
     auto expected_present_ready_semaphore = this->acquireSemaphore();
+    if (not expected_cmd) { return expected_cmd.error(); }
+    if (not expected_fence) { return expected_fence.error(); }
     if (not expected_present_ready_semaphore) { return expected_present_ready_semaphore.error(); }
-    m_present_resources.m_cmd = std::move(expected_cmd.value());
-    m_present_resources.m_present_fence = std::move(expected_fence.value());
-    m_present_resources.m_present_ready = std::move(expected_present_ready_semaphore.value());
-    m_present_resources.m_leases.emplace_back(std::move(image_lease));
+    auto & cmd = m_present_resources.m_cmd = std::move(expected_cmd.value());
+    auto & present_fence = m_present_resources.m_present_fence = std::move(expected_fence.value());
+    auto & present_ready = m_present_resources.m_present_ready = std::move(expected_present_ready_semaphore.value());
+    auto & target_available = m_present_resources.m_target_available;
+    if (image_lease) {
+        m_present_resources.m_leases.emplace_back(std::move(image_lease));
+    }
 
     //- 3. transit image layout and blit src_image
     vk::Image dst_image = m_swapchain_images[m_image_index];
@@ -108,7 +111,6 @@ std::error_code Swapchain::present(
         .setRegions(blit_region)
         .setFilter(vk::Filter::eLinear);
 
-    auto cmd = m_present_resources.m_cmd;
     cmd.begin(vk::CommandBufferBeginInfo(vk::CommandBufferUsageFlagBits::eOneTimeSubmit));
     cmd.pipelineBarrier2(to_transfer_dst_barrier_dep_info);
     cmd.blitImage2(blit_info);
@@ -118,22 +120,23 @@ std::error_code Swapchain::present(
     //- 4. submit cmd
     vk::PipelineStageFlags wait_stage = vk::PipelineStageFlagBits::eTransfer;
     vk::SubmitInfo submit_info;
-    submit_info.setWaitSemaphores(m_present_resources.m_target_available.get())
-          .setWaitDstStageMask(wait_stage)
-          .setCommandBuffers(cmd)
-          .setSignalSemaphores(m_present_resources.m_present_ready.get());
+    submit_info.setWaitSemaphores(target_available.get())
+        .setWaitDstStageMask(wait_stage)
+        .setCommandBuffers(cmd)
+        .setSignalSemaphores(present_ready.get());
     vk::Queue present_queue = m_device_context_p->getGraphicsQueueContext().getQueue();
     try {
         present_queue.submit(submit_info);
     } catch (const vk::SystemError & e) {
+        this->recyclePresentResources(m_present_resources);
         return e.code();
     }
     //- 5. present
     auto device = m_device_context_p->getDevice();
     vk::StructureChain<vk::PresentInfoKHR, vk::SwapchainPresentFenceInfoKHR> present_info_chain;
-    present_info_chain.get<vk::SwapchainPresentFenceInfoKHR>().setFences(m_present_resources.m_present_fence.get());
+    present_info_chain.get<vk::SwapchainPresentFenceInfoKHR>().setFences(present_fence.get());
     present_info_chain.get<vk::PresentInfoKHR>()
-        .setWaitSemaphores(m_present_resources.m_present_ready.get())
+        .setWaitSemaphores(present_ready.get())
         .setSwapchains(m_swapchain.get())
         .setPImageIndices(&m_image_index);
     vk::Result present_result = vk::Result::eSuccess;   
@@ -192,11 +195,11 @@ std::error_code Swapchain::recreate() noexcept
     vk::Device device = m_device_context_p->getDevice();
     vk::UniqueSwapchainKHR new_swapchain;
     std::vector<vk::Image> swapchain_images;
-    vk::SwapchainCreateInfoKHR swapchain_info;
     uint32_t image_count = std::clamp(m_desired_image_count,
         surface_capabilities.minImageCount,
         std::max(surface_capabilities.maxImageCount, m_desired_image_count));
     
+    vk::SwapchainCreateInfoKHR swapchain_info;
     swapchain_info.setSurface(m_surface.get())
         .setMinImageCount(image_count)
         .setImageFormat(m_surface_format.format)
@@ -252,7 +255,7 @@ void Swapchain::recyclePresentResources(PresentResources & present_resources) no
 {
     vk::Device device = m_device_context_p->getDevice();
     present_resources.m_leases.clear();
-    if (m_present_resources.m_cmd) {
+    if (present_resources.m_cmd) {
         present_resources.m_cmd.reset();
         m_cmd_buffer_pool.emplace(std::exchange(present_resources.m_cmd, nullptr));
     }
@@ -273,7 +276,8 @@ void Swapchain::tryRecyclePendingResources() noexcept
     vk::Device device = m_device_context_p->getDevice();
     while (not m_pending_resources_queue.empty()) {
         PresentResources & present_resources = m_pending_resources_queue.front();
-        if (device.getFenceStatus(present_resources.m_present_fence.get()) != vk::Result::eSuccess) { break; }
+        vk::Result present_fence_status = device.getFenceStatus(present_resources.m_present_fence.get());
+        if (present_fence_status != vk::Result::eSuccess) { break; }
         this->recyclePresentResources(present_resources);
         m_pending_resources_queue.pop();
     }
