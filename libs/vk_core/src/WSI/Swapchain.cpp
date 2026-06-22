@@ -46,11 +46,10 @@ std::error_code Swapchain::present(
     vk::ImageSubresourceLayers src_subresource_layers) noexcept
 {
     //- 1. check pre-conditions
-    //- recreate if the published intent differs from what we last consumed
-    //- first present after create, recreation is guaranteed (m_consumed_desired_params_sp is nullptr, m_provided_desired_params_asp is not)
+    //- consider this if condition as a dirty flag, swapchain becomes dirty after first creation or any change in desired params
     auto desired_params_sp = m_provided_desired_params_asp.load(std::memory_order_acquire);
-    if (desired_params_sp != m_consumed_desired_params_sp) {
-        if (auto ec = this->recreate(*desired_params_sp)) { return ec; } //- leave m_consumed_desired_params_sp stale -> retry next frame
+    if (desired_params_sp != m_consumed_desired_params_sp) { 
+        if (auto ec = this->recreate(*desired_params_sp)) { return ec; }
         m_consumed_desired_params_sp = std::move(desired_params_sp);
     }
     if (auto ec = this->acquireNextImage()) { return ec; }
