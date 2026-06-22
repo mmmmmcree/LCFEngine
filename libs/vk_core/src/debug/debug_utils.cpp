@@ -17,6 +17,8 @@ struct DebugUtilsContext
 
 vk::UniqueDebugUtilsMessengerEXT create_debug_utils_messenger(vk::Instance instance, void * user_data) noexcept;
 
+bool is_renderdoc_environment() noexcept;
+
 } // namespace
 
 namespace lcf::vkc::dbg {
@@ -32,12 +34,16 @@ ResourceLease enable_debug_utils(
     return context_rp.lease();
 }
 
+
 void register_debug_utils(
     InstanceExtensionManifest & manifest,
     vk::DebugUtilsMessageSeverityFlagsEXT severity,
     const DebugLogCallbacks & callbacks) noexcept
 {
     static constexpr std::array s_ext_names { vk::EXTDebugUtilsExtensionName };
+    if (is_renderdoc_environment()) {
+        return; //! RenderDoc is contradictory to this extension
+    }
     manifest.addRequiredExtensions(s_ext_names);
     manifest.addExtensionEnableCallback([severity, callbacks](vk::Instance instance) {
         return enable_debug_utils(instance, severity, callbacks);
@@ -122,7 +128,7 @@ static VKAPI_ATTR vk::Bool32 VKAPI_CALL debug_callback(
     return false;
 }
 
-static bool is_renderdoc_environment()
+bool is_renderdoc_environment() noexcept
 {
 #ifdef _MSC_VER
     char * val = nullptr;
@@ -141,9 +147,7 @@ vk::UniqueDebugUtilsMessengerEXT create_debug_utils_messenger(vk::Instance insta
     if (not VULKAN_HPP_DEFAULT_DISPATCHER.vkCreateDebugUtilsMessengerEXT) {
         return {};
     }
-    if (is_renderdoc_environment()) {
-        return {}; //! RenderDoc is contradictory to custom debug callback
-    }
+    
     vk::DebugUtilsMessengerCreateInfoEXT debug_messenger_info;
     debug_messenger_info.setMessageSeverity(vk::FlagTraits<vk::DebugUtilsMessageSeverityFlagBitsEXT>::allFlags)
         .setMessageType(vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral |
