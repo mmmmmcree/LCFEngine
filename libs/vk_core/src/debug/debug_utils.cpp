@@ -3,7 +3,7 @@
 #include "vk_core/manifest/InstanceExtensionManifest.h"
 #include <array>
 #include <format>
-#include <print>
+#include <iostream>
 
 
 namespace {
@@ -56,10 +56,10 @@ void register_debug_utils(InstanceExtensionManifest & manifest) noexcept
 }
 
 DebugLogCallbacks::DebugLogCallbacks() noexcept :
-    m_verbose_log_sink([](std::string_view message) { std::println(stderr, "verbose: {}", message); }),
-    m_info_log_sink([](std::string_view message) { std::println(stderr, "info: {}", message); }),
-    m_warning_log_sink([](std::string_view message) { std::println(stderr, "warning: {}", message); }),
-    m_error_log_sink([](std::string_view message) { std::println(stderr, "error: {}", message); })
+    m_verbose_log_sink([](std::string_view message) { std::cerr << "verbose: " << message << '\n'; }),
+    m_info_log_sink([](std::string_view message) { std::cerr << "info: " << message << '\n'; }),
+    m_warning_log_sink([](std::string_view message) { std::cerr << "warning: " << message << '\n'; }),
+    m_error_log_sink([](std::string_view message) { std::cerr << "error: " << message << '\n'; })
 {}
 
 } // namespace lcf::vkc::dbg
