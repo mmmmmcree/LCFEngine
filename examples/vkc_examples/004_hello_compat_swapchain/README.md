@@ -7,7 +7,10 @@
 - **Window backend:** GLFW. No special reason — like 003, the window library is
   only here to exercise WSI adaptation across GUI libraries (003 uses SDL3, 004
   uses GLFW).
-- **Extension dependency:** `VK_KHR_swapchain` only.
+- **Swapchain dependencies:** extension `VK_KHR_swapchain` only — no
+  `swapchain_maintenance1`, and no `synchronization2` feature (the barriers are
+  recorded with core 1.0 calls).
+- **Other example deps (not the focus):** debug utils for validation logging.
 - **What it draws:** identical to 003 (1×1 white image blitted to the swapchain).
 - **Threading:** same cross-thread test as 003 — `present` on a dedicated
   render thread, GLFW events on the main thread.
