@@ -48,7 +48,7 @@ std::error_code RenderDeviceContext::create(vk::Instance instance, const DeviceC
     m_device = std::move(expected_device.value());
     for (const auto & [family_index, desired_flags] : queue_family_map) {
         auto queue_context_up = std::make_unique<QueueContext>();
-        queue_context_up->create(m_device.get(), family_index, 0); //- queue count is always 1, so index is always 0;
+        if (auto ec = queue_context_up->create(m_device.get(), family_index, 0)) { return ec; } //- queue count is always 1, so index is always 0;
         if (desired_flags & vk::QueueFlagBits::eGraphics) {
             m_graphics_queue_context_p = queue_context_up.get();
         } else if (desired_flags & vk::QueueFlagBits::eCompute) {

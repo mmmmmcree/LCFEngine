@@ -27,19 +27,25 @@ class Swapchain
         vk::SurfaceFormatKHR surface_format = {vk::Format::eB8G8R8A8Srgb, vk::ColorSpaceKHR::eSrgbNonlinear};
         vk::PresentModeKHR present_mode = vk::PresentModeKHR::eMailbox;
     };
+    //- Resources consumed by the blit submit (cmd + its wait/signal-side acquire semaphore +
+    //- leases on the blit source). All become safe to recycle once the submit fence signals,
+    //- so they live in a pending queue and are reclaimed by non-blocking getFenceStatus polling.
     struct PresentResources
     {
         vk::CommandBuffer m_cmd = nullptr;
         vk::UniqueSemaphore m_target_available;
-        vk::UniqueSemaphore m_present_ready;
-        vk::UniqueFence m_present_fence;
+        vk::UniqueFence m_submit_fence;
         std::vector<ResourceLease> m_leases;
     };
     using ConstDesiredParamsSP = std::shared_ptr<const DesiredParams>;
     using CmdBufferPool = std::queue<vk::CommandBuffer>;
     using FencePool = std::queue<vk::UniqueFence>;
     using SemaphorePool = std::queue<vk::UniqueSemaphore>;
-    using PendingRecycleResourcesQueue = std::queue<PresentResources>;
+    using PendingResourcesQueue = std::queue<PresentResources>;
+    //- present-ready semaphore is consumed by the presentation engine, which the submit fence
+    //- cannot observe. It is fixed per image index instead: present_ready[i] is only reused when
+    //- image i is acquired again, which proves the engine released its previous presentation.
+    using SemaphoreList = std::vector<vk::UniqueSemaphore>;
 public:
     ~Swapchain() noexcept = default;
     Swapchain() noexcept = default;
@@ -91,8 +97,9 @@ private:
     uint32_t m_width = 0u, m_height = 0u;
     uint32_t m_image_index = 0u;
     ImageList m_swapchain_images;
+    SemaphoreList m_present_ready_semaphores;
     PresentResources m_present_resources;
-    PendingRecycleResourcesQueue m_pending_resources_queue;
+    PendingResourcesQueue m_pending_resources_queue;
     vk::UniqueCommandPool m_cmd_pool;
     CmdBufferPool m_cmd_buffer_pool;
     FencePool m_fence_pool;

@@ -4,7 +4,7 @@
 #include "vk_core/debug/debug_utils.h"
 #include "vk_core/WSI/entry.h"
 #include "vk_core/WSI/WindowHandle.h"
-#include "vk_core/WSI/Swapchain.h"
+#include "vk_core/WSI/compat/Swapchain.h"
 #include "vk_core/context/entry.h"
 #include "vk_core/context/create_infos.h"
 #include "vk_core/context/InstanceContext.h"
@@ -27,8 +27,8 @@ using namespace lcf;
 namespace stdv = std::views;
 
 // 004 mirrors 003 (hello_swapchain) but drives the window with GLFW instead of
-// SDL3. It runs on the current vkc::wsi::Swapchain (maintenance1 path); the
-// compat swapchain is added in a later step.
+// SDL3, and runs on vkc::wsi::compat::Swapchain (core 1.0 path: no
+// synchronization2, no swapchain_maintenance1).
 
 namespace win32 {
 
@@ -107,9 +107,9 @@ int main()
     vkc::dbg::DebugLogCallbacks debug_callbacks;
     debug_callbacks.setWarningSink([](std::string_view message) { lcf_log_warn(message); })
         .setErrorSink([](std::string_view message) { lcf_log_error(message); });
-    vkc::dbg::register_debug_utils(inst_ext_manifest, vkc::dbg::SeverityFlags::eError | vkc::dbg::SeverityFlags::eWarning, debug_callbacks);
+    vkc::dbg::register_debug_utils(inst_ext_manifest, vkc::dbg::SeverityFlags::eError | vkc::dbg::SeverityFlags::eWarning | vkc::dbg::SeverityFlags::eVerbose, debug_callbacks);
     vkc::wsi::register_surface(inst_ext_manifest);
-    vkc::wsi::register_swapchain(device_ext_manifest);
+    vkc::wsi::compat::register_swapchain(device_ext_manifest);
 
     vk::ApplicationInfo app_info;
     app_info.setPApplicationName("LCFEngine")
@@ -120,6 +120,7 @@ int main()
 
     vkc::InstanceContextCreateInfo instance_info;
     instance_info.setApplicationInfo(app_info)
+        .addRequiredInstanceLayer("VK_LAYER_KHRONOS_validation")
         .setRequiredInstanceExtensionManifest(inst_ext_manifest);
 
     vkc::bs::PhysicalDeviceSelectInfo physical_device_select_info;
@@ -164,7 +165,7 @@ int main()
 
     WindowHandle window_handle = make_window_handle(window_p);
     vkc::wsi::WindowHandle wsi_window_handle = to_wsi_window_handle(window_handle);
-    vkc::wsi::Swapchain swapchain;
+    vkc::wsi::compat::Swapchain swapchain;
     if (auto ec = swapchain.create(instance_context.getInstance(), render_device_context, wsi_window_handle)) {
         lcf_log_error("Failed to create swapchain: {}", ec.message());
         return 1;
@@ -278,29 +279,31 @@ std::optional<WhiteImage> create_white_image(vkc::RenderDeviceContext & device_c
             {pool.get(), vk::CommandBufferLevel::ePrimary, 1u}).front();
 
         vk::ImageSubresourceRange range {vk::ImageAspectFlagBits::eColor, 0u, 1u, 0u, 1u};
-        vk::ImageMemoryBarrier2 to_dst, to_src;
+        vk::ImageMemoryBarrier to_dst, to_src;
         to_dst.setImage(white.m_image.get())
             .setOldLayout(vk::ImageLayout::eUndefined)
             .setNewLayout(vk::ImageLayout::eTransferDstOptimal)
             .setSubresourceRange(range)
-            .setSrcStageMask(vk::PipelineStageFlagBits2::eTopOfPipe)
-            .setSrcAccessMask(vk::AccessFlagBits2::eNone)
-            .setDstStageMask(vk::PipelineStageFlagBits2::eClear)
-            .setDstAccessMask(vk::AccessFlagBits2::eTransferWrite);
+            .setSrcAccessMask(vk::AccessFlagBits::eNone)
+            .setDstAccessMask(vk::AccessFlagBits::eTransferWrite);
         to_src.setImage(white.m_image.get())
             .setOldLayout(vk::ImageLayout::eTransferDstOptimal)
             .setNewLayout(vk::ImageLayout::eTransferSrcOptimal)
             .setSubresourceRange(range)
-            .setSrcStageMask(vk::PipelineStageFlagBits2::eClear)
-            .setSrcAccessMask(vk::AccessFlagBits2::eTransferWrite)
-            .setDstStageMask(vk::PipelineStageFlagBits2::eBlit)
-            .setDstAccessMask(vk::AccessFlagBits2::eTransferRead);
+            .setSrcAccessMask(vk::AccessFlagBits::eTransferWrite)
+            .setDstAccessMask(vk::AccessFlagBits::eTransferRead);
 
         vk::ClearColorValue white_color {std::array<float, 4>{1.0f, 1.0f, 1.0f, 1.0f}};
         cmd.begin(vk::CommandBufferBeginInfo(vk::CommandBufferUsageFlagBits::eOneTimeSubmit));
-        cmd.pipelineBarrier2(vk::DependencyInfo().setImageMemoryBarriers(to_dst));
+        cmd.pipelineBarrier(
+            vk::PipelineStageFlagBits::eTopOfPipe,
+            vk::PipelineStageFlagBits::eTransfer,
+            {}, {}, {}, to_dst);
         cmd.clearColorImage(white.m_image.get(), vk::ImageLayout::eTransferDstOptimal, white_color, range);
-        cmd.pipelineBarrier2(vk::DependencyInfo().setImageMemoryBarriers(to_src));
+        cmd.pipelineBarrier(
+            vk::PipelineStageFlagBits::eTransfer,
+            vk::PipelineStageFlagBits::eTransfer,
+            {}, {}, {}, to_src);
         cmd.end();
 
         vk::UniqueFence fence = device.createFenceUnique({});

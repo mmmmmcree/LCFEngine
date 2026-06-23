@@ -59,99 +59,91 @@ std::error_code Swapchain::present(
     //- 1. check pre-conditions
     //- consider this if condition as a dirty flag, swapchain becomes dirty after first creation or any change in desired params
     auto desired_params_sp = m_provided_desired_params_asp.load(std::memory_order_acquire);
-    if (desired_params_sp != m_consumed_desired_params_sp) { 
+    if (desired_params_sp != m_consumed_desired_params_sp) {
         if (auto ec = this->recreate(*desired_params_sp)) { return ec; }
         m_consumed_desired_params_sp = std::move(desired_params_sp);
     }
-    if (auto ec = this->acquireNextImage()) { return ec; }
     //- 2. fill m_present_resources
+    if (auto ec = this->acquireNextImage()) { return ec; }
     auto expected_cmd = this->acquireCmdBuffer();
     auto expected_fence = this->acquireFence();
-    auto expected_present_ready_semaphore = this->acquireSemaphore();
     if (not expected_cmd) { return expected_cmd.error(); }
     if (not expected_fence) { return expected_fence.error(); }
-    if (not expected_present_ready_semaphore) { return expected_present_ready_semaphore.error(); }
-    auto & cmd = m_present_resources.m_cmd = std::move(expected_cmd.value());
-    auto & present_fence = m_present_resources.m_present_fence = std::move(expected_fence.value());
-    auto & present_ready = m_present_resources.m_present_ready = std::move(expected_present_ready_semaphore.value());
-    auto & target_available = m_present_resources.m_target_available;
+    m_present_resources.m_cmd = expected_cmd.value();
+    m_present_resources.m_submit_fence = std::move(expected_fence.value());
     if (image_lease) {
         m_present_resources.m_leases.emplace_back(std::move(image_lease));
     }
+    vk::CommandBuffer cmd = m_present_resources.m_cmd;
+    vk::Semaphore target_available = m_present_resources.m_target_available.get();
+    vk::Semaphore present_ready = m_present_ready_semaphores[m_image_index].get();
+    vk::Fence submit_fence = m_present_resources.m_submit_fence.get();
 
     //- 3. transit image layout and blit src_image
     vk::Image dst_image = m_swapchain_images[m_image_index];
-    vk::ImageMemoryBarrier2 to_transfer_dst_barrier, to_present_src_barrier;
+    vk::ImageMemoryBarrier to_transfer_dst_barrier, to_present_src_barrier;
     to_transfer_dst_barrier.setImage(dst_image)
         .setOldLayout(vk::ImageLayout::eUndefined)
         .setNewLayout(vk::ImageLayout::eTransferDstOptimal)
         .setSubresourceRange({vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1})
-        .setSrcStageMask(vk::PipelineStageFlagBits2::eTopOfPipe)
-        .setSrcAccessMask(vk::AccessFlagBits2::eNone)
-        .setDstStageMask(vk::PipelineStageFlagBits2::eBlit)
-        .setDstAccessMask(vk::AccessFlagBits2::eTransferWrite);
+        .setSrcAccessMask(vk::AccessFlagBits::eNone)
+        .setDstAccessMask(vk::AccessFlagBits::eTransferWrite);
     to_present_src_barrier.setImage(dst_image)
         .setOldLayout(vk::ImageLayout::eTransferDstOptimal)
         .setNewLayout(vk::ImageLayout::ePresentSrcKHR)
         .setSubresourceRange({vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1})
-        .setSrcStageMask(vk::PipelineStageFlagBits2::eBlit)
-        .setSrcAccessMask(vk::AccessFlagBits2::eTransferWrite)
-        .setDstStageMask(vk::PipelineStageFlagBits2::eBottomOfPipe)
-        .setDstAccessMask(vk::AccessFlagBits2::eNone);
+        .setSrcAccessMask(vk::AccessFlagBits::eTransferWrite)
+        .setDstAccessMask(vk::AccessFlagBits::eNone);
 
-    vk::DependencyInfo to_transfer_dst_barrier_dep_info, to_present_src_barrier_dep_info;
-    to_transfer_dst_barrier_dep_info.setImageMemoryBarriers(to_transfer_dst_barrier);
-    to_present_src_barrier_dep_info.setImageMemoryBarriers(to_present_src_barrier);
-    vk::ImageBlit2 blit_region = {};
+    vk::ImageBlit blit_region = {};
     blit_region.setSrcSubresource(src_subresource_layers)
         .setDstSubresource({vk::ImageAspectFlagBits::eColor, 0, 0, 1})
         .setSrcOffsets(src_offsets)
         .setDstOffsets({vk::Offset3D {0, 0, 0}, {static_cast<int32_t>(m_width), static_cast<int32_t>(m_height), 1}});
-    vk::BlitImageInfo2 blit_info = {};
-    blit_info.setSrcImage(src_image)
-        .setSrcImageLayout(vk::ImageLayout::eTransferSrcOptimal)
-        .setDstImage(dst_image)
-        .setDstImageLayout(vk::ImageLayout::eTransferDstOptimal)
-        .setRegions(blit_region)
-        .setFilter(vk::Filter::eLinear);
 
     cmd.begin(vk::CommandBufferBeginInfo(vk::CommandBufferUsageFlagBits::eOneTimeSubmit));
-    cmd.pipelineBarrier2(to_transfer_dst_barrier_dep_info);
-    cmd.blitImage2(blit_info);
-    cmd.pipelineBarrier2(to_present_src_barrier_dep_info);
+    cmd.pipelineBarrier(
+        vk::PipelineStageFlagBits::eTopOfPipe,
+        vk::PipelineStageFlagBits::eTransfer,
+        {}, {}, {}, to_transfer_dst_barrier);
+    cmd.blitImage(
+        src_image, vk::ImageLayout::eTransferSrcOptimal,
+        dst_image, vk::ImageLayout::eTransferDstOptimal,
+        blit_region, vk::Filter::eLinear);
+    cmd.pipelineBarrier(
+        vk::PipelineStageFlagBits::eTransfer,
+        vk::PipelineStageFlagBits::eBottomOfPipe,
+        {}, {}, {}, to_present_src_barrier);
     cmd.end();
 
     //- 4. submit cmd
     vk::PipelineStageFlags wait_stage = vk::PipelineStageFlagBits::eTransfer;
     vk::SubmitInfo submit_info;
-    submit_info.setWaitSemaphores(target_available.get())
+    submit_info.setWaitSemaphores(target_available)
         .setWaitDstStageMask(wait_stage)
         .setCommandBuffers(cmd)
-        .setSignalSemaphores(present_ready.get());
+        .setSignalSemaphores(present_ready);
     vk::Queue present_queue = m_device_context_p->getGraphicsQueueContext().getQueue();
     try {
-        present_queue.submit(submit_info);
+        present_queue.submit(submit_info, submit_fence);
     } catch (const vk::SystemError & e) {
         this->recyclePresentResources(m_present_resources);
         return e.code();
     }
     //- 5. present
-    auto device = m_device_context_p->getDevice();
-    vk::StructureChain<vk::PresentInfoKHR, vk::SwapchainPresentFenceInfoKHR> present_info_chain;
-    present_info_chain.get<vk::SwapchainPresentFenceInfoKHR>().setFences(present_fence.get());
-    present_info_chain.get<vk::PresentInfoKHR>()
-        .setWaitSemaphores(present_ready.get())
+    vk::PresentInfoKHR present_info;
+    present_info.setWaitSemaphores(present_ready)
         .setSwapchains(m_swapchain.get())
         .setPImageIndices(&m_image_index);
-    vk::Result present_result = vk::Result::eSuccess;   
+    vk::Result present_result = vk::Result::eSuccess;
     try {
-        present_result = present_queue.presentKHR(present_info_chain.get<vk::PresentInfoKHR>());
+        present_result = present_queue.presentKHR(present_info);
     } catch (const vk::OutOfDateKHRError &e) {
         //- no need to recreate, recreation will happen in acquireNextImage, keep present_result as vk::Result::eSuccess
     } catch (const vk::SystemError &e) {
         present_result = static_cast<vk::Result>(e.code().value());
     }
-    //- 6. recycle resources
+    //- 6. recycle resources, except present_ready semaphore
     m_pending_resources_queue.emplace(std::exchange(m_present_resources, {}));
     this->tryRecyclePendingResources();
     if (present_result == vk::Result::eSuccess or present_result == vk::Result::eSuboptimalKHR) { return {}; }
@@ -240,16 +232,27 @@ std::error_code Swapchain::recreate(const DesiredParams & desired_params) noexce
         return e.code();
     }
     m_swapchain = std::move(new_swapchain);
-    m_swapchain_images = std::move(swapchain_images);   
-    //todo command buffer to transit image layout
+    m_swapchain_images = std::move(swapchain_images);
+
+    device.waitIdle();
+    while (not m_pending_resources_queue.empty()) {
+        this->recyclePresentResources(m_pending_resources_queue.front());
+        m_pending_resources_queue.pop();
+    }
+    m_present_ready_semaphores.resize(m_swapchain_images.size());
+    try {
+        for (auto & semaphore : m_present_ready_semaphores) { semaphore = device.createSemaphoreUnique({}); }
+    } catch (const vk::SystemError & e) {
+        return e.code();
+    }
     return {};
 }
 
 std::error_code Swapchain::acquireNextImage() noexcept
 {
-    auto expected_target_available_semaphore = this->acquireSemaphore();
-    if (not expected_target_available_semaphore) { return expected_target_available_semaphore.error(); }
-    vk::UniqueSemaphore target_available = std::move(expected_target_available_semaphore.value());
+    auto expected_semaphore = this->acquireSemaphore();
+    if (not expected_semaphore) { return expected_semaphore.error(); }
+    vk::UniqueSemaphore target_available = std::move(expected_semaphore.value());
     vk::Device device = m_device_context_p->getDevice();
     vk::Result result = vk::Result::eErrorUnknown;
     try {
@@ -278,15 +281,12 @@ void Swapchain::recyclePresentResources(PresentResources & present_resources) no
         present_resources.m_cmd.reset();
         m_cmd_buffer_pool.emplace(std::exchange(present_resources.m_cmd, nullptr));
     }
-    if (present_resources.m_present_fence) {
-        device.resetFences(present_resources.m_present_fence.get());
-        m_fence_pool.emplace(std::exchange(present_resources.m_present_fence, {}));
+    if (present_resources.m_submit_fence) {
+        device.resetFences(present_resources.m_submit_fence.get());
+        m_fence_pool.emplace(std::exchange(present_resources.m_submit_fence, {}));
     }
     if (present_resources.m_target_available) {
         m_semaphore_pool.emplace(std::exchange(present_resources.m_target_available, {}));
-    }
-    if (present_resources.m_present_ready) {
-        m_semaphore_pool.emplace(std::exchange(present_resources.m_present_ready, {}));
     }
 }
 
@@ -294,10 +294,9 @@ void Swapchain::tryRecyclePendingResources() noexcept
 {
     vk::Device device = m_device_context_p->getDevice();
     while (not m_pending_resources_queue.empty()) {
-        PresentResources & present_resources = m_pending_resources_queue.front();
-        vk::Result present_fence_status = device.getFenceStatus(present_resources.m_present_fence.get());
-        if (present_fence_status != vk::Result::eSuccess) { break; }
-        this->recyclePresentResources(present_resources);
+        PresentResources & front = m_pending_resources_queue.front();
+        if (device.getFenceStatus(front.m_submit_fence.get()) != vk::Result::eSuccess) { break; }
+        this->recyclePresentResources(front);
         m_pending_resources_queue.pop();
     }
 }
