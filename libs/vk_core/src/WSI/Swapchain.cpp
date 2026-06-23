@@ -23,6 +23,7 @@ void register_swapchain(DeviceExtensionManifest & manifest) noexcept
     static constexpr std::array k_features
     {
         utils::t_feature_bit<&vk::PhysicalDeviceSwapchainMaintenance1FeaturesEXT::swapchainMaintenance1>,
+        utils::t_feature_bit<&vk::PhysicalDeviceVulkan13Features::synchronization2>,
     };
     // if constexpr xxx
     manifest.addRequiredExtensions(k_extensions)
