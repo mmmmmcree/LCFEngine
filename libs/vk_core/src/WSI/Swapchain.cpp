@@ -249,7 +249,6 @@ std::error_code Swapchain::recreate(const DesiredParams & desired_params) noexce
     }
     m_swapchain = std::move(new_swapchain);
     m_swapchain_images = std::move(swapchain_images);   
-    //todo command buffer to transit image layout
     return {};
 }
 
