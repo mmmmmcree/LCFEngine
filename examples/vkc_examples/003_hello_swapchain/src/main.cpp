@@ -114,6 +114,7 @@ int main()
     
     vkc::InstanceContextCreateInfo instance_info; // same as bs::InstanceCreateInfo
     instance_info.setApplicationInfo(app_info)
+        .addRequiredInstanceLayer("VK_LAYER_KHRONOS_validation")
         .setRequiredInstanceExtensionManifest(inst_ext_manifest);
 
     vkc::bs::PhysicalDeviceSelectInfo physical_device_select_info;
