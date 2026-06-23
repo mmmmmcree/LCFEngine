@@ -391,4 +391,4 @@ auto Swapchain::setDesiredPresentMode(const vk::PresentModeKHR &present_mode) no
     return this->updateDesired([&](DesiredParams & p) { p.present_mode = present_mode; });
 }
 
-} // namespace lcf::vkc
+} // namespace lcf::vkc::wsi
