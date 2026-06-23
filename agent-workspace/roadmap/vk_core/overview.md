@@ -45,6 +45,7 @@ last-anchor-commit: aaaa573
 | [`context-decomposition.md`](./deep-dive/context-decomposition.md) | Leaf classes hold handles only; context splits into role-typed providers; init becomes free functions returning bundles. |
 | [`non-blocking-contract.md`](./deep-dive/non-blocking-contract.md) | vkc never blocks; forbidden-API list; `RetireQueue` keyed by timeline value; module scope boundary. |
 | [`swapchain-gui-decoupling.md`](./deep-dive/swapchain-gui-decoupling.md) | `SurfaceProvider` callback bundle; vkc owns `vk::SurfaceKHR`; pull+push resize notification. |
+| [`pipeline-rendering-abstraction.md`](./deep-dive/pipeline-rendering-abstraction.md) | 4-class two-axis model (Static/Dynamic × Pipeline/Rendering), 3 legal pairings, one Info drives both, unified `begin(cmd)`. |
 
 ## Planned Deep-Dives (TODO)
 
@@ -61,8 +62,8 @@ last-anchor-commit: aaaa573
 
 ## Changelog
 
+- 2026-06-23 a856fe6: add pipeline-rendering-abstraction deep-dive (Static/Dynamic × Pipeline/Rendering, unified begin(cmd))
 - 2026-06-10 aaaa573: QueueRole collapse-ladder index over full topology; devices sorted by score
 - 2026-06-10 aaaa573: bootstrap returns Context; nested Context→DeviceContext→QueueContext ownership
 - 2026-06-10 aaaa573: explicit feature_dependencies selection replaces registry (decisions/0001)
 - 2026-06-10 aaaa573: Queue+Timeline ownership, manifest mechanism, namespaces; add bootstrap deep-dive
-- 2026-06-10 aaaa573: module created — substrate deep-dives split out of modern_rhi
