@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
-#include "WindowHandle.h"
+#include "vk_core/WSI/WindowHandle.h"
 #include "resource_utils.h"
 #include <array>
 #include <vector>
@@ -14,7 +14,7 @@ namespace lcf::vkc {
 
 class RenderDeviceContext;
 
-namespace wsi {
+namespace wsi::compat {
 
 class Swapchain
 {
@@ -99,6 +99,6 @@ private:
     SemaphorePool m_semaphore_pool;
 };
 
-} // namespace lcf::vkc::wsi
+} // namespace lcf::vkc::wsi::compat
 
 } // namespace lcf::vkc
