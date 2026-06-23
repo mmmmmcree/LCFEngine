@@ -1,4 +1,6 @@
 #include "vk_core/WSI/Swapchain.h"
+#include "vk_core/WSI/entry.h"
+#include "vk_core/manifest/DeviceExtensionManifest.h"
 #include "vk_core/WSI/create_surface.h"
 #include "vk_core/WSI/WindowHandle.h"
 #include "vk_core/context/RenderDeviceContext.h"
@@ -10,6 +12,22 @@
 namespace stdr = std::ranges;
 
 namespace lcf::vkc::wsi {
+
+void register_swapchain(DeviceExtensionManifest & manifest) noexcept
+{
+    static constexpr std::array k_extensions
+    {
+        vk::KHRSwapchainExtensionName,
+        vk::KHRSwapchainMaintenance1ExtensionName
+    };
+    static constexpr std::array k_features
+    {
+        utils::t_feature_bit<&vk::PhysicalDeviceSwapchainMaintenance1FeaturesEXT::swapchainMaintenance1>,
+    };
+    // if constexpr xxx
+    manifest.addRequiredExtensions(k_extensions)
+        .addRequiredFeatures(k_features);
+}
 
 std::error_code Swapchain::create(
     vk::Instance instance,

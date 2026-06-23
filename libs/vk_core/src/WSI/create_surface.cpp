@@ -1,4 +1,6 @@
 #include "vk_core/WSI/create_surface.h"
+#include "vk_core/WSI/entry.h"
+#include "vk_core/manifest/InstanceExtensionManifest.h"
 
 namespace {
 
@@ -9,6 +11,35 @@ vk::UniqueSurfaceKHR create_surface_maythrow(vk::Instance instance, const Window
 } // anoymous namespace
 
 namespace lcf::vkc::wsi {
+
+void register_surface(InstanceExtensionManifest & manifest) noexcept
+{
+    static constexpr std::array k_extensions
+    {
+        vk::KHRSurfaceExtensionName,
+    #if defined(VK_USE_PLATFORM_WIN32_KHR)
+        vk::KHRWin32SurfaceExtensionName,
+    #endif
+    #if defined(VK_USE_PLATFORM_XCB_KHR)
+        vk::KHRXcbSurfaceExtensionName,
+    #endif
+    #if defined(VK_USE_PLATFORM_WAYLAND_KHR)
+        vk::KHRWaylandSurfaceExtensionName,
+    #endif
+    #if defined(VK_USE_PLATFORM_METAL_EXT)
+        vk::EXTMetalSurfaceExtensionName,
+    #endif
+    };
+    manifest.addRequiredExtensions(k_extensions);
+    //todo optional
+    static constexpr std::array k_surface_maintenance1_extensions
+    {
+        vk::KHRGetSurfaceCapabilities2ExtensionName,
+        vk::KHRSurfaceMaintenance1ExtensionName,
+    };
+    // if constexpr xxx
+    manifest.addRequiredExtensions(k_surface_maintenance1_extensions);
+}
 
 namespace win32 {
 
