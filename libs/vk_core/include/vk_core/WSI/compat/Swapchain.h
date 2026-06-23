@@ -27,9 +27,6 @@ class Swapchain
         vk::SurfaceFormatKHR surface_format = {vk::Format::eB8G8R8A8Srgb, vk::ColorSpaceKHR::eSrgbNonlinear};
         vk::PresentModeKHR present_mode = vk::PresentModeKHR::eMailbox;
     };
-    //- Resources consumed by the blit submit (cmd + its wait/signal-side acquire semaphore +
-    //- leases on the blit source). All become safe to recycle once the submit fence signals,
-    //- so they live in a pending queue and are reclaimed by non-blocking getFenceStatus polling.
     struct PresentResources
     {
         vk::CommandBuffer m_cmd = nullptr;
@@ -42,9 +39,6 @@ class Swapchain
     using FencePool = std::queue<vk::UniqueFence>;
     using SemaphorePool = std::queue<vk::UniqueSemaphore>;
     using PendingResourcesQueue = std::queue<PresentResources>;
-    //- present-ready semaphore is consumed by the presentation engine, which the submit fence
-    //- cannot observe. It is fixed per image index instead: present_ready[i] is only reused when
-    //- image i is acquired again, which proves the engine released its previous presentation.
     using SemaphoreList = std::vector<vk::UniqueSemaphore>;
 public:
     ~Swapchain() noexcept = default;
