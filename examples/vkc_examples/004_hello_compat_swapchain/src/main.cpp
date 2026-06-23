@@ -273,10 +273,8 @@ std::optional<WhiteImage> create_white_image(vkc::RenderDeviceContext & device_c
         white.m_memory = device.allocateMemoryUnique({req.size, mem_type_index});
         device.bindImageMemory(white.m_image.get(), white.m_memory.get(), 0);
         // one-time submit: undefined -> transferDst, clear white, transferDst -> transferSrc
-        vk::UniqueCommandPool pool = device.createCommandPoolUnique(
-            {vk::CommandPoolCreateFlagBits::eTransient, gfx_family});
-        vk::CommandBuffer cmd = device.allocateCommandBuffers(
-            {pool.get(), vk::CommandBufferLevel::ePrimary, 1u}).front();
+        vk::UniqueCommandPool pool = device.createCommandPoolUnique({vk::CommandPoolCreateFlagBits::eTransient, gfx_family});
+        vk::CommandBuffer cmd = device.allocateCommandBuffers({pool.get(), vk::CommandBufferLevel::ePrimary, 1u}).front();
 
         vk::ImageSubresourceRange range {vk::ImageAspectFlagBits::eColor, 0u, 1u, 0u, 1u};
         vk::ImageMemoryBarrier to_dst, to_src;

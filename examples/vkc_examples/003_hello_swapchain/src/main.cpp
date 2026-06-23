@@ -266,37 +266,36 @@ std::optional<WhiteImage> create_white_image(vkc::RenderDeviceContext & device_c
         }
         white.m_memory = device.allocateMemoryUnique({req.size, mem_type_index});
         device.bindImageMemory(white.m_image.get(), white.m_memory.get(), 0);
-
         // one-time submit: undefined -> transferDst, clear white, transferDst -> transferSrc
-        vk::UniqueCommandPool pool = device.createCommandPoolUnique(
-            {vk::CommandPoolCreateFlagBits::eTransient, gfx_family});
-        vk::CommandBuffer cmd = device.allocateCommandBuffers(
-            {pool.get(), vk::CommandBufferLevel::ePrimary, 1u}).front();
+        vk::UniqueCommandPool pool = device.createCommandPoolUnique({vk::CommandPoolCreateFlagBits::eTransient, gfx_family});
+        vk::CommandBuffer cmd = device.allocateCommandBuffers({pool.get(), vk::CommandBufferLevel::ePrimary, 1u}).front();
 
         vk::ImageSubresourceRange range {vk::ImageAspectFlagBits::eColor, 0u, 1u, 0u, 1u};
-        vk::ImageMemoryBarrier2 to_dst, to_src;
+        vk::ImageMemoryBarrier to_dst, to_src;
         to_dst.setImage(white.m_image.get())
             .setOldLayout(vk::ImageLayout::eUndefined)
             .setNewLayout(vk::ImageLayout::eTransferDstOptimal)
             .setSubresourceRange(range)
-            .setSrcStageMask(vk::PipelineStageFlagBits2::eTopOfPipe)
-            .setSrcAccessMask(vk::AccessFlagBits2::eNone)
-            .setDstStageMask(vk::PipelineStageFlagBits2::eClear)
-            .setDstAccessMask(vk::AccessFlagBits2::eTransferWrite);
+            .setSrcAccessMask(vk::AccessFlagBits::eNone)
+            .setDstAccessMask(vk::AccessFlagBits::eTransferWrite);
         to_src.setImage(white.m_image.get())
             .setOldLayout(vk::ImageLayout::eTransferDstOptimal)
             .setNewLayout(vk::ImageLayout::eTransferSrcOptimal)
             .setSubresourceRange(range)
-            .setSrcStageMask(vk::PipelineStageFlagBits2::eClear)
-            .setSrcAccessMask(vk::AccessFlagBits2::eTransferWrite)
-            .setDstStageMask(vk::PipelineStageFlagBits2::eBlit)
-            .setDstAccessMask(vk::AccessFlagBits2::eTransferRead);
+            .setSrcAccessMask(vk::AccessFlagBits::eTransferWrite)
+            .setDstAccessMask(vk::AccessFlagBits::eTransferRead);
 
         vk::ClearColorValue white_color {std::array<float, 4>{1.0f, 1.0f, 1.0f, 1.0f}};
         cmd.begin(vk::CommandBufferBeginInfo(vk::CommandBufferUsageFlagBits::eOneTimeSubmit));
-        cmd.pipelineBarrier2(vk::DependencyInfo().setImageMemoryBarriers(to_dst));
+        cmd.pipelineBarrier(
+            vk::PipelineStageFlagBits::eTopOfPipe,
+            vk::PipelineStageFlagBits::eTransfer,
+            {}, {}, {}, to_dst);
         cmd.clearColorImage(white.m_image.get(), vk::ImageLayout::eTransferDstOptimal, white_color, range);
-        cmd.pipelineBarrier2(vk::DependencyInfo().setImageMemoryBarriers(to_src));
+        cmd.pipelineBarrier(
+            vk::PipelineStageFlagBits::eTransfer,
+            vk::PipelineStageFlagBits::eTransfer,
+            {}, {}, {}, to_src);
         cmd.end();
 
         vk::UniqueFence fence = device.createFenceUnique({});
