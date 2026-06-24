@@ -61,9 +61,7 @@ inline constexpr PhysicalDeviceFeatureBit t_feature_bit {
 
 } // namespace lcf::vkc::utils
 
-// Build a PhysicalDeviceFeatureBit that also carries the source-level member name
-// for diagnostics. `#member` stringizes the pointer-to-member expression (a
-// member pointer NTTP alone cannot recover the name — there is no reflection).
+//todo wait for c++26 reflection
 #define LCF_VKC_UTILS_FEATURE_BIT(member) \
     ::lcf::vkc::utils::PhysicalDeviceFeatureBit { \
         ::lcf::vkc::utils::t_feature_bit<member>.enable, \
