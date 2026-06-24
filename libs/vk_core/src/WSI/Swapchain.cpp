@@ -247,6 +247,8 @@ std::error_code Swapchain::recreate(const DesiredParams & desired_params) noexce
     } catch (const vk::SystemError &e) {
         return e.code();
     }
+    //- add old swapchain to current present resources
+    m_present_resources.m_leases.emplace_back(make_resource_ptr<vk::UniqueSwapchainKHR>(std::move(m_swapchain)).lease());
     m_swapchain = std::move(new_swapchain);
     m_swapchain_images = std::move(swapchain_images);   
     return {};

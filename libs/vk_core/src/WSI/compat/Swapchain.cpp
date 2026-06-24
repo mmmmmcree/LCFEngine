@@ -231,10 +231,10 @@ std::error_code Swapchain::recreate(const DesiredParams & desired_params) noexce
     } catch (const vk::SystemError &e) {
         return e.code();
     }
-    m_swapchain = std::move(new_swapchain);
-    m_swapchain_images = std::move(swapchain_images);
 
     device.waitIdle();
+    m_swapchain = std::move(new_swapchain);
+    m_swapchain_images = std::move(swapchain_images);
     while (not m_pending_resources_queue.empty()) {
         this->recyclePresentResources(m_pending_resources_queue.front());
         m_pending_resources_queue.pop();
