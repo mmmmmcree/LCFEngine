@@ -30,6 +30,16 @@ public:
                 return "no queue family supports presentation to the surface";
             case errc::main_device_role_not_configured:
                 return "the main device role must be configured";
+            case errc::surface_zero_size:
+                return "surface has zero size";
+            case errc::missing_required_instance_layer:
+                return "a required instance layer is not supported";
+            case errc::missing_required_instance_extension:
+                return "a required instance extension is not supported";
+            case errc::missing_required_device_extension:
+                return "a required device extension is not supported";
+            case errc::missing_required_device_feature:
+                return "a required device feature is not supported";
             default:
                 return "unrecognized lcf::vkc error";
         }

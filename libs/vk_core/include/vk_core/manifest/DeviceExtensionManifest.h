@@ -42,6 +42,8 @@ public:
     const vk::PhysicalDeviceFeatures2 & getRequiredFeatures() const noexcept { return m_feature_chain.root(); }
     bool isRequiredFeaturesSupported(vk::PhysicalDevice physical_device) const noexcept;
     std::size_t getRequiredExtensionCount() const noexcept { return m_required_extensions.size(); }
+    void printUnsupportedExtensions(vk::PhysicalDevice physical_device) const noexcept;
+    void printUnsupportedFeatures(vk::PhysicalDevice physical_device) const noexcept;
 private:
     StringSet m_required_extensions;
     utils::PhysicalDeviceFeatureChain m_feature_chain;

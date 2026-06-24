@@ -33,6 +33,7 @@ int main()
     vkc::bs::InstanceCreateInfo instance_info;
     instance_info.setApplicationInfo(app_info)
         .addRequiredInstanceLayer("VK_LAYER_KHRONOS_validation")
+        // .addRequiredInstanceLayer("SomeStupidLayer")
         .setRequiredInstanceExtensionManifest(inst_ext_manifest);
     auto expected_instance = vkc::bs::create_instance(instance_info);
     if (not expected_instance.has_value()) {

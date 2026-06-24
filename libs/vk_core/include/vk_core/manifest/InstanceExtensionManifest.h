@@ -44,6 +44,7 @@ public:
         return ext_leases;
     }
     std::size_t getRequiredExtensionCount() const noexcept { return m_required_extensions.size(); }
+    void printUnsupportedExtensions() const noexcept;
 private:
     StringSet m_required_extensions;
     ExtEnableCallbackList m_ext_enable_callbacks;

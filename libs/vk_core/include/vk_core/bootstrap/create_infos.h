@@ -58,6 +58,8 @@ public:
     std::size_t getRequiredInstanceLayerCount() const noexcept { return m_required_instance_layers.size(); }
     std::size_t getRequiredInstanceExtensionCount() const noexcept;
     ExtEnableCallback getExtensionEnableCallback() const noexcept;
+    void printUnsupportedExtensions() const noexcept;
+    void printUnsupportedLayers() const noexcept;
 private:
     vk::ApplicationInfo m_application_info;
     StringSet m_required_instance_layers;
@@ -134,6 +136,9 @@ public:
     bool isExtensionRequired(const std::string & extension_name) const noexcept;
     std::size_t getRequiredDeviceExtensionCount() const noexcept;
     const vk::PhysicalDeviceFeatures2 * getRequiredFeatures() const noexcept;
+    bool isRequiredFeaturesSupported(vk::PhysicalDevice physical_device) const noexcept;
+    void printUnsupportedExtensions(vk::PhysicalDevice physical_device) const noexcept;
+    void printUnsupportedFeatures(vk::PhysicalDevice physical_device) const noexcept;
 private:
     const DeviceExtensionManifest * m_extension_manifest_p = nullptr;
     QueueFamilyRequestMap m_queue_family_requests;

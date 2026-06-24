@@ -14,7 +14,7 @@ void register_timeline_semaphore(DeviceExtensionManifest & manifest) noexcept
 {
     static constexpr std::array k_features
     {
-        utils::t_feature_bit<&vk::PhysicalDeviceVulkan12Features::timelineSemaphore>,
+        LCF_VKC_UTILS_FEATURE_BIT(&vk::PhysicalDeviceVulkan12Features::timelineSemaphore),
     };
     manifest.addRequiredFeatures(k_features);
 }

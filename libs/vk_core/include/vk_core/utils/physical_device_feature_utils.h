@@ -45,6 +45,7 @@ struct PhysicalDeviceFeatureBit
 {
     void (*enable)(PhysicalDeviceFeatureChain &);
     bool (*test)(const PhysicalDeviceFeatureChain &);
+    const char * name;
 };
 
 template <auto k_member>
@@ -55,6 +56,17 @@ inline constexpr PhysicalDeviceFeatureBit t_feature_bit {
     .test = [](const PhysicalDeviceFeatureChain & queried) {
         return static_cast<bool>(queried.get<typename member_pointer_traits<decltype(k_member)>::class_type>().*k_member);
     },
+    .name = nullptr,
 };
 
 } // namespace lcf::vkc::utils
+
+// Build a PhysicalDeviceFeatureBit that also carries the source-level member name
+// for diagnostics. `#member` stringizes the pointer-to-member expression (a
+// member pointer NTTP alone cannot recover the name — there is no reflection).
+#define LCF_VKC_UTILS_FEATURE_BIT(member) \
+    ::lcf::vkc::utils::PhysicalDeviceFeatureBit { \
+        ::lcf::vkc::utils::t_feature_bit<member>.enable, \
+        ::lcf::vkc::utils::t_feature_bit<member>.test, \
+        #member, \
+    }

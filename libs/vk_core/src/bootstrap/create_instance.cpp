@@ -9,9 +9,10 @@ namespace stdv = std::views;
 
 namespace {
 
+using namespace lcf::vkc;
 using namespace lcf::vkc::bs;
 
-vk::UniqueInstance create_instance_maythrow(const InstanceCreateInfo & create_info);
+std::expected<vk::UniqueInstance, std::error_code> create_instance_maythrow(const InstanceCreateInfo & create_info);
 
 } // namespace
 
@@ -20,32 +21,37 @@ namespace lcf::vkc::bs {
 std::expected<vk::UniqueInstance, std::error_code> create_instance(const InstanceCreateInfo &create_info) noexcept
 {
     initialize_loader();
-    vk::UniqueInstance instance {};
+    std::expected<vk::UniqueInstance, std::error_code> expected_instance;
     try {
-        instance = create_instance_maythrow(create_info);
+        expected_instance = create_instance_maythrow(create_info);
     } catch (const vk::SystemError & e) {
         return std::unexpected(e.code());
     }
-    if (not instance) { return std::unexpected(make_error_code(errc::no_suitable_instance)); }
-    initialize_instance(instance.get());
-    return instance;
+    if (not expected_instance) { return expected_instance; }
+    initialize_instance(expected_instance->get());
+    return expected_instance;
 }
 
 } // namespace lcf::vkc::bs
 
 namespace {
 
-vk::UniqueInstance create_instance_maythrow(const InstanceCreateInfo &create_info)
+std::expected<vk::UniqueInstance, std::error_code> create_instance_maythrow(const InstanceCreateInfo &create_info)
 {
     auto instance_layer_props = vk::enumerateInstanceLayerProperties() |
         stdv::filter([&](const vk::LayerProperties & layer) { return create_info.isLayerRequired(layer.layerName.data()); }) |
         stdr::to<std::vector>();
-    if (instance_layer_props.size() != create_info.getRequiredInstanceLayerCount()) { return {}; }
+    if (instance_layer_props.size() != create_info.getRequiredInstanceLayerCount()) {
+        create_info.printUnsupportedLayers();
+        return std::unexpected(errc::missing_required_instance_layer);
+    }
     auto instance_extension_props = vk::enumerateInstanceExtensionProperties() |
         stdv::filter([&](const vk::ExtensionProperties & ext_props) { return create_info.isExtensionRequired(ext_props.extensionName.data()); }) |
         stdr::to<std::vector>();
-    std::size_t ec = instance_extension_props.size(), ec_required = create_info.getRequiredInstanceExtensionCount();
-    if (instance_extension_props.size() != create_info.getRequiredInstanceExtensionCount()) { return {}; }
+    if (instance_extension_props.size() != create_info.getRequiredInstanceExtensionCount()) {
+        create_info.printUnsupportedExtensions();
+        return std::unexpected(errc::missing_required_instance_extension);
+    }
     auto instance_layer_names_cstr = instance_layer_props |
         stdv::transform([](const vk::LayerProperties & layer) { return layer.layerName.data(); }) |
         stdr::to<std::vector>();
