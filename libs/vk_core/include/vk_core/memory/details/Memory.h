@@ -34,7 +34,6 @@ public:
         m_allocator(allocator),
         m_allocation(allocation),
         m_handle(handle) {}
-    explicit Memory(Handle handle) noexcept : m_handle(handle) {}
     Memory(const Self &) = delete;
     Self & operator=(const Self &) = delete;
     Memory(Self && other) noexcept :
