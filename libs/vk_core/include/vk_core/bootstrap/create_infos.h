@@ -16,6 +16,12 @@ class DeviceExtensionManifest ;
 
 } // namespace lcf::vkc::mnf
 
+namespace lcf::vkc::utils {
+
+struct PhysicalDeviceFeatureBit;
+
+} // namespace lcf::vkc::utils
+
 namespace lcf::vkc::bs {
 
 class InstanceCreateInfo 
@@ -134,6 +140,7 @@ public:
     }
     const QueueFamilyRequestMap & getQueueFamilyRequests() const noexcept { return m_queue_family_requests; }
     bool isExtensionRequired(const std::string & extension_name) const noexcept;
+    bool isFeatureRequired(const utils::PhysicalDeviceFeatureBit & feature_bit) const noexcept;
     std::size_t getRequiredDeviceExtensionCount() const noexcept;
     const vk::PhysicalDeviceFeatures2 * getRequiredFeatures() const noexcept;
     bool isRequiredFeaturesSupported(vk::PhysicalDevice physical_device) const noexcept;

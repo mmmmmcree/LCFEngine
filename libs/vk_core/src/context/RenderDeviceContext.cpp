@@ -1,9 +1,12 @@
 #include "vk_core/context/RenderDeviceContext.h"
 #include "vk_core/context/QueueContext.h"
 #include "vk_core/context/create_infos.h"
+#include "vk_core/memory/details/MemoryAllocatorCreateInfo.h"
+#include "vk_core/memory/details/Memory.h"
 #include "vk_core/bootstrap/select_physical_device.h"
 #include "vk_core/bootstrap/create_device.h"
 #include "vk_core/utils/find_proper_queue_family_index.h"
+#include "vk_core/utils/physical_device_feature_utils.h"
 #include "vk_core/error.h"
 
 namespace stdr = std::ranges;
@@ -58,7 +61,29 @@ std::error_code RenderDeviceContext::create(vk::Instance instance, const DeviceC
         }
         m_queue_contexts.emplace_back(std::move(queue_context_up));
     }
+    details::MemoryAllocatorCreateInfo allocator_create_info;
+    allocator_create_info.setBufferDeviceAddress(device_info.isFeatureRequired(
+        utils::t_feature_bit<&vk::PhysicalDeviceVulkan12Features::bufferDeviceAddress>));
+    if (auto ec = m_allocator.create(instance, m_physical_device, m_device.get(), allocator_create_info)) { return ec; }
     return {};
+}
+
+std::expected<Buffer, std::error_code> RenderDeviceContext::createBuffer(const vk::BufferCreateInfo & buffer_info, const MemoryAllocationInfo & alloc_info) const noexcept
+{
+    auto expected_memory = m_allocator.allocateBuffer(buffer_info, alloc_info);
+    if (not expected_memory) { return std::unexpected {expected_memory.error()}; }
+    vk::DeviceAddress device_address = 0;
+    if (m_allocator.isBufferDeviceAddressEnabled() and (buffer_info.usage & vk::BufferUsageFlagBits::eShaderDeviceAddress)) {
+        device_address = m_device->getBufferAddress({expected_memory->getHandle()});
+    }
+    return Buffer {std::move(*expected_memory), device_address};
+}
+
+std::expected<Image, std::error_code> RenderDeviceContext::createImage(const vk::ImageCreateInfo & image_info, const MemoryAllocationInfo & alloc_info) const noexcept
+{
+    auto expected_memory = m_allocator.allocateImage(image_info, alloc_info);
+    if (not expected_memory) { return std::unexpected {expected_memory.error()}; }
+    return Image {std::move(*expected_memory)};
 }
 
 } // namespace lcf::vkc

@@ -7,7 +7,9 @@
 #include <utility>
 #include <type_traits>
 
-namespace lcf::vkc::details::vma {
+namespace lcf::vkc::details {
+
+namespace vma {
 
 inline void destroy_memory(VmaAllocator allocator, vk::Image image, VmaAllocation allocation) noexcept
 {
@@ -19,6 +21,8 @@ inline void destroy_memory(VmaAllocator allocator, vk::Buffer buffer, VmaAllocat
     if (allocator) { vmaDestroyBuffer(allocator, buffer, allocation); }
 }
 
+} // namespace lcf::vkc::details::vma
+
 template <typename Handle>
 requires std::is_same_v<Handle, vk::Image> or std::is_same_v<Handle, vk::Buffer>
 class Memory
@@ -27,7 +31,7 @@ class Memory
     using ByteSpan = std::span<std::byte>;
     using ReadableByteSpan = std::span<const std::byte>;
 public:
-    ~Memory() noexcept { destroy_memory(m_allocator, m_handle, m_allocation); }
+    ~Memory() noexcept { vma::destroy_memory(m_allocator, m_handle, m_allocation); }
     Memory(VmaAllocator allocator,
         VmaAllocation allocation,
         Handle handle) noexcept :
@@ -100,4 +104,4 @@ private:
     Handle m_handle = nullptr;
 };
 
-} // namespace lcf::vkc::details::vma
+} // namespace lcf::vkc::details

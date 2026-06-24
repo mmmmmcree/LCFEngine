@@ -27,6 +27,12 @@ public:
     template <details::feature_type_c Feature>
     const Feature & get() const { return std::any_cast<const Feature &>(m_nodes.at(typeid(Feature))); }
     template <details::feature_type_c Feature>
+    const Feature * tryGet() const noexcept
+    {
+        auto it = m_nodes.find(typeid(Feature));
+        return it == m_nodes.end() ? nullptr : &std::any_cast<const Feature &>(it->second);
+    }
+    template <details::feature_type_c Feature>
     Feature & request() noexcept
     {
         auto [it, inserted] = m_nodes.try_emplace(typeid(Feature), Feature {});
@@ -54,7 +60,9 @@ inline constexpr PhysicalDeviceFeatureBit t_feature_bit {
         chain.request<typename member_pointer_traits<decltype(k_member)>::class_type>().*k_member = true;
     },
     .test = [](const PhysicalDeviceFeatureChain & queried) {
-        return static_cast<bool>(queried.get<typename member_pointer_traits<decltype(k_member)>::class_type>().*k_member);
+        using Feature = typename member_pointer_traits<decltype(k_member)>::class_type;
+        const Feature * feature_p = queried.tryGet<Feature>();
+        return feature_p and static_cast<bool>((*feature_p).*k_member);
     },
     .name = nullptr,
 };

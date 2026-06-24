@@ -69,6 +69,12 @@ bool DeviceCreateInfo::isExtensionRequired(const std::string &extension_name) co
     return m_extension_manifest_p->isExtensionRequired(extension_name);
 }
 
+bool DeviceCreateInfo::isFeatureRequired(const utils::PhysicalDeviceFeatureBit & feature_bit) const noexcept
+{
+    if (not m_extension_manifest_p) { return false; }
+    return m_extension_manifest_p->isFeatureRequired(feature_bit);
+}
+
 std::size_t DeviceCreateInfo::getRequiredDeviceExtensionCount() const noexcept
 {
     if (not m_extension_manifest_p) { return 0; }

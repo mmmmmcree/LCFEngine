@@ -39,6 +39,10 @@ public:
     {
         return m_required_extensions.contains(extension_name);
     }
+    bool isFeatureRequired(const utils::PhysicalDeviceFeatureBit & feature_bit) const noexcept
+    {
+        return feature_bit.test(m_feature_chain);
+    }
     const vk::PhysicalDeviceFeatures2 & getRequiredFeatures() const noexcept { return m_feature_chain.root(); }
     bool isRequiredFeaturesSupported(vk::PhysicalDevice physical_device) const noexcept;
     std::size_t getRequiredExtensionCount() const noexcept { return m_required_extensions.size(); }
