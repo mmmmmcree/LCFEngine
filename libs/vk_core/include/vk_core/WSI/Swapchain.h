@@ -87,24 +87,24 @@ private:
     void recyclePresentResources(PresentResources & present_resources) noexcept;
     void tryRecyclePendingResources() noexcept;
 private:
-    RenderDeviceContext * m_device_context_p;
+    RenderDeviceContext * m_device_context_p = nullptr;
     vk::UniqueSurfaceKHR m_surface;
     vk::UniqueSwapchainKHR m_swapchain;
-    std::mutex m_present_mutex;
-    std::atomic<bool> m_resize_has_priority = false;
-    AtomicSnapshot<CachedPresentInput> m_cached_present_input_snapshot;
-    LatchedSnapshot<DesiredParams> m_desired_params_snapshot;
+    ImageList m_swapchain_images;
     vk::SurfaceFormatKHR m_surface_format;
     vk::PresentModeKHR m_present_mode;
     uint32_t m_width = 0u, m_height = 0u;
     uint32_t m_image_index = 0u;
-    ImageList m_swapchain_images;
-    PresentResources m_present_resources;
-    PendingRecycleResourcesQueue m_pending_resources_queue;
+    LatchedSnapshot<DesiredParams> m_desired_params_snapshot;
+    AtomicSnapshot<CachedPresentInput> m_cached_present_input_snapshot;
+    std::mutex m_present_mutex;
+    std::atomic<bool> m_resize_has_priority = false;
     vk::UniqueCommandPool m_cmd_pool;
     CmdBufferPool m_cmd_buffer_pool;
     FencePool m_fence_pool;
     SemaphorePool m_semaphore_pool;
+    PresentResources m_present_resources;
+    PendingRecycleResourcesQueue m_pending_resources_queue;
 };
 
 } // namespace lcf::vkc::wsi
