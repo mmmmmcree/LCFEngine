@@ -7,6 +7,7 @@
 #include <vector>
 #include <queue>
 #include <expected>
+#include "AtomicSnapshot.h"
 #include <atomic>
 #include <memory>
 #include <mutex>
@@ -80,8 +81,6 @@ private:
         vk::ImageSubresourceLayers src_subresource_layers) noexcept;
     std::error_code recreate(const DesiredParams & desired_params) noexcept;
     std::error_code acquireNextImage() noexcept;
-    template <typename Mutator>
-    Self & updateDesired(Mutator && mutator) noexcept;
     std::expected<vk::CommandBuffer, std::error_code> acquireCmdBuffer() noexcept;
     std::expected<vk::UniqueFence, std::error_code> acquireFence() noexcept;
     std::expected<vk::UniqueSemaphore, std::error_code> acquireSemaphore() noexcept;
@@ -94,8 +93,7 @@ private:
     std::mutex m_mutex;
     std::atomic<bool> m_resize_pending {false};
     CachedPresentInput m_cached_present_input;
-    std::atomic<ConstDesiredParamsSP> m_provided_desired_params_asp = std::make_shared<const DesiredParams>();
-    ConstDesiredParamsSP m_consumed_desired_params_sp;
+    LatchedSnapshot<DesiredParams> m_desired_params_snapshot;
     vk::SurfaceFormatKHR m_surface_format;
     vk::PresentModeKHR m_present_mode;
     uint32_t m_width = 0u, m_height = 0u;

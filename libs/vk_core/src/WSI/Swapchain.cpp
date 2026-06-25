@@ -53,7 +53,7 @@ std::error_code Swapchain::create(
     } catch (vk::SystemError &e) {
         return e.code();
     }
-    m_consumed_desired_params_sp = {};
+    // m_consumed_desired_params_sp = {};
     return {};
 }
 
@@ -66,10 +66,8 @@ std::error_code Swapchain::_present(
 {
     //- 1. check pre-conditions
     //- consider this if condition as a dirty flag, swapchain becomes dirty after first creation or any change in desired params
-    auto desired_params_sp = m_provided_desired_params_asp.load(std::memory_order_acquire);
-    if (desired_params_sp != m_consumed_desired_params_sp) { 
-        if (auto ec = this->recreate(*desired_params_sp)) { return ec; }
-        m_consumed_desired_params_sp = std::move(desired_params_sp);
+    if (auto snapshot = m_desired_params_snapshot.consumeIfChanged()) {
+        if (auto ec = this->recreate(*snapshot)) { return ec; }
     }
     if (auto ec = this->acquireNextImage()) { return ec; }
     //- 2. fill m_present_resources
@@ -291,7 +289,7 @@ std::error_code Swapchain::acquireNextImage() noexcept
     } catch (const vk::OutOfDateKHRError &) {
         m_semaphore_pool.emplace(std::move(target_available));
         //- m_consumed_desired_params_sp is guaranteed non-null here (set by present()'s precondition block)
-        if (auto ec = this->recreate(*m_consumed_desired_params_sp)) { return ec; }
+        if (auto ec = this->recreate(m_desired_params_snapshot.consumed().value())) { return ec; }
         return this->acquireNextImage();
     } catch (const vk::SystemError & e) {
         m_semaphore_pool.emplace(std::move(target_available));
@@ -385,34 +383,22 @@ std::expected<vk::UniqueSemaphore, std::error_code> Swapchain::acquireSemaphore(
     return semaphore;
 }
 
-template <typename Mutator>
-auto Swapchain::updateDesired(Mutator && mutator) noexcept -> Self &
-{
-    auto current = m_provided_desired_params_asp.load(std::memory_order_acquire);
-    while (true) {
-        auto next = std::make_shared<DesiredParams>(*current);
-        mutator(*next);
-        if (*next == *current) { return *this; }
-        if (m_provided_desired_params_asp.compare_exchange_weak(
-            current, std::move(next),
-            std::memory_order_release, std::memory_order_acquire)) { return *this; }
-    }
-    return *this;
-}
-
 auto Swapchain::setDesiredSwapchainImageCount(uint32_t desired_count) noexcept -> Self &
 {
-    return this->updateDesired([&](DesiredParams & p) { p.image_count = desired_count; });
+    m_desired_params_snapshot.template update<&DesiredParams::image_count>(desired_count);
+    return *this;
 }
 
 auto Swapchain::setDesiredSurfaceFormat(const vk::SurfaceFormatKHR &surface_format) noexcept -> Self &
 {
-    return this->updateDesired([&](DesiredParams & p) { p.surface_format = surface_format; });
+    m_desired_params_snapshot.template update<&DesiredParams::surface_format>(surface_format);
+    return *this;
 }
 
 auto Swapchain::setDesiredPresentMode(const vk::PresentModeKHR &present_mode) noexcept -> Self &
 {
-    return this->updateDesired([&](DesiredParams & p) { p.present_mode = present_mode; });
+    m_desired_params_snapshot.template update<&DesiredParams::present_mode>(present_mode);
+    return *this;
 }
 
 } // namespace lcf::vkc::wsi
