@@ -25,7 +25,6 @@ void register_swapchain(DeviceExtensionManifest & manifest) noexcept
         LCF_VKC_UTILS_FEATURE_BIT(&vk::PhysicalDeviceSwapchainMaintenance1FeaturesEXT::swapchainMaintenance1),
         LCF_VKC_UTILS_FEATURE_BIT(&vk::PhysicalDeviceVulkan13Features::synchronization2),
     };
-    // if constexpr xxx
     manifest.addRequiredExtensions(k_extensions)
         .addRequiredFeatures(k_features);
 }
@@ -53,7 +52,6 @@ std::error_code Swapchain::create(
     } catch (vk::SystemError &e) {
         return e.code();
     }
-    // m_consumed_desired_params_sp = {};
     return {};
 }
 

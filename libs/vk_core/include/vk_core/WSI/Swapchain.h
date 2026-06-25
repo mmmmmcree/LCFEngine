@@ -3,13 +3,12 @@
 #include <vulkan/vulkan.hpp>
 #include "WindowHandle.h"
 #include "resource_utils.h"
+#include "AtomicSnapshot.h"
 #include <array>
 #include <vector>
 #include <queue>
 #include <expected>
-#include "AtomicSnapshot.h"
 #include <atomic>
-#include <memory>
 #include <mutex>
 
 namespace lcf::vkc {
