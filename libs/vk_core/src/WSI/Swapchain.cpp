@@ -179,27 +179,25 @@ std::error_code Swapchain::present(
     vk::SemaphoreSubmitInfo wait_info,
     vk::ImageSubresourceLayers src_subresource_layers) noexcept
 {
-    //- yield to a pending resize before contending for the lock: a render-thread present()
-    //- must not block resize() (which runs on the window thread during a modal drag).
-    if (m_resize_pending.load(std::memory_order_acquire)) { return errc::present_skipped_for_resize; }
-    std::lock_guard lock(m_mutex);
-    //- cache this frame's input so resize() can replay it; new input always replaces.
-    m_cached_present_input = {src_offsets, src_image, image_lease, wait_info, src_subresource_layers};
+    m_cached_present_input_snapshot.update({src_offsets, src_image, image_lease, wait_info, src_subresource_layers});
+    if (m_resize_has_priority.load(std::memory_order_acquire)) { return errc::present_skipped_for_resize; }
+    std::lock_guard lock(m_present_mutex);
     return this->_present(src_offsets, src_image, std::move(image_lease), wait_info, src_subresource_layers);
 }
 
-std::error_code Swapchain::resize() noexcept
+std::error_code Swapchain::resizeToFit() noexcept
 {
-    //- signal render-thread present() to yield, then take the lock to replay the cached frame
-    //- at the new size synchronously (no black edge during the OS resize tick).
-    m_resize_pending.store(true, std::memory_order_release);
-    struct PendingGuard {
-        std::atomic<bool> & flag;
-        ~PendingGuard() { flag.store(false, std::memory_order_release); }
-    } guard {m_resize_pending};
-    std::lock_guard lock(m_mutex);
-    if (not m_cached_present_input.m_src_image) { return {}; }
-    auto & [src_offsets, src_image, image_lease, wait_info, src_subresource_layers] = m_cached_present_input;
+    struct AtomicSwitchFlagGuard 
+    {
+        ~AtomicSwitchFlagGuard() { m_switch_flag.store(false, std::memory_order_release); }
+        AtomicSwitchFlagGuard(std::atomic<bool> & switch_flag) : m_switch_flag(switch_flag) { m_switch_flag.store(true, std::memory_order_release); }
+       std::atomic<bool> & m_switch_flag;
+    };
+    AtomicSwitchFlagGuard guard {m_resize_has_priority};
+    std::lock_guard lock(m_present_mutex);
+    auto snapshot = m_cached_present_input_snapshot.load();
+    if (not snapshot or not snapshot->m_src_image) { return {}; }
+    auto & [src_offsets, src_image, image_lease, wait_info, src_subresource_layers] = *snapshot;
     return this->_present(src_offsets, src_image, image_lease, wait_info, src_subresource_layers);
 }
 

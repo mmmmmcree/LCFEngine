@@ -84,7 +84,7 @@ vkc::wsi::WindowHandle to_wsi_window_handle(const WindowHandle & window_handle) 
 bool on_window_event_watch(void * userdata, SDL_Event * event)
 {
     if (event->type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) {
-        static_cast<vkc::wsi::Swapchain *>(userdata)->resize();
+        static_cast<vkc::wsi::Swapchain *>(userdata)->resizeToFit();
     }
     return true;
 }
@@ -191,7 +191,7 @@ int main()
     std::thread render_thread([&] {
         static uint64_t frame = 0;
         while (running.load(std::memory_order_relaxed)) {
-            auto ec = swapchain.present(src_offsets, images[0]);
+            auto ec = swapchain.present(src_offsets, images[frame++ % 2]);
             if (not ec or ec == vkc::errc::surface_zero_size or ec == vkc::errc::present_skipped_for_resize) { continue; }
             lcf_log_error("present failed: {}", ec.message());
         }

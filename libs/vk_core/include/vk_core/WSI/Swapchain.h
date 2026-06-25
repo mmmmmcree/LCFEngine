@@ -68,7 +68,7 @@ public:
         ResourceLease image_lease = {},
         vk::SemaphoreSubmitInfo wait_info = {},
         vk::ImageSubresourceLayers src_subresource_layers = {vk::ImageAspectFlagBits::eColor, 0u, 0u, 1u}) noexcept;
-    std::error_code resize() noexcept;
+    std::error_code resizeToFit() noexcept;
     Self & setDesiredSwapchainImageCount(uint32_t desired_count) noexcept;
     Self & setDesiredSurfaceFormat(const vk::SurfaceFormatKHR & surface_format) noexcept;
     Self & setDesiredPresentMode(const vk::PresentModeKHR & present_mode) noexcept;
@@ -90,9 +90,9 @@ private:
     RenderDeviceContext * m_device_context_p;
     vk::UniqueSurfaceKHR m_surface;
     vk::UniqueSwapchainKHR m_swapchain;
-    std::mutex m_mutex;
-    std::atomic<bool> m_resize_pending {false};
-    CachedPresentInput m_cached_present_input;
+    std::mutex m_present_mutex;
+    std::atomic<bool> m_resize_has_priority = false;
+    AtomicSnapshot<CachedPresentInput> m_cached_present_input_snapshot;
     LatchedSnapshot<DesiredParams> m_desired_params_snapshot;
     vk::SurfaceFormatKHR m_surface_format;
     vk::PresentModeKHR m_present_mode;
