@@ -9,6 +9,7 @@
 #include <expected>
 #include <atomic>
 #include <memory>
+#include <mutex>
 
 namespace lcf::vkc {
 
@@ -35,6 +36,14 @@ class Swapchain
         vk::UniqueFence m_present_fence;
         std::vector<ResourceLease> m_leases;
     };
+    struct CachedPresentInput
+    {
+        std::array<vk::Offset3D, 2> m_src_offsets;
+        vk::Image m_src_image = nullptr;
+        ResourceLease m_src_lease;
+        vk::SemaphoreSubmitInfo wait_info;
+        vk::ImageSubresourceLayers m_src_subresource_layers;
+    };
     using ConstDesiredParamsSP = std::shared_ptr<const DesiredParams>;
     using CmdBufferPool = std::queue<vk::CommandBuffer>;
     using FencePool = std::queue<vk::UniqueFence>;
@@ -53,24 +62,22 @@ public:
         RenderDeviceContext & device_context,
         const WindowHandle & window_handle) noexcept;
     std::error_code present(
-        vk::SemaphoreSubmitInfo wait_info,
-        vk::Image src_image,
-        ResourceLease image_lease,
         const std::array<vk::Offset3D, 2> & src_offsets,
-        vk::ImageSubresourceLayers src_subresource_layers = {vk::ImageAspectFlagBits::eColor, 0u, 0u, 1u}) noexcept;
-    std::error_code present(
         vk::Image src_image,
-        ResourceLease image_lease,
-        const std::array<vk::Offset3D, 2> & src_offsets,
+        ResourceLease image_lease = {},
+        vk::SemaphoreSubmitInfo wait_info = {},
         vk::ImageSubresourceLayers src_subresource_layers = {vk::ImageAspectFlagBits::eColor, 0u, 0u, 1u}) noexcept;
-    std::error_code present(
-        vk::Image src_image,
-        const std::array<vk::Offset3D, 2> & src_offsets,
-        vk::ImageSubresourceLayers src_subresource_layers = {vk::ImageAspectFlagBits::eColor, 0u, 0u, 1u}) noexcept;
+    std::error_code resize() noexcept;
     Self & setDesiredSwapchainImageCount(uint32_t desired_count) noexcept;
     Self & setDesiredSurfaceFormat(const vk::SurfaceFormatKHR & surface_format) noexcept;
     Self & setDesiredPresentMode(const vk::PresentModeKHR & present_mode) noexcept;
 private:
+    std::error_code _present(
+        const std::array<vk::Offset3D, 2> & src_offsets,
+        vk::Image src_image,
+        ResourceLease image_lease,
+        vk::SemaphoreSubmitInfo wait_info,
+        vk::ImageSubresourceLayers src_subresource_layers) noexcept;
     std::error_code recreate(const DesiredParams & desired_params) noexcept;
     std::error_code acquireNextImage() noexcept;
     template <typename Mutator>
@@ -84,6 +91,9 @@ private:
     RenderDeviceContext * m_device_context_p;
     vk::UniqueSurfaceKHR m_surface;
     vk::UniqueSwapchainKHR m_swapchain;
+    std::mutex m_mutex;
+    std::atomic<bool> m_resize_pending {false};
+    CachedPresentInput m_cached_present_input;
     std::atomic<ConstDesiredParamsSP> m_provided_desired_params_asp = std::make_shared<const DesiredParams>();
     ConstDesiredParamsSP m_consumed_desired_params_sp;
     vk::SurfaceFormatKHR m_surface_format;

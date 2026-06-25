@@ -57,11 +57,11 @@ std::error_code Swapchain::create(
     return {};
 }
 
-std::error_code Swapchain::present(
-    vk::SemaphoreSubmitInfo wait_info,
+std::error_code Swapchain::_present(
+    const std::array<vk::Offset3D, 2> &src_offsets,
     vk::Image src_image,
     ResourceLease image_lease,
-    const std::array<vk::Offset3D, 2> &src_offsets,
+    vk::SemaphoreSubmitInfo wait_info,
     vk::ImageSubresourceLayers src_subresource_layers) noexcept
 {
     //- 1. check pre-conditions
@@ -130,15 +130,23 @@ std::error_code Swapchain::present(
     cmd.end();
 
     //- 4. submit cmd
-    vk::PipelineStageFlags wait_stage = vk::PipelineStageFlagBits::eTransfer;
-    vk::SubmitInfo submit_info;
-    submit_info.setWaitSemaphores(target_available.get())
-        .setWaitDstStageMask(wait_stage)
-        .setCommandBuffers(cmd)
-        .setSignalSemaphores(present_ready.get());
+    vk::SemaphoreSubmitInfo target_available_wait, present_ready_signal;
+    target_available_wait.setSemaphore(target_available.get())
+      .setStageMask(vk::PipelineStageFlagBits2::eBlit);
+    present_ready_signal.setSemaphore(present_ready.get())
+      .setStageMask(vk::PipelineStageFlagBits2::eBlit);
+    std::array<vk::SemaphoreSubmitInfo, 2> waits { target_available_wait, wait_info };
+    uint32_t wait_count = waits.size() - (not wait_info.semaphore);
+    vk::CommandBufferSubmitInfo cmd_submit_info {cmd};
+    vk::SubmitInfo2 submit;
+    submit.setWaitSemaphoreInfos(waits)
+        .setWaitSemaphoreInfoCount(wait_count)
+        .setCommandBufferInfos(cmd_submit_info)
+        .setSignalSemaphoreInfos(present_ready_signal);
+
     vk::Queue present_queue = m_device_context_p->getGraphicsQueueContext().getQueue();
     try {
-        present_queue.submit(submit_info);
+        present_queue.submit2(submit);
     } catch (const vk::SystemError & e) {
         this->recyclePresentResources(m_present_resources);
         return e.code();
@@ -167,20 +175,34 @@ std::error_code Swapchain::present(
 }
 
 std::error_code Swapchain::present(
+    const std::array<vk::Offset3D, 2> &src_offsets,
     vk::Image src_image,
     ResourceLease image_lease,
-    const std::array<vk::Offset3D, 2> &src_offsets,
+    vk::SemaphoreSubmitInfo wait_info,
     vk::ImageSubresourceLayers src_subresource_layers) noexcept
 {
-    return this->present({}, src_image, image_lease, src_offsets, src_subresource_layers);
+    //- yield to a pending resize before contending for the lock: a render-thread present()
+    //- must not block resize() (which runs on the window thread during a modal drag).
+    if (m_resize_pending.load(std::memory_order_acquire)) { return errc::present_skipped_for_resize; }
+    std::lock_guard lock(m_mutex);
+    //- cache this frame's input so resize() can replay it; new input always replaces.
+    m_cached_present_input = {src_offsets, src_image, image_lease, wait_info, src_subresource_layers};
+    return this->_present(src_offsets, src_image, std::move(image_lease), wait_info, src_subresource_layers);
 }
 
-std::error_code Swapchain::present(
-    vk::Image src_image,
-    const std::array<vk::Offset3D, 2> &src_offsets,
-    vk::ImageSubresourceLayers src_subresource_layers) noexcept
+std::error_code Swapchain::resize() noexcept
 {
-    return this->present({}, src_image, {}, src_offsets, src_subresource_layers);
+    //- signal render-thread present() to yield, then take the lock to replay the cached frame
+    //- at the new size synchronously (no black edge during the OS resize tick).
+    m_resize_pending.store(true, std::memory_order_release);
+    struct PendingGuard {
+        std::atomic<bool> & flag;
+        ~PendingGuard() { flag.store(false, std::memory_order_release); }
+    } guard {m_resize_pending};
+    std::lock_guard lock(m_mutex);
+    if (not m_cached_present_input.m_src_image) { return {}; }
+    auto & [src_offsets, src_image, image_lease, wait_info, src_subresource_layers] = m_cached_present_input;
+    return this->_present(src_offsets, src_image, image_lease, wait_info, src_subresource_layers);
 }
 
 std::error_code Swapchain::recreate(const DesiredParams & desired_params) noexcept

@@ -40,6 +40,8 @@ public:
                 return "a required device extension is not supported";
             case errc::missing_required_device_feature:
                 return "a required device feature is not supported";
+            case errc::present_skipped_for_resize:
+                return "present skipped: yielded to a pending resize";
             default:
                 return "unrecognized lcf::vkc error";
         }

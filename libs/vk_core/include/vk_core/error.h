@@ -20,6 +20,7 @@ enum class errc
     missing_required_instance_extension,
     missing_required_device_extension,
     missing_required_device_feature,
+    present_skipped_for_resize,
 };
 
 std::error_code make_error_code(errc error) noexcept;

@@ -80,6 +80,15 @@ WindowHandle make_window_handle(SDL_Window * window_p) noexcept;
 
 vkc::wsi::WindowHandle to_wsi_window_handle(const WindowHandle & window_handle) noexcept;
 
+//- delivered synchronously during a Win32 modal resize drag, where the main PollEvent loop is blocked.
+bool on_window_event_watch(void * userdata, SDL_Event * event)
+{
+    if (event->type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) {
+        static_cast<vkc::wsi::Swapchain *>(userdata)->resize();
+    }
+    return true;
+}
+
 // A 1x1 device-local image cleared to white, left in eTransferSrcOptimal so it
 // can be used as the blit source for Swapchain::present.
 struct WhiteImage
@@ -88,7 +97,7 @@ struct WhiteImage
     vk::UniqueDeviceMemory m_memory;
 };
 
-std::optional<WhiteImage> create_white_image(vkc::RenderDeviceContext & device_context) noexcept;
+std::optional<WhiteImage> create_white_image(vkc::RenderDeviceContext & device_context, const std::array<float, 4> &color) noexcept;
 
 
 int main()
@@ -161,19 +170,29 @@ int main()
     }
     lcf_log_info("Swapchain created successfully.");
 
-    auto white_image_opt = create_white_image(render_device_context);
-    if (not white_image_opt) {
+    auto white_image_opt = create_white_image(render_device_context, {1.0f, 1.0f, 1.0f, 1.0f});
+    auto black_image_opt = create_white_image(render_device_context, {1.0f, 0.0f, 0.0f, 1.0f});
+    if (not white_image_opt or not black_image_opt) {
         lcf_log_error("Failed to create white source image.");
         return 1;
     }
     vk::Image white_image = white_image_opt->m_image.get();
+    vk::Image black_image = black_image_opt->m_image.get();
+    std::array<vk::Image, 2> images = {white_image, black_image};
     const std::array<vk::Offset3D, 2> src_offsets {{ {0, 0, 0}, {1, 1, 1} }};
+
+    //- resize during a Win32 modal drag is only delivered through an event watch (the main
+    //- PollEvent loop is blocked). resize() replays the cached frame at the new size synchronously,
+    //- so the new content reaches DWM on the same tick the OS grows the window (no black edge).
+    //- swapchain serializes resize() and the render thread's present() via its internal mutex.
+    SDL_AddEventWatch(on_window_event_watch, &swapchain);
 
     std::atomic<bool> running {true};
     std::thread render_thread([&] {
+        static uint64_t frame = 0;
         while (running.load(std::memory_order_relaxed)) {
-            auto ec = swapchain.present(white_image, src_offsets);
-            if (not ec or ec == vkc::errc::surface_zero_size) { continue; }
+            auto ec = swapchain.present(src_offsets, images[0]);
+            if (not ec or ec == vkc::errc::surface_zero_size or ec == vkc::errc::present_skipped_for_resize) { continue; }
             lcf_log_error("present failed: {}", ec.message());
         }
     });
@@ -188,6 +207,7 @@ int main()
     }
 
     render_thread.join();
+    SDL_RemoveEventWatch(on_window_event_watch, &swapchain);
     render_device_context.getDevice().waitIdle();
     SDL_DestroyWindow(window_p);
     SDL_Quit();
@@ -231,7 +251,7 @@ vkc::wsi::WindowHandle to_wsi_window_handle(const WindowHandle & window_handle) 
     }, window_handle);
 }
 
-std::optional<WhiteImage> create_white_image(vkc::RenderDeviceContext & device_context) noexcept
+std::optional<WhiteImage> create_white_image(vkc::RenderDeviceContext & device_context, const std::array<float, 4> & color) noexcept
 {
     vk::Device device = device_context.getDevice();
     vk::PhysicalDevice physical_device = device_context.getPhysicalDevice();
@@ -285,7 +305,7 @@ std::optional<WhiteImage> create_white_image(vkc::RenderDeviceContext & device_c
             .setSrcAccessMask(vk::AccessFlagBits::eTransferWrite)
             .setDstAccessMask(vk::AccessFlagBits::eTransferRead);
 
-        vk::ClearColorValue white_color {std::array<float, 4>{1.0f, 1.0f, 1.0f, 1.0f}};
+        vk::ClearColorValue white_color {color};
         cmd.begin(vk::CommandBufferBeginInfo(vk::CommandBufferUsageFlagBits::eOneTimeSubmit));
         cmd.pipelineBarrier(
             vk::PipelineStageFlagBits::eTopOfPipe,
