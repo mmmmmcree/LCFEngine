@@ -64,7 +64,7 @@ std::error_code Swapchain::_present(
 {
     //- 1. check pre-conditions
     //- consider this if condition as a dirty flag, swapchain becomes dirty after first creation or any change in desired params
-    if (auto snapshot = m_desired_params_snapshot.consumeIfChanged()) {
+    if (auto snapshot = m_desired_params_snapshot.loadIfChanged()) {
         if (auto ec = this->recreate(*snapshot)) { return ec; }
     }
     if (auto ec = this->acquireNextImage()) { return ec; }
@@ -285,7 +285,7 @@ std::error_code Swapchain::acquireNextImage() noexcept
     } catch (const vk::OutOfDateKHRError &) {
         m_semaphore_pool.emplace(std::move(target_available));
         //- m_consumed_desired_params_sp is guaranteed non-null here (set by present()'s precondition block)
-        if (auto ec = this->recreate(m_desired_params_snapshot.consumed().value())) { return ec; }
+        if (auto ec = this->recreate(m_desired_params_snapshot.read().value())) { return ec; }
         return this->acquireNextImage();
     } catch (const vk::SystemError & e) {
         m_semaphore_pool.emplace(std::move(target_available));
