@@ -185,10 +185,16 @@ int main()
     std::thread render_thread([&] {
         static uint64_t frame = 0;
         while (running.load(std::memory_order_relaxed)) {
-            auto ec = swapchain.present(images[frame++ % 2], src_offsets);
+            auto ec = swapchain.present(src_offsets, images[frame++ % 2]);
             if (not ec or ec == vkc::errc::surface_zero_size or ec == vkc::errc::present_skipped_for_resize) { continue; }
             lcf_log_error("present failed: {}", ec.message());
         }
+    });
+
+    glfwSetWindowUserPointer(window_p, &swapchain);
+    glfwSetFramebufferSizeCallback(window_p, [](GLFWwindow * window, int, int) {
+        auto * swapchain_p = static_cast<vkc::wsi::compat::Swapchain *>(glfwGetWindowUserPointer(window));
+        if (auto ec = swapchain_p->resizeToFit()) { lcf_log_error("resizeToFit failed: {}", ec.message()); }
     });
 
     while (running.load(std::memory_order_relaxed)) {

@@ -3,12 +3,14 @@
 #include <vulkan/vulkan.hpp>
 #include "vk_core/WSI/WindowHandle.h"
 #include "resource_utils.h"
+#include "AtomicSnapshot.h"
+#include "SPSCValue.h"
 #include <array>
 #include <vector>
 #include <queue>
 #include <expected>
 #include <atomic>
-#include <memory>
+#include <mutex>
 
 namespace lcf::vkc {
 
@@ -34,7 +36,14 @@ class Swapchain
         vk::UniqueFence m_submit_fence;
         std::vector<ResourceLease> m_leases;
     };
-    using ConstDesiredParamsSP = std::shared_ptr<const DesiredParams>;
+    struct CachedPresentInput
+    {
+        std::array<vk::Offset3D, 2> m_src_offsets;
+        vk::Image m_src_image = nullptr;
+        ResourceLease m_src_lease;
+        vk::SemaphoreSubmitInfo wait_info;
+        vk::ImageSubresourceLayers m_src_subresource_layers;
+    };
     using CmdBufferPool = std::queue<vk::CommandBuffer>;
     using FencePool = std::queue<vk::UniqueFence>;
     using SemaphorePool = std::queue<vk::UniqueSemaphore>;
@@ -53,28 +62,24 @@ public:
         RenderDeviceContext & device_context,
         const WindowHandle & window_handle) noexcept;
     std::error_code present(
-        vk::SemaphoreSubmitInfo wait_info,
-        vk::Image src_image,
-        ResourceLease image_lease,
         const std::array<vk::Offset3D, 2> & src_offsets,
-        vk::ImageSubresourceLayers src_subresource_layers = {vk::ImageAspectFlagBits::eColor, 0u, 0u, 1u}) noexcept;
-    std::error_code present(
         vk::Image src_image,
-        ResourceLease image_lease,
-        const std::array<vk::Offset3D, 2> & src_offsets,
+        ResourceLease image_lease = {},
+        vk::SemaphoreSubmitInfo wait_info = {},
         vk::ImageSubresourceLayers src_subresource_layers = {vk::ImageAspectFlagBits::eColor, 0u, 0u, 1u}) noexcept;
-    std::error_code present(
-        vk::Image src_image,
-        const std::array<vk::Offset3D, 2> & src_offsets,
-        vk::ImageSubresourceLayers src_subresource_layers = {vk::ImageAspectFlagBits::eColor, 0u, 0u, 1u}) noexcept;
+    std::error_code resizeToFit() noexcept;
     Self & setDesiredSwapchainImageCount(uint32_t desired_count) noexcept;
     Self & setDesiredSurfaceFormat(const vk::SurfaceFormatKHR & surface_format) noexcept;
     Self & setDesiredPresentMode(const vk::PresentModeKHR & present_mode) noexcept;
 private:
+    std::error_code _present(
+        const std::array<vk::Offset3D, 2> & src_offsets,
+        vk::Image src_image,
+        ResourceLease image_lease,
+        vk::SemaphoreSubmitInfo wait_info,
+        vk::ImageSubresourceLayers src_subresource_layers) noexcept;
     std::error_code recreate(const DesiredParams & desired_params) noexcept;
     std::error_code acquireNextImage() noexcept;
-    template <typename Mutator>
-    Self & updateDesired(Mutator && mutator) noexcept;
     std::expected<vk::CommandBuffer, std::error_code> acquireCmdBuffer() noexcept;
     std::expected<vk::UniqueFence, std::error_code> acquireFence() noexcept;
     std::expected<vk::UniqueSemaphore, std::error_code> acquireSemaphore() noexcept;
@@ -84,20 +89,22 @@ private:
     RenderDeviceContext * m_device_context_p;
     vk::UniqueSurfaceKHR m_surface;
     vk::UniqueSwapchainKHR m_swapchain;
-    std::atomic<ConstDesiredParamsSP> m_provided_desired_params_asp = std::make_shared<const DesiredParams>();
-    ConstDesiredParamsSP m_consumed_desired_params_sp;
+    ImageList m_swapchain_images;
     vk::SurfaceFormatKHR m_surface_format;
     vk::PresentModeKHR m_present_mode;
     uint32_t m_width = 0u, m_height = 0u;
     uint32_t m_image_index = 0u;
-    ImageList m_swapchain_images;
+    SPSCValue<CachedPresentInput> m_cached_present_input;
+    LatchedSnapshot<DesiredParams> m_desired_params_snapshot;
     SemaphoreList m_present_ready_semaphores;
-    PresentResources m_present_resources;
-    PendingResourcesQueue m_pending_resources_queue;
+    std::mutex m_present_mutex;
+    std::atomic<bool> m_resize_has_priority = false;
     vk::UniqueCommandPool m_cmd_pool;
     CmdBufferPool m_cmd_buffer_pool;
     FencePool m_fence_pool;
     SemaphorePool m_semaphore_pool;
+    PresentResources m_present_resources;
+    PendingResourcesQueue m_pending_resources_queue;
 };
 
 } // namespace lcf::vkc::wsi::compat
