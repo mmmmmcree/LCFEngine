@@ -64,7 +64,7 @@ std::error_code Swapchain::_present(
 {
     //- 1. check pre-conditions
     //- consider this if condition as a dirty flag, swapchain becomes dirty after first creation or any change in desired params
-    if (auto snapshot = m_desired_params_snapshot.consumeIfChanged()) {
+    if (auto snapshot = m_desired_params_snapshot.loadIfChanged()) {
         if (auto ec = this->recreate(*snapshot)) { return ec; }
     }
     if (auto ec = this->acquireNextImage()) { return ec; }
@@ -166,8 +166,10 @@ std::error_code Swapchain::_present(
     //- 6. recycle resources
     m_pending_resources_queue.emplace(std::exchange(m_present_resources, {}));
     this->tryRecyclePendingResources();
-    if (present_result == vk::Result::eSuccess or present_result == vk::Result::eSuboptimalKHR) { return {}; }
-    return vk::make_error_code(present_result);
+    if (present_result == vk::Result::eSuboptimalKHR) {
+        return this->recreate(m_desired_params_snapshot.read().value());
+    }
+    return present_result;
 }
 
 std::error_code Swapchain::present(
@@ -177,7 +179,7 @@ std::error_code Swapchain::present(
     vk::SemaphoreSubmitInfo wait_info,
     vk::ImageSubresourceLayers src_subresource_layers) noexcept
 {
-    m_cached_present_input_snapshot.update({src_offsets, src_image, image_lease, wait_info, src_subresource_layers});
+    m_cached_present_input.write({src_offsets, src_image, image_lease, wait_info, src_subresource_layers});
     if (m_resize_has_priority.load(std::memory_order_acquire)) { return errc::present_skipped_for_resize; }
     std::lock_guard lock(m_present_mutex);
     return this->_present(src_offsets, src_image, std::move(image_lease), wait_info, src_subresource_layers);
@@ -193,9 +195,8 @@ std::error_code Swapchain::resizeToFit() noexcept
     };
     AtomicSwitchFlagGuard guard {m_resize_has_priority};
     std::lock_guard lock(m_present_mutex);
-    auto snapshot = m_cached_present_input_snapshot.load();
-    if (not snapshot or not snapshot->m_src_image) { return {}; }
-    auto & [src_offsets, src_image, image_lease, wait_info, src_subresource_layers] = *snapshot;
+    auto [src_offsets, src_image, image_lease, wait_info, src_subresource_layers] = m_cached_present_input.read();
+    if (not src_image) { return {}; }
     return this->_present(src_offsets, src_image, image_lease, wait_info, src_subresource_layers);
 }
 
@@ -285,7 +286,7 @@ std::error_code Swapchain::acquireNextImage() noexcept
     } catch (const vk::OutOfDateKHRError &) {
         m_semaphore_pool.emplace(std::move(target_available));
         //- m_consumed_desired_params_sp is guaranteed non-null here (set by present()'s precondition block)
-        if (auto ec = this->recreate(m_desired_params_snapshot.consumed().value())) { return ec; }
+        if (auto ec = this->recreate(m_desired_params_snapshot.read().value())) { return ec; }
         return this->acquireNextImage();
     } catch (const vk::SystemError & e) {
         m_semaphore_pool.emplace(std::move(target_available));

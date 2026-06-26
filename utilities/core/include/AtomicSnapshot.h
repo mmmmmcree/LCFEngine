@@ -91,8 +91,8 @@ public:
     requires std::default_initializable<T>
     void update(member_pointer_member_t<MemberPtr> value) noexcept { m_source.template update<MemberPtr>(std::move(value)); }
     Snapshot load() const noexcept { return m_source.load(); }
-    Snapshot consumed() const noexcept { return m_consumed; }
-    Snapshot consumeIfChanged() noexcept
+    Snapshot read() const noexcept { return m_consumed; }
+    Snapshot loadIfChanged() noexcept
     {
         Snapshot latest = m_source.load();
         if (latest == m_consumed) { return {}; }

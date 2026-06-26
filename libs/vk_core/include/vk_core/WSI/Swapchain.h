@@ -4,6 +4,7 @@
 #include "WindowHandle.h"
 #include "resource_utils.h"
 #include "AtomicSnapshot.h"
+#include "SPSCValue.h"
 #include <array>
 #include <vector>
 #include <queue>
@@ -95,7 +96,7 @@ private:
     uint32_t m_width = 0u, m_height = 0u;
     uint32_t m_image_index = 0u;
     LatchedSnapshot<DesiredParams> m_desired_params_snapshot;
-    AtomicSnapshot<CachedPresentInput> m_cached_present_input_snapshot;
+    SPSCValue<CachedPresentInput> m_cached_present_input;
     std::mutex m_present_mutex;
     std::atomic<bool> m_resize_has_priority = false;
     vk::UniqueCommandPool m_cmd_pool;

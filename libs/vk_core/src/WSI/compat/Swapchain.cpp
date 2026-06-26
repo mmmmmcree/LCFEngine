@@ -45,23 +45,20 @@ std::error_code Swapchain::create(
     } catch (vk::SystemError &e) {
         return e.code();
     }
-    m_consumed_desired_params_sp = {};
     return {};
 }
 
-std::error_code Swapchain::present(
-    vk::SemaphoreSubmitInfo wait_info,
+std::error_code Swapchain::_present(
+    const std::array<vk::Offset3D, 2> &src_offsets,
     vk::Image src_image,
     ResourceLease image_lease,
-    const std::array<vk::Offset3D, 2> &src_offsets,
+    vk::SemaphoreSubmitInfo wait_info,
     vk::ImageSubresourceLayers src_subresource_layers) noexcept
 {
     //- 1. check pre-conditions
     //- consider this if condition as a dirty flag, swapchain becomes dirty after first creation or any change in desired params
-    auto desired_params_sp = m_provided_desired_params_asp.load(std::memory_order_acquire);
-    if (desired_params_sp != m_consumed_desired_params_sp) {
-        if (auto ec = this->recreate(*desired_params_sp)) { return ec; }
-        m_consumed_desired_params_sp = std::move(desired_params_sp);
+    if (auto snapshot = m_desired_params_snapshot.loadIfChanged()) {
+        if (auto ec = this->recreate(*snapshot)) { return ec; }
     }
     //- 2. fill m_present_resources
     if (auto ec = this->acquireNextImage()) { return ec; }
@@ -117,10 +114,13 @@ std::error_code Swapchain::present(
     cmd.end();
 
     //- 4. submit cmd
-    vk::PipelineStageFlags wait_stage = vk::PipelineStageFlagBits::eTransfer;
+    std::array<vk::Semaphore, 2> wait_semaphores { target_available, wait_info.semaphore };
+    std::array<vk::PipelineStageFlags, 2> wait_stages { vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer };
+    uint32_t wait_count = wait_info.semaphore ? 2u : 1u;
     vk::SubmitInfo submit_info;
-    submit_info.setWaitSemaphores(target_available)
-        .setWaitDstStageMask(wait_stage)
+    submit_info.setWaitSemaphoreCount(wait_count)
+        .setPWaitSemaphores(wait_semaphores.data())
+        .setPWaitDstStageMask(wait_stages.data())
         .setCommandBuffers(cmd)
         .setSignalSemaphores(present_ready);
     vk::Queue present_queue = m_device_context_p->getGraphicsQueueContext().getQueue();
@@ -151,20 +151,31 @@ std::error_code Swapchain::present(
 }
 
 std::error_code Swapchain::present(
+    const std::array<vk::Offset3D, 2> &src_offsets,
     vk::Image src_image,
     ResourceLease image_lease,
-    const std::array<vk::Offset3D, 2> &src_offsets,
+    vk::SemaphoreSubmitInfo wait_info,
     vk::ImageSubresourceLayers src_subresource_layers) noexcept
 {
-    return this->present({}, src_image, image_lease, src_offsets, src_subresource_layers);
+    m_cached_present_input.write({src_offsets, src_image, image_lease, wait_info, src_subresource_layers});
+    if (m_resize_has_priority.load(std::memory_order_acquire)) { return errc::present_skipped_for_resize; }
+    std::lock_guard lock(m_present_mutex);
+    return this->_present(src_offsets, src_image, std::move(image_lease), wait_info, src_subresource_layers);
 }
 
-std::error_code Swapchain::present(
-    vk::Image src_image,
-    const std::array<vk::Offset3D, 2> &src_offsets,
-    vk::ImageSubresourceLayers src_subresource_layers) noexcept
+std::error_code Swapchain::resizeToFit() noexcept
 {
-    return this->present({}, src_image, {}, src_offsets, src_subresource_layers);
+    struct AtomicSwitchFlagGuard
+    {
+        ~AtomicSwitchFlagGuard() { m_switch_flag.store(false, std::memory_order_release); }
+        AtomicSwitchFlagGuard(std::atomic<bool> & switch_flag) : m_switch_flag(switch_flag) { m_switch_flag.store(true, std::memory_order_release); }
+        std::atomic<bool> & m_switch_flag;
+    };
+    AtomicSwitchFlagGuard guard {m_resize_has_priority};
+    std::lock_guard lock(m_present_mutex);
+    auto [src_offsets, src_image, image_lease, wait_info, src_subresource_layers] = m_cached_present_input.read();
+    if (not src_image) { return {}; }
+    return this->_present(src_offsets, src_image, image_lease, wait_info, src_subresource_layers);
 }
 
 std::error_code Swapchain::recreate(const DesiredParams & desired_params) noexcept
@@ -262,8 +273,8 @@ std::error_code Swapchain::acquireNextImage() noexcept
             target_available.get(), nullptr);
     } catch (const vk::OutOfDateKHRError &) {
         m_semaphore_pool.emplace(std::move(target_available));
-        //- m_consumed_desired_params_sp is guaranteed non-null here (set by present()'s precondition block)
-        if (auto ec = this->recreate(*m_consumed_desired_params_sp)) { return ec; }
+        //- m_consumed is guaranteed non-null here (set by _present()'s precondition block)
+        if (auto ec = this->recreate(m_desired_params_snapshot.read().value())) { return ec; }
         return this->acquireNextImage();
     } catch (const vk::SystemError & e) {
         m_semaphore_pool.emplace(std::move(target_available));
@@ -353,34 +364,22 @@ std::expected<vk::UniqueSemaphore, std::error_code> Swapchain::acquireSemaphore(
     return semaphore;
 }
 
-template <typename Mutator>
-auto Swapchain::updateDesired(Mutator && mutator) noexcept -> Self &
-{
-    auto current = m_provided_desired_params_asp.load(std::memory_order_acquire);
-    while (true) {
-        auto next = std::make_shared<DesiredParams>(*current);
-        mutator(*next);
-        if (*next == *current) { return *this; }
-        if (m_provided_desired_params_asp.compare_exchange_weak(
-            current, std::move(next),
-            std::memory_order_release, std::memory_order_acquire)) { return *this; }
-    }
-    return *this;
-}
-
 auto Swapchain::setDesiredSwapchainImageCount(uint32_t desired_count) noexcept -> Self &
 {
-    return this->updateDesired([&](DesiredParams & p) { p.image_count = desired_count; });
+    m_desired_params_snapshot.template update<&DesiredParams::image_count>(desired_count);
+    return *this;
 }
 
 auto Swapchain::setDesiredSurfaceFormat(const vk::SurfaceFormatKHR &surface_format) noexcept -> Self &
 {
-    return this->updateDesired([&](DesiredParams & p) { p.surface_format = surface_format; });
+    m_desired_params_snapshot.template update<&DesiredParams::surface_format>(surface_format);
+    return *this;
 }
 
 auto Swapchain::setDesiredPresentMode(const vk::PresentModeKHR &present_mode) noexcept -> Self &
 {
-    return this->updateDesired([&](DesiredParams & p) { p.present_mode = present_mode; });
+    m_desired_params_snapshot.template update<&DesiredParams::present_mode>(present_mode);
+    return *this;
 }
 
 } // namespace lcf::vkc::wsi::compat
