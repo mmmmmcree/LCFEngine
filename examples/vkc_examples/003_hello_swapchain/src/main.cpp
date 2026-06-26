@@ -89,15 +89,13 @@ bool on_window_event_watch(void * userdata, SDL_Event * event)
     return true;
 }
 
-// A 1x1 device-local image cleared to white, left in eTransferSrcOptimal so it
-// can be used as the blit source for Swapchain::present.
-struct WhiteImage
+struct SingleColorImage
 {
     vk::UniqueImage m_image;
     vk::UniqueDeviceMemory m_memory;
 };
 
-std::optional<WhiteImage> create_white_image(vkc::RenderDeviceContext & device_context, const std::array<float, 4> &color) noexcept;
+std::optional<SingleColorImage> create_single_color_image(vkc::RenderDeviceContext & device_context, const std::array<float, 4> &color) noexcept;
 
 
 int main()
@@ -170,15 +168,15 @@ int main()
     }
     lcf_log_info("Swapchain created successfully.");
 
-    auto white_image_opt = create_white_image(render_device_context, {1.0f, 1.0f, 1.0f, 1.0f});
-    auto black_image_opt = create_white_image(render_device_context, {1.0f, 0.0f, 0.0f, 1.0f});
-    if (not white_image_opt or not black_image_opt) {
-        lcf_log_error("Failed to create white source image.");
+    auto white_image_opt = create_single_color_image(render_device_context, {1.0f, 1.0f, 1.0f, 1.0f});
+    auto red_image_opt = create_single_color_image(render_device_context, {1.0f, 0.0f, 0.0f, 1.0f});
+    if (not white_image_opt or not red_image_opt) {
+        lcf_log_error("Failed to create image source image.");
         return 1;
     }
     vk::Image white_image = white_image_opt->m_image.get();
-    vk::Image black_image = black_image_opt->m_image.get();
-    std::array<vk::Image, 2> images = {white_image, black_image};
+    vk::Image red_image = red_image_opt->m_image.get();
+    std::array<vk::Image, 2> images = {white_image, red_image};
     const std::array<vk::Offset3D, 2> src_offsets {{ {0, 0, 0}, {1, 1, 1} }};
 
     //- resize during a Win32 modal drag is only delivered through an event watch (the main
@@ -251,14 +249,14 @@ vkc::wsi::WindowHandle to_wsi_window_handle(const WindowHandle & window_handle) 
     }, window_handle);
 }
 
-std::optional<WhiteImage> create_white_image(vkc::RenderDeviceContext & device_context, const std::array<float, 4> & color) noexcept
+std::optional<SingleColorImage> create_single_color_image(vkc::RenderDeviceContext & device_context, const std::array<float, 4> & color) noexcept
 {
     vk::Device device = device_context.getDevice();
     vk::PhysicalDevice physical_device = device_context.getPhysicalDevice();
     uint32_t gfx_family = device_context.getGraphicsQueueContext().getFamilyIndex();
     vk::Queue gfx_queue = device_context.getGraphicsQueueContext().getQueue();
 
-    WhiteImage white;
+    SingleColorImage image;
     try {
         vk::ImageCreateInfo image_info;
         image_info.setImageType(vk::ImageType::e2D)
@@ -270,9 +268,9 @@ std::optional<WhiteImage> create_white_image(vkc::RenderDeviceContext & device_c
             .setTiling(vk::ImageTiling::eOptimal)
             .setUsage(vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc)
             .setInitialLayout(vk::ImageLayout::eUndefined);
-        white.m_image = device.createImageUnique(image_info);
+        image.m_image = device.createImageUnique(image_info);
 
-        vk::MemoryRequirements req = device.getImageMemoryRequirements(white.m_image.get());
+        vk::MemoryRequirements req = device.getImageMemoryRequirements(image.m_image.get());
         vk::PhysicalDeviceMemoryProperties mem_props = physical_device.getMemoryProperties();
         uint32_t mem_type_index = UINT32_MAX;
         for (uint32_t i = 0; i < mem_props.memoryTypeCount; ++i) {
@@ -284,21 +282,21 @@ std::optional<WhiteImage> create_white_image(vkc::RenderDeviceContext & device_c
             lcf_log_error("No device-local memory type for white image.");
             return std::nullopt;
         }
-        white.m_memory = device.allocateMemoryUnique({req.size, mem_type_index});
-        device.bindImageMemory(white.m_image.get(), white.m_memory.get(), 0);
+        image.m_memory = device.allocateMemoryUnique({req.size, mem_type_index});
+        device.bindImageMemory(image.m_image.get(), image.m_memory.get(), 0);
         // one-time submit: undefined -> transferDst, clear white, transferDst -> transferSrc
         vk::UniqueCommandPool pool = device.createCommandPoolUnique({vk::CommandPoolCreateFlagBits::eTransient, gfx_family});
         vk::CommandBuffer cmd = device.allocateCommandBuffers({pool.get(), vk::CommandBufferLevel::ePrimary, 1u}).front();
 
         vk::ImageSubresourceRange range {vk::ImageAspectFlagBits::eColor, 0u, 1u, 0u, 1u};
         vk::ImageMemoryBarrier to_dst, to_src;
-        to_dst.setImage(white.m_image.get())
+        to_dst.setImage(image.m_image.get())
             .setOldLayout(vk::ImageLayout::eUndefined)
             .setNewLayout(vk::ImageLayout::eTransferDstOptimal)
             .setSubresourceRange(range)
             .setSrcAccessMask(vk::AccessFlagBits::eNone)
             .setDstAccessMask(vk::AccessFlagBits::eTransferWrite);
-        to_src.setImage(white.m_image.get())
+        to_src.setImage(image.m_image.get())
             .setOldLayout(vk::ImageLayout::eTransferDstOptimal)
             .setNewLayout(vk::ImageLayout::eTransferSrcOptimal)
             .setSubresourceRange(range)
@@ -311,7 +309,7 @@ std::optional<WhiteImage> create_white_image(vkc::RenderDeviceContext & device_c
             vk::PipelineStageFlagBits::eTopOfPipe,
             vk::PipelineStageFlagBits::eTransfer,
             {}, {}, {}, to_dst);
-        cmd.clearColorImage(white.m_image.get(), vk::ImageLayout::eTransferDstOptimal, white_color, range);
+        cmd.clearColorImage(image.m_image.get(), vk::ImageLayout::eTransferDstOptimal, white_color, range);
         cmd.pipelineBarrier(
             vk::PipelineStageFlagBits::eTransfer,
             vk::PipelineStageFlagBits::eTransfer,
@@ -329,5 +327,5 @@ std::optional<WhiteImage> create_white_image(vkc::RenderDeviceContext & device_c
         lcf_log_error("create_white_image failed: {}", e.what());
         return std::nullopt;
     }
-    return white;
+    return image;
 }
