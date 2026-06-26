@@ -125,7 +125,7 @@ int main()
 
     vkc::bs::PhysicalDeviceSelectInfo physical_device_select_info;
     physical_device_select_info.setRequiredDeviceExtensionManifest(device_ext_manifest)
-        .setPreferredType(vk::PhysicalDeviceType::eDiscreteGpu);
+        .setPreferredType(vk::PhysicalDeviceType::eIntegratedGpu);
     vkc::DeviceContextCreateInfo device_context_info;
     device_context_info.setRequiredDeviceExtensionManifest(device_ext_manifest)
         .setPhysicalDeviceSelectInfo(physical_device_select_info);

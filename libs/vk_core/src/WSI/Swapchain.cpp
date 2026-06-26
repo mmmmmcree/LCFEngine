@@ -22,7 +22,7 @@ void register_swapchain(DeviceExtensionManifest & manifest) noexcept
     };
     static constexpr std::array k_features
     {
-        LCF_VKC_UTILS_FEATURE_BIT(&vk::PhysicalDeviceSwapchainMaintenance1FeaturesEXT::swapchainMaintenance1),
+        LCF_VKC_UTILS_FEATURE_BIT(&vk::PhysicalDeviceSwapchainMaintenance1FeaturesKHR::swapchainMaintenance1),
         LCF_VKC_UTILS_FEATURE_BIT(&vk::PhysicalDeviceVulkan13Features::synchronization2),
     };
     manifest.addRequiredExtensions(k_extensions)
