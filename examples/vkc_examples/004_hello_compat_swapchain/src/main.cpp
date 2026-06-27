@@ -96,14 +96,18 @@ int main()
         return 1;
     }
 
-    //- window must outlive the swapchain (the surface is built from its native
-    //- handle), so it is declared first and destroyed last.
+    win::WindowCreateInfo window_info;
+    window_info.setTitle("hello compat swapchain");
     win::Window window;
-    if (auto ec = window.create(win::WindowCreateInfo("hello compat swapchain"))) {
+    if (auto ec = window.create(window_info)) {
         lcf_log_error("Failed to create window: {}", ec.message());
         return 1;
     }
-    window.show();
+
+    if (auto ec = window.show()) {
+        lcf_log_error("Failed to show window: {}", ec.message());
+        return 1;
+    }
 
     vkc::wsi::WindowHandle wsi_window_handle = to_wsi_window_handle(window.handle());
     vkc::wsi::compat::Swapchain swapchain;
