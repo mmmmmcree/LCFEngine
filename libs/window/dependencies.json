@@ -1,0 +1,6 @@
+{
+  "dependencies": [
+    { "name": "sdl3", "condition": "LCF_WINDOW_BACKEND STREQUAL SDL3" },
+    { "name": "glfw3", "condition": "LCF_WINDOW_BACKEND STREQUAL GLFW" }
+  ]
+}
