@@ -74,7 +74,7 @@ std::expected<Buffer, std::error_code> RenderDeviceContext::createBuffer(const v
     if (not expected_memory) { return std::unexpected {expected_memory.error()}; }
     vk::DeviceAddress device_address = 0;
     if (m_allocator.isBufferDeviceAddressEnabled() and (buffer_info.usage & vk::BufferUsageFlagBits::eShaderDeviceAddress)) {
-        device_address = m_device->getBufferAddress({expected_memory->getHandle()});
+        device_address = m_device->getBufferAddress({expected_memory->handle()});
     }
     return Buffer {std::move(*expected_memory), device_address};
 }

@@ -10,6 +10,8 @@
 #include "vk_core/context/InstanceContext.h"
 #include "vk_core/context/RenderDeviceContext.h"
 #include "vk_core/context/QueueContext.h"
+#include "vk_core/memory/MemoryAllocationInfo.h"
+#include "vk_core/memory/Image.h"
 #include "vk_core/error.h"
 #include <SDL3/SDL.h>
 #include <atomic>
@@ -89,13 +91,7 @@ bool on_window_event_watch(void * userdata, SDL_Event * event)
     return true;
 }
 
-struct SingleColorImage
-{
-    vk::UniqueImage m_image;
-    vk::UniqueDeviceMemory m_memory;
-};
-
-std::optional<SingleColorImage> create_single_color_image(vkc::RenderDeviceContext & device_context, const std::array<float, 4> &color) noexcept;
+std::optional<vkc::Image> create_single_color_image(vkc::RenderDeviceContext & device_context, const std::array<float, 4> &color) noexcept;
 
 
 int main()
@@ -174,8 +170,9 @@ int main()
         lcf_log_error("Failed to create image source image.");
         return 1;
     }
-    vk::Image white_image = white_image_opt->m_image.get();
-    vk::Image red_image = red_image_opt->m_image.get();
+    auto & white_image = *white_image_opt;
+    auto & red_image = *red_image_opt;
+    
     std::array<vk::Image, 2> images = {white_image, red_image};
     const std::array<vk::Offset3D, 2> src_offsets {{ {0, 0, 0}, {1, 1, 1} }};
 
@@ -249,14 +246,14 @@ vkc::wsi::WindowHandle to_wsi_window_handle(const WindowHandle & window_handle) 
     }, window_handle);
 }
 
-std::optional<SingleColorImage> create_single_color_image(vkc::RenderDeviceContext & device_context, const std::array<float, 4> & color) noexcept
+std::optional<vkc::Image> create_single_color_image(vkc::RenderDeviceContext & device_context, const std::array<float, 4> & color) noexcept
 {
     vk::Device device = device_context.getDevice();
     vk::PhysicalDevice physical_device = device_context.getPhysicalDevice();
     uint32_t gfx_family = device_context.getGraphicsQueueContext().getFamilyIndex();
     vk::Queue gfx_queue = device_context.getGraphicsQueueContext().getQueue();
 
-    SingleColorImage image;
+    vkc::Image image;
     try {
         vk::ImageCreateInfo image_info;
         image_info.setImageType(vk::ImageType::e2D)
@@ -268,48 +265,38 @@ std::optional<SingleColorImage> create_single_color_image(vkc::RenderDeviceConte
             .setTiling(vk::ImageTiling::eOptimal)
             .setUsage(vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc)
             .setInitialLayout(vk::ImageLayout::eUndefined);
-        image.m_image = device.createImageUnique(image_info);
-
-        vk::MemoryRequirements req = device.getImageMemoryRequirements(image.m_image.get());
-        vk::PhysicalDeviceMemoryProperties mem_props = physical_device.getMemoryProperties();
-        uint32_t mem_type_index = UINT32_MAX;
-        for (uint32_t i = 0; i < mem_props.memoryTypeCount; ++i) {
-            bool type_ok = req.memoryTypeBits & (1u << i);
-            bool device_local = bool(mem_props.memoryTypes[i].propertyFlags & vk::MemoryPropertyFlagBits::eDeviceLocal);
-            if (type_ok and device_local) { mem_type_index = i; break; }
-        }
-        if (mem_type_index == UINT32_MAX) {
-            lcf_log_error("No device-local memory type for white image.");
-            return std::nullopt;
-        }
-        image.m_memory = device.allocateMemoryUnique({req.size, mem_type_index});
-        device.bindImageMemory(image.m_image.get(), image.m_memory.get(), 0);
+        vkc::MemoryAllocationInfo mem_alloc_info;
+        mem_alloc_info.setAccess(vkc::MemoryAccess::eDeviceLocal);
+        auto expected_image = device_context.createImage(image_info, mem_alloc_info);
+        if (not expected_image) { return std::nullopt; }
+        image = std::move(*expected_image);
+        
         // one-time submit: undefined -> transferDst, clear white, transferDst -> transferSrc
         vk::UniqueCommandPool pool = device.createCommandPoolUnique({vk::CommandPoolCreateFlagBits::eTransient, gfx_family});
         vk::CommandBuffer cmd = device.allocateCommandBuffers({pool.get(), vk::CommandBufferLevel::ePrimary, 1u}).front();
 
         vk::ImageSubresourceRange range {vk::ImageAspectFlagBits::eColor, 0u, 1u, 0u, 1u};
         vk::ImageMemoryBarrier to_dst, to_src;
-        to_dst.setImage(image.m_image.get())
+        to_dst.setImage(image)
             .setOldLayout(vk::ImageLayout::eUndefined)
             .setNewLayout(vk::ImageLayout::eTransferDstOptimal)
             .setSubresourceRange(range)
             .setSrcAccessMask(vk::AccessFlagBits::eNone)
             .setDstAccessMask(vk::AccessFlagBits::eTransferWrite);
-        to_src.setImage(image.m_image.get())
+        to_src.setImage(image)
             .setOldLayout(vk::ImageLayout::eTransferDstOptimal)
             .setNewLayout(vk::ImageLayout::eTransferSrcOptimal)
             .setSubresourceRange(range)
             .setSrcAccessMask(vk::AccessFlagBits::eTransferWrite)
             .setDstAccessMask(vk::AccessFlagBits::eTransferRead);
 
-        vk::ClearColorValue white_color {color};
+        vk::ClearColorValue clear_color_value {color};
         cmd.begin(vk::CommandBufferBeginInfo(vk::CommandBufferUsageFlagBits::eOneTimeSubmit));
         cmd.pipelineBarrier(
             vk::PipelineStageFlagBits::eTopOfPipe,
             vk::PipelineStageFlagBits::eTransfer,
             {}, {}, {}, to_dst);
-        cmd.clearColorImage(image.m_image.get(), vk::ImageLayout::eTransferDstOptimal, white_color, range);
+        cmd.clearColorImage(image, vk::ImageLayout::eTransferDstOptimal, clear_color_value, range);
         cmd.pipelineBarrier(
             vk::PipelineStageFlagBits::eTransfer,
             vk::PipelineStageFlagBits::eTransfer,

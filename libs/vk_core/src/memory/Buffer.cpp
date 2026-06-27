@@ -9,4 +9,19 @@ Buffer::Buffer(Memory && memory, vk::DeviceAddress device_address) noexcept :
 {
 }
 
+Buffer::operator vk::Buffer() const noexcept
+{
+    return m_memory_rp->handle();
+}
+
+ResourceLease Buffer::lease() const noexcept
+{
+    return m_memory_rp.lease();
+}
+
+const vk::Buffer & Buffer::handle() const noexcept
+{
+    return m_memory_rp->handle();
+}
+
 } // namespace lcf::vkc

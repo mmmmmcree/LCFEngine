@@ -26,6 +26,10 @@ public:
     Self & operator=(const Self &) = delete;
     Image(Self &&) noexcept = default;
     Self & operator=(Self &&) noexcept = default;
+    operator vk::Image() const noexcept;
+public:
+    const vk::Image & handle() const noexcept;
+    ResourceLease lease() const noexcept;
 private:
     ResourcePtr<Memory> m_memory_rp;
 };

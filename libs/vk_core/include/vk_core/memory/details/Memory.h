@@ -53,8 +53,9 @@ public:
         m_handle = std::exchange(other.m_handle, nullptr);
         return *this;
     }
+    operator Handle() const noexcept { return m_handle; }
 public:
-    const Handle & getHandle() const noexcept { return m_handle; }
+    const Handle & handle() const noexcept { return m_handle; }
     vk::DeviceSize getSizeInBytes() const noexcept
     {
         VmaAllocationInfo info {};

@@ -26,6 +26,11 @@ public:
     Self & operator=(const Self &) = delete;
     Buffer(Self &&) noexcept = default;
     Self & operator=(Self &&) noexcept = default;
+    operator vk::Buffer() const noexcept;
+public:
+    const vk::Buffer & handle() const noexcept;
+    ResourceLease lease() const noexcept;
+    const vk::DeviceAddress & getDeviceAddress() const noexcept { return m_device_address; }
 private:
     ResourcePtr<Memory> m_memory_rp;
     vk::DeviceAddress m_device_address = 0;
