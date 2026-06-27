@@ -133,9 +133,12 @@ int main()
         }
     });
 
-    //- resize during a Win32 modal drag reaches us synchronously through this
-    //- callback (the pollEvents loop is blocked then). resizeToFit replays the
-    //- cached frame at the new size, serialized against present() internally.
+    /*
+        - resize during a Win32 modal drag reaches us synchronously through this
+        - callback (the pollEvents loop is blocked then). resizeToFit replays the
+        - cached frame at the new size, serialized against present() internally.
+        - if don't register this callback, the swapchain will resize correctly, but the window edge might appear black during the resizing
+    */
     window.setResizeCallback([&swapchain](const win::ResizeEvent &) {
         if (auto ec = swapchain.resizeToFit()) { lcf_log_error("resizeToFit failed: {}", ec.message()); }
     });

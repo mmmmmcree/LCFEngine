@@ -24,10 +24,8 @@
 using namespace lcf;
 namespace stdv = std::views;
 
-// 004 mirrors 003 (hello_swapchain) but drives the window through lcf::win — our
-// backend-pluggable window library. The backend (SDL3 / GLFW) is chosen at
-// configure time via LCF_WINDOW_BACKEND; this source is backend-agnostic. It
-// runs on vkc::wsi::compat::Swapchain (core 1.0 path).
+//- 004 mirrors 003 (hello_swapchain), it runs on vkc::wsi::compat::Swapchain (core 1.0 path),
+//- device will wait idle during swapchain recreation
 
 //- lcf::win::WindowHandle and vkc::wsi::WindowHandle are same-shaped variants;
 //- the window library is Vulkan-agnostic, so the mapping happens here at the
@@ -138,9 +136,6 @@ int main()
         }
     });
 
-    //- resize during a Win32 modal drag reaches us synchronously through this
-    //- callback (the pollEvents loop is blocked then). resizeToFit replays the
-    //- cached frame at the new size, serialized against present() internally.
     window.setResizeCallback([&swapchain](const win::ResizeEvent &) {
         if (auto ec = swapchain.resizeToFit()) { lcf_log_error("resizeToFit failed: {}", ec.message()); }
     });
