@@ -146,7 +146,7 @@ int main()
         width = static_cast<uint32_t>(mode->w) / 2;
         height = static_cast<uint32_t>(mode->h) / 2;
     }
-    SDL_WindowFlags window_flags = SDL_WINDOW_RESIZABLE  | SDL_WINDOW_VULKAN;
+    SDL_WindowFlags window_flags = SDL_WINDOW_RESIZABLE;
     
     SDL_Window * window_p = SDL_CreateWindow("hello swapchain", width, height, window_flags);
     if (not window_p) {
