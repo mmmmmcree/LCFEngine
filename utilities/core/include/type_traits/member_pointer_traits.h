@@ -15,8 +15,8 @@ struct member_pointer_traits<Member Class::*>
     using member_type = Member;
 };
 
-template <typename Class, typename Member>
-using member_pointer_class_t = member_pointer_traits<Member Class::*>::class_type;
+template <member_pointer_c auto MemberPointer>
+using member_pointer_class_t = member_pointer_traits<decltype(MemberPointer)>::class_type; 
 
 template <member_pointer_c auto MemberPointer>
 using member_pointer_member_t = member_pointer_traits<decltype(MemberPointer)>::member_type;
