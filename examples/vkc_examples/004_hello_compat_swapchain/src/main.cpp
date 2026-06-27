@@ -13,83 +13,42 @@
 #include "vk_core/memory/MemoryAllocationInfo.h"
 #include "vk_core/memory/Image.h"
 #include "vk_core/error.h"
+#include "win/Window.h"
 #include <atomic>
 #include <thread>
 #include <variant>
 #include <array>
 #include <optional>
 #include "log.h"
-#include <GLFW/glfw3.h>
-// GLFW_EXPOSE_NATIVE_* (and NOMINMAX / WIN32_LEAN_AND_MEAN on Windows) are
-// defined by the build (see CMakeLists.txt), so they are in effect before this
-// header is parsed.
-#include <GLFW/glfw3native.h>
 
 using namespace lcf;
 namespace stdv = std::views;
 
-// 004 mirrors 003 (hello_swapchain) but drives the window with GLFW instead of
-// SDL3, and runs on vkc::wsi::compat::Swapchain (core 1.0 path: no
-// synchronization2, no swapchain_maintenance1).
+// 004 mirrors 003 (hello_swapchain) but drives the window through lcf::win — our
+// backend-pluggable window library. The backend (SDL3 / GLFW) is chosen at
+// configure time via LCF_WINDOW_BACKEND; this source is backend-agnostic. It
+// runs on vkc::wsi::compat::Swapchain (core 1.0 path).
 
-namespace win32 {
-
-struct WindowHandle
+//- lcf::win::WindowHandle and vkc::wsi::WindowHandle are same-shaped variants;
+//- the window library is Vulkan-agnostic, so the mapping happens here at the
+//- call site (one std::visit), keeping the two libraries fully decoupled.
+vkc::wsi::WindowHandle to_wsi_window_handle(const win::WindowHandle & window_handle) noexcept
 {
-    WindowHandle(void * hinstance, void * hwnd) : m_hinstance(hinstance), m_hwnd(hwnd) {}
+    return std::visit([](const auto & handle) -> vkc::wsi::WindowHandle {
+        using T = std::decay_t<decltype(handle)>;
+        if constexpr (std::is_same_v<T, win::win32::WindowHandle>) {
+            return vkc::wsi::win32::WindowHandle(handle.m_hinstance, handle.m_hwnd);
+        } else if constexpr (std::is_same_v<T, win::xcb::WindowHandle>) {
+            return vkc::wsi::xcb::WindowHandle(handle.m_connection, handle.m_window);
+        } else if constexpr (std::is_same_v<T, win::wayland::WindowHandle>) {
+            return vkc::wsi::wayland::WindowHandle(handle.m_display, handle.m_surface);
+        } else {
+            return vkc::wsi::metal::WindowHandle(handle.m_layer);
+        }
+    }, window_handle);
+}
 
-    void * m_hinstance;
-    void * m_hwnd;
-};
-
-} // namespace win32
-
-namespace xcb {
-
-struct WindowHandle
-{
-    WindowHandle(void * connection, uint32_t window) : m_connection(connection), m_window(window) {}
-
-    void * m_connection;
-    uint32_t m_window;
-};
-
-} // namespace xcb
-
-namespace wayland {
-
-struct WindowHandle
-{
-    WindowHandle(void * display, void * surface) : m_display(display), m_surface(surface) {}
-
-    void * m_display;
-    void * m_surface;
-};
-
-} // namespace wayland
-
-namespace metal {
-
-struct WindowHandle
-{
-    WindowHandle(const void * layer) : m_layer(layer) {}
-
-    const void * m_layer;
-};
-
-} // namespace metal
-
-using WindowHandle = std::variant<
-    win32::WindowHandle,
-    xcb::WindowHandle,
-    wayland::WindowHandle,
-    metal::WindowHandle>;
-
-WindowHandle make_window_handle(GLFWwindow * window_p) noexcept;
-
-vkc::wsi::WindowHandle to_wsi_window_handle(const WindowHandle & window_handle) noexcept;
-
-std::optional<vkc::Image> create_single_color_image(vkc::RenderDeviceContext & device_context, const std::array<float, 4> &color) noexcept;
+std::optional<vkc::Image> create_single_color_image(vkc::RenderDeviceContext & device_context, const std::array<float, 4> & color) noexcept;
 
 int main()
 {
@@ -137,28 +96,16 @@ int main()
         return 1;
     }
 
-    if (not glfwInit()) {
-        lcf_log_error("Failed to init GLFW.");
+    //- window must outlive the swapchain (the surface is built from its native
+    //- handle), so it is declared first and destroyed last.
+    win::Window window;
+    if (auto ec = window.create(win::WindowCreateInfo("hello compat swapchain"))) {
+        lcf_log_error("Failed to create window: {}", ec.message());
         return 1;
     }
-    uint32_t width = 800, height = 600;
-    if (const GLFWvidmode * mode = glfwGetVideoMode(glfwGetPrimaryMonitor())) {
-        width = static_cast<uint32_t>(mode->width) / 2;
-        height = static_cast<uint32_t>(mode->height) / 2;
-    }
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // Vulkan, no GL context
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+    window.show();
 
-    GLFWwindow * window_p = glfwCreateWindow(
-        static_cast<int>(width), static_cast<int>(height), "hello compat swapchain", nullptr, nullptr);
-    if (not window_p) {
-        lcf_log_error("Failed to create GLFW window.");
-        glfwTerminate();
-        return 1;
-    }
-
-    WindowHandle window_handle = make_window_handle(window_p);
-    vkc::wsi::WindowHandle wsi_window_handle = to_wsi_window_handle(window_handle);
+    vkc::wsi::WindowHandle wsi_window_handle = to_wsi_window_handle(window.handle());
     vkc::wsi::compat::Swapchain swapchain;
     if (auto ec = swapchain.create(instance_context.getInstance(), render_device_context, wsi_window_handle)) {
         lcf_log_error("Failed to create swapchain: {}", ec.message());
@@ -187,58 +134,24 @@ int main()
         }
     });
 
-    glfwSetWindowUserPointer(window_p, &swapchain);
-    glfwSetFramebufferSizeCallback(window_p, [](GLFWwindow * window, int, int) {
-        auto * swapchain_p = static_cast<vkc::wsi::compat::Swapchain *>(glfwGetWindowUserPointer(window));
-        if (auto ec = swapchain_p->resizeToFit()) { lcf_log_error("resizeToFit failed: {}", ec.message()); }
+    //- resize during a Win32 modal drag reaches us synchronously through this
+    //- callback (the pollEvents loop is blocked then). resizeToFit replays the
+    //- cached frame at the new size, serialized against present() internally.
+    window.setResizeCallback([&swapchain](const win::ResizeEvent &) {
+        if (auto ec = swapchain.resizeToFit()) { lcf_log_error("resizeToFit failed: {}", ec.message()); }
     });
 
     while (running.load(std::memory_order_relaxed)) {
-        glfwWaitEventsTimeout(0.1);
-        if (glfwWindowShouldClose(window_p)) { running.store(false, std::memory_order_relaxed); }
+        for (const win::WindowEvent & event : window.pollEvents()) {
+            if (std::holds_alternative<win::CloseEvent>(event)) {
+                running.store(false, std::memory_order_relaxed);
+            }
+        }
     }
 
     render_thread.join();
     render_device_context.getDevice().waitIdle();
-    glfwDestroyWindow(window_p);
-    glfwTerminate();
     return 0;
-}
-
-WindowHandle make_window_handle(GLFWwindow * window_p) noexcept
-{
-#if defined(_WIN32)
-    return win32::WindowHandle(
-        static_cast<void *>(GetModuleHandleW(nullptr)),
-        static_cast<void *>(glfwGetWin32Window(window_p)));
-#elif defined(__APPLE__)
-    return metal::WindowHandle(glfwGetCocoaWindow(window_p));
-#else
-    if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND) {
-        return wayland::WindowHandle(
-            static_cast<void *>(glfwGetWaylandDisplay()),
-            static_cast<void *>(glfwGetWaylandWindow(window_p)));
-    }
-    return xcb::WindowHandle(
-        static_cast<void *>(glfwGetX11Display()),
-        static_cast<uint32_t>(glfwGetX11Window(window_p)));
-#endif
-}
-
-vkc::wsi::WindowHandle to_wsi_window_handle(const WindowHandle & window_handle) noexcept
-{
-    return std::visit([](const auto & handle) -> vkc::wsi::WindowHandle {
-        using T = std::decay_t<decltype(handle)>;
-        if constexpr (std::is_same_v<T, win32::WindowHandle>) {
-            return vkc::wsi::win32::WindowHandle(handle.m_hinstance, handle.m_hwnd);
-        } else if constexpr (std::is_same_v<T, xcb::WindowHandle>) {
-            return vkc::wsi::xcb::WindowHandle(handle.m_connection, handle.m_window);
-        } else if constexpr (std::is_same_v<T, wayland::WindowHandle>) {
-            return vkc::wsi::wayland::WindowHandle(handle.m_display, handle.m_surface);
-        } else {
-            return vkc::wsi::metal::WindowHandle(handle.m_layer);
-        }
-    }, window_handle);
 }
 
 std::optional<vkc::Image> create_single_color_image(vkc::RenderDeviceContext & device_context, const std::array<float, 4> & color) noexcept
@@ -265,7 +178,7 @@ std::optional<vkc::Image> create_single_color_image(vkc::RenderDeviceContext & d
         auto expected_image = device_context.createImage(image_info, mem_alloc_info);
         if (not expected_image) { return std::nullopt; }
         image = std::move(*expected_image);
-        
+
         // one-time submit: undefined -> transferDst, clear white, transferDst -> transferSrc
         vk::UniqueCommandPool pool = device.createCommandPoolUnique({vk::CommandPoolCreateFlagBits::eTransient, gfx_family});
         vk::CommandBuffer cmd = device.allocateCommandBuffers({pool.get(), vk::CommandBufferLevel::ePrimary, 1u}).front();

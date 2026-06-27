@@ -19,6 +19,7 @@ if(LCF_VKC_ONLY)
         utilities/enums
         utilities/log
         libs/vk_core
+        libs/window
         examples/vkc_examples)
 elseif(LCF_TESTS_ONLY)
     set(LCF_SUBDIRS
@@ -50,7 +51,6 @@ endforeach()
 install_dependencies()
 
 if(LCF_VKC_ONLY)
-    include(window_config)
 elseif(NOT LCF_TESTS_ONLY)
     include(window_config)
     include(profiling_config)

@@ -98,8 +98,18 @@
       "name": "gcc-vkc",
       "inherits": "gcc",
       "displayName": "GCC vk_core-only",
-      "description": "Minimal vk_core iteration build: only utilities/math/input/GUI/core/vk_core/vkc_examples are registered",
+      "description": "Minimal vk_core iteration build",
       "cacheVariables": { "LCF_VKC_ONLY": "ON" }
+    },
+    {
+      "name": "msvc-vkc",
+      "inherits": "msvc",
+      "displayName": "MSVC vk_core-only",
+      "description": "Minimal vk_core iteration build. Switch the window backend by editing LCF_WINDOW_BACKEND below (SDL3 | GLFW).",
+      "cacheVariables": {
+        "LCF_VKC_ONLY": "ON",
+        "LCF_WINDOW_BACKEND": "SDL3"
+      }
     }
   ],
 
@@ -129,6 +139,9 @@
     { "name": "gcc-bench-release",    "configurePreset": "gcc-bench",   "configuration": "Release"        },
 
     { "name": "gcc-vkc-debug",        "configurePreset": "gcc-vkc",     "configuration": "Debug"          },
-    { "name": "gcc-vkc-release",      "configurePreset": "gcc-vkc",     "configuration": "Release"        }
+    { "name": "gcc-vkc-release",      "configurePreset": "gcc-vkc",     "configuration": "Release"        },
+
+    { "name": "msvc-vkc-debug",       "configurePreset": "msvc-vkc",    "configuration": "Debug"          },
+    { "name": "msvc-vkc-release",     "configurePreset": "msvc-vkc",    "configuration": "Release"        }
   ]
 }
