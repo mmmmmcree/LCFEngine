@@ -13,7 +13,7 @@
 #include "vk_core/memory/MemoryAllocationInfo.h"
 #include "vk_core/memory/Image.h"
 #include "vk_core/error.h"
-#include <SDL3/SDL.h>
+#include "win/Window.h"
 #include <atomic>
 #include <thread>
 #include <variant>
@@ -24,75 +24,26 @@
 using namespace lcf;
 namespace stdv = std::views;
 
-namespace win32 {
-
-struct WindowHandle
+//- lcf::win::WindowHandle and vkc::wsi::WindowHandle are same-shaped variants;
+//- the window library is Vulkan-agnostic, so the mapping happens here at the
+//- call site (one std::visit), keeping the two libraries fully decoupled.
+vkc::wsi::WindowHandle to_wsi_window_handle(const win::WindowHandle & window_handle) noexcept
 {
-    WindowHandle(void * hinstance, void * hwnd) : m_hinstance(hinstance), m_hwnd(hwnd) {}
-
-    void * m_hinstance;
-    void * m_hwnd;
-};
-
-} // namespace win32
-
-namespace xcb {
-
-struct WindowHandle
-{
-    WindowHandle(void * connection, uint32_t window) : m_connection(connection), m_window(window) {}
-
-    void * m_connection;
-    uint32_t m_window;
-};
-
-
-} // namespace xlib
-
-namespace wayland {
-
-struct WindowHandle
-{
-    WindowHandle(void * display, void * surface) : m_display(display), m_surface(surface) {}
-
-    void * m_display;
-    void * m_surface;
-};
-
-} // namespace wayland
-
-namespace metal {
-
-struct WindowHandle
-{
-    WindowHandle(void * layer) : m_layer(layer) {}
-
-    const void * m_layer;
-};
-
-} // namespace metal
-
-using WindowHandle = std::variant<
-    win32::WindowHandle,
-    xcb::WindowHandle,
-    wayland::WindowHandle,
-    metal::WindowHandle>;
-
-WindowHandle make_window_handle(SDL_Window * window_p) noexcept;
-
-vkc::wsi::WindowHandle to_wsi_window_handle(const WindowHandle & window_handle) noexcept;
-
-//- delivered synchronously during a Win32 modal resize drag, where the main PollEvent loop is blocked.
-bool on_window_event_watch(void * userdata, SDL_Event * event)
-{
-    if (event->type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) {
-        static_cast<vkc::wsi::Swapchain *>(userdata)->resizeToFit();
-    }
-    return true;
+    return std::visit([](const auto & handle) -> vkc::wsi::WindowHandle {
+        using T = std::decay_t<decltype(handle)>;
+        if constexpr (std::is_same_v<T, win::win32::WindowHandle>) {
+            return vkc::wsi::win32::WindowHandle(handle.m_hinstance, handle.m_hwnd);
+        } else if constexpr (std::is_same_v<T, win::xcb::WindowHandle>) {
+            return vkc::wsi::xcb::WindowHandle(handle.m_connection, handle.m_window);
+        } else if constexpr (std::is_same_v<T, win::wayland::WindowHandle>) {
+            return vkc::wsi::wayland::WindowHandle(handle.m_display, handle.m_surface);
+        } else {
+            return vkc::wsi::metal::WindowHandle(handle.m_layer);
+        }
+    }, window_handle);
 }
 
-std::optional<vkc::Image> create_single_color_image(vkc::RenderDeviceContext & device_context, const std::array<float, 4> &color) noexcept;
-
+std::optional<vkc::Image> create_single_color_image(vkc::RenderDeviceContext & device_context, const std::array<float, 4> & color) noexcept;
 
 int main()
 {
@@ -104,7 +55,7 @@ int main()
     vkc::dbg::DebugLogCallbacks debug_callbacks;
     debug_callbacks.setWarningSink([](std::string_view message) { lcf_log_warn(message); })
         .setErrorSink([](std::string_view message) { lcf_log_error(message); });
-    vkc::dbg::register_debug_utils(inst_ext_manifest, vkc::dbg::SeverityFlags::eError | vkc::dbg::SeverityFlags::eWarning, debug_callbacks);
+    vkc::dbg::register_debug_utils(inst_ext_manifest, vkc::dbg::SeverityFlags::eError | vkc::dbg::SeverityFlags::eWarning | vkc::dbg::SeverityFlags::eVerbose, debug_callbacks);
     vkc::wsi::register_surface(inst_ext_manifest);
     vkc::wsi::register_swapchain(device_ext_manifest);
 
@@ -114,8 +65,8 @@ int main()
         .setApplicationVersion(vk::makeVersion(1, 0, 0))
         .setEngineVersion(vk::makeVersion(1, 0, 0))
         .setApiVersion(vk::HeaderVersionComplete);
-    
-    vkc::InstanceContextCreateInfo instance_info; // same as bs::InstanceCreateInfo
+
+    vkc::InstanceContextCreateInfo instance_info;
     instance_info.setApplicationInfo(app_info)
         .addRequiredInstanceLayer("VK_LAYER_KHRONOS_validation")
         .setRequiredInstanceExtensionManifest(inst_ext_manifest);
@@ -126,7 +77,7 @@ int main()
     vkc::DeviceContextCreateInfo device_context_info;
     device_context_info.setRequiredDeviceExtensionManifest(device_ext_manifest)
         .setPhysicalDeviceSelectInfo(physical_device_select_info);
-    
+
     vkc::InstanceContext instance_context;
     if (auto ec = instance_context.create(instance_info)) {
         lcf_log_error("Failed to create instance_context: {}", ec.message());
@@ -140,23 +91,20 @@ int main()
         return 1;
     }
 
-    SDL_Init(SDL_INIT_VIDEO);
-    uint32_t width = 800, height = 600;
-    if (const SDL_DisplayMode * mode = SDL_GetDesktopDisplayMode(SDL_GetPrimaryDisplay())) {
-        width = static_cast<uint32_t>(mode->w) / 2;
-        height = static_cast<uint32_t>(mode->h) / 2;
-    }
-    SDL_WindowFlags window_flags = SDL_WINDOW_RESIZABLE;
-    
-    SDL_Window * window_p = SDL_CreateWindow("hello swapchain", width, height, window_flags);
-    if (not window_p) {
-        lcf_log_error("Failed to create SDL window: {}", SDL_GetError());
+    win::WindowCreateInfo window_info;
+    window_info.setTitle("hello swapchain");
+    win::Window window;
+    if (auto ec = window.create(window_info)) {
+        lcf_log_error("Failed to create window: {}", ec.message());
         return 1;
-    } 
-    
-    SDL_ShowWindow(window_p);
-    WindowHandle window_handle = make_window_handle(window_p);
-    vkc::wsi::WindowHandle wsi_window_handle = to_wsi_window_handle(window_handle);
+    }
+
+    if (auto ec = window.show()) {
+        lcf_log_error("Failed to show window: {}", ec.message());
+        return 1;
+    }
+
+    vkc::wsi::WindowHandle wsi_window_handle = to_wsi_window_handle(window.handle());
     vkc::wsi::Swapchain swapchain;
     if (auto ec = swapchain.create(instance_context.getInstance(), render_device_context, wsi_window_handle)) {
         lcf_log_error("Failed to create swapchain: {}", ec.message());
@@ -165,22 +113,15 @@ int main()
     lcf_log_info("Swapchain created successfully.");
 
     auto white_image_opt = create_single_color_image(render_device_context, {1.0f, 1.0f, 1.0f, 1.0f});
-    auto red_image_opt = create_single_color_image(render_device_context, {1.0f, 0.0f, 0.0f, 1.0f});
+    auto red_image_opt = create_single_color_image(render_device_context, {1.0f, 1.0f, 0.0f, 1.0f});
     if (not white_image_opt or not red_image_opt) {
         lcf_log_error("Failed to create image source image.");
         return 1;
     }
     auto & white_image = *white_image_opt;
     auto & red_image = *red_image_opt;
-    
     std::array<vk::Image, 2> images = {white_image, red_image};
     const std::array<vk::Offset3D, 2> src_offsets {{ {0, 0, 0}, {1, 1, 1} }};
-
-    //- resize during a Win32 modal drag is only delivered through an event watch (the main
-    //- PollEvent loop is blocked). resize() replays the cached frame at the new size synchronously,
-    //- so the new content reaches DWM on the same tick the OS grows the window (no black edge).
-    //- swapchain serializes resize() and the render thread's present() via its internal mutex.
-    SDL_AddEventWatch(on_window_event_watch, &swapchain);
 
     std::atomic<bool> running {true};
     std::thread render_thread([&] {
@@ -192,58 +133,24 @@ int main()
         }
     });
 
+    //- resize during a Win32 modal drag reaches us synchronously through this
+    //- callback (the pollEvents loop is blocked then). resizeToFit replays the
+    //- cached frame at the new size, serialized against present() internally.
+    window.setResizeCallback([&swapchain](const win::ResizeEvent &) {
+        if (auto ec = swapchain.resizeToFit()) { lcf_log_error("resizeToFit failed: {}", ec.message()); }
+    });
+
     while (running.load(std::memory_order_relaxed)) {
-        for (SDL_Event event; SDL_PollEvent(&event);) {
-            switch (event.type) {
-                case SDL_EVENT_QUIT: { running.store(false, std::memory_order_relaxed); } break;
-                default: break;
+        for (const win::WindowEvent & event : window.pollEvents()) {
+            if (std::holds_alternative<win::CloseEvent>(event)) {
+                running.store(false, std::memory_order_relaxed);
             }
         }
     }
 
     render_thread.join();
-    SDL_RemoveEventWatch(on_window_event_watch, &swapchain);
     render_device_context.getDevice().waitIdle();
-    SDL_DestroyWindow(window_p);
-    SDL_Quit();
     return 0;
-}
-
-WindowHandle make_window_handle(SDL_Window * window_p) noexcept
-{
-    const SDL_PropertiesID props = SDL_GetWindowProperties(window_p);
-#if defined(SDL_PLATFORM_WIN32)
-    return win32::WindowHandle(
-        SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_INSTANCE_POINTER, nullptr),
-        SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr));
-#elif defined(SDL_PLATFORM_APPLE)
-    return metal::WindowHandle(SDL_Metal_GetLayer(SDL_Metal_CreateView(window_p)));
-#else
-    if (std::string_view(SDL_GetCurrentVideoDriver()) == "wayland") {
-        return wayland::WindowHandle(
-            SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_DISPLAY_POINTER, nullptr),
-            SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER, nullptr));
-    }
-    return xcb::WindowHandle(
-        SDL_GetPointerProperty(props, SDL_PROP_WINDOW_X11_DISPLAY_POINTER, nullptr),
-        static_cast<uint32_t>(SDL_GetNumberProperty(props, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0)));
-#endif
-}
-
-vkc::wsi::WindowHandle to_wsi_window_handle(const WindowHandle & window_handle) noexcept
-{
-    return std::visit([](const auto & handle) -> vkc::wsi::WindowHandle {
-        using T = std::decay_t<decltype(handle)>;
-        if constexpr (std::is_same_v<T, win32::WindowHandle>) {
-            return vkc::wsi::win32::WindowHandle(handle.m_hinstance, handle.m_hwnd);
-        } else if constexpr (std::is_same_v<T, xcb::WindowHandle>) {
-            return vkc::wsi::xcb::WindowHandle(handle.m_connection, handle.m_window);
-        } else if constexpr (std::is_same_v<T, wayland::WindowHandle>) {
-            return vkc::wsi::wayland::WindowHandle(handle.m_display, handle.m_surface);
-        } else {
-            return vkc::wsi::metal::WindowHandle(handle.m_layer);
-        }
-    }, window_handle);
 }
 
 std::optional<vkc::Image> create_single_color_image(vkc::RenderDeviceContext & device_context, const std::array<float, 4> & color) noexcept
@@ -270,7 +177,7 @@ std::optional<vkc::Image> create_single_color_image(vkc::RenderDeviceContext & d
         auto expected_image = device_context.createImage(image_info, mem_alloc_info);
         if (not expected_image) { return std::nullopt; }
         image = std::move(*expected_image);
-        
+
         // one-time submit: undefined -> transferDst, clear white, transferDst -> transferSrc
         vk::UniqueCommandPool pool = device.createCommandPoolUnique({vk::CommandPoolCreateFlagBits::eTransient, gfx_family});
         vk::CommandBuffer cmd = device.allocateCommandBuffers({pool.get(), vk::CommandBufferLevel::ePrimary, 1u}).front();

@@ -6,12 +6,11 @@ include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 add_executable(${PROJECT_NAME} ${SOURCES})
-find_package(SDL3 REQUIRED)
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
         vk_core
+        window
         utilities_log
-        SDL3::SDL3
 )
 
 set_target_properties(${PROJECT_NAME} PROPERTIES
