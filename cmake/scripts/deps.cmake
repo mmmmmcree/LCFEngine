@@ -59,15 +59,35 @@ if(COMMAND "_${DEPS_BACKEND}_setup")
 endif()
 
 # install_dependencies()
-#   1. Walks each subdir registered via add_pending_subdir(), recursively
-#      finds every dependencies.json under it.
-#   2. Merges their "dependencies" arrays (dedup by name).
-#   3. Calls the active backend's deps_install_<b>(DEPS_JSON).
+#   1. Walks each subdir registered via add_pending_subdir(). Before reading a
+#      subdir's dependencies.json, include()s a sibling dependencies.cmake if
+#      present — that file declares any cache options/variables the JSON's
+#      "condition" expressions depend on (e.g. a backend selector). Cache
+#      variables set there persist for the rest of configure.
+#   2. Recursively finds every dependencies.json under it and merges their
+#      "dependencies" arrays (dedup by name).
+#   3. Each dependency may carry an optional "condition" — a CMake if()
+#      expression string. Absent => always installed (backwards compatible).
+#      Present and false => skipped. The key is stripped before merge so the
+#      backends (vcpkg/conan/fetch) never see it.
+#   4. Calls the active backend's deps_install_<b>(DEPS_JSON).
 function(install_dependencies)
     get_pending_subdirs(_dirs)
     if(NOT _dirs)
         return()
     endif()
+
+    # Pre-pass: let each registered subdir declare option/variable defaults its
+    # dependencies.json conditions rely on, before any condition is evaluated.
+    # Recursive to match the dependencies.json glob below — a lib may sit several
+    # levels under a registered top-level dir (e.g. libs/window under libs).
+    foreach(_d IN LISTS _dirs)
+        file(GLOB_RECURSE _opt_files
+             "${CMAKE_SOURCE_DIR}/${_d}/dependencies.cmake")
+        foreach(_opt IN LISTS _opt_files)
+            include("${_opt}")
+        endforeach()
+    endforeach()
 
     set(_seen_names "")
     set(_deps_inline "")
@@ -78,8 +98,8 @@ function(install_dependencies)
             file(READ "${_file}" _content)
             string(JSON _len ERROR_VARIABLE _err
                    LENGTH "${_content}" dependencies)
-            if(_err)
-                continue()
+            if(_err OR _len EQUAL 0)
+                continue()   #- no "dependencies" array, or an empty one
             endif()
             math(EXPR _last "${_len} - 1")
             foreach(_i RANGE 0 ${_last})
@@ -88,6 +108,25 @@ function(install_dependencies)
                 if(_name IN_LIST _seen_names)
                     continue()
                 endif()
+
+                # Optional "condition": a CMake if() expression. A bare
+                # if(${_cond}) does NOT work — expanding a variable into if()
+                # doesn't re-tokenize operators like STREQUAL, so the string is
+                # taken as a single value. cmake_language(EVAL) re-parses it as
+                # fresh CMake code, which is the only correct evaluation here.
+                # Conditions are repo-authored (trust level == CMakeLists.txt).
+                string(JSON _cond ERROR_VARIABLE _e_cond
+                       GET "${_item}" condition)
+                if(NOT _e_cond AND NOT _cond STREQUAL "")
+                    cmake_language(EVAL CODE
+                        "if(${_cond})\n  set(_cond_keep TRUE)\nelse()\n  set(_cond_keep FALSE)\nendif()")
+                    if(NOT _cond_keep)
+                        continue()
+                    endif()
+                    # Strip the key so downstream backends never see it.
+                    string(JSON _item REMOVE "${_item}" condition)
+                endif()
+
                 list(APPEND _seen_names "${_name}")
                 if(_deps_inline)
                     string(APPEND _deps_inline ",${_item}")
