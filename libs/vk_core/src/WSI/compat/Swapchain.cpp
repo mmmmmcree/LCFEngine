@@ -3,8 +3,6 @@
 #include "vk_core/manifest/DeviceExtensionManifest.h"
 #include "vk_core/WSI/create_surface.h"
 #include "vk_core/WSI/WindowHandle.h"
-#include "vk_core/context/RenderDeviceContext.h"
-#include "vk_core/context/QueueContext.h"
 #include "vk_core/error.h"
 #include <limits>
 #include <algorithm>
@@ -24,24 +22,25 @@ void register_swapchain(DeviceExtensionManifest & manifest) noexcept
 
 std::error_code Swapchain::create(
     vk::Instance instance,
-    RenderDeviceContext &device_context,
+    vk::PhysicalDevice physical_device,
+    vk::Device device,
+    uint32_t present_queue_family_index,
     const WindowHandle &window_handle) noexcept
 {
-    m_device_context_p = &device_context;
+    m_physical_device = physical_device;
+    m_device = device;
+    m_present_queue = m_device.getQueue(present_queue_family_index, 0u);
     auto expected_surface = create_surface(instance, window_handle);
     if (not expected_surface) { return expected_surface.error(); }
     m_surface = std::move(expected_surface.value());
-    vk::PhysicalDevice physical_device = device_context.getPhysicalDevice();
-    uint32_t present_family_index = device_context.getGraphicsQueueContext().getFamilyIndex();
     bool supported = false;   
     try {
-        supported = physical_device.getSurfaceSupportKHR(present_family_index, m_surface.get());
+        supported = m_physical_device.getSurfaceSupportKHR(present_queue_family_index, m_surface.get());
     } catch (const vk::SystemError & e) { return e.code(); }
     if (not supported) { return errc::no_suitable_present_queue_family; }
-    vk::CommandPoolCreateInfo pool_info {vk::CommandPoolCreateFlagBits::eResetCommandBuffer, present_family_index };
-    vk::Device device = device_context.getDevice();
+    vk::CommandPoolCreateInfo pool_info {vk::CommandPoolCreateFlagBits::eResetCommandBuffer, present_queue_family_index };
     try {
-        m_cmd_pool = device.createCommandPoolUnique(pool_info);
+        m_cmd_pool = m_device.createCommandPoolUnique(pool_info);
     } catch (vk::SystemError &e) {
         return e.code();
     }
@@ -123,9 +122,8 @@ std::error_code Swapchain::_present(
         .setPWaitDstStageMask(wait_stages.data())
         .setCommandBuffers(cmd)
         .setSignalSemaphores(present_ready);
-    vk::Queue present_queue = m_device_context_p->getGraphicsQueueContext().getQueue();
     try {
-        present_queue.submit(submit_info, submit_fence);
+        m_present_queue.submit(submit_info, submit_fence);
     } catch (const vk::SystemError & e) {
         this->recyclePresentResources(m_present_resources);
         return e.code();
@@ -137,7 +135,7 @@ std::error_code Swapchain::_present(
         .setPImageIndices(&m_image_index);
     vk::Result present_result = vk::Result::eSuccess;
     try {
-        present_result = present_queue.presentKHR(present_info);
+        present_result = m_present_queue.presentKHR(present_info);
     } catch (const vk::OutOfDateKHRError &e) {
         //- no need to recreate, recreation will happen in acquireNextImage, keep present_result as vk::Result::eSuccess
     } catch (const vk::SystemError &e) {
@@ -180,10 +178,9 @@ std::error_code Swapchain::resizeToFit() noexcept
 
 std::error_code Swapchain::recreate(const DesiredParams & desired_params) noexcept
 {
-    vk::PhysicalDevice physical_device = m_device_context_p->getPhysicalDevice();
     vk::SurfaceCapabilitiesKHR surface_capabilities;
     try {
-        surface_capabilities = physical_device.getSurfaceCapabilitiesKHR(m_surface.get());
+        surface_capabilities = m_physical_device.getSurfaceCapabilitiesKHR(m_surface.get());
     } catch (vk::SystemError &e) {
         return e.code();
     }
@@ -195,8 +192,8 @@ std::error_code Swapchain::recreate(const DesiredParams & desired_params) noexce
     std::vector<vk::SurfaceFormatKHR> surface_formats;
     std::vector<vk::PresentModeKHR> present_modes;
     try {
-        surface_formats = physical_device.getSurfaceFormatsKHR(m_surface.get());
-        present_modes = physical_device.getSurfacePresentModesKHR(m_surface.get());
+        surface_formats = m_physical_device.getSurfaceFormatsKHR(m_surface.get());
+        present_modes = m_physical_device.getSurfacePresentModesKHR(m_surface.get());
     } catch (vk::SystemError &e) {
         return e.code();
     }
@@ -212,7 +209,6 @@ std::error_code Swapchain::recreate(const DesiredParams & desired_params) noexce
         composite_bit = vk::CompositeAlphaFlagBitsKHR(MaskType(composite_bit) << 1);
     }
 
-    vk::Device device = m_device_context_p->getDevice();
     vk::UniqueSwapchainKHR new_swapchain;
     std::vector<vk::Image> swapchain_images;
     uint32_t image_count = std::clamp(desired_params.image_count,
@@ -234,8 +230,8 @@ std::error_code Swapchain::recreate(const DesiredParams & desired_params) noexce
         .setClipped(true)
         .setOldSwapchain(m_swapchain.get());
     try {
-        new_swapchain = device.createSwapchainKHRUnique(swapchain_info);
-        swapchain_images = device.getSwapchainImagesKHR(new_swapchain.get());
+        new_swapchain = m_device.createSwapchainKHRUnique(swapchain_info);
+        swapchain_images = m_device.getSwapchainImagesKHR(new_swapchain.get());
     } catch (const vk::OutOfDateKHRError &e) {
         //- no need to recreate, recreation will happen in acquireNextImage
         return vk::Result::eSuccess;
@@ -243,7 +239,7 @@ std::error_code Swapchain::recreate(const DesiredParams & desired_params) noexce
         return e.code();
     }
 
-    device.waitIdle();
+    m_device.waitIdle();
     m_swapchain = std::move(new_swapchain);
     m_swapchain_images = std::move(swapchain_images);
     while (not m_pending_resources_queue.empty()) {
@@ -252,7 +248,7 @@ std::error_code Swapchain::recreate(const DesiredParams & desired_params) noexce
     }
     m_present_ready_semaphores.resize(m_swapchain_images.size());
     try {
-        for (auto & semaphore : m_present_ready_semaphores) { semaphore = device.createSemaphoreUnique({}); }
+        for (auto & semaphore : m_present_ready_semaphores) { semaphore = m_device.createSemaphoreUnique({}); }
     } catch (const vk::SystemError & e) {
         return e.code();
     }
@@ -264,10 +260,9 @@ std::error_code Swapchain::acquireNextImage() noexcept
     auto expected_semaphore = this->acquireSemaphore();
     if (not expected_semaphore) { return expected_semaphore.error(); }
     vk::UniqueSemaphore target_available = std::move(expected_semaphore.value());
-    vk::Device device = m_device_context_p->getDevice();
     vk::Result result = vk::Result::eErrorUnknown;
     try {
-        std::tie(result, m_image_index) = device.acquireNextImageKHR(
+        std::tie(result, m_image_index) = m_device.acquireNextImageKHR(
             m_swapchain.get(),
             std::numeric_limits<uint64_t>::max(),
             target_available.get(), nullptr);
@@ -286,14 +281,13 @@ std::error_code Swapchain::acquireNextImage() noexcept
 
 void Swapchain::recyclePresentResources(PresentResources & present_resources) noexcept
 {
-    vk::Device device = m_device_context_p->getDevice();
     present_resources.m_leases.clear();
     if (present_resources.m_cmd) {
         present_resources.m_cmd.reset();
         m_cmd_buffer_pool.emplace(std::exchange(present_resources.m_cmd, nullptr));
     }
     if (present_resources.m_submit_fence) {
-        device.resetFences(present_resources.m_submit_fence.get());
+        m_device.resetFences(present_resources.m_submit_fence.get());
         m_fence_pool.emplace(std::exchange(present_resources.m_submit_fence, {}));
     }
     if (present_resources.m_target_available) {
@@ -303,10 +297,9 @@ void Swapchain::recyclePresentResources(PresentResources & present_resources) no
 
 void Swapchain::tryRecyclePendingResources() noexcept
 {
-    vk::Device device = m_device_context_p->getDevice();
     while (not m_pending_resources_queue.empty()) {
         PresentResources & front = m_pending_resources_queue.front();
-        if (device.getFenceStatus(front.m_submit_fence.get()) != vk::Result::eSuccess) { break; }
+        if (m_device.getFenceStatus(front.m_submit_fence.get()) != vk::Result::eSuccess) { break; }
         this->recyclePresentResources(front);
         m_pending_resources_queue.pop();
     }
@@ -320,10 +313,9 @@ std::expected<vk::CommandBuffer, std::error_code> Swapchain::acquireCmdBuffer() 
         m_cmd_buffer_pool.pop();
         return cmd_buffer;
     }
-    vk::Device device = m_device_context_p->getDevice();
     vk::CommandBufferAllocateInfo cmd_buffer_info { m_cmd_pool.get(), vk::CommandBufferLevel::ePrimary, 1u };
     try {
-        cmd_buffer = device.allocateCommandBuffers(cmd_buffer_info).front();
+        cmd_buffer = m_device.allocateCommandBuffers(cmd_buffer_info).front();
     } catch (const vk::SystemError &e) {
         return std::unexpected(e.code());
     }
@@ -338,9 +330,8 @@ std::expected<vk::UniqueFence, std::error_code> Swapchain::acquireFence() noexce
         m_fence_pool.pop();
         return fence;
     }
-    vk::Device device = m_device_context_p->getDevice();
     try {
-        fence = device.createFenceUnique({});
+        fence = m_device.createFenceUnique({});
     } catch (const vk::SystemError &e) {
         return std::unexpected(e.code());
     }
@@ -355,9 +346,8 @@ std::expected<vk::UniqueSemaphore, std::error_code> Swapchain::acquireSemaphore(
         m_semaphore_pool.pop();
         return semaphore;
     }
-    vk::Device device = m_device_context_p->getDevice();
     try {
-        semaphore = device.createSemaphoreUnique({});
+        semaphore = m_device.createSemaphoreUnique({});
     } catch (const vk::SystemError &e) {
         return std::unexpected(e.code());
     }

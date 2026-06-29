@@ -13,9 +13,6 @@
 #include <mutex>
 
 namespace lcf::vkc {
-
-class RenderDeviceContext;
-
 namespace wsi::compat {
 
 class Swapchain
@@ -59,7 +56,9 @@ public:
 public:
     std::error_code create(
         vk::Instance instance,
-        RenderDeviceContext & device_context,
+        vk::PhysicalDevice physical_device,
+        vk::Device device,
+        uint32_t present_queue_family_index,
         const WindowHandle & window_handle) noexcept;
     std::error_code present(
         const std::array<vk::Offset3D, 2> & src_offsets,
@@ -86,7 +85,9 @@ private:
     void recyclePresentResources(PresentResources & present_resources) noexcept;
     void tryRecyclePendingResources() noexcept;
 private:
-    RenderDeviceContext * m_device_context_p;
+    vk::PhysicalDevice m_physical_device;
+    vk::Device m_device;
+    vk::Queue m_present_queue;
     vk::UniqueSurfaceKHR m_surface;
     vk::UniqueSwapchainKHR m_swapchain;
     ImageList m_swapchain_images;

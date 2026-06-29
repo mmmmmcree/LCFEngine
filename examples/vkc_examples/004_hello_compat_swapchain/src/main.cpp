@@ -109,7 +109,13 @@ int main()
 
     vkc::wsi::WindowHandle wsi_window_handle = to_wsi_window_handle(window.handle());
     vkc::wsi::compat::Swapchain swapchain;
-    if (auto ec = swapchain.create(instance_context.getInstance(), render_device_context, wsi_window_handle)) {
+    if (auto ec = swapchain.create(
+        instance_context.getInstance(),
+        render_device_context.getPhysicalDevice(),
+        render_device_context.getDevice(),
+        render_device_context.getGraphicsQueueContext().getFamilyIndex(),
+        wsi_window_handle))
+    {
         lcf_log_error("Failed to create swapchain: {}", ec.message());
         return 1;
     }
