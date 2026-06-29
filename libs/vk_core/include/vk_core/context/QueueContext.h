@@ -2,6 +2,7 @@
 
 #include <vulkan/vulkan.hpp>
 #include <queue>
+#include <expected>
 #include <vector>
 #include "vk_core/sync/TimelineSemaphore.h"
 #include "vk_core/command/details/CommandBufferAllocator.h"
@@ -9,7 +10,8 @@
 
 namespace lcf::vkc {
 
-class CommandBufferProxy;
+class CommandBufferBatch;
+class CommandBufferAllocateInfo;
 
 class QueueContext
 {
@@ -27,7 +29,8 @@ public:
     std::error_code create(vk::Device device, uint32_t family_index, uint32_t queue_index) noexcept;
     const vk::Queue & getQueue() const noexcept { return m_queue; }
     const uint32_t & getFamilyIndex() const noexcept { return m_family_index; }
-    void submit(CommandBufferProxy && cmd_proxy) noexcept;
+    std::expected<CommandBufferBatch, std::error_code> allocate(const CommandBufferAllocateInfo & info) noexcept;
+    std::expected<vk::SemaphoreSubmitInfo, std::error_code> submit(CommandBufferBatch && batch) noexcept;
     void collectGarbage() noexcept;
 private:
     vk::Device m_device;

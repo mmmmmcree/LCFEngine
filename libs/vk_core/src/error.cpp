@@ -42,6 +42,10 @@ public:
                 return "a required device feature is not supported";
             case errc::present_skipped_for_resize:
                 return "present skipped: yielded to a pending resize";
+            case errc::command_buffer_batch_exhausted:
+                return "command buffer batch has no more proxies to acquire";
+            case errc::command_buffer_batch_queue_mismatch:
+                return "command buffer batch was not allocated by this queue";
             default:
                 return "unrecognized lcf::vkc error";
         }

@@ -1,9 +1,11 @@
 #include "vk_core/command/details/CommandBufferAllocator.h"
 #include "vk_core/command/CommandBufferAllocateInfo.h"
 #include "vk_core/command/CommandBufferProxy.h"
+#include <ranges>
 #include <algorithm>
 
 namespace stdr = std::ranges;
+namespace stdv = std::views;
 
 namespace lcf::vkc::details {
 
@@ -15,34 +17,40 @@ std::error_code CommandBufferAllocator::create(vk::Device device, uint32_t famil
     return {};
 }
 
-std::expected<CommandBufferProxy, std::error_code> CommandBufferAllocator::allocate(const CommandBufferAllocateInfo & info) noexcept
+std::expected<CommandBufferBatch, std::error_code> CommandBufferAllocator::allocate(const CommandBufferAllocateInfo & info) noexcept
 {
     auto expected_sub_pool = this->acquireSubPool(info.getUsageFlags());
     if (not expected_sub_pool) { return std::unexpected(expected_sub_pool.error()); }
     SubPool & sub_pool = *expected_sub_pool.value();
-    vk::CommandBuffer buffer;
-    if (not sub_pool.m_free_list.empty()) {
-        buffer = sub_pool.m_free_list.back();
-        sub_pool.m_free_list.pop_back();
-    } else {
-        try {
-            buffer = m_device.allocateCommandBuffers({sub_pool.m_pool.get(), info.getLevel(), 1u}).front();
-        } catch (const vk::SystemError & e) {
-            return std::unexpected(e.code());
-        }
+    uint32_t count = info.getCount();
+    auto & free_list = sub_pool.m_free_list;
+    uint32_t reused_count = std::min(count, static_cast<uint32_t>(free_list.size()));
+    auto cmd_buffers = free_list | stdv::reverse | stdv::take(reused_count) | stdr::to<std::vector>();
+    free_list.resize(free_list.size() - reused_count);
+    uint32_t remaining_count = count - reused_count;
+    if (remaining_count == 0u) {
+        sub_pool.m_orphan_count += reused_count;
+        return CommandBufferBatch {cmd_buffers, info.getUsageFlags(), m_validation_data};
     }
-    ++sub_pool.m_orphan_count;
-    return CommandBufferProxy {buffer, info.getUsageFlags(), m_validation_data};
+    try {
+        auto allocated = m_device.allocateCommandBuffers({sub_pool.m_pool.get(), info.getLevel(), remaining_count});
+        cmd_buffers.append_range(allocated);
+    } catch (const vk::SystemError & e) {
+        free_list.append_range(cmd_buffers);
+        return std::unexpected(e.code());
+    }
+    sub_pool.m_orphan_count += count;
+    return CommandBufferBatch {cmd_buffers, info.getUsageFlags(), m_validation_data};
 }
 
-void CommandBufferAllocator::retire(CommandBufferProxy && proxy, uint64_t timestamp) noexcept
+void CommandBufferAllocator::retire(CommandBufferBatch && batch, uint64_t timestamp) noexcept
 {
-    if (proxy.m_validation_data != m_validation_data) { return; }
-    auto it = m_sub_pools.find(VkCommandPoolCreateFlags(proxy.m_usage_flags));
+    if (batch.m_validation_data != m_validation_data) { return; }
+    auto it = m_sub_pools.find(VkCommandPoolCreateFlags(batch.m_usage_flags));
     if (it == m_sub_pools.end()) { return; }
     SubPool & sub_pool = it->second;
-    sub_pool.m_pending_entries.emplace_back(PendingEntry {timestamp, proxy, std::move(proxy.m_leases)});
-    --sub_pool.m_orphan_count;
+    sub_pool.m_orphan_count -= static_cast<uint32_t>(batch.m_cmd_buffers.size());
+    sub_pool.m_pending_entries.emplace_back(PendingEntry {timestamp, std::move(batch.m_cmd_buffers)});
 }
 
 void CommandBufferAllocator::recycle(uint64_t completed_timestamp) noexcept
@@ -56,10 +64,12 @@ void CommandBufferAllocator::recycleSubPool(vk::CommandPoolCreateFlags flags, Su
         auto & pending_entries = sub_pool.m_pending_entries;
         while (not pending_entries.empty()) {
             PendingEntry & entry = pending_entries.front();
-            if (entry.m_timestamp > completed_timestamp) { return; }
-            entry.m_buffer.reset({});
-            sub_pool.m_free_list.emplace_back(entry.m_buffer);
-            pending_entries.pop_front();   //- drops leases
+            if (entry.m_timestamp > completed_timestamp) { break; }
+            for (vk::CommandBuffer buffer : entry.m_cmd_buffers) {
+                buffer.reset({});
+                sub_pool.m_free_list.emplace_back(buffer);
+            }
+            pending_entries.pop_front();
         }
         return;
     }
@@ -68,7 +78,7 @@ void CommandBufferAllocator::recycleSubPool(vk::CommandPoolCreateFlags flags, Su
     if (not all_completed) { return; }
     m_device.resetCommandPool(sub_pool.m_pool.get(), {});
     for (PendingEntry & entry : sub_pool.m_pending_entries) {
-        sub_pool.m_free_list.emplace_back(entry.m_buffer);
+        sub_pool.m_free_list.append_range(entry.m_cmd_buffers);
     }
     sub_pool.m_pending_entries.clear();
 }

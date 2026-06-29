@@ -6,12 +6,11 @@
 #include <unordered_map>
 #include <system_error>
 #include <vector>
-#include "resource_utils.h"
 
 namespace lcf::vkc {
 
 class CommandBufferAllocateInfo;
-class CommandBufferProxy;
+class CommandBufferBatch;
 
 } // namespace lcf::vkc
 
@@ -23,8 +22,7 @@ class CommandBufferAllocator
     struct PendingEntry
     {
         uint64_t m_timestamp = 0u;
-        vk::CommandBuffer m_buffer = nullptr;
-        std::vector<ResourceLease> m_leases;
+        std::vector<vk::CommandBuffer> m_cmd_buffers;
     };
     struct SubPool
     {
@@ -44,8 +42,8 @@ public:
     Self & operator=(Self &&) noexcept = default;
 public:
     std::error_code create(vk::Device device, uint32_t family_index, ValidationData validation_data) noexcept;
-    std::expected<CommandBufferProxy, std::error_code> allocate(const CommandBufferAllocateInfo & info) noexcept;
-    void retire(CommandBufferProxy && proxy, uint64_t timestamp) noexcept;
+    std::expected<CommandBufferBatch, std::error_code> allocate(const CommandBufferAllocateInfo & info) noexcept;
+    void retire(CommandBufferBatch && batch, uint64_t timestamp) noexcept;
     void recycle(uint64_t completed) noexcept;
 private:
     std::expected<SubPool *, std::error_code> acquireSubPool(vk::CommandPoolCreateFlags flags) noexcept;

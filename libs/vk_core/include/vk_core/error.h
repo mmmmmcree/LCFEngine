@@ -21,6 +21,8 @@ enum class errc
     missing_required_device_extension,
     missing_required_device_feature,
     present_skipped_for_resize,
+    command_buffer_batch_exhausted,
+    command_buffer_batch_queue_mismatch,
 };
 
 std::error_code make_error_code(errc error) noexcept;
