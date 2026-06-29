@@ -21,7 +21,7 @@ bool VulkanBufferWriter::create(VulkanContext *context_p)
 
 bool lcf::render::VulkanBufferWriter::hasPendingOperations() const noexcept
 {
-    return not m_timeline_semaphore_up->isTargetReached();
+    return not m_timeline_semaphore_up->isTargetReached().value_or(false);
 }
 
 VulkanBufferWriter & VulkanBufferWriter::addWriteRequest(
@@ -37,14 +37,14 @@ void VulkanBufferWriter::write(VulkanCommandBufferObject &cmd) const noexcept
     if (m_write_requests.empty()) { return; }
     using ExecuteWriteSequenceMethod = void (Self::*)(VulkanCommandBufferObject &, VulkanBufferProxy &, const BufferWriteSegments &) const;
     ExecuteWriteSequenceMethod execute_write_sequence_method = &Self::executeGpuWriteSequence;
-    if (m_pattern == GPUBufferPattern::eDynamic and m_timeline_semaphore_up->isTargetReached()) {
+    if (m_pattern == GPUBufferPattern::eDynamic and m_timeline_semaphore_up->isTargetReached().value_or(false)) {
         execute_write_sequence_method = &Self::executeCpuWriteSequence;
     }
     for (auto [buffer_proxy_p, segments_p] : m_write_requests) {
         (this->*execute_write_sequence_method)(cmd, *buffer_proxy_p, *segments_p);
         cmd.acquireResourceLease(buffer_proxy_p->lease());
     }
-    m_timeline_semaphore_up->increaseTargetValue();
+    m_timeline_semaphore_up->advanceTarget();
     cmd.addSignalSubmitInfo(m_timeline_semaphore_up->generateSubmitInfo());
     m_write_requests.clear();
 }
@@ -82,7 +82,7 @@ void VulkanBufferWriter::copyFromBufferWithBarriers(
     uint64_t src_offset_in_bytes, uint64_t dst_offset_in_bytes) const noexcept
 {
     auto [src_stage, src_access, dst_stage, dst_access] = vkutils::get_buffer_copy_dependency(dst.getUsage(), cmd.getQueueType());
-    if (not m_timeline_semaphore_up->isTargetReached()) {
+    if (not m_timeline_semaphore_up->isTargetReached().value_or(false)) {
         vk::BufferMemoryBarrier2 pre_buffer_barrier;
         pre_buffer_barrier.setSrcStageMask(dst_stage)
             .setSrcAccessMask(dst_access)

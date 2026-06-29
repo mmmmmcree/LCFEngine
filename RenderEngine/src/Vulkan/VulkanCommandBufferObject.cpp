@@ -45,7 +45,7 @@ void VulkanCommandBufferObject::end()
 
 vk::SemaphoreSubmitInfo VulkanCommandBufferObject::submit()
 {
-    m_timeline_semaphore_sp->increaseTargetValue();
+    m_timeline_semaphore_sp->advanceTarget();
     auto submission_complete_info = m_timeline_semaphore_sp->generateSubmitInfo();
     m_signal_infos.emplace_back(submission_complete_info);
     vk::CommandBufferSubmitInfo command_submit_info;
