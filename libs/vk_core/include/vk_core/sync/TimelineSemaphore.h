@@ -10,18 +10,18 @@ class TimelineSemaphore
 {
     using Self = TimelineSemaphore;
 public:
-    TimelineSemaphore() = default;
     ~TimelineSemaphore() noexcept = default;
+    TimelineSemaphore() = default;
     TimelineSemaphore(const Self &) = delete;
     TimelineSemaphore & operator=(const Self &) = delete;
     TimelineSemaphore(Self && other) noexcept;
     TimelineSemaphore & operator=(Self && other) noexcept;
+    operator vk::Semaphore() const noexcept { return m_semaphore.get(); }
+public:
     std::error_code create(vk::Device device);
-    bool isCreated() const { return bool(m_semaphore); }
     std::error_code wait() const noexcept { return this->waitFor(m_target_timestamp); }
     std::error_code waitFor(uint64_t timestamp) const noexcept;
-    const vk::Semaphore & getHandle() const noexcept { return m_semaphore.get(); }
-    void advanceTarget() noexcept { ++m_target_timestamp; }
+    Self & advanceTarget() noexcept { ++m_target_timestamp; return *this; }
     const uint64_t & getTargetTimestamp() const noexcept { return m_target_timestamp; }
     std::expected<uint64_t, std::error_code> getCurrentTimestamp() const noexcept;
     std::expected<bool, std::error_code> isTargetReached(uint64_t timestamp) const noexcept;
