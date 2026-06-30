@@ -43,7 +43,7 @@ std::expected<vk::UniqueInstance, std::error_code> create_instance_maythrow(cons
         stdr::to<std::vector>();
     if (instance_layer_props.size() != create_info.getRequiredInstanceLayerCount()) {
         create_info.printUnsupportedLayers();
-        return std::unexpected(errc::missing_required_instance_layer);
+        //- missing required instance layer is not an error
     }
     auto instance_extension_props = vk::enumerateInstanceExtensionProperties() |
         stdv::filter([&](const vk::ExtensionProperties & ext_props) { return create_info.isExtensionRequired(ext_props.extensionName.data()); }) |
