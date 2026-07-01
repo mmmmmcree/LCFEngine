@@ -66,7 +66,7 @@ public:
     {
         VkMemoryPropertyFlags flags {};
         vmaGetAllocationMemoryProperties(m_allocator, m_allocation, &flags);
-        return flags;
+        return static_cast<vk::MemoryPropertyFlags>(flags);
     }
     vk::Result flush(vk::DeviceSize offset_in_bytes = 0, vk::DeviceSize size_in_bytes = vk::WholeSize) const noexcept
     {

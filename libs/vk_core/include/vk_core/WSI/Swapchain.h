@@ -38,9 +38,9 @@ class Swapchain
     struct CachedPresentInput
     {
         std::array<vk::Offset3D, 2> m_src_offsets;
-        vk::Image m_src_image = nullptr;
+        vk::Image m_src_image;
         ResourceLease m_src_lease;
-        vk::SemaphoreSubmitInfo wait_info;
+        vk::SemaphoreSubmitInfo m_wait_info;
         vk::ImageSubresourceLayers m_src_subresource_layers;
     };
     using ConstDesiredParamsSP = std::shared_ptr<const DesiredParams>;
