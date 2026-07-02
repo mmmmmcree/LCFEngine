@@ -4,7 +4,8 @@
 #include <atomic>
 #include <optional>
 #include <concepts>
-#include <new>
+
+#include "details/cache_line_size.h"
 
 namespace lcf {
 
@@ -19,7 +20,7 @@ class SPSCValue
         void setTagAndIndex(uint8_t index, bool tag) noexcept { m_index = index | ( tag ? 0x08 : 0x00 ); }
         uint8_t m_index;
     };
-    struct alignas(std::hardware_destructive_interference_size) CacheAlignedValue
+    struct alignas(details::k_cache_line_size) CacheAlignedValue
     {
         T m_value;
     };
@@ -78,9 +79,9 @@ private:
     }
 private:
     Buffer m_buffer;
-    alignas(std::hardware_destructive_interference_size) TaggedIndex m_write_index { 0 };
-    alignas(std::hardware_destructive_interference_size) std::atomic<TaggedIndex> m_available_index { 1 };
-    alignas(std::hardware_destructive_interference_size) TaggedIndex m_read_index { 2 };
+    alignas(details::k_cache_line_size) TaggedIndex m_write_index { 0 };
+    alignas(details::k_cache_line_size) std::atomic<TaggedIndex> m_available_index { 1 };
+    alignas(details::k_cache_line_size) TaggedIndex m_read_index { 2 };
 };
 
 } // namespace lcf
