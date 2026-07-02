@@ -7,8 +7,7 @@ namespace lcf::vkc {
 
 void register_context_module(InstanceExtensionManifest & inst_manifest, DeviceExtensionManifest & device_manifest) noexcept
 {
-    sync::register_sync_module(inst_manifest);
-    sync::register_timeline_semaphore(device_manifest);
+    register_timeline_semaphore(device_manifest);
 }
 
 } // namespace lcf::vkc::sync

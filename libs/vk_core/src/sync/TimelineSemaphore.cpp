@@ -1,7 +1,18 @@
 #include "vk_core/sync/TimelineSemaphore.h"
+#include "vk_core/sync/entry.h"
+#include "vk_core/manifest/DeviceExtensionManifest.h"
 #include <limits>
 
-using namespace lcf::vkc;
+namespace lcf::vkc {
+
+void register_timeline_semaphore(DeviceExtensionManifest & manifest) noexcept
+{
+    static constexpr std::array k_features
+    {
+        LCF_VKC_UTILS_FEATURE_BIT(&vk::PhysicalDeviceVulkan12Features::timelineSemaphore),
+    };
+    manifest.addRequiredFeatures(k_features);
+}
 
 TimelineSemaphore::TimelineSemaphore(Self && other) noexcept :
     m_device(std::exchange(other.m_device, nullptr)),
@@ -69,3 +80,5 @@ vk::SemaphoreSubmitInfo TimelineSemaphore::generateSubmitInfo() const noexcept
 {
     return vk::SemaphoreSubmitInfo(m_semaphore.get(), m_target_timestamp);
 }
+
+} // namespace lcf::vkc
