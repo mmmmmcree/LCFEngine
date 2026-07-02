@@ -51,13 +51,13 @@ int main()
     vkc::InstanceExtensionManifest inst_ext_manifest;
     vkc::DeviceExtensionManifest device_ext_manifest;
 
-    vkc::register_context_module(inst_ext_manifest, device_ext_manifest);
+    vkc::entry::register_context(inst_ext_manifest, device_ext_manifest);
     vkc::dbg::DebugLogCallbacks debug_callbacks;
     debug_callbacks.setWarningSink([](std::string_view message) { lcf_log_warn(message); })
         .setErrorSink([](std::string_view message) { lcf_log_error(message); });
-    vkc::dbg::register_debug_utils(inst_ext_manifest, vkc::dbg::SeverityFlags::eError | vkc::dbg::SeverityFlags::eWarning | vkc::dbg::SeverityFlags::eVerbose, debug_callbacks);
-    vkc::wsi::register_surface(inst_ext_manifest);
-    vkc::wsi::register_swapchain(device_ext_manifest);
+    vkc::entry::register_debug_utils(inst_ext_manifest, vkc::dbg::SeverityFlags::eError | vkc::dbg::SeverityFlags::eWarning | vkc::dbg::SeverityFlags::eVerbose, debug_callbacks);
+    vkc::entry::register_surface(inst_ext_manifest);
+    vkc::entry::register_swapchain(device_ext_manifest);
 
     vk::ApplicationInfo app_info;
     app_info.setPApplicationName("LCFEngine")

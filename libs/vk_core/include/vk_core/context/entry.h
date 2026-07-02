@@ -8,8 +8,8 @@ class DeviceExtensionManifest;
 
 } // namespace lcf::vkc
 
-namespace lcf::vkc {
+namespace lcf::vkc::entry {
 
-void register_context_module(InstanceExtensionManifest & inst_manifest, DeviceExtensionManifest & device_manifest) noexcept;
+void register_context(InstanceExtensionManifest & inst_manifest, DeviceExtensionManifest & device_manifest) noexcept;
 
-} // namespace lcf::vkc::sync
+} // namespace lcf::vkc::entry

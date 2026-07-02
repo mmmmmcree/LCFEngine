@@ -9,7 +9,7 @@
 
 namespace stdr = std::ranges;
 
-namespace lcf::vkc::wsi {
+namespace lcf::vkc::entry {
 
 void register_swapchain(DeviceExtensionManifest & manifest) noexcept
 {
@@ -26,6 +26,10 @@ void register_swapchain(DeviceExtensionManifest & manifest) noexcept
     manifest.addRequiredExtensions(k_extensions)
         .addRequiredFeatures(k_features);
 }
+
+} // namespace lcf::vkc::entry
+
+namespace lcf::vkc::wsi {
 
 std::error_code Swapchain::create(
     vk::Instance instance,

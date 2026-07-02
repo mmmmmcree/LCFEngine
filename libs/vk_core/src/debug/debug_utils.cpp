@@ -1,19 +1,27 @@
 #include "vk_core/debug/debug_utils.h"
 #include "vk_core/debug/entry.h"
 #include "vk_core/manifest/InstanceExtensionManifest.h"
+#include "resource_utils.h"
 #include <array>
 #include <format>
 #include <iostream>
 
-
 namespace {
+
+using namespace lcf;
+using namespace lcf::vkc::dbg;
 
 struct DebugUtilsContext
 {
-    lcf::vkc::dbg::DebugLogCallbacks callbacks;
+    DebugLogCallbacks callbacks;
     vk::DebugUtilsMessageSeverityFlagsEXT severity;
     vk::UniqueDebugUtilsMessengerEXT messenger;
 };
+
+ResourceLease enable_debug_utils(
+    vk::Instance instance,
+    vk::DebugUtilsMessageSeverityFlagsEXT severity,
+    DebugLogCallbacks callbacks = {}) noexcept;
 
 vk::UniqueDebugUtilsMessengerEXT create_debug_utils_messenger(vk::Instance instance, void * user_data) noexcept;
 
@@ -21,24 +29,12 @@ bool is_renderdoc_environment() noexcept;
 
 } // namespace
 
-namespace lcf::vkc::dbg {
-
-ResourceLease enable_debug_utils(
-    vk::Instance instance,
-    vk::DebugUtilsMessageSeverityFlagsEXT severity,
-    DebugLogCallbacks callbacks) noexcept
-{
-    auto context_rp = make_resource_ptr<DebugUtilsContext>(std::move(callbacks), severity, vk::UniqueDebugUtilsMessengerEXT{});
-    context_rp->messenger = create_debug_utils_messenger(instance, context_rp.get());
-    if (not context_rp->messenger) { return {}; }
-    return context_rp.lease();
-}
-
+namespace lcf::vkc::entry {
 
 void register_debug_utils(
     InstanceExtensionManifest & manifest,
     vk::DebugUtilsMessageSeverityFlagsEXT severity,
-    const DebugLogCallbacks & callbacks) noexcept
+    const dbg::DebugLogCallbacks & callbacks) noexcept
 {
     static constexpr std::array s_ext_names { vk::EXTDebugUtilsExtensionName };
     if (is_renderdoc_environment()) {
@@ -52,8 +48,12 @@ void register_debug_utils(
 
 void register_debug_utils(InstanceExtensionManifest & manifest) noexcept
 {
-    return register_debug_utils(manifest, SeverityFlags::eWarning | SeverityFlags::eError, {});
+    return register_debug_utils(manifest, dbg::SeverityFlags::eWarning | dbg::SeverityFlags::eError, {});
 }
+
+} // namespace lcf::vkc::entry
+
+namespace lcf::vkc::dbg {
 
 DebugLogCallbacks::DebugLogCallbacks() noexcept :
     m_verbose_log_sink([](std::string_view message) { std::cerr << "verbose: " << message << '\n'; }),
@@ -65,6 +65,17 @@ DebugLogCallbacks::DebugLogCallbacks() noexcept :
 } // namespace lcf::vkc::dbg
 
 namespace {
+
+ResourceLease enable_debug_utils(
+    vk::Instance instance,
+    vk::DebugUtilsMessageSeverityFlagsEXT severity,
+    DebugLogCallbacks callbacks) noexcept
+{
+    auto context_rp = make_resource_ptr<DebugUtilsContext>(std::move(callbacks), severity, vk::UniqueDebugUtilsMessengerEXT{});
+    context_rp->messenger = create_debug_utils_messenger(instance, context_rp.get());
+    if (not context_rp->messenger) { return {}; }
+    return context_rp.lease();
+}
 
 static VKAPI_ATTR vk::Bool32 VKAPI_CALL debug_callback(
     vk::DebugUtilsMessageSeverityFlagBitsEXT severity_flags,

@@ -2,15 +2,7 @@
 #include "vk_core/WSI/entry.h"
 #include "vk_core/manifest/InstanceExtensionManifest.h"
 
-namespace {
-
-using namespace lcf::vkc::wsi;
-
-vk::UniqueSurfaceKHR create_surface_maythrow(vk::Instance instance, const WindowHandle & window_handle, const vk::AllocationCallbacks * allocator);
-
-} // anoymous namespace
-
-namespace lcf::vkc::wsi {
+namespace lcf::vkc::entry {
 
 void register_surface(InstanceExtensionManifest & manifest) noexcept
 {
@@ -40,6 +32,18 @@ void register_surface(InstanceExtensionManifest & manifest) noexcept
     // if constexpr xxx
     manifest.addRequiredExtensions(k_surface_maintenance1_extensions);
 }
+
+} // namespace lcf::vkc::entry
+
+namespace {
+
+using namespace lcf::vkc::wsi;
+
+vk::UniqueSurfaceKHR create_surface_maythrow(vk::Instance instance, const WindowHandle & window_handle, const vk::AllocationCallbacks * allocator);
+
+} // anoymous namespace
+
+namespace lcf::vkc::wsi {
 
 namespace win32 {
 

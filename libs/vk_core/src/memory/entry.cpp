@@ -3,9 +3,9 @@
 #include "vk_core/manifest/DeviceExtensionManifest.h"
 #include <array>
 
-namespace lcf::vkc {
+namespace lcf::vkc::entry {
 
-void register_memory_module(InstanceExtensionManifest & manifest) noexcept
+void register_memory(InstanceExtensionManifest & manifest) noexcept
 {
 
 }
@@ -19,4 +19,4 @@ void register_buffer_device_address(DeviceExtensionManifest & manifest) noexcept
     manifest.addRequiredFeatures(k_features);
 }
 
-} // namespace lcf::vkc
+} // namespace lcf::vkc::entry

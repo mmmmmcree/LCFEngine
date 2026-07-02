@@ -8,10 +8,10 @@ class DeviceExtensionManifest;
 
 } // namespace lcf::vkc
 
-namespace lcf::vkc {
+namespace lcf::vkc::entry {
 
-void register_memory_module(InstanceExtensionManifest & manifest) noexcept;
+void register_memory(InstanceExtensionManifest & manifest) noexcept;
 
 void register_buffer_device_address(DeviceExtensionManifest & manifest) noexcept;
 
-} // namespace lcf::vkc
+} // namespace lcf::vkc::entry

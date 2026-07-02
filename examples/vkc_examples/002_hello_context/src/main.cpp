@@ -16,7 +16,7 @@ int main()
     vkc::InstanceExtensionManifest inst_ext_manifest;
     vkc::DeviceExtensionManifest device_ext_manifest;
 
-    vkc::register_context_module(inst_ext_manifest, device_ext_manifest);
+    vkc::entry::register_context(inst_ext_manifest, device_ext_manifest);
 
     vk::ApplicationInfo app_info;
     app_info.setPApplicationName("LCFEngine")

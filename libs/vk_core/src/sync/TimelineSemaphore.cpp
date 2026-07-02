@@ -3,7 +3,7 @@
 #include "vk_core/manifest/DeviceExtensionManifest.h"
 #include <limits>
 
-namespace lcf::vkc {
+namespace lcf::vkc::entry {
 
 void register_timeline_semaphore(DeviceExtensionManifest & manifest) noexcept
 {
@@ -13,6 +13,10 @@ void register_timeline_semaphore(DeviceExtensionManifest & manifest) noexcept
     };
     manifest.addRequiredFeatures(k_features);
 }
+
+} // namespace lcf::vkc::entry
+
+namespace lcf::vkc {
 
 TimelineSemaphore::TimelineSemaphore(Self && other) noexcept :
     m_device(std::exchange(other.m_device, nullptr)),

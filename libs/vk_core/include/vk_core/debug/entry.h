@@ -6,18 +6,21 @@ namespace lcf::vkc {
 
 class InstanceExtensionManifest;
 
-} // namespace lcf::vkc
-
-namespace lcf::vkc::dbg {
+namespace dbg {
 
 class DebugLogCallbacks;
 
+} // namespace lcf::vkc::dbg
+
+} // namespace lcf::vkc
+
+namespace lcf::vkc::entry {
 
 void register_debug_utils(InstanceExtensionManifest & manifest) noexcept;
 
 void register_debug_utils(
     InstanceExtensionManifest & manifest,
     vk::DebugUtilsMessageSeverityFlagsEXT severity,
-    const DebugLogCallbacks & callbacks) noexcept;
+    const dbg::DebugLogCallbacks & callbacks) noexcept;
 
-} // namespace lcf::vkc::dbg
+} // namespace lcf::vkc::entry

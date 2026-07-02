@@ -3,7 +3,6 @@
 #include <vulkan/vulkan.hpp>
 #include <functional>
 #include <string_view>
-#include "resource_utils.h"
 
 namespace lcf::vkc::dbg {
 
@@ -32,9 +31,5 @@ private:
     LogSink m_error_log_sink;
 };
 
-ResourceLease enable_debug_utils(
-    vk::Instance instance,
-    vk::DebugUtilsMessageSeverityFlagsEXT severity,
-    DebugLogCallbacks callbacks = {}) noexcept;
 
 } // namespace lcf::vkc::dbg

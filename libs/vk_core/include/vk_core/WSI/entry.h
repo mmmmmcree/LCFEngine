@@ -6,18 +6,14 @@ class InstanceExtensionManifest;
 
 class DeviceExtensionManifest;
 
-} // namespace lcf::vkc::mnf
+} // namespace lcf::vkc
 
-namespace lcf::vkc::wsi {
+namespace lcf::vkc::entry {
 
 void register_surface(InstanceExtensionManifest & manifest) noexcept;
 
 void register_swapchain(DeviceExtensionManifest & manifest) noexcept;
 
-namespace compat {
+void register_compat_swapchain(DeviceExtensionManifest & manifest) noexcept;
 
-void register_swapchain(DeviceExtensionManifest & manifest) noexcept;
-
-} // namespace lcf::vkc::wsi::compat
-
-} // namespace lcf::vkc::surf
+} // namespace lcf::vkc::entry
