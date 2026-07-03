@@ -1,7 +1,6 @@
 #include "vk_core/shader/ShaderObject.h"
 #include "vk_core/shader/entry.h"
 #include "vk_core/manifest/DeviceExtensionManifest.h"
-#include "vk_core/command/CommandBufferProxy.h"
 #include <array>
 
 namespace lcf::vkc::entry {
@@ -22,9 +21,17 @@ void register_shader_object(DeviceExtensionManifest & manifest) noexcept
 namespace lcf::vkc {
 
 
-void ShaderObject::bind(CommandBufferProxy & cmd)
+std::error_code ShaderObject::create(vk::Device device, const vk::ShaderCreateInfoEXT & info) noexcept
 {
-    cmd.bindShadersEXT(m_bind_stages, m_bind_shaders);
+    try {
+        auto result_value = device.createShaderEXTUnique(info);
+        if (result_value.result != vk::Result::eSuccess) { return vk::make_error_code(result_value.result); }
+        m_shader = std::move(result_value.value);
+    } catch (const vk::SystemError & e) {
+        return e.code();
+    }
+    m_stage = info.stage;
+    return {};
 }
 
 } // namespace lcf::vkc

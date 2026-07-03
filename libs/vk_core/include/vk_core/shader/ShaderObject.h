@@ -1,19 +1,12 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
-#include <span>
-#include <vector>
 
 namespace lcf::vkc {
-
-class CommandBufferProxy;
 
 class ShaderObject
 {
     using Self = ShaderObject;
-    using ShaderStageList = std::vector<vk::ShaderStageFlagBits>;
-    using ShaderList = std::vector<vk::UniqueShaderEXT>;
-    using ShaderHandleList = std::vector<vk::ShaderEXT>;
 public:
     ~ShaderObject() noexcept = default;
     ShaderObject() noexcept = default;
@@ -21,13 +14,14 @@ public:
     ShaderObject(Self &&) noexcept = default;
     ShaderObject & operator=(const Self &) = delete;
     ShaderObject & operator=(Self &&) noexcept = default;
+    operator vk::ShaderEXT() const noexcept { return m_shader.get(); }
 public:
-    std::error_code create(vk::Device device, std::span<const vk::ShaderCreateInfoEXT> shader_infos) noexcept;
-    void bind(CommandBufferProxy & cmd) noexcept;
+    std::error_code create(vk::Device device, const vk::ShaderCreateInfoEXT & info) noexcept;
+    const vk::ShaderEXT & handle() const noexcept { return m_shader.get(); }
+    const vk::ShaderStageFlagBits & getStage() const noexcept { return m_stage; }
 private:
-    ShaderList m_shader_list;
-    ShaderStageList m_bind_stages;
-    ShaderHandleList m_bind_shaders;
+    vk::UniqueShaderEXT m_shader;
+    vk::ShaderStageFlagBits m_stage;
 };
 
 } // namespace lcf::vkc
