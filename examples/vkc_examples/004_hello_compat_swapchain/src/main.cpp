@@ -180,7 +180,7 @@ std::optional<vkc::Image> create_single_color_image(vkc::RenderDeviceContext & d
             .setInitialLayout(vk::ImageLayout::eUndefined);
         vkc::MemoryAllocationInfo mem_alloc_info;
         mem_alloc_info.setAccess(vkc::MemoryAccess::eDeviceLocal);
-        auto expected_image = device_context.createImage(image_info, mem_alloc_info);
+        auto expected_image = device_context.getMemoryContext().createImage(image_info, mem_alloc_info);
         if (not expected_image) { return std::nullopt; }
         image = std::move(*expected_image);
 

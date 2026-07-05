@@ -4,7 +4,7 @@
 #include "vk_core/debug/debug_utils.h"
 #include "vk_core/WSI/entry.h"
 #include "vk_core/WSI/WindowHandle.h"
-#include "vk_core/WSI/Swapchain.h"
+#include "vk_core/WSI/compat/Swapchain.h"
 #include "vk_core/context/entry.h"
 #include "vk_core/context/create_infos.h"
 #include "vk_core/context/InstanceContext.h"
@@ -24,9 +24,6 @@
 using namespace lcf;
 namespace stdv = std::views;
 
-//- lcf::win::WindowHandle and vkc::wsi::WindowHandle are same-shaped variants;
-//- the window library is Vulkan-agnostic, so the mapping happens here at the
-//- call site (one std::visit), keeping the two libraries fully decoupled.
 vkc::wsi::WindowHandle to_wsi_window_handle(const win::WindowHandle & window_handle) noexcept
 {
     return std::visit([](const auto & handle) -> vkc::wsi::WindowHandle {
@@ -57,7 +54,7 @@ int main()
         .setErrorSink([](std::string_view message) { lcf_log_error(message); });
     vkc::entry::register_debug_utils(inst_ext_manifest, vkc::dbg::SeverityFlags::eError | vkc::dbg::SeverityFlags::eWarning | vkc::dbg::SeverityFlags::eVerbose, debug_callbacks);
     vkc::entry::register_surface(inst_ext_manifest);
-    vkc::entry::register_swapchain(device_ext_manifest);
+    vkc::entry::register_compat_swapchain(device_ext_manifest);
 
     vk::ApplicationInfo app_info;
     app_info.setPApplicationName("LCFEngine")
@@ -73,7 +70,7 @@ int main()
 
     vkc::bs::PhysicalDeviceSelectInfo physical_device_select_info;
     physical_device_select_info.setRequiredDeviceExtensionManifest(device_ext_manifest)
-        .setPreferredType(vk::PhysicalDeviceType::eDiscreteGpu);
+        .setPreferredType(vk::PhysicalDeviceType::eIntegratedGpu);
     vkc::DeviceContextCreateInfo device_context_info;
     device_context_info.setRequiredDeviceExtensionManifest(device_ext_manifest)
         .setPhysicalDeviceSelectInfo(physical_device_select_info);
@@ -92,7 +89,7 @@ int main()
     }
 
     win::WindowCreateInfo window_info;
-    window_info.setTitle("hello swapchain");
+    window_info.setTitle("hello compat swapchain");
     win::Window window;
     if (auto ec = window.create(window_info)) {
         lcf_log_error("Failed to create window: {}", ec.message());
@@ -105,7 +102,7 @@ int main()
     }
 
     vkc::wsi::WindowHandle wsi_window_handle = to_wsi_window_handle(window.handle());
-    vkc::wsi::Swapchain swapchain;
+    vkc::wsi::compat::Swapchain swapchain;
     if (auto ec = swapchain.create(
         instance_context.getInstance(),
         render_device_context.getPhysicalDevice(),
@@ -139,12 +136,6 @@ int main()
         }
     });
 
-    /*
-        - resize during a Win32 modal drag reaches us synchronously through this
-        - callback (the pollEvents loop is blocked then). resizeToFit replays the
-        - cached frame at the new size, serialized against present() internally.
-        - if don't register this callback, the swapchain will resize correctly, but the window edge might appear black during the resizing
-    */
     window.setResizeCallback([&swapchain](const win::ResizeEvent &) {
         if (auto ec = swapchain.resizeToFit()) { lcf_log_error("resizeToFit failed: {}", ec.message()); }
     });
@@ -183,7 +174,7 @@ std::optional<vkc::Image> create_single_color_image(vkc::RenderDeviceContext & d
             .setInitialLayout(vk::ImageLayout::eUndefined);
         vkc::MemoryAllocationInfo mem_alloc_info;
         mem_alloc_info.setAccess(vkc::MemoryAccess::eDeviceLocal);
-        auto expected_image = device_context.getMemoryContext().createImage(image_info, mem_alloc_info);
+        auto expected_image = device_context.createImage(image_info, mem_alloc_info);
         if (not expected_image) { return std::nullopt; }
         image = std::move(*expected_image);
 

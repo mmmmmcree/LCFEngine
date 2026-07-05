@@ -4,17 +4,13 @@
 #include <memory>
 #include <vector>
 #include <expected>
-#include "vk_core/memory/details/MemoryAllocator.h"
-#include "vk_core/memory/Buffer.h"
-#include "vk_core/memory/Image.h"
+#include "MemoryContext.h"
 
 namespace lcf::vkc {
 
 class DeviceContextCreateInfo;
 
 class QueueContext;
-
-class MemoryAllocationInfo;
 
 class RenderDeviceContext
 {
@@ -31,18 +27,17 @@ public:
     std::error_code create(vk::Instance instance, const DeviceContextCreateInfo & create_info) noexcept;
     const vk::PhysicalDevice & getPhysicalDevice() const noexcept { return m_physical_device; }
     const vk::Device & getDevice() const noexcept { return m_device.get(); }
+    const MemoryContext & getMemoryContext() const noexcept { return m_memory_context; }
     QueueContext & getGraphicsQueueContext() noexcept { return *m_graphics_queue_context_p; }
     const QueueContext & getGraphicsQueueContext() const noexcept { return *m_graphics_queue_context_p; }
     QueueContext & getComputeQueueContext() noexcept { return *m_compute_queue_context_p; }
     const QueueContext & getComputeQueueContext() const noexcept { return *m_compute_queue_context_p; }
     QueueContext & getTransferQueueContext() noexcept { return *m_transfer_queue_context_p; }
     const QueueContext & getTransferQueueContext() const noexcept { return *m_transfer_queue_context_p; }
-    std::expected<Buffer, std::error_code> createBuffer(const vk::BufferCreateInfo & buffer_info, const MemoryAllocationInfo & alloc_info) const noexcept;
-    std::expected<Image, std::error_code> createImage(const vk::ImageCreateInfo & image_info, const MemoryAllocationInfo & alloc_info) const noexcept;
 private:
     vk::PhysicalDevice m_physical_device;
     vk::UniqueDevice m_device;
-    details::MemoryAllocator m_allocator;
+    MemoryContext m_memory_context;
     std::vector<QueueContextUP> m_queue_contexts;
     QueueContext * m_graphics_queue_context_p = nullptr;
     QueueContext * m_compute_queue_context_p = nullptr;
