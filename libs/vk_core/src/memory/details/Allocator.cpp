@@ -1,6 +1,5 @@
-#include "vk_core/memory/details/MemoryAllocator.h"
-#include "vk_core/memory/MemoryAllocationInfo.h"
-#include "vk_core/memory/details/MemoryAllocatorCreateInfo.h"
+#include "vk_core/memory/details/Allocator.h"
+#include "vk_core/memory/info_structs.h"
 #include "vk_core/memory/enums.h"
 #include "vk_core/bootstrap/api_dispatch.h"
 #define VMA_IMPLEMENTATION
@@ -20,27 +19,25 @@ VmaAllocatorCreateFlags to_vma_allocator_create_flags(const MemoryAllocatorCreat
 
 namespace lcf::vkc::details {
 
-MemoryAllocator::~MemoryAllocator() noexcept
+VMAllocator::~VMAllocator() noexcept
 {
     if (m_allocator) { vmaDestroyAllocator(m_allocator); }
 }
 
-MemoryAllocator::MemoryAllocator(Self && other) noexcept :
-    m_allocator(std::exchange(other.m_allocator, nullptr)),
-    m_buffer_device_address_enabled(std::exchange(other.m_buffer_device_address_enabled, false))
+VMAllocator::VMAllocator(Self && other) noexcept :
+    m_allocator(std::exchange(other.m_allocator, nullptr))
 {
 }
 
-auto MemoryAllocator::operator=(Self && other) noexcept -> Self &
+auto VMAllocator::operator=(Self && other) noexcept -> Self &
 {
     if (this == &other) { return *this; }
     if (m_allocator) { vmaDestroyAllocator(m_allocator); }
     m_allocator = std::exchange(other.m_allocator, nullptr);
-    m_buffer_device_address_enabled = std::exchange(other.m_buffer_device_address_enabled, false);
     return *this;
 }
 
-std::error_code MemoryAllocator::create(vk::Instance instance, vk::PhysicalDevice physical_device, vk::Device device, const MemoryAllocatorCreateInfo & create_info) noexcept
+std::error_code VMAllocator::create(vk::Instance instance, vk::PhysicalDevice physical_device, vk::Device device, const MemoryAllocatorCreateInfo & create_info) noexcept
 {
     VmaVulkanFunctions vulkan_functions {};
     vulkan_functions.vkGetInstanceProcAddr = VULKAN_HPP_DEFAULT_DISPATCHER.vkGetInstanceProcAddr;
@@ -57,11 +54,10 @@ std::error_code MemoryAllocator::create(vk::Instance instance, vk::PhysicalDevic
     if (vmaCreateAllocator(&allocator_info, &m_allocator) != VK_SUCCESS) {
         return std::make_error_code(std::errc::not_enough_memory);
     }
-    m_buffer_device_address_enabled = create_info.isBufferDeviceAddressEnabled();
     return {};
 }
 
-std::expected<Memory<vk::Buffer>, std::error_code> MemoryAllocator::allocateBuffer(const vk::BufferCreateInfo & buffer_info, const MemoryAllocationInfo & alloc_info) const noexcept
+std::expected<Memory<vk::Buffer>, std::error_code> VMAllocator::allocateBuffer(const vk::BufferCreateInfo & buffer_info, const MemoryAllocationInfo & alloc_info) const noexcept
 {
     VmaAllocationCreateInfo create_info = to_vma_allocation_create_info(alloc_info);
     VkBuffer buffer = nullptr;
@@ -77,7 +73,7 @@ std::expected<Memory<vk::Buffer>, std::error_code> MemoryAllocator::allocateBuff
     return Memory<vk::Buffer>(m_allocator, allocation, buffer);
 }
 
-std::expected<Memory<vk::Image>, std::error_code> MemoryAllocator::allocateImage(const vk::ImageCreateInfo & image_info, const MemoryAllocationInfo & alloc_info) const noexcept
+std::expected<Memory<vk::Image>, std::error_code> VMAllocator::allocateImage(const vk::ImageCreateInfo & image_info, const MemoryAllocationInfo & alloc_info) const noexcept
 {
     VmaAllocationCreateInfo create_info = to_vma_allocation_create_info(alloc_info);
     VkImage image = nullptr;

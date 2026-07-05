@@ -10,7 +10,7 @@
 #include "vk_core/context/InstanceContext.h"
 #include "vk_core/context/RenderDeviceContext.h"
 #include "vk_core/context/QueueContext.h"
-#include "vk_core/memory/MemoryAllocationInfo.h"
+#include "vk_core/memory/info_structs.h"
 #include "vk_core/memory/Image.h"
 #include "vk_core/error.h"
 #include "win/Window.h"

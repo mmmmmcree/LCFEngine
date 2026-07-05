@@ -1,8 +1,7 @@
 #include "vk_core/context/RenderDeviceContext.h"
 #include "vk_core/context/QueueContext.h"
-#include "vk_core/context/MemoryContext.h"
-#include "vk_core/memory/details/MemoryAllocatorCreateInfo.h"
-#include "vk_core/memory/details/MemoryAllocator.h"
+#include "vk_core/memory/info_structs.h"
+#include "vk_core/memory/MemoryAllocator.h"
 #include "vk_core/context/create_infos.h"
 #include "vk_core/bootstrap/select_physical_device.h"
 #include "vk_core/bootstrap/create_device.h"
@@ -62,7 +61,7 @@ std::error_code RenderDeviceContext::create(vk::Instance instance, const DeviceC
         }
         m_queue_contexts.emplace_back(std::move(queue_context_up));
     }
-    details::MemoryAllocatorCreateInfo allocator_create_info;
+    MemoryAllocatorCreateInfo allocator_create_info;
     allocator_create_info.setBufferDeviceAddress(device_info.isFeatureRequired(
         utils::t_feature_bit<&vk::PhysicalDeviceVulkan12Features::bufferDeviceAddress>));
     if (auto ec = m_memory_context.create(instance, m_physical_device, m_device.get(), allocator_create_info)) { return ec; }

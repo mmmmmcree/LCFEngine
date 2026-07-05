@@ -4,7 +4,7 @@
 #include <memory>
 #include <vector>
 #include <expected>
-#include "MemoryContext.h"
+#include "vk_core/memory/MemoryAllocator.h"
 
 namespace lcf::vkc {
 
@@ -27,7 +27,7 @@ public:
     std::error_code create(vk::Instance instance, const DeviceContextCreateInfo & create_info) noexcept;
     const vk::PhysicalDevice & getPhysicalDevice() const noexcept { return m_physical_device; }
     const vk::Device & getDevice() const noexcept { return m_device.get(); }
-    const MemoryContext & getMemoryContext() const noexcept { return m_memory_context; }
+    const MemoryAllocator & getMemoryContext() const noexcept { return m_memory_context; }
     QueueContext & getGraphicsQueueContext() noexcept { return *m_graphics_queue_context_p; }
     const QueueContext & getGraphicsQueueContext() const noexcept { return *m_graphics_queue_context_p; }
     QueueContext & getComputeQueueContext() noexcept { return *m_compute_queue_context_p; }
@@ -37,7 +37,7 @@ public:
 private:
     vk::PhysicalDevice m_physical_device;
     vk::UniqueDevice m_device;
-    MemoryContext m_memory_context;
+    MemoryAllocator m_memory_context;
     std::vector<QueueContextUP> m_queue_contexts;
     QueueContext * m_graphics_queue_context_p = nullptr;
     QueueContext * m_compute_queue_context_p = nullptr;
