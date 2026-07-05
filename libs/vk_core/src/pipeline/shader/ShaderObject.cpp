@@ -1,5 +1,5 @@
-#include "vk_core/shader/ShaderObject.h"
-#include "vk_core/shader/entry.h"
+#include "vk_core/pipeline/shader/ShaderObject.h"
+#include "vk_core/pipeline/shader/entry.h"
 #include "vk_core/manifest/DeviceExtensionManifest.h"
 #include <array>
 
@@ -32,6 +32,7 @@ std::error_code ShaderObject::create(vk::Device device, const vk::ShaderCreateIn
     }
     m_stage = info.stage;
     return {};
+    vk::CommandBuffer cmd;
 }
 
 } // namespace lcf::vkc

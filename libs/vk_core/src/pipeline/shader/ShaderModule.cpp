@@ -1,4 +1,4 @@
-#include "vk_core/shader/ShaderModule.h"
+#include "vk_core/pipeline/shader/ShaderModule.h"
 
 namespace lcf::vkc {
 

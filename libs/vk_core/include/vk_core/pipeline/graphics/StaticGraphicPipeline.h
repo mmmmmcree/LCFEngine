@@ -6,6 +6,8 @@ namespace lcf::vkc {
 
 class GraphicPipelineInfo;
 
+class CommandBufferProxy;
+
 class StaticGraphicPipeline
 {
     using Self = StaticGraphicPipeline;
@@ -17,8 +19,8 @@ public:
     Self &operator=(const Self &) noexcept = delete;
     Self &operator=(Self &&) noexcept = default;
 public:
-    std::error_code create(vk::Device device, const GraphicPipelineInfo &info) noexcept;
-    void bind(vk::CommandBuffer cmd) noexcept;
+    std::error_code create(vk::Device device, const GraphicPipelineInfo & pipeline_info) noexcept;
+    void bind(CommandBufferProxy & cmd) const noexcept;
 private:
     vk::UniquePipeline m_pipeline;
 };
