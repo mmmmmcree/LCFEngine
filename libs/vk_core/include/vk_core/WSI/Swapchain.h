@@ -58,10 +58,8 @@ public:
     Swapchain & operator=(Swapchain &&) noexcept = delete;
 public:
     std::error_code create(
-        vk::Instance instance,
-        vk::PhysicalDevice physical_device,
-        vk::Device device,
-        uint32_t present_queue_family_index,
+        vk::Instance instance, vk::PhysicalDevice physical_device, vk::Device device,
+        uint32_t present_queue_family_index, vk::Queue present_queue,
         const WindowHandle & window_handle) noexcept;
     std::expected<vk::SemaphoreSubmitInfo, std::error_code> present(
         const std::array<vk::Offset3D, 2> & src_offsets,

@@ -111,6 +111,7 @@ int main()
         render_device_context.getPhysicalDevice(),
         render_device_context.getDevice(),
         render_device_context.getGraphicsQueueContext().getFamilyIndex(),
+        render_device_context.getGraphicsQueueContext().getQueue(),
         wsi_window_handle))
     {
         lcf_log_error("Failed to create swapchain: {}", ec.message());

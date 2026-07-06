@@ -28,15 +28,13 @@ void register_compat_swapchain(DeviceExtensionManifest & manifest) noexcept
 namespace lcf::vkc::wsi::compat {
 
 std::error_code Swapchain::create(
-    vk::Instance instance,
-    vk::PhysicalDevice physical_device,
-    vk::Device device,
-    uint32_t present_queue_family_index,
+    vk::Instance instance, vk::PhysicalDevice physical_device, vk::Device device,
+    uint32_t present_queue_family_index, vk::Queue present_queue,
     const WindowHandle &window_handle) noexcept
 {
     m_physical_device = physical_device;
     m_device = device;
-    m_present_queue = m_device.getQueue(present_queue_family_index, 0u);
+    m_present_queue = present_queue;
     auto expected_surface = create_surface(instance, window_handle);
     if (not expected_surface) { return expected_surface.error(); }
     m_surface = std::move(expected_surface.value());
