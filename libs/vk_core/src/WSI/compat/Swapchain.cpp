@@ -1,5 +1,6 @@
 #include "vk_core/WSI/compat/Swapchain.h"
 #include "vk_core/WSI/entry.h"
+#include "vk_core/sync/entry.h"
 #include "vk_core/manifest/DeviceExtensionManifest.h"
 #include "vk_core/WSI/create_surface.h"
 #include "vk_core/WSI/WindowHandle.h"
@@ -17,7 +18,9 @@ void register_compat_swapchain(DeviceExtensionManifest & manifest) noexcept
     {
         vk::KHRSwapchainExtensionName,
     };
+
     manifest.addRequiredExtensions(k_extensions);
+    register_timeline_semaphore(manifest);
 }
 
 } // namespace lcf::vkc::entry
@@ -42,6 +45,7 @@ std::error_code Swapchain::create(
         supported = m_physical_device.getSurfaceSupportKHR(present_queue_family_index, m_surface.get());
     } catch (const vk::SystemError & e) { return e.code(); }
     if (not supported) { return errc::no_suitable_present_queue_family; }
+    if (auto ec = m_blit_timeline.create(device)) { return ec; }
     vk::CommandPoolCreateInfo pool_info {vk::CommandPoolCreateFlagBits::eResetCommandBuffer, present_queue_family_index };
     try {
         m_cmd_pool = m_device.createCommandPoolUnique(pool_info);
@@ -51,7 +55,7 @@ std::error_code Swapchain::create(
     return {};
 }
 
-std::error_code Swapchain::_present(
+std::expected<vk::SemaphoreSubmitInfo, std::error_code> Swapchain::_present(
     const std::array<vk::Offset3D, 2> &src_offsets,
     vk::Image src_image,
     ResourceLease image_lease,
@@ -61,14 +65,14 @@ std::error_code Swapchain::_present(
     //- 1. check pre-conditions
     //- consider this if condition as a dirty flag, swapchain becomes dirty after first creation or any change in desired params
     if (auto snapshot = m_desired_params_snapshot.loadIfChanged()) {
-        if (auto ec = this->recreate(*snapshot)) { return ec; }
+        if (auto ec = this->recreate(*snapshot)) { return std::unexpected(ec); }
     }
     //- 2. fill m_present_resources
-    if (auto ec = this->acquireNextImage()) { return ec; }
+    if (auto ec = this->acquireNextImage()) { return std::unexpected(ec); }
     auto expected_cmd = this->acquireCmdBuffer();
     auto expected_fence = this->acquireFence();
-    if (not expected_cmd) { return expected_cmd.error(); }
-    if (not expected_fence) { return expected_fence.error(); }
+    if (not expected_cmd) { return std::unexpected(expected_cmd.error()); }
+    if (not expected_fence) { return std::unexpected(expected_fence.error()); }
     m_present_resources.m_cmd = expected_cmd.value();
     m_present_resources.m_submit_fence = std::move(expected_fence.value());
     if (image_lease) {
@@ -120,17 +124,23 @@ std::error_code Swapchain::_present(
     std::array<vk::Semaphore, 2> wait_semaphores { target_available, wait_info.semaphore };
     std::array<vk::PipelineStageFlags, 2> wait_stages { vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer };
     uint32_t wait_count = wait_info.semaphore ? 2u : 1u;
+    vk::SemaphoreSubmitInfo blit_timeline_signal = m_blit_timeline.advanceTarget().generateSubmitInfo();
+    vk::Semaphore signal_semaphores[] { present_ready, blit_timeline_signal.semaphore };
+    uint64_t signal_values[] { 0u, blit_timeline_signal.value };
+    vk::TimelineSemaphoreSubmitInfo timeline_info;
+    timeline_info.setSignalSemaphoreValues(signal_values);
     vk::SubmitInfo submit_info;
     submit_info.setWaitSemaphoreCount(wait_count)
         .setPWaitSemaphores(wait_semaphores.data())
         .setPWaitDstStageMask(wait_stages.data())
         .setCommandBuffers(cmd)
-        .setSignalSemaphores(present_ready);
+        .setSignalSemaphores(signal_semaphores)
+        .setPNext(&timeline_info);
     try {
         m_present_queue.submit(submit_info, submit_fence);
     } catch (const vk::SystemError & e) {
         this->recyclePresentResources(m_present_resources);
-        return e.code();
+        return std::unexpected(e.code());
     }
     //- 5. present
     vk::PresentInfoKHR present_info;
@@ -148,11 +158,14 @@ std::error_code Swapchain::_present(
     //- 6. recycle resources, except present_ready semaphore
     m_pending_resources_queue.emplace(std::exchange(m_present_resources, {}));
     this->tryRecyclePendingResources();
-    if (present_result == vk::Result::eSuccess or present_result == vk::Result::eSuboptimalKHR) { return {}; }
-    return vk::make_error_code(present_result);
+    if (present_result == vk::Result::eSuccess or present_result == vk::Result::eSuboptimalKHR) {
+        blit_timeline_signal.setStageMask(vk::PipelineStageFlagBits2::eColorAttachmentOutput);
+        return blit_timeline_signal;
+    }
+    return std::unexpected(vk::make_error_code(present_result));
 }
 
-std::error_code Swapchain::present(
+std::expected<vk::SemaphoreSubmitInfo, std::error_code> Swapchain::present(
     const std::array<vk::Offset3D, 2> &src_offsets,
     vk::Image src_image,
     ResourceLease image_lease,
@@ -160,7 +173,7 @@ std::error_code Swapchain::present(
     vk::ImageSubresourceLayers src_subresource_layers) noexcept
 {
     m_cached_present_input.write({src_offsets, src_image, image_lease, wait_info, src_subresource_layers});
-    if (m_resize_has_priority.load(std::memory_order_acquire)) { return errc::present_skipped_for_resize; }
+    if (m_resize_has_priority.load(std::memory_order_acquire)) { return std::unexpected(errc::present_skipped_for_resize); }
     std::lock_guard lock(m_present_mutex);
     return this->_present(src_offsets, src_image, std::move(image_lease), wait_info, src_subresource_layers);
 }
@@ -177,7 +190,9 @@ std::error_code Swapchain::resizeToFit() noexcept
     std::lock_guard lock(m_present_mutex);
     auto [src_offsets, src_image, image_lease, wait_info, src_subresource_layers] = m_cached_present_input.read();
     if (not src_image) { return {}; }
-    return this->_present(src_offsets, src_image, image_lease, wait_info, src_subresource_layers);
+    auto expected_present_result = this->_present(src_offsets, src_image, image_lease, wait_info, src_subresource_layers);
+    if (not expected_present_result) { return expected_present_result.error(); }
+    return {};
 }
 
 std::error_code Swapchain::recreate(const DesiredParams & desired_params) noexcept

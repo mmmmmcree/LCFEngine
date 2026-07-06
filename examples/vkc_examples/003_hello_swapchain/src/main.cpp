@@ -133,8 +133,10 @@ int main()
     std::thread render_thread([&] {
         static uint64_t frame = 0;
         while (running.load(std::memory_order_relaxed)) {
-            auto ec = swapchain.present(src_offsets, images[frame++ % 2]);
-            if (not ec or ec == vkc::errc::surface_zero_size or ec == vkc::errc::present_skipped_for_resize) { continue; }
+            auto expected_present_result = swapchain.present(src_offsets, images[frame++ % 2]);
+            if (expected_present_result) { continue; }
+            auto ec = expected_present_result.error();
+            if (ec == vkc::errc::surface_zero_size or ec == vkc::errc::present_skipped_for_resize) { continue; }
             lcf_log_error("present failed: {}", ec.message());
         }
     });

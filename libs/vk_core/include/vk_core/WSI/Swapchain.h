@@ -11,6 +11,7 @@
 #include <expected>
 #include <atomic>
 #include <mutex>
+#include "vk_core/sync/TimelineSemaphore.h"
 
 namespace lcf::vkc {
 
@@ -62,7 +63,7 @@ public:
         vk::Device device,
         uint32_t present_queue_family_index,
         const WindowHandle & window_handle) noexcept;
-    std::error_code present(
+    std::expected<vk::SemaphoreSubmitInfo, std::error_code> present(
         const std::array<vk::Offset3D, 2> & src_offsets,
         vk::Image src_image,
         ResourceLease image_lease = {},
@@ -73,7 +74,7 @@ public:
     Self & setDesiredSurfaceFormat(const vk::SurfaceFormatKHR & surface_format) noexcept;
     Self & setDesiredPresentMode(const vk::PresentModeKHR & present_mode) noexcept;
 private:
-    std::error_code _present(
+    std::expected<vk::SemaphoreSubmitInfo, std::error_code> _present(
         const std::array<vk::Offset3D, 2> & src_offsets,
         vk::Image src_image,
         ResourceLease image_lease,
@@ -101,6 +102,7 @@ private:
     SPSCValue<CachedPresentInput> m_cached_present_input;
     std::mutex m_present_mutex;
     std::atomic<bool> m_resize_has_priority = false;
+    TimelineSemaphore m_blit_timeline;
     vk::UniqueCommandPool m_cmd_pool;
     CmdBufferPool m_cmd_buffer_pool;
     FencePool m_fence_pool;

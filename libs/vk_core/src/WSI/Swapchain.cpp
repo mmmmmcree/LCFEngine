@@ -1,5 +1,6 @@
 #include "vk_core/WSI/Swapchain.h"
 #include "vk_core/WSI/entry.h"
+#include "vk_core/sync/entry.h"
 #include "vk_core/manifest/DeviceExtensionManifest.h"
 #include "vk_core/WSI/create_surface.h"
 #include "vk_core/WSI/WindowHandle.h"
@@ -25,6 +26,7 @@ void register_swapchain(DeviceExtensionManifest & manifest) noexcept
     };
     manifest.addRequiredExtensions(k_extensions)
         .addRequiredFeatures(k_features);
+    register_timeline_semaphore(manifest);
 }
 
 } // namespace lcf::vkc::entry
@@ -49,6 +51,7 @@ std::error_code Swapchain::create(
         supported = m_physical_device.getSurfaceSupportKHR(present_queue_family_index, m_surface.get());
     } catch (const vk::SystemError & e) { return e.code(); }
     if (not supported) { return errc::no_suitable_present_queue_family; }
+    if (auto ec = m_blit_timeline.create(device)) { return ec; }
     vk::CommandPoolCreateInfo pool_info {vk::CommandPoolCreateFlagBits::eResetCommandBuffer, present_queue_family_index };
     try {
         m_cmd_pool = device.createCommandPoolUnique(pool_info);
@@ -58,7 +61,7 @@ std::error_code Swapchain::create(
     return {};
 }
 
-std::error_code Swapchain::_present(
+std::expected<vk::SemaphoreSubmitInfo, std::error_code> Swapchain::_present(
     const std::array<vk::Offset3D, 2> &src_offsets,
     vk::Image src_image,
     ResourceLease image_lease,
@@ -68,16 +71,16 @@ std::error_code Swapchain::_present(
     //- 1. check pre-conditions
     //- consider this if condition as a dirty flag, swapchain becomes dirty after first creation or any change in desired params
     if (auto snapshot = m_desired_params_snapshot.loadIfChanged()) {
-        if (auto ec = this->recreate(*snapshot)) { return ec; }
+        if (auto ec = this->recreate(*snapshot)) { return std::unexpected(ec); }
     }
-    if (auto ec = this->acquireNextImage()) { return ec; }
+    if (auto ec = this->acquireNextImage()) { return std::unexpected(ec); }
     //- 2. fill m_present_resources
     auto expected_cmd = this->acquireCmdBuffer();
     auto expected_fence = this->acquireFence();
     auto expected_present_ready_semaphore = this->acquireSemaphore();
-    if (not expected_cmd) { return expected_cmd.error(); }
-    if (not expected_fence) { return expected_fence.error(); }
-    if (not expected_present_ready_semaphore) { return expected_present_ready_semaphore.error(); }
+    if (not expected_cmd) { return std::unexpected(expected_cmd.error()); }
+    if (not expected_fence) { return std::unexpected(expected_fence.error()); }
+    if (not expected_present_ready_semaphore) { return std::unexpected(expected_present_ready_semaphore.error()); }
     auto & cmd = m_present_resources.m_cmd = std::move(expected_cmd.value());
     auto & present_fence = m_present_resources.m_present_fence = std::move(expected_fence.value());
     auto & present_ready = m_present_resources.m_present_ready = std::move(expected_present_ready_semaphore.value());
@@ -134,21 +137,24 @@ std::error_code Swapchain::_present(
       .setStageMask(vk::PipelineStageFlagBits2::eBlit);
     present_ready_signal.setSemaphore(present_ready.get())
       .setStageMask(vk::PipelineStageFlagBits2::eBlit);
+    vk::SemaphoreSubmitInfo blit_timeline_signal = m_blit_timeline.advanceTarget().generateSubmitInfo();
+    blit_timeline_signal.setStageMask(vk::PipelineStageFlagBits2::eBlit);
     std::array<vk::SemaphoreSubmitInfo, 2> waits { target_available_wait, wait_info };
+    std::array<vk::SemaphoreSubmitInfo, 2> signals { present_ready_signal, blit_timeline_signal };
     uint32_t wait_count = waits.size() - (not wait_info.semaphore);
     vk::CommandBufferSubmitInfo cmd_submit_info {cmd};
     vk::SubmitInfo2 submit;
     submit.setWaitSemaphoreInfos(waits)
         .setWaitSemaphoreInfoCount(wait_count)
         .setCommandBufferInfos(cmd_submit_info)
-        .setSignalSemaphoreInfos(present_ready_signal);
+        .setSignalSemaphoreInfos(signals);
 
     vk::Queue present_queue = m_present_queue;
     try {
         present_queue.submit2(submit);
     } catch (const vk::SystemError & e) {
         this->recyclePresentResources(m_present_resources);
-        return e.code();
+        return std::unexpected(e.code());
     }
     //- 5. present
     vk::StructureChain<vk::PresentInfoKHR, vk::SwapchainPresentFenceInfoKHR> present_info_chain;
@@ -169,12 +175,16 @@ std::error_code Swapchain::_present(
     m_pending_resources_queue.emplace(std::exchange(m_present_resources, {}));
     this->tryRecyclePendingResources();
     if (present_result == vk::Result::eSuboptimalKHR) {
-        return this->recreate(m_desired_params_snapshot.read().value());
+        this->recreate(m_desired_params_snapshot.read().value());
     }
-    return present_result;
+    if (present_result == vk::Result::eSuccess or present_result == vk::Result::eSuboptimalKHR) {
+        blit_timeline_signal.setStageMask(vk::PipelineStageFlagBits2::eColorAttachmentOutput);
+        return blit_timeline_signal;
+    }
+    return std::unexpected(present_result);
 }
 
-std::error_code Swapchain::present(
+std::expected<vk::SemaphoreSubmitInfo, std::error_code> Swapchain::present(
     const std::array<vk::Offset3D, 2> &src_offsets,
     vk::Image src_image,
     ResourceLease image_lease,
@@ -182,7 +192,7 @@ std::error_code Swapchain::present(
     vk::ImageSubresourceLayers src_subresource_layers) noexcept
 {
     m_cached_present_input.write({src_offsets, src_image, image_lease, wait_info, src_subresource_layers});
-    if (m_resize_has_priority.load(std::memory_order_acquire)) { return errc::present_skipped_for_resize; }
+    if (m_resize_has_priority.load(std::memory_order_acquire)) { return std::unexpected(errc::present_skipped_for_resize); }
     std::lock_guard lock(m_present_mutex);
     return this->_present(src_offsets, src_image, std::move(image_lease), wait_info, src_subresource_layers);
 }
@@ -199,7 +209,9 @@ std::error_code Swapchain::resizeToFit() noexcept
     std::lock_guard lock(m_present_mutex);
     auto [src_offsets, src_image, image_lease, wait_info, src_subresource_layers] = m_cached_present_input.read();
     if (not src_image) { return {}; }
-    return this->_present(src_offsets, src_image, image_lease, wait_info, src_subresource_layers);
+    auto expected_present_result = this->_present(src_offsets, src_image, std::move(image_lease), wait_info, src_subresource_layers);
+    if (not expected_present_result) { return expected_present_result.error(); }
+    return {};
 }
 
 std::error_code Swapchain::recreate(const DesiredParams & desired_params) noexcept

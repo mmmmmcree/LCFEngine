@@ -2,6 +2,7 @@
 
 #include <vulkan/vulkan.hpp>
 #include "vk_core/WSI/WindowHandle.h"
+#include "vk_core/sync/TimelineSemaphore.h"
 #include "resource_utils.h"
 #include "AtomicSnapshot.h"
 #include "SPSCValue.h"
@@ -60,7 +61,7 @@ public:
         vk::Device device,
         uint32_t present_queue_family_index,
         const WindowHandle & window_handle) noexcept;
-    std::error_code present(
+    std::expected<vk::SemaphoreSubmitInfo, std::error_code> present(
         const std::array<vk::Offset3D, 2> & src_offsets,
         vk::Image src_image,
         ResourceLease image_lease = {},
@@ -71,7 +72,7 @@ public:
     Self & setDesiredSurfaceFormat(const vk::SurfaceFormatKHR & surface_format) noexcept;
     Self & setDesiredPresentMode(const vk::PresentModeKHR & present_mode) noexcept;
 private:
-    std::error_code _present(
+    std::expected<vk::SemaphoreSubmitInfo, std::error_code> _present(
         const std::array<vk::Offset3D, 2> & src_offsets,
         vk::Image src_image,
         ResourceLease image_lease,
@@ -97,6 +98,7 @@ private:
     uint32_t m_image_index = 0u;
     SPSCValue<CachedPresentInput> m_cached_present_input;
     LatchedSnapshot<DesiredParams> m_desired_params_snapshot;
+    TimelineSemaphore m_blit_timeline;
     SemaphoreList m_present_ready_semaphores;
     std::mutex m_present_mutex;
     std::atomic<bool> m_resize_has_priority = false;
