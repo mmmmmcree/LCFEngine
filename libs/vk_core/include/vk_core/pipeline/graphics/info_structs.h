@@ -116,76 +116,56 @@ class RasterizationStateInfo
     using Self = RasterizationStateInfo;
 public:
     ~RasterizationStateInfo() noexcept = default;
-    constexpr RasterizationStateInfo(
-        vk::PipelineRasterizationStateCreateFlags flags = {},
-        vk::Bool32 depth_clamp_enable = false,
-        vk::Bool32 rasterizer_discard_enable = false,
-        vk::PolygonMode polygon_mode = vk::PolygonMode::eFill,
-        vk::CullModeFlags cull_mode = vk::CullModeFlagBits::eNone,
-        vk::FrontFace front_face = vk::FrontFace::eCounterClockwise,
-        vk::Bool32 depth_bias_enable = false,
-        float depth_bias_constant_factor = 0.0f,
-        float depth_bias_clamp = 0.0f,
-        float depth_bias_slope_factor = 0.0f,
-        float line_width = 1.0f) noexcept :
-        m_flags(flags),
-        m_depth_clamp_enable(depth_clamp_enable),
-        m_rasterizer_discard_enable(rasterizer_discard_enable),
-        m_polygon_mode(polygon_mode),
-        m_cull_mode(cull_mode),
-        m_front_face(front_face),
-        m_depth_bias_enable(depth_bias_enable),
-        m_depth_bias_constant_factor(depth_bias_constant_factor),
-        m_depth_bias_clamp(depth_bias_clamp),
-        m_depth_bias_slope_factor(depth_bias_slope_factor),
-        m_line_width(line_width) {}
+    RasterizationStateInfo() noexcept { m_state.setLineWidth(1.0f); }
     RasterizationStateInfo(const Self & other) noexcept = default;
     RasterizationStateInfo(Self && other) noexcept = default;
     Self & operator=(const Self & other) noexcept = default;
     Self & operator=(Self && other) noexcept = default;
+    // pNext is never stored on m_state (kept null); it is rebuilt here from this
+    // object's own extension storage, so default copy/move stay dangle-free. The
+    // returned struct borrows this — valid only while this RasterizationStateInfo lives.
     operator vk::PipelineRasterizationStateCreateInfo() const noexcept
     {
-        return vk::PipelineRasterizationStateCreateInfo {
-            m_flags, m_depth_clamp_enable, m_rasterizer_discard_enable, m_polygon_mode, m_cull_mode, m_front_face,
-            m_depth_bias_enable, m_depth_bias_constant_factor, m_depth_bias_clamp, m_depth_bias_slope_factor, m_line_width,
-        };
+        vk::PipelineRasterizationStateCreateInfo out = m_state;
+        out.pNext = m_conservative_opt ? &*m_conservative_opt : nullptr;
+        return out;
     }
 public:
-    Self & addFlags(vk::PipelineRasterizationStateCreateFlags flags) noexcept { m_flags |= flags; return *this; }
-    Self & enableDepthClamp() noexcept { m_depth_clamp_enable = true; return *this; }
-    Self & enableRasterizerDiscard() noexcept { m_rasterizer_discard_enable = true; return *this; }
-    Self & setPolygonMode(vk::PolygonMode mode) noexcept { m_polygon_mode = mode; return *this; }
-    Self & setCullMode(vk::CullModeFlags mode) noexcept { m_cull_mode = mode; return *this; }
-    Self & setFrontFace(vk::FrontFace front_face) noexcept { m_front_face = front_face; return *this; }
+    Self & addFlags(vk::PipelineRasterizationStateCreateFlags flags) noexcept { m_state.flags |= flags; return *this; }
+    Self & enableDepthClamp() noexcept { m_state.depthClampEnable = true; return *this; }
+    Self & enableRasterizerDiscard() noexcept { m_state.rasterizerDiscardEnable = true; return *this; }
+    Self & setPolygonMode(vk::PolygonMode mode) noexcept { m_state.polygonMode = mode; return *this; }
+    Self & setCullMode(vk::CullModeFlags mode) noexcept { m_state.cullMode = mode; return *this; }
+    Self & setFrontFace(vk::FrontFace front_face) noexcept { m_state.frontFace = front_face; return *this; }
     Self & enableDepthBias(float constant_factor = 0.0f, float clamp = 0.0f, float slope_factor = 0.0f) noexcept
     {
-        m_depth_bias_enable = true;
-        m_depth_bias_constant_factor = constant_factor;
-        m_depth_bias_clamp = clamp;
-        m_depth_bias_slope_factor = slope_factor;
+        m_state.depthBiasEnable = true;
+        m_state.depthBiasConstantFactor = constant_factor;
+        m_state.depthBiasClamp = clamp;
+        m_state.depthBiasSlopeFactor = slope_factor;
         return *this;
     }
-    Self & setLineWidth(float width) noexcept { m_line_width = width; return *this; }
-    const vk::PipelineRasterizationStateCreateFlags & getFlags() const noexcept { return m_flags; }
-    const vk::Bool32 & isDepthClampEnabled() const noexcept { return m_depth_clamp_enable; }
-    const vk::Bool32 & isRasterizerDiscardEnabled() const noexcept { return m_rasterizer_discard_enable; }
-    const vk::PolygonMode & getPolygonMode() const noexcept { return m_polygon_mode; }
-    const vk::CullModeFlags & getCullMode() const noexcept { return m_cull_mode; }
-    const vk::FrontFace & getFrontFace() const noexcept { return m_front_face; }
-    const vk::Bool32 & isDepthBiasEnabled() const noexcept { return m_depth_bias_enable; }
-    const float & getLineWidth() const noexcept { return m_line_width; }
+    Self & setLineWidth(float width) noexcept { m_state.lineWidth = width; return *this; }
+    Self & enableConservativeRasterization(
+        vk::ConservativeRasterizationModeEXT mode = vk::ConservativeRasterizationModeEXT::eOverestimate,
+        float extra_overestimation_size = 0.0f) noexcept
+    {
+        m_conservative_opt.emplace()
+            .setConservativeRasterizationMode(mode)
+            .setExtraPrimitiveOverestimationSize(extra_overestimation_size);
+        return *this;
+    }
+    const vk::PipelineRasterizationStateCreateFlags & getFlags() const noexcept { return m_state.flags; }
+    const vk::Bool32 & isDepthClampEnabled() const noexcept { return m_state.depthClampEnable; }
+    const vk::Bool32 & isRasterizerDiscardEnabled() const noexcept { return m_state.rasterizerDiscardEnable; }
+    const vk::PolygonMode & getPolygonMode() const noexcept { return m_state.polygonMode; }
+    const vk::CullModeFlags & getCullMode() const noexcept { return m_state.cullMode; }
+    const vk::FrontFace & getFrontFace() const noexcept { return m_state.frontFace; }
+    const vk::Bool32 & isDepthBiasEnabled() const noexcept { return m_state.depthBiasEnable; }
+    const float & getLineWidth() const noexcept { return m_state.lineWidth; }
 private:
-    vk::PipelineRasterizationStateCreateFlags m_flags;
-    vk::Bool32 m_depth_clamp_enable;
-    vk::Bool32 m_rasterizer_discard_enable;
-    vk::PolygonMode m_polygon_mode;
-    vk::CullModeFlags m_cull_mode;
-    vk::FrontFace m_front_face;
-    vk::Bool32 m_depth_bias_enable;
-    float m_depth_bias_constant_factor;
-    float m_depth_bias_clamp;
-    float m_depth_bias_slope_factor;
-    float m_line_width;
+    vk::PipelineRasterizationStateCreateInfo m_state {};
+    std::optional<vk::PipelineRasterizationConservativeStateCreateInfoEXT> m_conservative_opt;
 };
 
 class MultisampleStateInfo

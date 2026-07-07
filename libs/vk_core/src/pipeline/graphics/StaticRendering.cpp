@@ -9,7 +9,7 @@ std::error_code StaticRendering::create(
     const RenderingInfo & rendering_info,
     const RenderTargetInfo & render_target_info) noexcept
 {
-
+    return {};
 }
 
 void StaticRendering::begin(CommandBufferProxy &cmd, const RenderTarget &target) noexcept
