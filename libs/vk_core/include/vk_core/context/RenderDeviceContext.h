@@ -27,7 +27,7 @@ public:
     std::error_code create(vk::Instance instance, const DeviceContextCreateInfo & create_info) noexcept;
     const vk::PhysicalDevice & getPhysicalDevice() const noexcept { return m_physical_device; }
     const vk::Device & getDevice() const noexcept { return m_device.get(); }
-    const MemoryAllocator & getMemoryContext() const noexcept { return m_memory_context; }
+    const MemoryAllocator & getMemoryAllocator() const noexcept { return m_memory_context; }
     QueueContext & getGraphicsQueueContext() noexcept { return *m_graphics_queue_context_p; }
     const QueueContext & getGraphicsQueueContext() const noexcept { return *m_graphics_queue_context_p; }
     QueueContext & getComputeQueueContext() noexcept { return *m_compute_queue_context_p; }

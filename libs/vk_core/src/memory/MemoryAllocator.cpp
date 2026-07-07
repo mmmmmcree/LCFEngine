@@ -21,22 +21,16 @@ std::error_code MemoryAllocator::create(
     return m_allocator_up->create(instance, physical_device, device, create_info);
 }
 
-std::expected<Buffer, std::error_code> MemoryAllocator::createBuffer(const vk::BufferCreateInfo &buffer_info, const MemoryAllocationInfo &alloc_info) const noexcept
+std::expected<details::Memory<vk::Buffer>, std::error_code> MemoryAllocator::allocateBuffer(
+    const vk::BufferCreateInfo & buffer_info, const MemoryAllocationInfo & alloc_info) const noexcept
 {
-    auto expected_memory = m_allocator_up->allocateBuffer(buffer_info, alloc_info);
-    if (not expected_memory) { return std::unexpected {expected_memory.error()}; }
-    vk::DeviceAddress device_address = 0;
-    if ((buffer_info.usage & vk::BufferUsageFlagBits::eShaderDeviceAddress) and m_bda_enabled) {
-        device_address = m_device.getBufferAddress({expected_memory->handle()});
-    }
-    return Buffer {std::move(*expected_memory), device_address};
+    return m_allocator_up->allocateBuffer(buffer_info, alloc_info);
 }
 
-std::expected<Image, std::error_code> MemoryAllocator::createImage(const vk::ImageCreateInfo &image_info, const MemoryAllocationInfo &alloc_info) const noexcept
+std::expected<details::Memory<vk::Image>, std::error_code> MemoryAllocator::allocateImage(
+    const vk::ImageCreateInfo & image_info, const MemoryAllocationInfo & alloc_info) const noexcept
 {
-    auto expected_memory = m_allocator_up->allocateImage(image_info, alloc_info);
-    if (not expected_memory) { return std::unexpected {expected_memory.error()}; }
-    return Image {std::move(*expected_memory)};
+    return m_allocator_up->allocateImage(image_info, alloc_info);
 }
 
 }
