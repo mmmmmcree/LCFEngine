@@ -2,14 +2,15 @@
 
 #include <vulkan/vulkan.hpp>
 #include <unordered_map>
+#include <span>
+#include <system_error>
 
 namespace lcf::vkc {
 
 class RenderingInfo;
-
-class CommandBufferProxy;
-
+class RenderTargetInfo;
 class RenderTarget;
+class CommandBufferProxy;
 
 class StaticRendering
 {
@@ -17,7 +18,10 @@ class StaticRendering
 public:
     ~StaticRendering() noexcept = default;
 public:
-    std::error_code create(vk::Device device, const RenderingInfo & info) noexcept;
+    std::error_code create(
+        vk::Device device,
+        const RenderingInfo & rendering_info,
+        const RenderTargetInfo & render_target_info) noexcept;
     void begin(CommandBufferProxy & cmd, const RenderTarget & target) noexcept;
     void end(CommandBufferProxy & cmd) noexcept;
 private:

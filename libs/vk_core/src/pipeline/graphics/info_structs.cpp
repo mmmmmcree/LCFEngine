@@ -1,10 +1,17 @@
 #include "vk_core/pipeline/graphics/info_structs.h"
 #include <ranges>
+#include <utility>
 
 namespace stdr = std::ranges;
 namespace stdv = std::views;
 
 namespace lcf::vkc {
+
+bool RenderTargetInfo::hasAnyResolve() const noexcept
+{
+    return std::to_underlying(m_sample_count) > 1
+        and stdr::any_of(m_color_resolve_modes, [](auto m) { return m != vk::ResolveModeFlagBits::eNone; });
+}
 
 auto VertexInputInfo::genBindingDescriptions2EXT() const -> BindingList2EXT
 {

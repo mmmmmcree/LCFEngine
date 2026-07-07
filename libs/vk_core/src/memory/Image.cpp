@@ -33,26 +33,29 @@ const vk::Image & Image::handle() const noexcept
     return m_memory_rp->handle();
 }
 
-constexpr uint64_t ImageDescription::hash(const Self &self) noexcept
+std::expected<vk::UniqueImageView, std::error_code> Image::createView(
+    const vk::ImageSubresourceRange & range, vk::ImageViewType view_type) const noexcept
 {
-    constexpr auto mix = [](uint64_t seed, uint64_t value) noexcept -> uint64_t {
-        value += 0x9e3779b97f4a7c15ull;
-        value = (value ^ (value >> 30)) * 0xbf58476d1ce4e5b9ull;
-        value = (value ^ (value >> 27)) * 0x94d049bb133111ebull;
-        value ^= value >> 31;
-        return seed ^ (value + 0x9e3779b97f4a7c15ull + (seed << 6) + (seed >> 2));
-    };
-    uint64_t h = 0ull;
-    h = mix(h, static_cast<uint64_t>(self.m_type));
-    h = mix(h, static_cast<uint64_t>(self.m_format));
-    h = mix(h, static_cast<uint64_t>(self.m_sample_count));
-    h = mix(h, static_cast<uint64_t>(static_cast<uint32_t>(self.m_usage_flags)));
-    h = mix(h, static_cast<uint64_t>(self.m_extent.width));
-    h = mix(h, static_cast<uint64_t>(self.m_extent.height));
-    h = mix(h, static_cast<uint64_t>(self.m_extent.depth));
-    h = mix(h, static_cast<uint64_t>(self.m_mip_level_count));
-    h = mix(h, static_cast<uint64_t>(self.m_array_layer_count));
-    return h;
+    vk::ImageViewCreateInfo view_info;
+    view_info.setImage(m_memory_rp->handle())
+        .setViewType(view_type)
+        .setFormat(m_desc.getFormat())
+        .setSubresourceRange(range);
+    try {
+        return m_device.createImageViewUnique(view_info);
+    } catch (const vk::SystemError & e) {
+        return std::unexpected(e.code());
+    }
+}
+
+std::error_code Attachment::create(const Image & image, const AttachmentDescription & desc) noexcept
+{
+    auto expected_view = image.createView(desc.getSubresourceRange(), desc.getViewType());
+    if (not expected_view) { return expected_view.error(); }
+    m_image = image;
+    m_view = std::move(expected_view.value());
+    m_desc = desc;
+    return {};
 }
 
 } // namespace lcf::vkc

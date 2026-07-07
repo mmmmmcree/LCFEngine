@@ -518,10 +518,6 @@ private:
     DynamicStateInfo m_dynamic_state_info;
 };
 
-//- an attachment's render-scope state within one pass: load/store ops + layout
-//- transitions + flags. format/samples are NOT here — they are image-intrinsic
-//- and owned by Framebuffer. A vk::AttachmentDescription2 is assembled by merging
-//- this (by index) with the Framebuffer's AttachmentInfo at render-pass build time.
 class AttachmentStateInfo
 {
     using Self = AttachmentStateInfo;
@@ -737,6 +733,50 @@ private:
     mutable ReferenceList2 m_color_scratch;
     mutable ReferenceList2 m_resolve_scratch;
     mutable vk::AttachmentReference2 m_depth_stencil_scratch;
+};
+
+class RenderTargetInfo
+{
+    using Self = RenderTargetInfo;
+    using FormatList = std::vector<vk::Format>;
+    using ResolveModeList = std::vector<vk::ResolveModeFlagBits>;
+public:
+    ~RenderTargetInfo() noexcept = default;
+    RenderTargetInfo(
+        vk::Extent2D extent = {},
+        vk::Format depth_stencil_format = vk::Format::eUndefined,
+        vk::SampleCountFlagBits sample_count = vk::SampleCountFlagBits::e1) noexcept :
+        m_extent(extent),
+        m_depth_stencil_format(depth_stencil_format),
+        m_sample_count(sample_count) {}
+    RenderTargetInfo(const Self & other) noexcept = default;
+    RenderTargetInfo(Self && other) noexcept = default;
+    Self & operator=(const Self & other) noexcept = default;
+    Self & operator=(Self && other) noexcept = default;
+public:
+    Self & setExtent(const vk::Extent2D & extent) noexcept { m_extent = extent; return *this; }
+    Self & addColorAttachment(vk::Format format, vk::ResolveModeFlagBits resolve_mode = vk::ResolveModeFlagBits::eNone) noexcept
+    {
+        m_color_formats.emplace_back(format);
+        m_color_resolve_modes.emplace_back(resolve_mode);
+        return *this;
+    }
+    Self & setSampleCount(vk::SampleCountFlagBits sample_count) noexcept { m_sample_count = sample_count; return *this; }
+    Self & setDepthStencilFormat(vk::Format depth_stencil_format) noexcept { m_depth_stencil_format = depth_stencil_format; return *this; }
+    const vk::Extent2D & getExtent() const noexcept { return m_extent; }
+    const FormatList & getColorFormats() const noexcept { return m_color_formats; }
+    const vk::SampleCountFlagBits & getSampleCount() const noexcept { return m_sample_count; }
+    bool hasDepthStencilFormat() const noexcept { return m_depth_stencil_format != vk::Format::eUndefined; }
+    const vk::Format & getDepthStencilFormat() const noexcept { return m_depth_stencil_format; }
+    vk::ResolveModeFlagBits getColorResolveMode(uint32_t color_index) const noexcept { return m_color_resolve_modes[color_index]; }
+    bool isColorResolved(uint32_t color_index) const noexcept { return m_color_resolve_modes[color_index] != vk::ResolveModeFlagBits::eNone; }
+    bool hasAnyResolve() const noexcept;
+private:
+    vk::Extent2D m_extent;
+    FormatList m_color_formats;
+    ResolveModeList m_color_resolve_modes;
+    vk::Format m_depth_stencil_format;
+    vk::SampleCountFlagBits m_sample_count;
 };
 
 class RenderingInfo

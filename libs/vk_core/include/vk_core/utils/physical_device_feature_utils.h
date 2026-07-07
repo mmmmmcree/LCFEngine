@@ -1,9 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
-#include <unordered_map>
-#include <any>
-#include <typeindex>
+#include "vk_core/utils/DynamicStructureChain.h"
 #include "type_traits/member_pointer_traits.h"
 
 namespace lcf::vkc::utils {
@@ -11,40 +9,25 @@ namespace lcf::vkc::utils {
 namespace details {
 
 template <typename T>
-concept feature_type_c = static_cast<bool>(vk::StructExtends<T, vk::PhysicalDeviceFeatures2>::value);
+concept feature_type_c = struct_extends_c<T, vk::PhysicalDeviceFeatures2>;
 
 } // namespace details
 
 class PhysicalDeviceFeatureChain
 {
     using Self = PhysicalDeviceFeatureChain;
-    using Root = vk::PhysicalDeviceFeatures2;
-    using NodeMap = std::unordered_map<std::type_index, std::any>; // node-based steady map
+    using Chain = DynamicStructureChain<vk::PhysicalDeviceFeatures2>;
 public:
-    PhysicalDeviceFeatureChain() { m_nodes.try_emplace(typeid(Root), Root{}); }
-public:
-    const Root & root() const noexcept { return std::any_cast<const Root &>(m_nodes.at(typeid(Root))); }
+    const vk::PhysicalDeviceFeatures2 & root() const noexcept { return m_chain.root(); }
     template <details::feature_type_c Feature>
-    const Feature & get() const { return std::any_cast<const Feature &>(m_nodes.at(typeid(Feature))); }
+    const Feature & get() const { return m_chain.get<Feature>(); }
     template <details::feature_type_c Feature>
-    const Feature * tryGet() const noexcept
-    {
-        auto it = m_nodes.find(typeid(Feature));
-        return it == m_nodes.end() ? nullptr : &std::any_cast<const Feature &>(it->second);
-    }
+    const Feature * tryGet() const noexcept { return m_chain.tryGet<Feature>(); }
     template <details::feature_type_c Feature>
-    Feature & request() noexcept
-    {
-        auto [it, inserted] = m_nodes.try_emplace(typeid(Feature), Feature {});
-        auto & feature = std::any_cast<Feature &>(it->second);
-        if (inserted) { feature.pNext = std::exchange(this->root().pNext, &feature); }
-        return feature;
-    }
-    void queryFrom(vk::PhysicalDevice physical_device) noexcept { physical_device.getFeatures2(&this->root()); }
+    Feature & request() noexcept { return m_chain.request<Feature>(); }
+    void queryFrom(vk::PhysicalDevice physical_device) noexcept { physical_device.getFeatures2(&m_chain.root()); }
 private:
-    Root & root() noexcept { return std::any_cast<Root &>(m_nodes.at(typeid(Root))); }
-private:
-    NodeMap m_nodes;
+    Chain m_chain;
 };
 
 struct PhysicalDeviceFeatureBit

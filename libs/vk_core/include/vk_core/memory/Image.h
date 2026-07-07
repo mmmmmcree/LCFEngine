@@ -2,6 +2,8 @@
 
 #include <vulkan/vulkan.hpp>
 #include <type_traits>
+#include <expected>
+#include <system_error>
 #include "resource_utils.h"
 
 namespace lcf::vkc::details {
@@ -22,7 +24,27 @@ class ImageDescription
 {
     using Self = ImageDescription;
 public:
-    static constexpr uint64_t hash(const Self & self) noexcept;
+    static constexpr uint64_t hash(const Self & self) noexcept
+    {
+        constexpr auto mix = [](uint64_t seed, uint64_t value) noexcept -> uint64_t {
+            value += 0x9e3779b97f4a7c15ull;
+            value = (value ^ (value >> 30)) * 0xbf58476d1ce4e5b9ull;
+            value = (value ^ (value >> 27)) * 0x94d049bb133111ebull;
+            value ^= value >> 31;
+            return seed ^ (value + 0x9e3779b97f4a7c15ull + (seed << 6) + (seed >> 2));
+        };
+        uint64_t h = 0ull;
+        h = mix(h, static_cast<uint64_t>(self.m_type));
+        h = mix(h, static_cast<uint64_t>(self.m_format));
+        h = mix(h, static_cast<uint64_t>(self.m_sample_count));
+        h = mix(h, static_cast<uint64_t>(static_cast<uint32_t>(self.m_usage_flags)));
+        h = mix(h, static_cast<uint64_t>(self.m_extent.width));
+        h = mix(h, static_cast<uint64_t>(self.m_extent.height));
+        h = mix(h, static_cast<uint64_t>(self.m_extent.depth));
+        h = mix(h, static_cast<uint64_t>(self.m_mip_level_count));
+        h = mix(h, static_cast<uint64_t>(self.m_array_layer_count));
+        return h;
+    }
 public:
     ImageDescription(
         vk::ImageType type = vk::ImageType::e2D,
@@ -92,7 +114,10 @@ public:
         const MemoryAllocationInfo & alloc_info) noexcept;
     const vk::Image & handle() const noexcept;
     ResourceLease lease() const noexcept;
-    const ImageDescription & description() const noexcept { return m_desc; }
+    const ImageDescription & getDescription() const noexcept { return m_desc; }
+    std::expected<vk::UniqueImageView, std::error_code> createView(
+        const vk::ImageSubresourceRange & range,
+        vk::ImageViewType view_type) const noexcept;
 private:
     ResourcePtr<Memory> m_memory_rp;
     vk::Device m_device;
@@ -100,14 +125,60 @@ private:
 };
 
 class AttachmentDescription
-{};
+{
+    using Self = AttachmentDescription;
+public:
+    AttachmentDescription(
+        uint32_t base_mip_level = 0u,
+        uint32_t base_array_layer = 0u,
+        uint32_t array_layer_count = 1u,
+        vk::ImageAspectFlags aspect = vk::ImageAspectFlagBits::eNone) noexcept :
+        m_base_mip_level(base_mip_level),
+        m_base_array_layer(base_array_layer),
+        m_array_layer_count(array_layer_count),
+        m_aspect_flags(aspect) {}
+    bool operator==(const AttachmentDescription &) const noexcept = default;
+public:
+    Self & setBaseMipLevel(uint32_t level) noexcept { m_base_mip_level = level; return *this; }
+    Self & setBaseArrayLayer(uint32_t layer) noexcept { m_base_array_layer = layer; return *this; }
+    Self & setArrayLayerCount(uint32_t count) noexcept { m_array_layer_count = count; return *this; }
+    Self & addAspectFlags(vk::ImageAspectFlags aspect) noexcept { m_aspect_flags |= aspect; return *this; }
+    const uint32_t & getBaseMipLevel() const noexcept { return m_base_mip_level; }
+    const uint32_t & getBaseArrayLayer() const noexcept { return m_base_array_layer; }
+    const uint32_t & getArrayLayerCount() const noexcept { return m_array_layer_count; }
+    const vk::ImageAspectFlags & getAspectFlags() const noexcept { return m_aspect_flags; }
+    vk::ImageSubresourceRange getSubresourceRange() const noexcept
+    {
+        return { m_aspect_flags, m_base_mip_level, 1u, m_base_array_layer, m_array_layer_count };
+    }
+    vk::ImageViewType getViewType() const noexcept
+    {
+        return m_array_layer_count > 1u ? vk::ImageViewType::e2DArray : vk::ImageViewType::e2D;
+    }
+private:
+    uint32_t m_base_mip_level;
+    uint32_t m_base_array_layer;
+    uint32_t m_array_layer_count;
+    vk::ImageAspectFlags m_aspect_flags;
+};
 
 class Attachment
 {
     using Self = Attachment;
-    using Memory = details::Memory<vk::Image>;
+public:
+    ~Attachment() noexcept = default;
+    Attachment() noexcept = default;
+    Attachment(const Self &) = delete;
+    Self & operator=(const Self &) = delete;
+    Attachment(Self &&) noexcept = default;
+    Self & operator=(Self &&) noexcept = default;
+public:
+    std::error_code create(const Image & image, const AttachmentDescription & desc) noexcept;
+    const Image & getImage() const noexcept { return m_image; }
+    const vk::ImageView & getView() const noexcept { return m_view.get(); }
+    const AttachmentDescription & getDescription() const noexcept { return m_desc; }
 private:
-    ResourcePtr<Memory> m_memory_rp;
+    Image m_image;
     vk::UniqueImageView m_view;
     AttachmentDescription m_desc;
 };

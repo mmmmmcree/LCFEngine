@@ -4,10 +4,12 @@
 
 namespace lcf::vkc {
 
-
-std::error_code StaticRendering::create(vk::Device device, const RenderingInfo & info) noexcept
+std::error_code StaticRendering::create(
+    vk::Device device,
+    const RenderingInfo & rendering_info,
+    const RenderTargetInfo & render_target_info) noexcept
 {
-    return std::error_code();
+
 }
 
 void StaticRendering::begin(CommandBufferProxy &cmd, const RenderTarget &target) noexcept
