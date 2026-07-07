@@ -22,8 +22,8 @@ public:
     ~Image() noexcept = default;
     Image() = default;
     explicit Image(Memory && memory) noexcept;
-    Image(const Self &) = delete;
-    Self & operator=(const Self &) = delete;
+    Image(const Self &) noexcept = default;
+    Self & operator=(const Self &) noexcept = default;
     Image(Self &&) noexcept = default;
     Self & operator=(Self &&) noexcept = default;
     operator vk::Image() const noexcept;

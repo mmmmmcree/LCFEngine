@@ -22,8 +22,8 @@ public:
     ~Buffer() noexcept = default;
     Buffer() = default;
     Buffer(Memory && memory, vk::DeviceAddress device_address = 0) noexcept;
-    Buffer(const Self &) = delete;
-    Self & operator=(const Self &) = delete;
+    Buffer(const Self &) noexcept = default;
+    Self & operator=(const Self &) noexcept = default;
     Buffer(Self &&) noexcept = default;
     Self & operator=(Self &&) noexcept = default;
     operator vk::Buffer() const noexcept;
