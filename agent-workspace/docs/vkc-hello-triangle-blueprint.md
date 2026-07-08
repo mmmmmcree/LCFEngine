@@ -74,7 +74,14 @@ rendering_info.addAttachmentState(vkc::AttachmentStateInfo{}
         .setLoadStoreOp(vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore)
         .setLayouts(vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferSrcOptimal)) // 之后要 blit-present
     .addSubpass(vkc::SubpassDescriptionInfo{}
-        .addColorAttachment(vkc::AttachmentReferenceInfo{0, vk::ImageLayout::eColorAttachmentOptimal}));
+        .addColorAttachment(vkc::AttachmentReferenceInfo{0, vk::ImageLayout::eColorAttachmentOptimal}))
+    // 关键(见 §6 复用同步):显式 EXTERNAL 依赖,让本趟 render 的 layout transition 等
+    // 上一次 blit(present 读同一 color image)完成。默认 EXTERNAL 依赖是 eTopOfPipe/0,
+    // 不 wait 任何东西 → 与 blit 读并发 = WAR hazard。
+    .addDependency(vkc::SubpassDependencyInfo{}
+        .setSubpasses(vk::SubpassExternal, 0u)
+        .setStageMasks(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eColorAttachmentOutput)
+        .setAccessMasks(vk::AccessFlagBits::eTransferRead, vk::AccessFlagBits::eColorAttachmentWrite));
 
 // GraphicPipelineInfo:program + 各 state
 vkc::GraphicPipelineInfo pipeline_info;
@@ -92,7 +99,11 @@ dynamic-rendering 声明的（设计文档 §4：layout 端点是声明）。
 ## 3. RenderTarget × 帧循环:两 RT 轮换 + 三模式轮换
 
 **两个 RenderTarget**：各自持一张 color `vkc::Image`（usage `eColorAttachment | eTransferSrc`），
-同一 `rt_info` build 两次（format 签名相同 → 可共享 render pass）。轮换是为验证 RT 与策略解耦。
+同一 `rt_info` build 两次（format 签名相同 → 可共享 render pass）。
+
+RT 数量与**安全无关**（安全由 §6 的 barrier 保证，1 张也不会撕裂），只影响**性能**：1 张时
+render(N+1) 的 barrier 要等 blit(N) 读完 → stall；2 张轮换时同一张隔两帧才复用，blit 早已完成
+→ barrier 不阻塞 → 几乎无等待。这里用 2 张就是为了消 stall + 验证 RT 与策略解耦。
 
 ```cpp
 std::array<vkc::Image, 2>        colors;         // 各 create(allocator, imageInfo, memAllocInfo)
@@ -174,4 +185,33 @@ while (running) {
 5. triangle.slang 接 shader_core，喂 `ShaderProgramInfo`。
 
 先做到 **Mode 0 单帧单 RT** 出三角形，再加 RT 轮换、再加 Mode 轮换——每步可独立验证。
+
+## 6. 同步模型（三个方向，全靠同队列 barrier + present 内部节流）
+
+render 与 present 提交到**同一个 `VkQueue`**（gfx queue，003 中 present queue == gfx queue）。
+这是下面所有 barrier 方案成立的前提——`vkCmdPipelineBarrier` / subpass `EXTERNAL` 依赖的第一
+同步作用域**涵盖同队列上按提交序更早提交的所有命令（跨 submission 也算）**，所以无需 semaphore。
+
+**方向 1 — blit 等 render（同帧）**：`gfx_queue.submit()` 返回 render-complete 的 timeline
+`SemaphoreSubmitInfo`，作为 `swapchain.present(..., wait_info)` 传入，blit 在它上 wait。已在循环里。
+
+**方向 2 — render 等上一次 blit（跨帧 WAR）**：复用 `color[i]` 时，本趟 render 的 layout
+transition（写 image）必须等上一次 present 对同一 image 的 blit **读**完成，否则 WAR hazard。
+- **Static rendering**：靠 §2 里显式声明的 `EXTERNAL` 依赖（`eTransfer/eTransferRead →
+  eColorAttachmentOutput/eColorAttachmentWrite`）。**默认 EXTERNAL 依赖是 `eTopOfPipe/0`，不 wait
+  任何东西**——必须显式声明，这是最易漏的点。
+- **Dynamic rendering（Mode 2）**：没有 render pass、没有 EXTERNAL 依赖，须在 `begin` 前手动
+  `vkCmdPipelineBarrier2`，`srcStageMask` 覆盖 blit（`eTransfer/eTransferRead`），把 image 转到
+  color-attachment。同一原理，落点从"subpass 依赖"变成"begin 前一条手动 barrier"。
+
+**方向 3 — 节流（CPU 不无限领先）**：`present` 内部每次 `acquireNextImageKHR(timeout=max)`
+（`Swapchain.cpp:293`）在无可用 image 时 **CPU 阻塞**；render 与 present 同线程串行，故直接回压
+整个循环。上限 ≈ swapchain image count（FIFO 下绑 vsync）。**无需额外 timeline 门控**。
+
+**RT 数量与安全无关**（方向 2 的 barrier 已保证不撕裂）：1 张 → render 等 blit（stall）；2 张
+轮换 → 隔两帧才复用，blit 早完成 → 不 stall。纯性能选择。
+
+**若将来改用独立 present queue**：跨队列 barrier 不生效，方向 2 才改为——把 `present()` 返回的
+`blit_timeline` signal 按 image index 存起来，复用同一 image 前 `cmd.addWaitInfo(last_blit[i])`。
+同队列不需要这套。
 
