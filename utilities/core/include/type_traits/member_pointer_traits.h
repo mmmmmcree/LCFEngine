@@ -15,11 +15,11 @@ struct member_pointer_traits<Member Class::*>
     using member_type = Member;
 };
 
-template <member_pointer_c auto MemberPointer>
-using member_pointer_class_t = member_pointer_traits<decltype(MemberPointer)>::class_type; 
+template <member_pointer_c auto member_pointer>
+using member_pointer_class_t = member_pointer_traits<decltype(member_pointer)>::class_type; 
 
-template <member_pointer_c auto MemberPointer>
-using member_pointer_member_t = member_pointer_traits<decltype(MemberPointer)>::member_type;
+template <member_pointer_c auto member_pointer>
+using member_pointer_member_t = member_pointer_traits<decltype(member_pointer)>::member_type;
 
 
 } // namespace lcf
