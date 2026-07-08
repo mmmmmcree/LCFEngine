@@ -1,7 +1,7 @@
 #pragma once
 
 #include <type_traits>
-#include "concepts/member_point_concept.h"
+#include "concepts/member_pointer_concept.h"
 
 namespace lcf {
 
