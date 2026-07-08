@@ -5,18 +5,72 @@
 #include <vector>
 #include <span>
 #include <optional>
+#include "vk_core/utils/DynamicStructureChain.h"
 #include "vk_core/pipeline/shader/info_structs.h"
 
 namespace lcf::vkc {
 
+class VertexInputBindingInfo
+{
+    using Self = VertexInputBindingInfo;
+    using Root = vk::VertexInputBindingDescription2EXT;
+public:
+    VertexInputBindingInfo(uint32_t binding = 0u, uint32_t stride = 0u,
+        vk::VertexInputRate input_rate = vk::VertexInputRate::eVertex, uint32_t divisor = 1u) noexcept
+    {
+        m_binding.root().setBinding(binding).setStride(stride).setInputRate(input_rate).setDivisor(divisor);
+    }
+    operator const Root &() const noexcept { return m_binding.root(); }
+    operator vk::VertexInputBindingDescription() const noexcept
+    {
+        const auto & r = m_binding.root();
+        return { r.binding, r.stride, r.inputRate };
+    }
+public:
+    template <utils::struct_extends_c<Root> T>
+    T & requestExtension() noexcept { return m_binding.template request<T>(); }
+    Self & setDivisor(uint32_t divisor) noexcept { m_binding.root().setDivisor(divisor); return *this; }
+    const uint32_t & getBinding() const noexcept { return m_binding.root().binding; }
+    const uint32_t & getDivisor() const noexcept { return m_binding.root().divisor; }
+private:
+    utils::DynamicStructureChain<Root> m_binding;
+};
+
+class VertexInputAttributeInfo
+{
+    using Self = VertexInputAttributeInfo;
+    using Root = vk::VertexInputAttributeDescription2EXT;
+public:
+    VertexInputAttributeInfo(uint32_t location = 0u, uint32_t binding = 0u,
+        vk::Format format = vk::Format::eUndefined, uint32_t offset = 0u) noexcept
+    {
+        m_attribute.root().setLocation(location).setBinding(binding).setFormat(format).setOffset(offset);
+    }
+    operator const Root &() const noexcept { return m_attribute.root(); }
+    operator vk::VertexInputAttributeDescription() const noexcept
+    {
+        const auto & r = m_attribute.root();
+        return { r.location, r.binding, r.format, r.offset };
+    }
+public:
+    template <utils::struct_extends_c<Root> T>
+    T & requestExtension() noexcept { return m_attribute.template request<T>(); }
+    const uint32_t & getLocation() const noexcept { return m_attribute.root().location; }
+    const uint32_t & getBinding() const noexcept { return m_attribute.root().binding; }
+    const vk::Format & getFormat() const noexcept { return m_attribute.root().format; }
+    const uint32_t & getOffset() const noexcept { return m_attribute.root().offset; }
+private:
+    utils::DynamicStructureChain<Root> m_attribute;
+};
+
 class VertexInputInfo
 {
     using Self = VertexInputInfo;
+    using Root = vk::PipelineVertexInputStateCreateInfo;
+    using BindingInfoList = std::vector<VertexInputBindingInfo>;
+    using AttributeInfoList = std::vector<VertexInputAttributeInfo>;
     using BindingList = std::vector<vk::VertexInputBindingDescription>;
     using AttributeList = std::vector<vk::VertexInputAttributeDescription>;
-    using DivisorList = std::vector<uint32_t>;
-    using BindingList2EXT = std::vector<vk::VertexInputBindingDescription2EXT>;
-    using AttributeList2EXT = std::vector<vk::VertexInputAttributeDescription2EXT>;
 public:
     ~VertexInputInfo() noexcept = default;
     VertexInputInfo() noexcept = default;
@@ -24,153 +78,138 @@ public:
     VertexInputInfo(Self && other) noexcept = default;
     Self & operator=(const Self & other) = default;
     Self & operator=(Self && other) noexcept = default;
-    operator vk::PipelineVertexInputStateCreateInfo() const noexcept
-    {
-        return vk::PipelineVertexInputStateCreateInfo{}.setVertexBindingDescriptions(m_bindings).setVertexAttributeDescriptions(m_attributes);
-    }
+    operator const Root &() const noexcept { return m_vertex_input_state.root(); }
 public:
-    Self & addBinding(uint32_t binding, uint32_t stride, vk::VertexInputRate input_rate = vk::VertexInputRate::eVertex, uint32_t divisor = 0u)
+    template <utils::struct_extends_c<Root> T>
+    T & requestExtension() noexcept { return m_vertex_input_state.template request<T>(); }
+    Self & addBinding(const VertexInputBindingInfo & binding)
     {
-        m_bindings.emplace_back(binding, stride, input_rate);
-        m_binding_divisors.emplace_back(divisor);
+        m_binding_infos.emplace_back(binding);
+        m_flat_bindings.emplace_back(m_binding_infos.back());
+        m_vertex_input_state.root().setVertexBindingDescriptions(m_flat_bindings);
         return *this;
     }
-    Self & addAttribute(uint32_t location, uint32_t binding, vk::Format format, uint32_t offset)
+    Self & addAttribute(const VertexInputAttributeInfo & attribute)
     {
-        m_attributes.emplace_back(location, binding, format, offset);
+        m_attribute_infos.emplace_back(attribute);
+        m_flat_attributes.emplace_back(m_attribute_infos.back());
+        m_vertex_input_state.root().setVertexAttributeDescriptions(m_flat_attributes);
         return *this;
     }
-    BindingList2EXT genBindingDescriptions2EXT() const;
-    AttributeList2EXT genAttributeDescriptions2EXT() const;
-    std::span<const vk::VertexInputBindingDescription> getBindings() const noexcept { return m_bindings; }
-    std::span<const vk::VertexInputAttributeDescription> getAttributes() const noexcept { return m_attributes; }
+    const BindingInfoList & getBindings() const noexcept { return m_binding_infos; }
+    const AttributeInfoList & getAttributes() const noexcept { return m_attribute_infos; }
 private:
-    BindingList m_bindings;
-    DivisorList m_binding_divisors;
-    AttributeList m_attributes;
+    utils::DynamicStructureChain<Root> m_vertex_input_state;
+    BindingInfoList m_binding_infos;
+    BindingList m_flat_bindings;
+    AttributeInfoList m_attribute_infos;
+    AttributeList m_flat_attributes;
 };
 
 class InputAssemblyStateInfo
 {
     using Self = InputAssemblyStateInfo;
+    using Root = vk::PipelineInputAssemblyStateCreateInfo;
 public:
     ~InputAssemblyStateInfo() noexcept = default;
-    constexpr InputAssemblyStateInfo(
+    InputAssemblyStateInfo(
         vk::PipelineInputAssemblyStateCreateFlags flags = {},
         vk::PrimitiveTopology topology = vk::PrimitiveTopology::eTriangleList,
-        vk::Bool32 primitive_restart_enable = false) noexcept :
-        m_flags(flags),
-        m_topology(topology),
-        m_primitive_restart_enable(primitive_restart_enable) {}
+        vk::Bool32 primitive_restart_enable = false) noexcept
+    {
+        m_input_assembly_state.root()
+            .setFlags(flags)
+            .setTopology(topology)
+            .setPrimitiveRestartEnable(primitive_restart_enable);
+    }
     InputAssemblyStateInfo(const Self & other) noexcept = default;
     InputAssemblyStateInfo(Self && other) noexcept = default;
     Self & operator=(const Self & other) noexcept = default;
     Self & operator=(Self && other) noexcept = default;
-    operator vk::PipelineInputAssemblyStateCreateInfo() const noexcept
-    {
-        return vk::PipelineInputAssemblyStateCreateInfo { m_flags, m_topology, m_primitive_restart_enable };
-    }
+    operator const Root &() const noexcept { return m_input_assembly_state.root(); }
 public:
-    Self & addFlags(vk::PipelineInputAssemblyStateCreateFlags flags) noexcept { m_flags |= flags; return *this; }
-    Self & setTopology(vk::PrimitiveTopology topology) noexcept { m_topology = topology; return *this; }
-    Self & enablePrimitiveRestart() noexcept { m_primitive_restart_enable = true; return *this; }
-    const vk::PipelineInputAssemblyStateCreateFlags & getFlags() const noexcept { return m_flags; }
-    const vk::PrimitiveTopology & getTopology() const noexcept { return m_topology; }
-    const vk::Bool32 & isPrimitiveRestartEnabled() const noexcept { return m_primitive_restart_enable; }
+    template <utils::struct_extends_c<Root> T>
+    T & requestExtension() noexcept { return m_input_assembly_state.template request<T>(); }
+    Self & addFlags(vk::PipelineInputAssemblyStateCreateFlags flags) noexcept { m_input_assembly_state.root().setFlags(m_input_assembly_state.root().flags | flags); return *this; }
+    Self & setTopology(vk::PrimitiveTopology topology) noexcept { m_input_assembly_state.root().setTopology(topology); return *this; }
+    Self & enablePrimitiveRestart() noexcept { m_input_assembly_state.root().setPrimitiveRestartEnable(true); return *this; }
+    const vk::PipelineInputAssemblyStateCreateFlags & getFlags() const noexcept { return m_input_assembly_state.root().flags; }
+    const vk::PrimitiveTopology & getTopology() const noexcept { return m_input_assembly_state.root().topology; }
+    const vk::Bool32 & isPrimitiveRestartEnabled() const noexcept { return m_input_assembly_state.root().primitiveRestartEnable; }
 private:
-    vk::PipelineInputAssemblyStateCreateFlags m_flags;
-    vk::PrimitiveTopology m_topology;
-    vk::Bool32 m_primitive_restart_enable;
+    utils::DynamicStructureChain<Root> m_input_assembly_state;
 };
 
 class TessellationStateInfo
 {
     using Self = TessellationStateInfo;
+    using Root = vk::PipelineTessellationStateCreateInfo;
 public:
     ~TessellationStateInfo() noexcept = default;
-    constexpr TessellationStateInfo(
-        vk::PipelineTessellationStateCreateFlags flags = {},
-        uint32_t patch_control_points = 0u) noexcept :
-        m_flags(flags),
-        m_patch_control_points(patch_control_points) {}
+    TessellationStateInfo() noexcept = default;
     TessellationStateInfo(const Self & other) noexcept = default;
     TessellationStateInfo(Self && other) noexcept = default;
     Self & operator=(const Self & other) noexcept = default;
     Self & operator=(Self && other) noexcept = default;
-    operator vk::PipelineTessellationStateCreateInfo() const noexcept
-    {
-        return vk::PipelineTessellationStateCreateInfo { m_flags, m_patch_control_points };
-    }
+    operator const Root &() const noexcept { return m_tessellation_state.root(); }
 public:
-    Self & addFlags(vk::PipelineTessellationStateCreateFlags flags) noexcept { m_flags |= flags; return *this; }
-    Self & setPatchControlPoints(uint32_t count) noexcept { m_patch_control_points = count; return *this; }
-    const vk::PipelineTessellationStateCreateFlags & getFlags() const noexcept { return m_flags; }
-    const uint32_t & getPatchControlPoints() const noexcept { return m_patch_control_points; }
+    template <utils::struct_extends_c<Root> T>
+    T & requestExtension() noexcept { return m_tessellation_state.template request<T>(); }
+    Self & addFlags(vk::PipelineTessellationStateCreateFlags flags) noexcept { m_tessellation_state.root().setFlags(m_tessellation_state.root().flags | flags); return *this; }
+    Self & setPatchControlPoints(uint32_t count) noexcept { m_tessellation_state.root().setPatchControlPoints(count); return *this; }
+    const vk::PipelineTessellationStateCreateFlags & getFlags() const noexcept { return m_tessellation_state.root().flags; }
+    const uint32_t & getPatchControlPoints() const noexcept { return m_tessellation_state.root().patchControlPoints; }
 private:
-    vk::PipelineTessellationStateCreateFlags m_flags;
-    uint32_t m_patch_control_points;
+    utils::DynamicStructureChain<Root> m_tessellation_state;
 };
 
 class RasterizationStateInfo
 {
     using Self = RasterizationStateInfo;
+    using Root = vk::PipelineRasterizationStateCreateInfo;
 public:
     ~RasterizationStateInfo() noexcept = default;
-    RasterizationStateInfo() noexcept { m_state.setLineWidth(1.0f); }
-    RasterizationStateInfo(const Self & other) noexcept = default;
+    RasterizationStateInfo() { m_rasterization_state.root().setLineWidth(1.0f); }
+    RasterizationStateInfo(const Self & other) = default;
     RasterizationStateInfo(Self && other) noexcept = default;
-    Self & operator=(const Self & other) noexcept = default;
+    Self & operator=(const Self & other) = default;
     Self & operator=(Self && other) noexcept = default;
-    // pNext is never stored on m_state (kept null); it is rebuilt here from this
-    // object's own extension storage, so default copy/move stay dangle-free. The
-    // returned struct borrows this — valid only while this RasterizationStateInfo lives.
-    operator vk::PipelineRasterizationStateCreateInfo() const noexcept
-    {
-        vk::PipelineRasterizationStateCreateInfo out = m_state;
-        out.pNext = m_conservative_opt ? &*m_conservative_opt : nullptr;
-        return out;
-    }
+    operator const Root &() const noexcept { return m_rasterization_state.root(); }
 public:
-    Self & addFlags(vk::PipelineRasterizationStateCreateFlags flags) noexcept { m_state.flags |= flags; return *this; }
-    Self & enableDepthClamp() noexcept { m_state.depthClampEnable = true; return *this; }
-    Self & enableRasterizerDiscard() noexcept { m_state.rasterizerDiscardEnable = true; return *this; }
-    Self & setPolygonMode(vk::PolygonMode mode) noexcept { m_state.polygonMode = mode; return *this; }
-    Self & setCullMode(vk::CullModeFlags mode) noexcept { m_state.cullMode = mode; return *this; }
-    Self & setFrontFace(vk::FrontFace front_face) noexcept { m_state.frontFace = front_face; return *this; }
+    template <utils::struct_extends_c<Root> T>
+    T & requestExtension() noexcept { return m_rasterization_state.template request<T>(); }
+    Self & addFlags(vk::PipelineRasterizationStateCreateFlags flags) noexcept { m_rasterization_state.root().setFlags(m_rasterization_state.root().flags | flags); return *this; }
+    Self & enableDepthClamp() noexcept { m_rasterization_state.root().setDepthClampEnable(true); return *this; }
+    Self & enableRasterizerDiscard() noexcept { m_rasterization_state.root().setRasterizerDiscardEnable(true); return *this; }
+    Self & setPolygonMode(vk::PolygonMode mode) noexcept { m_rasterization_state.root().setPolygonMode(mode); return *this; }
+    Self & setCullMode(vk::CullModeFlags mode) noexcept { m_rasterization_state.root().setCullMode(mode); return *this; }
+    Self & setFrontFace(vk::FrontFace front_face) noexcept { m_rasterization_state.root().setFrontFace(front_face); return *this; }
     Self & enableDepthBias(float constant_factor = 0.0f, float clamp = 0.0f, float slope_factor = 0.0f) noexcept
     {
-        m_state.depthBiasEnable = true;
-        m_state.depthBiasConstantFactor = constant_factor;
-        m_state.depthBiasClamp = clamp;
-        m_state.depthBiasSlopeFactor = slope_factor;
+        m_rasterization_state.root()
+            .setDepthBiasEnable(true)
+            .setDepthBiasConstantFactor(constant_factor)
+            .setDepthBiasClamp(clamp)
+            .setDepthBiasSlopeFactor(slope_factor);
         return *this;
     }
-    Self & setLineWidth(float width) noexcept { m_state.lineWidth = width; return *this; }
-    Self & enableConservativeRasterization(
-        vk::ConservativeRasterizationModeEXT mode = vk::ConservativeRasterizationModeEXT::eOverestimate,
-        float extra_overestimation_size = 0.0f) noexcept
-    {
-        m_conservative_opt.emplace()
-            .setConservativeRasterizationMode(mode)
-            .setExtraPrimitiveOverestimationSize(extra_overestimation_size);
-        return *this;
-    }
-    const vk::PipelineRasterizationStateCreateFlags & getFlags() const noexcept { return m_state.flags; }
-    const vk::Bool32 & isDepthClampEnabled() const noexcept { return m_state.depthClampEnable; }
-    const vk::Bool32 & isRasterizerDiscardEnabled() const noexcept { return m_state.rasterizerDiscardEnable; }
-    const vk::PolygonMode & getPolygonMode() const noexcept { return m_state.polygonMode; }
-    const vk::CullModeFlags & getCullMode() const noexcept { return m_state.cullMode; }
-    const vk::FrontFace & getFrontFace() const noexcept { return m_state.frontFace; }
-    const vk::Bool32 & isDepthBiasEnabled() const noexcept { return m_state.depthBiasEnable; }
-    const float & getLineWidth() const noexcept { return m_state.lineWidth; }
+    Self & setLineWidth(float width) noexcept { m_rasterization_state.root().setLineWidth(width); return *this; }
+    const vk::PipelineRasterizationStateCreateFlags & getFlags() const noexcept { return m_rasterization_state.root().flags; }
+    const vk::Bool32 & isDepthClampEnabled() const noexcept { return m_rasterization_state.root().depthClampEnable; }
+    const vk::Bool32 & isRasterizerDiscardEnabled() const noexcept { return m_rasterization_state.root().rasterizerDiscardEnable; }
+    const vk::PolygonMode & getPolygonMode() const noexcept { return m_rasterization_state.root().polygonMode; }
+    const vk::CullModeFlags & getCullMode() const noexcept { return m_rasterization_state.root().cullMode; }
+    const vk::FrontFace & getFrontFace() const noexcept { return m_rasterization_state.root().frontFace; }
+    const vk::Bool32 & isDepthBiasEnabled() const noexcept { return m_rasterization_state.root().depthBiasEnable; }
+    const float & getLineWidth() const noexcept { return m_rasterization_state.root().lineWidth; }
 private:
-    vk::PipelineRasterizationStateCreateInfo m_state {};
-    std::optional<vk::PipelineRasterizationConservativeStateCreateInfoEXT> m_conservative_opt;
+    utils::DynamicStructureChain<Root> m_rasterization_state;
 };
 
 class MultisampleStateInfo
 {
     using Self = MultisampleStateInfo;
+    using Root = vk::PipelineMultisampleStateCreateInfo;
     using SampleMaskList = std::vector<vk::SampleMask>;
 public:
     ~MultisampleStateInfo() noexcept = default;
@@ -181,62 +220,61 @@ public:
         float min_sample_shading = 1.0f,
         SampleMaskList sample_mask = {},
         vk::Bool32 alpha_to_coverage_enable = false,
-        vk::Bool32 alpha_to_one_enable = false) noexcept :
-        m_flags(flags),
-        m_rasterization_samples(rasterization_samples),
-        m_sample_shading_enable(sample_shading_enable),
-        m_min_sample_shading(min_sample_shading),
-        m_sample_mask(std::move(sample_mask)),
-        m_alpha_to_coverage_enable(alpha_to_coverage_enable),
-        m_alpha_to_one_enable(alpha_to_one_enable) {}
+        vk::Bool32 alpha_to_one_enable = false) :
+        m_sample_mask(std::move(sample_mask))
+    {
+        m_multisample_state.root()
+            .setFlags(flags)
+            .setRasterizationSamples(rasterization_samples)
+            .setSampleShadingEnable(sample_shading_enable)
+            .setMinSampleShading(min_sample_shading)
+            .setPSampleMask(m_sample_mask.empty() ? nullptr : m_sample_mask.data())
+            .setAlphaToCoverageEnable(alpha_to_coverage_enable)
+            .setAlphaToOneEnable(alpha_to_one_enable);
+    }
     MultisampleStateInfo(const Self & other) = default;
     MultisampleStateInfo(Self && other) noexcept = default;
     Self & operator=(const Self & other) = default;
     Self & operator=(Self && other) noexcept = default;
-    operator vk::PipelineMultisampleStateCreateInfo() const noexcept
-    {
-        return vk::PipelineMultisampleStateCreateInfo {
-            m_flags,
-            m_rasterization_samples,
-            m_sample_shading_enable, m_min_sample_shading,
-            m_sample_mask.data(),
-            m_alpha_to_coverage_enable, m_alpha_to_one_enable,
-        };
-    }
+    operator const Root &() const noexcept { return m_multisample_state.root(); }
 public:
-    Self & addFlags(vk::PipelineMultisampleStateCreateFlags flags) noexcept { m_flags |= flags; return *this; }
-    Self & setRasterizationSamples(vk::SampleCountFlagBits samples) noexcept { m_rasterization_samples = samples; return *this; }
+    template <utils::struct_extends_c<Root> T>
+    T & requestExtension() noexcept { return m_multisample_state.template request<T>(); }
+    Self & addFlags(vk::PipelineMultisampleStateCreateFlags flags) noexcept { m_multisample_state.root().setFlags(m_multisample_state.root().flags | flags); return *this; }
+    Self & setRasterizationSamples(vk::SampleCountFlagBits samples) noexcept { m_multisample_state.root().setRasterizationSamples(samples); return *this; }
     Self & enableSampleShading(float min_sample_shading = 1.0f) noexcept
     {
-        m_sample_shading_enable = true;
-        m_min_sample_shading = min_sample_shading;
+        m_multisample_state.root()
+            .setSampleShadingEnable(true)
+            .setMinSampleShading(min_sample_shading);
         return *this;
     }
-    Self & setSampleMask(SampleMaskList sample_mask) noexcept { m_sample_mask = std::move(sample_mask); return *this; }
-    Self & enableAlphaToCoverage() noexcept { m_alpha_to_coverage_enable = true; return *this; }
-    Self & enableAlphaToOne() noexcept { m_alpha_to_one_enable = true; return *this; }
-    const vk::PipelineMultisampleStateCreateFlags & getFlags() const noexcept { return m_flags; }
-    const vk::SampleCountFlagBits & getRasterizationSamples() const noexcept { return m_rasterization_samples; }
-    const vk::Bool32 & isSampleShadingEnabled() const noexcept { return m_sample_shading_enable; }
-    const float & getMinSampleShading() const noexcept { return m_min_sample_shading; }
-    const vk::Bool32 & isAlphaToCoverageEnabled() const noexcept { return m_alpha_to_coverage_enable; }
-    const vk::Bool32 & isAlphaToOneEnabled() const noexcept { return m_alpha_to_one_enable; }
+    Self & setSampleMask(SampleMaskList sample_mask) noexcept
+    {
+        m_sample_mask = std::move(sample_mask);
+        m_multisample_state.root().setPSampleMask(m_sample_mask.empty() ? nullptr : m_sample_mask.data());
+        return *this;
+    }
+    Self & enableAlphaToCoverage() noexcept { m_multisample_state.root().setAlphaToCoverageEnable(true); return *this; }
+    Self & enableAlphaToOne() noexcept { m_multisample_state.root().setAlphaToOneEnable(true); return *this; }
+    const vk::PipelineMultisampleStateCreateFlags & getFlags() const noexcept { return m_multisample_state.root().flags; }
+    const vk::SampleCountFlagBits & getRasterizationSamples() const noexcept { return m_multisample_state.root().rasterizationSamples; }
+    const vk::Bool32 & isSampleShadingEnabled() const noexcept { return m_multisample_state.root().sampleShadingEnable; }
+    const float & getMinSampleShading() const noexcept { return m_multisample_state.root().minSampleShading; }
+    const vk::Bool32 & isAlphaToCoverageEnabled() const noexcept { return m_multisample_state.root().alphaToCoverageEnable; }
+    const vk::Bool32 & isAlphaToOneEnabled() const noexcept { return m_multisample_state.root().alphaToOneEnable; }
 private:
-    vk::PipelineMultisampleStateCreateFlags m_flags;
-    vk::SampleCountFlagBits m_rasterization_samples;
-    vk::Bool32 m_sample_shading_enable;
-    float m_min_sample_shading;
+    utils::DynamicStructureChain<Root> m_multisample_state;
     SampleMaskList m_sample_mask;
-    vk::Bool32 m_alpha_to_coverage_enable;
-    vk::Bool32 m_alpha_to_one_enable;
 };
 
 class DepthStencilStateInfo
 {
     using Self = DepthStencilStateInfo;
+    using Root = vk::PipelineDepthStencilStateCreateInfo;
 public:
     ~DepthStencilStateInfo() noexcept = default;
-    constexpr DepthStencilStateInfo(
+    DepthStencilStateInfo(
         vk::PipelineDepthStencilStateCreateFlags flags = {},
         vk::Bool32 depth_test_enable = false,
         vk::Bool32 depth_write_enable = false,
@@ -246,80 +284,71 @@ public:
         const vk::StencilOpState & front = {},
         const vk::StencilOpState & back = {},
         float min_depth_bounds = 0.0f,
-        float max_depth_bounds = 0.0f) noexcept :
-        m_flags(flags),
-        m_depth_test_enable(depth_test_enable),
-        m_depth_write_enable(depth_write_enable),
-        m_depth_compare_op(depth_compare_op),
-        m_depth_bounds_test_enable(depth_bounds_test_enable),
-        m_stencil_test_enable(stencil_test_enable),
-        m_front(front),
-        m_back(back),
-        m_min_depth_bounds(min_depth_bounds),
-        m_max_depth_bounds(max_depth_bounds) {}
+        float max_depth_bounds = 0.0f) noexcept
+    {
+        m_depth_stencil_state.root()
+            .setFlags(flags)
+            .setDepthTestEnable(depth_test_enable)
+            .setDepthWriteEnable(depth_write_enable)
+            .setDepthCompareOp(depth_compare_op)
+            .setDepthBoundsTestEnable(depth_bounds_test_enable)
+            .setStencilTestEnable(stencil_test_enable)
+            .setFront(front)
+            .setBack(back)
+            .setMinDepthBounds(min_depth_bounds)
+            .setMaxDepthBounds(max_depth_bounds);
+    }
     DepthStencilStateInfo(const Self & other) noexcept = default;
     DepthStencilStateInfo(Self && other) noexcept = default;
     Self & operator=(const Self & other) noexcept = default;
     Self & operator=(Self && other) noexcept = default;
-    operator vk::PipelineDepthStencilStateCreateInfo() const noexcept
-    {
-        return vk::PipelineDepthStencilStateCreateInfo {
-            m_flags,
-            m_depth_test_enable, m_depth_write_enable, m_depth_compare_op,
-            m_depth_bounds_test_enable,
-            m_stencil_test_enable, m_front, m_back,
-            m_min_depth_bounds, m_max_depth_bounds,
-        };
-    }
+    operator const Root &() const noexcept { return m_depth_stencil_state.root(); }
 public:
-    Self & addFlags(vk::PipelineDepthStencilStateCreateFlags flags) noexcept { m_flags |= flags; return *this; }
+    template <utils::struct_extends_c<Root> T>
+    T & requestExtension() noexcept { return m_depth_stencil_state.template request<T>(); }
+    Self & addFlags(vk::PipelineDepthStencilStateCreateFlags flags) noexcept { m_depth_stencil_state.root().setFlags(m_depth_stencil_state.root().flags | flags); return *this; }
     Self & enableDepthTest(bool write_enable = true, vk::CompareOp compare_op = vk::CompareOp::eLess) noexcept
     {
-        m_depth_test_enable = true;
-        m_depth_write_enable = write_enable;
-        m_depth_compare_op = compare_op;
+        m_depth_stencil_state.root()
+            .setDepthTestEnable(true)
+            .setDepthWriteEnable(write_enable)
+            .setDepthCompareOp(compare_op);
         return *this;
     }
     Self & enableStencilTest(const vk::StencilOpState & front = {}, const vk::StencilOpState & back = {}) noexcept
     {
-        m_stencil_test_enable = true;
-        m_front = front;
-        m_back = back;
+        m_depth_stencil_state.root()
+            .setStencilTestEnable(true)
+            .setFront(front)
+            .setBack(back);
         return *this;
     }
     Self & enableDepthBoundsTest(float min_bounds = 0.0f, float max_bounds = 1.0f) noexcept
     {
-        m_depth_bounds_test_enable = true;
-        m_min_depth_bounds = min_bounds;
-        m_max_depth_bounds = max_bounds;
+        m_depth_stencil_state.root()
+            .setDepthBoundsTestEnable(true)
+            .setMinDepthBounds(min_bounds)
+            .setMaxDepthBounds(max_bounds);
         return *this;
     }
-    const vk::PipelineDepthStencilStateCreateFlags & getFlags() const noexcept { return m_flags; }
-    const vk::Bool32 & isDepthTestEnabled() const noexcept { return m_depth_test_enable; }
-    const vk::Bool32 & isDepthWriteEnabled() const noexcept { return m_depth_write_enable; }
-    const vk::CompareOp & getDepthCompareOp() const noexcept { return m_depth_compare_op; }
-    const vk::Bool32 & isDepthBoundsTestEnabled() const noexcept { return m_depth_bounds_test_enable; }
-    const vk::Bool32 & isStencilTestEnabled() const noexcept { return m_stencil_test_enable; }
-    const vk::StencilOpState & getFrontStencilState() const noexcept { return m_front; }
-    const vk::StencilOpState & getBackStencilState() const noexcept { return m_back; }
-    const float & getMinDepthBounds() const noexcept { return m_min_depth_bounds; }
-    const float & getMaxDepthBounds() const noexcept { return m_max_depth_bounds; }
+    const vk::PipelineDepthStencilStateCreateFlags & getFlags() const noexcept { return m_depth_stencil_state.root().flags; }
+    const vk::Bool32 & isDepthTestEnabled() const noexcept { return m_depth_stencil_state.root().depthTestEnable; }
+    const vk::Bool32 & isDepthWriteEnabled() const noexcept { return m_depth_stencil_state.root().depthWriteEnable; }
+    const vk::CompareOp & getDepthCompareOp() const noexcept { return m_depth_stencil_state.root().depthCompareOp; }
+    const vk::Bool32 & isDepthBoundsTestEnabled() const noexcept { return m_depth_stencil_state.root().depthBoundsTestEnable; }
+    const vk::Bool32 & isStencilTestEnabled() const noexcept { return m_depth_stencil_state.root().stencilTestEnable; }
+    const vk::StencilOpState & getFrontStencilState() const noexcept { return m_depth_stencil_state.root().front; }
+    const vk::StencilOpState & getBackStencilState() const noexcept { return m_depth_stencil_state.root().back; }
+    const float & getMinDepthBounds() const noexcept { return m_depth_stencil_state.root().minDepthBounds; }
+    const float & getMaxDepthBounds() const noexcept { return m_depth_stencil_state.root().maxDepthBounds; }
 private:
-    vk::PipelineDepthStencilStateCreateFlags m_flags;
-    vk::Bool32 m_depth_test_enable;
-    vk::Bool32 m_depth_write_enable;
-    vk::CompareOp m_depth_compare_op;
-    vk::Bool32 m_depth_bounds_test_enable;
-    vk::Bool32 m_stencil_test_enable;
-    vk::StencilOpState m_front;
-    vk::StencilOpState m_back;
-    float m_min_depth_bounds;
-    float m_max_depth_bounds;
+    utils::DynamicStructureChain<Root> m_depth_stencil_state;
 };
 
 class ColorBlendStateInfo
 {
     using Self = ColorBlendStateInfo;
+    using Root = vk::PipelineColorBlendStateCreateInfo;
     using AttachmentList = std::vector<vk::PipelineColorBlendAttachmentState>;
     using BlendConstants = std::array<float, 4>;
 public:
@@ -329,34 +358,37 @@ public:
         vk::Bool32 logic_op_enable = false,
         vk::LogicOp logic_op = vk::LogicOp::eCopy,
         AttachmentList attachments = {},
-        const BlendConstants & blend_constants = {}) noexcept :
-        m_flags(flags),
-        m_logic_op_enable(logic_op_enable),
-        m_logic_op(logic_op),
-        m_attachments(std::move(attachments)),
-        m_blend_constants(blend_constants) {}
+        const BlendConstants & blend_constants = {}) :
+        m_attachments(std::move(attachments))
+    {
+        m_color_blend_state.root()
+            .setFlags(flags)
+            .setLogicOpEnable(logic_op_enable)
+            .setLogicOp(logic_op)
+            .setBlendConstants(blend_constants)
+            .setAttachments(m_attachments);
+    }
     ColorBlendStateInfo(const Self & other) = default;
     ColorBlendStateInfo(Self && other) noexcept = default;
     Self & operator=(const Self & other) = default;
     Self & operator=(Self && other) noexcept = default;
-    operator vk::PipelineColorBlendStateCreateInfo() const noexcept
-    {
-        return vk::PipelineColorBlendStateCreateInfo {
-            m_flags, m_logic_op_enable, m_logic_op
-        }.setAttachments(m_attachments).setBlendConstants(m_blend_constants);
-    }
+    operator const Root &() const noexcept { return m_color_blend_state.root(); }
 public:
-    Self & addFlags(vk::PipelineColorBlendStateCreateFlags flags) noexcept { m_flags |= flags; return *this; }
+    template <utils::struct_extends_c<Root> T>
+    T & requestExtension() noexcept { return m_color_blend_state.template request<T>(); }
+    Self & addFlags(vk::PipelineColorBlendStateCreateFlags flags) noexcept { m_color_blend_state.root().setFlags(m_color_blend_state.root().flags | flags); return *this; }
     Self & enableLogicOp(vk::LogicOp logic_op = vk::LogicOp::eCopy) noexcept
     {
-        m_logic_op_enable = true;
-        m_logic_op = logic_op;
+        m_color_blend_state.root()
+            .setLogicOpEnable(true)
+            .setLogicOp(logic_op);
         return *this;
     }
-    Self & setBlendConstants(const BlendConstants & constants) noexcept { m_blend_constants = constants; return *this; }
+    Self & setBlendConstants(const BlendConstants & constants) noexcept { m_color_blend_state.root().setBlendConstants(constants); return *this; }
     Self & addAttachment(vk::ColorComponentFlags write_mask = vk::FlagTraits<vk::ColorComponentFlagBits>::allFlags)
     {
         m_attachments.emplace_back(vk::PipelineColorBlendAttachmentState{}.setColorWriteMask(write_mask));
+        m_color_blend_state.root().setAttachments(m_attachments);
         return *this;
     }
     Self & addBlendAttachment(
@@ -365,24 +397,22 @@ public:
         vk::ColorComponentFlags write_mask = vk::FlagTraits<vk::ColorComponentFlagBits>::allFlags)
     {
         m_attachments.emplace_back(true, src_color, dst_color, color_op, src_alpha, dst_alpha, alpha_op, write_mask);
+        m_color_blend_state.root().setAttachments(m_attachments);
         return *this;
     }
-    const vk::PipelineColorBlendStateCreateFlags & getFlags() const noexcept { return m_flags; }
-    const vk::Bool32 & isLogicOpEnabled() const noexcept { return m_logic_op_enable; }
-    const vk::LogicOp & getLogicOp() const noexcept { return m_logic_op; }
-    const BlendConstants & getBlendConstants() const noexcept { return m_blend_constants; }
+    const vk::PipelineColorBlendStateCreateFlags & getFlags() const noexcept { return m_color_blend_state.root().flags; }
+    const vk::Bool32 & isLogicOpEnabled() const noexcept { return m_color_blend_state.root().logicOpEnable; }
+    const vk::LogicOp & getLogicOp() const noexcept { return m_color_blend_state.root().logicOp; }
     std::span<const vk::PipelineColorBlendAttachmentState> getAttachments() const noexcept { return m_attachments; }
 private:
-    vk::PipelineColorBlendStateCreateFlags m_flags;
-    vk::Bool32 m_logic_op_enable;
-    vk::LogicOp m_logic_op;
+    utils::DynamicStructureChain<Root> m_color_blend_state;
     AttachmentList m_attachments;
-    BlendConstants m_blend_constants;
 };
 
 class ViewportStateInfo
 {
     using Self = ViewportStateInfo;
+    using Root = vk::PipelineViewportStateCreateInfo;
     using ViewportList = std::vector<vk::Viewport>;
     using ScissorList = std::vector<vk::Rect2D>;
 public:
@@ -390,35 +420,38 @@ public:
     ViewportStateInfo(
         vk::PipelineViewportStateCreateFlags flags = {},
         ViewportList viewports = {},
-        ScissorList scissors = {}) noexcept :
-        m_flags(flags),
+        ScissorList scissors = {}) :
         m_viewports(std::move(viewports)),
-        m_scissors(std::move(scissors)) {}
+        m_scissors(std::move(scissors))
+    {
+        m_viewport_state.root().setFlags(flags).setViewports(m_viewports).setScissors(m_scissors);
+    }
     ViewportStateInfo(const Self & other) = default;
     ViewportStateInfo(Self && other) noexcept = default;
     Self & operator=(const Self & other) = default;
     Self & operator=(Self && other) noexcept = default;
-    operator vk::PipelineViewportStateCreateInfo() const noexcept
-    {
-        return vk::PipelineViewportStateCreateInfo { m_flags }.setViewports(m_viewports).setScissors(m_scissors);
-    }
+    operator const Root &() const noexcept { return m_viewport_state.root(); }
 public:
-    Self & addFlags(vk::PipelineViewportStateCreateFlags flags) noexcept { m_flags |= flags; return *this; }
+    template <utils::struct_extends_c<Root> T>
+    T & requestExtension() noexcept { return m_viewport_state.template request<T>(); }
+    Self & addFlags(vk::PipelineViewportStateCreateFlags flags) noexcept { m_viewport_state.root().setFlags(m_viewport_state.root().flags | flags); return *this; }
     Self & addViewport(float x, float y, float width, float height, float min_depth = 0.0f, float max_depth = 1.0f)
     {
         m_viewports.emplace_back(x, y, width, height, min_depth, max_depth);
+        m_viewport_state.root().setViewports(m_viewports);
         return *this;
     }
     Self & addScissor(int32_t offset_x, int32_t offset_y, uint32_t width, uint32_t height)
     {
         m_scissors.emplace_back(vk::Offset2D{offset_x, offset_y}, vk::Extent2D{width, height});
+        m_viewport_state.root().setScissors(m_scissors);
         return *this;
     }
-    const vk::PipelineViewportStateCreateFlags & getFlags() const noexcept { return m_flags; }
+    const vk::PipelineViewportStateCreateFlags & getFlags() const noexcept { return m_viewport_state.root().flags; }
     std::span<const vk::Viewport> getViewports() const noexcept { return m_viewports; }
     std::span<const vk::Rect2D> getScissors() const noexcept { return m_scissors; }
 private:
-    vk::PipelineViewportStateCreateFlags m_flags;
+    utils::DynamicStructureChain<Root> m_viewport_state;
     ViewportList m_viewports;
     ScissorList m_scissors;
 };
@@ -426,30 +459,32 @@ private:
 class DynamicStateInfo
 {
     using Self = DynamicStateInfo;
+    using Root = vk::PipelineDynamicStateCreateInfo;
     using StateList = std::vector<vk::DynamicState>;
 public:
     ~DynamicStateInfo() noexcept = default;
     DynamicStateInfo(
         vk::PipelineDynamicStateCreateFlags flags = {},
-        StateList states = {}) noexcept :
-        m_flags(flags),
-        m_states(std::move(states)) {}
+        StateList states = {}) :
+        m_states(std::move(states))
+    {
+        m_dynamic_state.root().setFlags(flags).setDynamicStates(m_states);
+    }
     DynamicStateInfo(const Self & other) = default;
     DynamicStateInfo(Self && other) noexcept = default;
     Self & operator=(const Self & other) = default;
     Self & operator=(Self && other) noexcept = default;
-    operator vk::PipelineDynamicStateCreateInfo() const noexcept
-    {
-        return vk::PipelineDynamicStateCreateInfo { m_flags }.setDynamicStates(m_states);
-    }
+    operator const Root &() const noexcept { return m_dynamic_state.root(); }
 public:
-    Self & addFlags(vk::PipelineDynamicStateCreateFlags flags) noexcept { m_flags |= flags; return *this; }
-    Self & addDynamicState(vk::DynamicState state) { m_states.emplace_back(state); return *this; }
-    Self & setDynamicStates(StateList states) { m_states = std::move(states); return *this; }
-    const vk::PipelineDynamicStateCreateFlags & getFlags() const noexcept { return m_flags; }
+    template <utils::struct_extends_c<Root> T>
+    T & requestExtension() noexcept { return m_dynamic_state.template request<T>(); }
+    Self & addFlags(vk::PipelineDynamicStateCreateFlags flags) noexcept { m_dynamic_state.root().setFlags(m_dynamic_state.root().flags | flags); return *this; }
+    Self & addDynamicState(vk::DynamicState state) { m_states.emplace_back(state); m_dynamic_state.root().setDynamicStates(m_states); return *this; }
+    Self & setDynamicStates(StateList states) { m_states = std::move(states); m_dynamic_state.root().setDynamicStates(m_states); return *this; }
+    const vk::PipelineDynamicStateCreateFlags & getFlags() const noexcept { return m_dynamic_state.root().flags; }
     std::span<const vk::DynamicState> getDynamicStates() const noexcept { return m_states; }
 private:
-    vk::PipelineDynamicStateCreateFlags m_flags;
+    utils::DynamicStructureChain<Root> m_dynamic_state;
     StateList m_states;
 };
 
@@ -562,45 +597,43 @@ private:
 class AttachmentReferenceInfo
 {
     using Self = AttachmentReferenceInfo;
+    using Root = vk::AttachmentReference2;
 public:
     ~AttachmentReferenceInfo() noexcept = default;
-    constexpr AttachmentReferenceInfo(
+    AttachmentReferenceInfo(
         uint32_t attachment = vk::AttachmentUnused,
         vk::ImageLayout layout = vk::ImageLayout::eUndefined,
-        vk::ImageAspectFlags aspect_mask = {}) noexcept :
-        m_attachment(attachment),
-        m_layout(layout),
-        m_aspect_mask(aspect_mask) {}
+        vk::ImageAspectFlags aspect_mask = {}) noexcept
+    {
+        this->setAttachment(attachment)
+            .setLayout(layout)
+            .setAspectMask(aspect_mask);
+    }
     AttachmentReferenceInfo(const Self & other) noexcept = default;
     AttachmentReferenceInfo(Self && other) noexcept = default;
     Self & operator=(const Self & other) noexcept = default;
     Self & operator=(Self && other) noexcept = default;
-    operator vk::AttachmentReference() const noexcept
-    {
-        return vk::AttachmentReference { m_attachment, m_layout };
-    }
-    operator vk::AttachmentReference2() const noexcept
-    {
-        return vk::AttachmentReference2 { m_attachment, m_layout, m_aspect_mask };
-    }
+    operator vk::AttachmentReference() const noexcept { return { this->getAttachment(), this->getLayout() }; }
+    operator const Root &() const noexcept { return m_attachment_reference.root(); }
 public:
-    Self & setAttachment(uint32_t attachment) noexcept { m_attachment = attachment; return *this; }
-    Self & setLayout(vk::ImageLayout layout) noexcept { m_layout = layout; return *this; }
-    Self & setAspectMask(vk::ImageAspectFlags aspect_mask) noexcept { m_aspect_mask = aspect_mask; return *this; }
-    const uint32_t & getAttachment() const noexcept { return m_attachment; }
-    const vk::ImageLayout & getLayout() const noexcept { return m_layout; }
+    template <utils::struct_extends_c<Root> T>
+    T & requestExtension() noexcept { return m_attachment_reference.template request<T>(); }
+    Self & setAttachment(uint32_t attachment) noexcept { m_attachment_reference.root().setAttachment(attachment); return *this; }
+    Self & setLayout(vk::ImageLayout layout) noexcept { m_attachment_reference.root().setLayout(layout); return *this; }
+    Self & setAspectMask(vk::ImageAspectFlags aspect_mask) noexcept { m_attachment_reference.root().setAspectMask(aspect_mask); return *this; }
+    const uint32_t & getAttachment() const noexcept { return m_attachment_reference.root().attachment; }
+    const vk::ImageLayout & getLayout() const noexcept { return m_attachment_reference.root().layout; }
 private:
-    uint32_t m_attachment;
-    vk::ImageLayout m_layout;
-    vk::ImageAspectFlags m_aspect_mask;
+    utils::DynamicStructureChain<Root> m_attachment_reference;
 };
 
 class SubpassDependencyInfo
 {
     using Self = SubpassDependencyInfo;
+    using Root = vk::SubpassDependency2;
 public:
     ~SubpassDependencyInfo() noexcept = default;
-    constexpr SubpassDependencyInfo(
+    SubpassDependencyInfo(
         uint32_t src_subpass = vk::SubpassExternal,
         uint32_t dst_subpass = 0u,
         vk::PipelineStageFlags src_stage_mask = {},
@@ -608,68 +641,59 @@ public:
         vk::AccessFlags src_access_mask = {},
         vk::AccessFlags dst_access_mask = {},
         vk::DependencyFlags dependency_flags = {},
-        int32_t view_offset = 0) noexcept :
-        m_src_subpass(src_subpass),
-        m_dst_subpass(dst_subpass),
-        m_src_stage_mask(src_stage_mask),
-        m_dst_stage_mask(dst_stage_mask),
-        m_src_access_mask(src_access_mask),
-        m_dst_access_mask(dst_access_mask),
-        m_dependency_flags(dependency_flags),
-        m_view_offset(view_offset) {}
+        int32_t view_offset = 0) noexcept
+    {
+        m_subpass_dependency.root()
+            .setSrcSubpass(src_subpass)
+            .setDstSubpass(dst_subpass)
+            .setSrcStageMask(src_stage_mask)
+            .setDstStageMask(dst_stage_mask)
+            .setSrcAccessMask(src_access_mask)
+            .setDstAccessMask(dst_access_mask)
+            .setDependencyFlags(dependency_flags)
+            .setViewOffset(view_offset);
+    }
     SubpassDependencyInfo(const Self & other) noexcept = default;
     SubpassDependencyInfo(Self && other) noexcept = default;
     Self & operator=(const Self & other) noexcept = default;
     Self & operator=(Self && other) noexcept = default;
     operator vk::SubpassDependency() const noexcept
     {
+        const auto & root = m_subpass_dependency.root();
         return vk::SubpassDependency {
-            m_src_subpass, m_dst_subpass, m_src_stage_mask, m_dst_stage_mask,
-            m_src_access_mask, m_dst_access_mask, m_dependency_flags,
+            root.srcSubpass, root.dstSubpass, root.srcStageMask, root.dstStageMask,
+            root.srcAccessMask, root.dstAccessMask, root.dependencyFlags,
         };
     }
-    operator vk::SubpassDependency2() const noexcept
-    {
-        return vk::SubpassDependency2 {
-            m_src_subpass, m_dst_subpass, m_src_stage_mask, m_dst_stage_mask,
-            m_src_access_mask, m_dst_access_mask, m_dependency_flags, m_view_offset,
-        };
-    }
+    operator const Root &() const noexcept { return m_subpass_dependency.root(); }
 public:
+    template <utils::struct_extends_c<Root> T>
+    T & requestExtension() noexcept { return m_subpass_dependency.template request<T>(); }
     Self & setSubpasses(uint32_t src_subpass, uint32_t dst_subpass) noexcept
     {
-        m_src_subpass = src_subpass;
-        m_dst_subpass = dst_subpass;
+        m_subpass_dependency.root().setSrcSubpass(src_subpass).setDstSubpass(dst_subpass);
         return *this;
     }
     Self & setStageMasks(vk::PipelineStageFlags src, vk::PipelineStageFlags dst) noexcept
     {
-        m_src_stage_mask = src;
-        m_dst_stage_mask = dst;
+        m_subpass_dependency.root().setSrcStageMask(src).setDstStageMask(dst);
         return *this;
     }
     Self & setAccessMasks(vk::AccessFlags src, vk::AccessFlags dst) noexcept
     {
-        m_src_access_mask = src;
-        m_dst_access_mask = dst;
+        m_subpass_dependency.root().setSrcAccessMask(src).setDstAccessMask(dst);
         return *this;
     }
-    Self & addDependencyFlags(vk::DependencyFlags flags) noexcept { m_dependency_flags |= flags; return *this; }
-    Self & setViewOffset(int32_t view_offset) noexcept { m_view_offset = view_offset; return *this; }
+    Self & addDependencyFlags(vk::DependencyFlags flags) noexcept { m_subpass_dependency.root().setDependencyFlags(m_subpass_dependency.root().dependencyFlags | flags); return *this; }
+    Self & setViewOffset(int32_t view_offset) noexcept { m_subpass_dependency.root().setViewOffset(view_offset); return *this; }
 private:
-    uint32_t m_src_subpass;
-    uint32_t m_dst_subpass;
-    vk::PipelineStageFlags m_src_stage_mask;
-    vk::PipelineStageFlags m_dst_stage_mask;
-    vk::AccessFlags m_src_access_mask;
-    vk::AccessFlags m_dst_access_mask;
-    vk::DependencyFlags m_dependency_flags;
-    int32_t m_view_offset;
+    utils::DynamicStructureChain<Root> m_subpass_dependency;
 };
 
 class SubpassDescriptionInfo
 {
     using Self = SubpassDescriptionInfo;
+    using Root = vk::SubpassDescription2;
     using ReferenceInfoList = std::vector<AttachmentReferenceInfo>;
     using PreserveList = std::vector<uint32_t>;
     using ReferenceList2 = std::vector<vk::AttachmentReference2>;
@@ -678,41 +702,70 @@ public:
     SubpassDescriptionInfo(
         vk::SubpassDescriptionFlags flags = {},
         vk::PipelineBindPoint bind_point = vk::PipelineBindPoint::eGraphics,
-        uint32_t view_mask = 0u) noexcept :
-        m_flags(flags),
-        m_bind_point(bind_point),
-        m_view_mask(view_mask) {}
+        uint32_t view_mask = 0u) noexcept
+    {
+        m_subpass.root().setFlags(flags).setPipelineBindPoint(bind_point).setViewMask(view_mask);
+    }
     SubpassDescriptionInfo(const Self & other) = default;
     SubpassDescriptionInfo(Self && other) noexcept = default;
     Self & operator=(const Self & other) = default;
     Self & operator=(Self && other) noexcept = default;
-    operator vk::SubpassDescription2() const noexcept;
+    operator const Root &() const noexcept { return m_subpass.root(); }
 public:
-    Self & addFlags(vk::SubpassDescriptionFlags flags) noexcept { m_flags |= flags; return *this; }
-    Self & setBindPoint(vk::PipelineBindPoint bind_point) noexcept { m_bind_point = bind_point; return *this; }
-    Self & setViewMask(uint32_t view_mask) noexcept { m_view_mask = view_mask; return *this; }
-    Self & addColorAttachment(const AttachmentReferenceInfo & reference) { m_color_references.emplace_back(reference); return *this; }
-    Self & addInputAttachment(const AttachmentReferenceInfo & reference) { m_input_references.emplace_back(reference); return *this; }
-    Self & addResolveAttachment(const AttachmentReferenceInfo & reference) { m_resolve_references.emplace_back(reference); return *this; }
-    Self & setDepthStencilAttachment(const AttachmentReferenceInfo & reference) { m_depth_stencil_reference = reference; return *this; }
-    Self & addPreserveAttachment(uint32_t attachment) { m_preserve_attachments.emplace_back(attachment); return *this; }
+    template <utils::struct_extends_c<Root> T>
+    T & requestExtension() noexcept { return m_subpass.template request<T>(); }
+    Self & addFlags(vk::SubpassDescriptionFlags flags) noexcept { m_subpass.root().setFlags(m_subpass.root().flags | flags); return *this; }
+    Self & setBindPoint(vk::PipelineBindPoint bind_point) noexcept { m_subpass.root().setPipelineBindPoint(bind_point); return *this; }
+    Self & setViewMask(uint32_t view_mask) noexcept { m_subpass.root().setViewMask(view_mask); return *this; }
+    Self & addColorAttachment(const AttachmentReferenceInfo & reference)
+    {
+        m_color_references.emplace_back(reference);
+        m_flat_color_refs.emplace_back(static_cast<const vk::AttachmentReference2 &>(m_color_references.back()));
+        m_subpass.root().setColorAttachments(m_flat_color_refs);
+        return *this;
+    }
+    Self & addInputAttachment(const AttachmentReferenceInfo & reference)
+    {
+        m_input_references.emplace_back(reference);
+        m_flat_input_refs.emplace_back(static_cast<const vk::AttachmentReference2 &>(m_input_references.back()));
+        m_subpass.root().setInputAttachments(m_flat_input_refs);
+        return *this;
+    }
+    Self & addResolveAttachment(const AttachmentReferenceInfo & reference)
+    {
+        m_resolve_references.emplace_back(reference);
+        m_flat_resolve_refs.emplace_back(static_cast<const vk::AttachmentReference2 &>(m_resolve_references.back()));
+        m_subpass.root().setPResolveAttachments(m_flat_resolve_refs.data());
+        return *this;
+    }
+    Self & setDepthStencilAttachment(const AttachmentReferenceInfo & reference)
+    {
+        m_depth_stencil_reference = reference;
+        m_flat_depth_stencil_ref = static_cast<const vk::AttachmentReference2 &>(*m_depth_stencil_reference);
+        m_subpass.root().setPDepthStencilAttachment(&m_flat_depth_stencil_ref);
+        return *this;
+    }
+    Self & addPreserveAttachment(uint32_t attachment)
+    {
+        m_preserve_attachments.emplace_back(attachment);
+        m_subpass.root().setPreserveAttachments(m_preserve_attachments);
+        return *this;
+    }
     std::span<const AttachmentReferenceInfo> getColorReferences() const noexcept { return m_color_references; }
     std::span<const AttachmentReferenceInfo> getResolveReferences() const noexcept { return m_resolve_references; }
     bool hasDepthStencil() const noexcept { return m_depth_stencil_reference.has_value(); }
     const AttachmentReferenceInfo & getDepthStencilReference() const noexcept { return *m_depth_stencil_reference; }
 private:
-    vk::SubpassDescriptionFlags m_flags;
-    vk::PipelineBindPoint m_bind_point;
-    uint32_t m_view_mask;
+    utils::DynamicStructureChain<Root> m_subpass;
     ReferenceInfoList m_input_references;
     ReferenceInfoList m_color_references;
     ReferenceInfoList m_resolve_references;
     std::optional<AttachmentReferenceInfo> m_depth_stencil_reference;
     PreserveList m_preserve_attachments;
-    mutable ReferenceList2 m_input_scratch;
-    mutable ReferenceList2 m_color_scratch;
-    mutable ReferenceList2 m_resolve_scratch;
-    mutable vk::AttachmentReference2 m_depth_stencil_scratch;
+    ReferenceList2 m_flat_input_refs;
+    ReferenceList2 m_flat_color_refs;
+    ReferenceList2 m_flat_resolve_refs;
+    vk::AttachmentReference2 m_flat_depth_stencil_ref;
 };
 
 class RenderTargetInfo
@@ -750,7 +803,11 @@ public:
     const vk::Format & getDepthStencilFormat() const noexcept { return m_depth_stencil_format; }
     vk::ResolveModeFlagBits getColorResolveMode(uint32_t color_index) const noexcept { return m_color_resolve_modes[color_index]; }
     bool isColorResolved(uint32_t color_index) const noexcept { return m_color_resolve_modes[color_index] != vk::ResolveModeFlagBits::eNone; }
-    bool hasAnyResolve() const noexcept;
+    bool hasAnyResolve() const noexcept
+    {
+        return std::to_underlying(m_sample_count) > 1 and
+            std::ranges::any_of(m_color_resolve_modes, [](auto m) { return m != vk::ResolveModeFlagBits::eNone; });
+    }
 private:
     vk::Extent2D m_extent;
     FormatList m_color_formats;
@@ -775,9 +832,9 @@ public:
     Self & operator=(Self && other) noexcept = default;
 public:
     Self & addFlags(vk::RenderPassCreateFlags flags) noexcept { m_flags |= flags; return *this; }
-    Self & addAttachmentState(const AttachmentStateInfo & state) { m_attachment_states.emplace_back(state); return *this; }
-    Self & addSubpass(const SubpassDescriptionInfo & subpass) { m_subpasses.emplace_back(subpass); return *this; }
-    Self & addDependency(const SubpassDependencyInfo & dependency) { m_dependencies.emplace_back(dependency); return *this; }
+    Self & addAttachmentState(AttachmentStateInfo state) { m_attachment_states.emplace_back(std::move(state)); return *this; }
+    Self & addSubpass(SubpassDescriptionInfo subpass) { m_subpasses.emplace_back(std::move(subpass)); return *this; }
+    Self & addDependency(SubpassDependencyInfo dependency) { m_dependencies.emplace_back(std::move(dependency)); return *this; }
     Self & addCorrelatedViewMask(uint32_t view_mask) { m_correlated_view_masks.emplace_back(view_mask); return *this; }
     const vk::RenderPassCreateFlags & getFlags() const noexcept { return m_flags; }
     std::span<const AttachmentStateInfo> getAttachmentStates() const noexcept { return m_attachment_states; }

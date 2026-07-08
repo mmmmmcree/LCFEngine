@@ -8,12 +8,8 @@
 
 namespace lcf::vkc::utils {
 
-namespace details {
-
 template <typename T, typename Root>
 concept struct_extends_c = static_cast<bool>(vk::StructExtends<T, Root>::value);
-
-} // namespace details
 
 template <typename Root>
 class DynamicStructureChain
@@ -41,15 +37,15 @@ public:
 public:
     const Root & root() const noexcept { return std::any_cast<const Root &>(m_nodes.at(typeid(Root)).value); }
     Root & root() noexcept { return std::any_cast<Root &>(m_nodes.at(typeid(Root)).value); }
-    template <details::struct_extends_c<Root> Extension>
+    template <struct_extends_c<Root> Extension>
     const Extension & get() const { return std::any_cast<const Extension &>(m_nodes.at(typeid(Extension)).value); }
-    template <details::struct_extends_c<Root> Extension>
+    template <struct_extends_c<Root> Extension>
     const Extension * tryGet() const noexcept
     {
         auto it = m_nodes.find(typeid(Extension));
         return it == m_nodes.end() ? nullptr : &std::any_cast<const Extension &>(it->second.value);
     }
-    template <details::struct_extends_c<Root> Extension>
+    template <struct_extends_c<Root> Extension>
     Extension & request() noexcept
     {
         auto it = m_nodes.find(typeid(Extension));
