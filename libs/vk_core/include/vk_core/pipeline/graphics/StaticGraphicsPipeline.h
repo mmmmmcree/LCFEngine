@@ -1,10 +1,11 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
+#include <vector>
 
 namespace lcf::vkc {
 
-class GraphicPipelineInfo;
+class GraphicsPipelineInfo;
 
 class CommandBufferProxy;
 
@@ -19,10 +20,12 @@ public:
     Self &operator=(const Self &) noexcept = delete;
     Self &operator=(Self &&) noexcept = default;
 public:
-    std::error_code create(vk::Device device, const GraphicPipelineInfo & pipeline_info) noexcept;
+    std::error_code create(vk::Device device, const GraphicsPipelineInfo & pipeline_info) noexcept;
     void bind(CommandBufferProxy & cmd) const noexcept;
 private:
     vk::UniquePipeline m_pipeline;
+    vk::UniquePipelineLayout m_pipeline_layout;
+    std::vector<vk::UniqueShaderModule> m_shader_modules;
 };
 
 } // namespace lcf::vkc

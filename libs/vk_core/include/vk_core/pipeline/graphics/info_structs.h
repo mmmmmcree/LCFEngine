@@ -488,19 +488,20 @@ private:
     StateList m_states;
 };
 
-class GraphicPipelineInfo
+class GraphicsPipelineInfo
 {
-    using Self = GraphicPipelineInfo;
+    using Self = GraphicsPipelineInfo;
 public:
-    ~GraphicPipelineInfo() noexcept = default;
-    GraphicPipelineInfo() = default;
-    GraphicPipelineInfo(const Self & other) = default;
-    GraphicPipelineInfo(Self && other) noexcept = default;
+    ~GraphicsPipelineInfo() noexcept = default;
+    GraphicsPipelineInfo() = default;
+    GraphicsPipelineInfo(const Self & other) = default;
+    GraphicsPipelineInfo(Self && other) noexcept = default;
     Self & operator=(const Self & other) = default;
     Self & operator=(Self && other) noexcept = default;
 public:
+    Self & addFlags(vk::PipelineCreateFlagBits flags) noexcept { m_flags |= flags; return *this; }
     Self & setShaderProgramInfo(ShaderProgramInfo info) { m_shader_program_info = std::move(info); return *this; }
-    Self & setVertexInputInfo(VertexInputInfo info) { m_vertex_input_info_opt = std::move(info); return *this; }
+    Self & setVertexInputInfo(VertexInputInfo info) { m_vertex_input_info = std::move(info); return *this; }
     Self & setInputAssemblyStateInfo(const InputAssemblyStateInfo & info) { m_input_assembly_info = info; return *this; }
     Self & setTessellationStateInfo(const TessellationStateInfo & info) { m_tessellation_info = info; return *this; }
     Self & setRasterizationStateInfo(const RasterizationStateInfo & info) { m_rasterization_info = info; return *this; }
@@ -510,8 +511,9 @@ public:
     Self & setViewportStateInfo(ViewportStateInfo info) { m_viewport_info = std::move(info); return *this; }
     Self & setDynamicStateInfo(DynamicStateInfo info) { m_dynamic_state_info = std::move(info); return *this; }
 
+    const vk::PipelineCreateFlags & getFlags() const noexcept { return m_flags; }
     const ShaderProgramInfo & getShaderProgramInfo() const noexcept { return m_shader_program_info; }
-    const std::optional<VertexInputInfo> & getVertexInputInfo() const noexcept { return m_vertex_input_info_opt; }
+    const VertexInputInfo & getVertexInputInfo() const noexcept { return m_vertex_input_info; }
     const InputAssemblyStateInfo & getInputAssemblyStateInfo() const noexcept { return m_input_assembly_info; }
     const TessellationStateInfo & getTessellationStateInfo() const noexcept { return m_tessellation_info; }
     const RasterizationStateInfo & getRasterizationStateInfo() const noexcept { return m_rasterization_info; }
@@ -521,8 +523,9 @@ public:
     const ViewportStateInfo & getViewportStateInfo() const noexcept { return m_viewport_info; }
     const DynamicStateInfo & getDynamicStateInfo() const noexcept { return m_dynamic_state_info; }
 private:
+    vk::PipelineCreateFlags m_flags = {};
     ShaderProgramInfo m_shader_program_info;
-    std::optional<VertexInputInfo> m_vertex_input_info_opt;
+    VertexInputInfo m_vertex_input_info;
     InputAssemblyStateInfo m_input_assembly_info;
     TessellationStateInfo m_tessellation_info;
     RasterizationStateInfo m_rasterization_info;
@@ -840,7 +843,7 @@ public:
     std::span<const AttachmentStateInfo> getAttachmentStates() const noexcept { return m_attachment_states; }
     std::span<const SubpassDescriptionInfo> getSubpasses() const noexcept { return m_subpasses; }
     std::span<const SubpassDependencyInfo> getDependencies() const noexcept { return m_dependencies; }
-    std::span<const uint32_t> getCorrelatedViewMasks() const noexcept { return m_correlated_view_masks; }
+    const ViewMaskList & getCorrelatedViewMasks() const noexcept { return m_correlated_view_masks; }
 private:
     vk::RenderPassCreateFlags m_flags;
     AttachmentStateList m_attachment_states;

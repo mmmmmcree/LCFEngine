@@ -4,7 +4,7 @@
 
 namespace lcf::vkc {
 
-class GraphicPipelineInfo;
+class GraphicsPipelineInfo;
 
 class DynamicGraphicPipeline
 {
@@ -17,7 +17,7 @@ public:
     Self &operator=(const Self &) noexcept = delete;
     Self &operator=(Self &&) noexcept = default;
 public:
-    std::error_code create(vk::Device device, const GraphicPipelineInfo &info) noexcept;
+    std::error_code create(vk::Device device, const GraphicsPipelineInfo &info) noexcept;
     void bind(vk::CommandBuffer cmd) noexcept;
 private:
     vk::UniquePipeline m_pipeline;

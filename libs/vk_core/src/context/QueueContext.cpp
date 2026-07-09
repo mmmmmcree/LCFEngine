@@ -18,7 +18,7 @@ std::error_code QueueContext::create(vk::Device device, uint32_t family_index, u
     return {};
 }
 
-std::expected<CommandBufferBatch, std::error_code> QueueContext::allocate(const CommandBufferAllocateInfo & info) noexcept
+std::expected<CommandBufferBatch, std::error_code> QueueContext::allocateCommandBufferBatch(const CommandBufferAllocateInfo & info) noexcept
 {
     return m_cmd_allocator.allocate(info);
 }

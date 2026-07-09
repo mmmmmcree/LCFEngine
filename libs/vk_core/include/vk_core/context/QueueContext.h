@@ -29,7 +29,7 @@ public:
     std::error_code create(vk::Device device, uint32_t family_index, uint32_t queue_index) noexcept;
     const vk::Queue & getQueue() const noexcept { return m_queue; }
     const uint32_t & getFamilyIndex() const noexcept { return m_family_index; }
-    std::expected<CommandBufferBatch, std::error_code> allocate(const CommandBufferAllocateInfo & info) noexcept;
+    std::expected<CommandBufferBatch, std::error_code> allocateCommandBufferBatch(const CommandBufferAllocateInfo & info) noexcept;
     std::expected<vk::SemaphoreSubmitInfo, std::error_code> submit(CommandBufferBatch && batch) noexcept;
     void collectGarbage() noexcept;
 private:

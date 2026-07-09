@@ -46,17 +46,15 @@ public:
     {
         m_specialization_map_entries.emplace_back(constant_id, static_cast<uint32_t>(m_specialization_data.size()), sizeof(T));
         m_specialization_data.append_range(as_bytes_from_value(value));
+        m_specialization_info.setMapEntries(m_specialization_map_entries)
+            .setData<std::byte>(m_specialization_data);
         return *this;
     }
     const vk::ShaderStageFlagBits & getStage() const noexcept { return m_stage; }
     const Code & getCode() const noexcept { return m_code; }
     const std::string & getEntryPoint() const noexcept { return m_entry_point; }
     const PushConstantRangeList & getPushConstantRanges() const noexcept { return m_push_constant_ranges; }
-    vk::SpecializationInfo genSpecializationInfo() const noexcept
-    {
-        return vk::SpecializationInfo{}.setMapEntries(m_specialization_map_entries)
-            .setData<std::byte>(m_specialization_data);
-    }
+    const vk::SpecializationInfo & getSpecializationInfo() const noexcept { return m_specialization_info; }
 private:
     vk::ShaderStageFlagBits m_stage;
     Code m_code;
@@ -64,6 +62,7 @@ private:
     PushConstantRangeList m_push_constant_ranges;
     Bytes m_specialization_data;
     SpecializationMapEntryList m_specialization_map_entries;
+    vk::SpecializationInfo m_specialization_info;
 };
 
 class ShaderProgramInfo
@@ -79,9 +78,9 @@ public:
     Self & operator=(const Self & other) = default;
     Self & operator=(Self && other) noexcept = default;
 public:
-    Self & addStageInfo(const ShaderStageInfo & stage_info) noexcept
+    Self & addStageInfo(ShaderStageInfo stage_info) noexcept
     {
-        m_stage_info_map.emplace(stage_info.getStage(), stage_info);
+        m_stage_info_map.emplace(stage_info.getStage(), std::move(stage_info));
         return *this;
     }
     Self & addDescriptorSetLayout(uint32_t set, vk::DescriptorSetLayout descriptor_set_layout) noexcept
