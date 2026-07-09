@@ -13,7 +13,9 @@ target_link_libraries(${PROJECT_NAME}
         window
         utilities_log
 )
-
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+    SHADER_ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders/"
+)
 set_target_properties(${PROJECT_NAME} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
