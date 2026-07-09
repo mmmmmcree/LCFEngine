@@ -4,7 +4,7 @@
 #include "vk_core/debug/debug_utils.h"
 #include "vk_core/WSI/entry.h"
 #include "vk_core/WSI/WindowHandle.h"
-#include "vk_core/WSI/compat/Swapchain.h"
+#include "vk_core/WSI/Swapchain.h"
 #include "vk_core/context/entry.h"
 #include "vk_core/context/create_infos.h"
 #include "vk_core/context/InstanceContext.h"
@@ -41,11 +41,7 @@ struct enum_mapping_traits<ShaderTypeFlagBits, vk::ShaderStageFlagBits>
 {
     static constexpr std::tuple<ShaderTypeFlagBits, vk::ShaderStageFlagBits> mappings[] = {
         { ShaderTypeFlagBits::eVertex, vk::ShaderStageFlagBits::eVertex },
-        { ShaderTypeFlagBits::eTessControl, vk::ShaderStageFlagBits::eTessellationControl },
-        { ShaderTypeFlagBits::eTessEvaluation, vk::ShaderStageFlagBits::eTessellationEvaluation },
-        { ShaderTypeFlagBits::eGeometry, vk::ShaderStageFlagBits::eGeometry },
         { ShaderTypeFlagBits::eFragment, vk::ShaderStageFlagBits::eFragment },
-        { ShaderTypeFlagBits::eCompute, vk::ShaderStageFlagBits::eCompute },
     };
 };
 } // namespace lcf
@@ -66,7 +62,7 @@ int main()
         .setErrorSink([](std::string_view message) { lcf_log_error(message); });
     vkc::entry::register_debug_utils(inst_ext_manifest, vkc::dbg::SeverityFlags::eError | vkc::dbg::SeverityFlags::eWarning | vkc::dbg::SeverityFlags::eVerbose, debug_callbacks);
     vkc::entry::register_surface(inst_ext_manifest);
-    vkc::entry::register_compat_swapchain(device_ext_manifest);
+    vkc::entry::register_swapchain(device_ext_manifest);
 
     vk::ApplicationInfo app_info;
     app_info.setPApplicationName("LCFEngine")
@@ -113,7 +109,7 @@ int main()
     }
 
     vkc::wsi::WindowHandle wsi_window_handle = to_wsi_window_handle(window.handle());
-    vkc::wsi::compat::Swapchain swapchain;
+    vkc::wsi::Swapchain swapchain;
     if (auto ec = swapchain.create(
         instance_context.getInstance(),
         render_device_context.getPhysicalDevice(),
@@ -126,6 +122,7 @@ int main()
         return 1;
     }
 
+    //- compile shader and create shader_program_info
     sc::ShaderCompiler shader_compiler;
     auto expected_compile_result = shader_compiler.compileSlangSourceToSpv("shaders://triangle.slang");
     if (not expected_compile_result) {
@@ -135,11 +132,7 @@ int main()
     lcf_log_info("Shader compiled successfully.");
     auto & spv_units = expected_compile_result.value();
 
-    vkc::RenderingInfo rendering_info;
-    vkc::RenderTargetInfo render_target_info;
     vkc::ShaderProgramInfo shader_program_info;
-    vkc::GraphicsPipelineInfo graphic_pipeline_info;
-
     for (const auto & spv_unit : spv_units) {
         vkc::ShaderStageInfo shader_stage_info;
         shader_stage_info.setStage(enum_cast<vk::ShaderStageFlagBits>(spv_unit.getStage()))
@@ -147,31 +140,64 @@ int main()
             .setEntryPoint(spv_unit.getEntryPoint());
         shader_program_info.addStageInfo(std::move(shader_stage_info));
     }
-    graphic_pipeline_info.setShaderProgramInfo(std::move(shader_program_info));
 
+    //- create render targets
+    vkc::RenderTargetInfo render_target_info;
+    auto [witdh, height] = window.getPixelSize();
+    render_target_info.setExtent({witdh, height});
+    std::array<vkc::Image, 2> render_target_images;
+    std::array<vkc::RenderTarget, 2> render_targets;
+    for (auto & image : render_target_images) {
+        vk::ImageCreateInfo image_info;
+        image_info.setImageType(vk::ImageType::e2D)
+            .setFormat(vk::Format::eR8G8B8A8Unorm)
+            .setExtent({witdh, height, 1u})
+            .setMipLevels(1u)
+            .setArrayLayers(1u)
+            .setSamples(vk::SampleCountFlagBits::e1)
+            .setTiling(vk::ImageTiling::eOptimal)
+            .setUsage(vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc)
+            .setInitialLayout(vk::ImageLayout::eUndefined);
+        vkc::MemoryAllocationInfo mem_alloc_info;
+        mem_alloc_info.setAccess(vkc::MemoryAccess::eDeviceLocal);
+        if (auto ec = image.create(render_device_context.getMemoryAllocator(), image_info, mem_alloc_info)) {
+            lcf_log_error("Failed to create image: {}", ec.message());
+            return 1;
+        }
+    }
+    for (auto & render_target : render_targets) {
+        if (auto ec = render_target.create(render_target_info)) {
+            lcf_log_error("Failed to create render_target: {}", ec.message());
+            return 1;
+        }
+    }
+    
     vk::Device device = render_device_context.getDevice();
+    //- create static rendering
+    vkc::SubpassDescriptionInfo subpass_info;
+    subpass_info.setBindPoint(vk::PipelineBindPoint::eGraphics);
+    vkc::RenderingInfo rendering_info;
+    rendering_info.addSubpass(subpass_info);
     vkc::StaticRendering static_rendering;
     if (auto ec = static_rendering.create(device, rendering_info, render_target_info)) {
         lcf_log_error("Failed to create static_rendering: {}", ec.message());
         return 1;
     }
+    //- create static graphics pipeline with static rendering
+    vkc::GraphicsPipelineInfo graphic_pipeline_info;
     vkc::StaticGraphicsPipeline static_graphics_pipeline;
-    if (auto ec = static_graphics_pipeline.create(device, graphic_pipeline_info)) {
+    graphic_pipeline_info.setShaderProgramInfo(std::move(shader_program_info));
+    if (auto ec = static_graphics_pipeline.create(device, graphic_pipeline_info, static_rendering)) {
         lcf_log_error("Failed to create static_graphics_pipeline: {}", ec.message());
         return 1;
     }
-    std::array<vkc::RenderTarget, 2> render_targets;
-    for (auto & render_target : render_targets) {
-        // if (auto ec = render_target.create(device, render_target_info)) {
-        //     lcf_log_error("Failed to create render_target: {}", ec.message());
-        //     return 1;
-        // }
-    }
 
+    //- render loop
     auto & gfx_queue_context = render_device_context.getGraphicsQueueContext();
     std::atomic<bool> running {true};
     std::thread render_thread([&] {
         static uint64_t frame = 0;
+        vk::SemaphoreSubmitInfo present_blit_finish_semaphore_info;
         while (running.load(std::memory_order_relaxed)) {
             vkc::CommandBufferAllocateInfo cmd_alloc_info;
             cmd_alloc_info.setLevel(vk::CommandBufferLevel::ePrimary)
@@ -196,14 +222,17 @@ int main()
             cmd.draw(3, 1, 0, 0);
             static_rendering.end(cmd);
             cmd.end();
+            cmd.addWaitInfo(present_blit_finish_semaphore_info);
+            cmd_buffer_batch.collect(std::move(cmd));
             auto expected_submit_result = gfx_queue_context.submit(std::move(cmd_buffer_batch));
-
-            //todo present render result on render target
-            // auto expected_present_result = swapchain.present(src_offsets, images[frame++ % 2]);
-            // if (expected_present_result) { continue; }
-            // auto ec = expected_present_result.error();
-            // if (ec == vkc::errc::surface_zero_size or ec == vkc::errc::present_skipped_for_resize) { continue; }
-            // lcf_log_error("present failed: {}", ec.message());
+            if (not expected_submit_result) { continue; }
+            std::array<vk::Offset3D, 2> src_offsets {{ {0, 0, 0}, {static_cast<int32_t>(witdh), static_cast<int32_t>(height), 1} }};
+            auto expected_present_result = swapchain.present(src_offsets, render_target.getAttachment(0).getImage());
+            if (expected_present_result) { continue; }
+            present_blit_finish_semaphore_info = expected_present_result.value();
+            auto ec = expected_present_result.error();
+            if (ec == vkc::errc::surface_zero_size or ec == vkc::errc::present_skipped_for_resize) { continue; }
+            lcf_log_error("present failed: {}", ec.message());
         }
     });
 

@@ -1,4 +1,5 @@
 #include "vk_core/pipeline/graphics/StaticGraphicsPipeline.h"
+#include "vk_core/pipeline/graphics/StaticRendering.h"
 #include "vk_core/pipeline/graphics/info_structs.h"
 #include "vk_core/command/CommandBufferProxy.h"
 #include <ranges>
@@ -8,7 +9,10 @@ namespace stdv = std::views;
 
 namespace lcf::vkc {
 
-std::error_code StaticGraphicsPipeline::create(vk::Device device, const GraphicsPipelineInfo &pipeline_info) noexcept
+std::error_code StaticGraphicsPipeline::create(
+    vk::Device device,
+    const GraphicsPipelineInfo & pipeline_info,
+    const StaticRendering & static_rendering, uint32_t subpass_index) noexcept
 {
     const ShaderProgramInfo & shader_program_info = pipeline_info.getShaderProgramInfo();
     auto shader_stage_infos_view = shader_program_info.viewStageInfos();
@@ -54,9 +58,9 @@ std::error_code StaticGraphicsPipeline::create(vk::Device device, const Graphics
         .setPDepthStencilState(&static_cast<const vk::PipelineDepthStencilStateCreateInfo &>(pipeline_info.getDepthStencilStateInfo()))
         .setPColorBlendState(&static_cast<const vk::PipelineColorBlendStateCreateInfo &>(pipeline_info.getColorBlendStateInfo()))
         .setPDynamicState(&static_cast<const vk::PipelineDynamicStateCreateInfo &>(pipeline_info.getDynamicStateInfo()))
-        .setLayout(m_pipeline_layout.get());
-    //     .setRenderPass()
-    //     .setSubpass();
+        .setLayout(m_pipeline_layout.get())
+        .setRenderPass(static_rendering.getRenderPass())
+        .setSubpass(subpass_index);
     try {
         auto [result, pipeline] = device.createGraphicsPipelineUnique(nullptr, pipeline_create_info);
         if (result != vk::Result::eSuccess) { return result; }
@@ -69,7 +73,7 @@ std::error_code StaticGraphicsPipeline::create(vk::Device device, const Graphics
 
 void StaticGraphicsPipeline::bind(CommandBufferProxy & cmd) const noexcept
 {
-    cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline.get());
+    cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, this->handle());
 }
 
 } // namespace lcf::vkc
