@@ -8,14 +8,14 @@ class GraphicPipelineInfo;
 
 class CommandBufferProxy;
 
-class StaticGraphicPipeline
+class StaticGraphicsPipeline
 {
-    using Self = StaticGraphicPipeline;
+    using Self = StaticGraphicsPipeline;
 public:
-    ~StaticGraphicPipeline() noexcept = default;
-    StaticGraphicPipeline() noexcept = default;
-    StaticGraphicPipeline(const Self &) noexcept = delete;
-    StaticGraphicPipeline(Self &&) noexcept = default;
+    ~StaticGraphicsPipeline() noexcept = default;
+    StaticGraphicsPipeline() noexcept = default;
+    StaticGraphicsPipeline(const Self &) noexcept = delete;
+    StaticGraphicsPipeline(Self &&) noexcept = default;
     Self &operator=(const Self &) noexcept = delete;
     Self &operator=(Self &&) noexcept = default;
 public:
