@@ -172,9 +172,6 @@ std::expected<vk::SemaphoreSubmitInfo, std::error_code> Swapchain::_present(
     //- 6. recycle resources
     m_pending_resources_queue.emplace(std::exchange(m_present_resources, {}));
     this->tryRecyclePendingResources();
-    if (present_result == vk::Result::eSuboptimalKHR) {
-        this->recreate(m_desired_params_snapshot.read().value());
-    }
     if (present_result == vk::Result::eSuccess or present_result == vk::Result::eSuboptimalKHR) {
         blit_timeline_signal.setStageMask(vk::PipelineStageFlagBits2::eColorAttachmentOutput);
         return blit_timeline_signal;
