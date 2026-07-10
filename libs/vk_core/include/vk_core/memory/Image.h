@@ -175,7 +175,7 @@ public:
 public:
     std::error_code create(const Image & image, const AttachmentDescription & desc) noexcept;
     const Image & getImage() const noexcept { return m_image; }
-    const vk::ImageView & getView() const noexcept { return m_view.get(); }
+    const vk::ImageView & getImageView() const noexcept { return m_view.get(); }
     const AttachmentDescription & getDescription() const noexcept { return m_desc; }
 private:
     Image m_image;

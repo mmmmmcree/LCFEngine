@@ -63,6 +63,8 @@ int main()
     vkc::entry::register_debug_utils(inst_ext_manifest, vkc::dbg::SeverityFlags::eError | vkc::dbg::SeverityFlags::eWarning | vkc::dbg::SeverityFlags::eVerbose, debug_callbacks);
     vkc::entry::register_surface(inst_ext_manifest);
     vkc::entry::register_swapchain(device_ext_manifest);
+    //- in this example, we use shader constants to draw a triangle, so we should enable shaderDrawParameters feature
+    device_ext_manifest.addRequiredFeature(vkc::utils::t_feature_bit<&vk::PhysicalDeviceVulkan11Features::shaderDrawParameters>);
 
     vk::ApplicationInfo app_info;
     app_info.setPApplicationName("LCFEngine")
@@ -143,20 +145,21 @@ int main()
 
     //- create render targets
     vkc::RenderTargetInfo render_target_info;
-    auto [witdh, height] = window.getPixelSize();
-    render_target_info.setExtent({witdh, height});
+    auto [width, height] = window.getPixelSize();
+    render_target_info.setExtent({width, height})
+        .addColorAttachment(vk::Format::eR8G8B8A8Unorm);
     std::array<vkc::Image, 2> render_target_images;
     std::array<vkc::RenderTarget, 2> render_targets;
     for (auto & image : render_target_images) {
         vk::ImageCreateInfo image_info;
         image_info.setImageType(vk::ImageType::e2D)
             .setFormat(vk::Format::eR8G8B8A8Unorm)
-            .setExtent({witdh, height, 1u})
+            .setExtent({width, height, 1u})
             .setMipLevels(1u)
             .setArrayLayers(1u)
             .setSamples(vk::SampleCountFlagBits::e1)
             .setTiling(vk::ImageTiling::eOptimal)
-            .setUsage(vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc)
+            .setUsage(vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc)
             .setInitialLayout(vk::ImageLayout::eUndefined);
         vkc::MemoryAllocationInfo mem_alloc_info;
         mem_alloc_info.setAccess(vkc::MemoryAccess::eDeviceLocal);
@@ -166,8 +169,14 @@ int main()
         }
     }
     for (auto & render_target : render_targets) {
-        if (auto ec = render_target.create(render_target_info)) {
+        if (auto ec = render_target.build(render_target_info)) {
             lcf_log_error("Failed to create render_target: {}", ec.message());
+            return 1;
+        }
+    }
+    for (auto && [render_target, image] : stdv::zip(render_targets, render_target_images)) {
+        if (auto ec = render_target.setColorAttachment(0, image)) {
+            lcf_log_error("Failed to set color attachment: {}", ec.message());
             return 1;
         }
     }
@@ -175,18 +184,31 @@ int main()
     vk::Device device = render_device_context.getDevice();
     //- create static rendering
     vkc::SubpassDescriptionInfo subpass_info;
-    subpass_info.setBindPoint(vk::PipelineBindPoint::eGraphics);
+    subpass_info.setBindPoint(vk::PipelineBindPoint::eGraphics)
+        .addColorAttachment(vkc::AttachmentReferenceInfo{0, vk::ImageLayout::eColorAttachmentOptimal});
+    vkc::AttachmentStateInfo attachment_state_info;
+    attachment_state_info.setLoadStoreOp(vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore)
+        .setLayouts(vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferSrcOptimal);
     vkc::RenderingInfo rendering_info;
-    rendering_info.addSubpass(subpass_info);
+    rendering_info.addSubpass(subpass_info)
+        .addAttachmentState(attachment_state_info);
     vkc::StaticRendering static_rendering;
     if (auto ec = static_rendering.create(device, rendering_info, render_target_info)) {
         lcf_log_error("Failed to create static_rendering: {}", ec.message());
         return 1;
     }
     //- create static graphics pipeline with static rendering
+
+    vkc::ViewportStateInfo viewport_state_info;
+    viewport_state_info.addViewport(0, 0, width, height)
+        .addScissor(0, 0, width, height);
+    vkc::ColorBlendStateInfo color_blend_state_info;
+    color_blend_state_info.addAttachment();   // 1 个 color attachment,匹配 subpass 的 colorAttachmentCount
     vkc::GraphicsPipelineInfo graphic_pipeline_info;
     vkc::StaticGraphicsPipeline static_graphics_pipeline;
-    graphic_pipeline_info.setShaderProgramInfo(std::move(shader_program_info));
+    graphic_pipeline_info.setShaderProgramInfo(std::move(shader_program_info))
+        .setViewportStateInfo(viewport_state_info)
+        .setColorBlendStateInfo(color_blend_state_info);
     if (auto ec = static_graphics_pipeline.create(device, graphic_pipeline_info, static_rendering)) {
         lcf_log_error("Failed to create static_graphics_pipeline: {}", ec.message());
         return 1;
@@ -226,19 +248,21 @@ int main()
             cmd_buffer_batch.collect(std::move(cmd));
             auto expected_submit_result = gfx_queue_context.submit(std::move(cmd_buffer_batch));
             if (not expected_submit_result) { continue; }
-            std::array<vk::Offset3D, 2> src_offsets {{ {0, 0, 0}, {static_cast<int32_t>(witdh), static_cast<int32_t>(height), 1} }};
+            std::array<vk::Offset3D, 2> src_offsets {{ {0, 0, 0}, {static_cast<int32_t>(width), static_cast<int32_t>(height), 1} }};
             auto expected_present_result = swapchain.present(src_offsets, render_target.getAttachment(0).getImage());
-            if (expected_present_result) { continue; }
-            present_blit_finish_semaphore_info = expected_present_result.value();
+            if (expected_present_result) {
+                present_blit_finish_semaphore_info = expected_present_result.value();
+                continue;
+            }
             auto ec = expected_present_result.error();
             if (ec == vkc::errc::surface_zero_size or ec == vkc::errc::present_skipped_for_resize) { continue; }
             lcf_log_error("present failed: {}", ec.message());
         }
     });
 
-    window.setResizeCallback([&swapchain](const win::ResizeEvent &) {
-        if (auto ec = swapchain.resizeToFit()) { lcf_log_error("resizeToFit failed: {}", ec.message()); }
-    });
+    // window.setResizeCallback([&swapchain](const win::ResizeEvent &) {
+    //     if (auto ec = swapchain.resizeToFit()) { lcf_log_error("resizeToFit failed: {}", ec.message()); }
+    // });
 
     while (running.load(std::memory_order_relaxed)) {
         for (const win::WindowEvent & event : window.pollEvents()) {

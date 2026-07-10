@@ -26,6 +26,7 @@ public:
     void end(CommandBufferProxy & cmd) noexcept;
     const vk::RenderPass & getRenderPass() const noexcept { return m_render_pass.get(); }
 private:
+    vk::Device m_device;
     vk::UniqueRenderPass m_render_pass;
     FramebufferCache m_framebuffer_cache;
 };

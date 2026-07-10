@@ -13,6 +13,7 @@ std::error_code StaticRendering::create(
     const RenderingInfo & rendering_info,
     const RenderTargetInfo & render_target_info) noexcept
 {
+    m_device = device;
     vk::RenderPassCreateInfo2 render_pass_info;
     auto subpasses = rendering_info.getSubpasses() |
         stdv::transform([](const auto &subpass) { return static_cast<vk::SubpassDescription2>(subpass); }) |
@@ -20,9 +21,19 @@ std::error_code StaticRendering::create(
     auto dependencies = rendering_info.getDependencies() |
         stdv::transform([](const auto &dependency) { return static_cast<vk::SubpassDependency2>(dependency); }) |
         stdr::to<std::vector>();
-
-    // render_pass_info.setAttachments()
-    render_pass_info
+    auto attachment_descs = stdv::zip(rendering_info.getAttachmentStates(), render_target_info.getColorFormats()) |
+        stdv::transform([](auto && input) -> vk::AttachmentDescription2 {
+            auto && [state, format] = std::forward<decltype(input)>(input);
+            return vk::AttachmentDescription2 {}.setFormat(format)
+                .setSamples(vk::SampleCountFlagBits::e1)
+                .setLoadOp(state.getLoadOp())
+                .setStoreOp(state.getStoreOp())
+                .setStencilLoadOp(state.getStencilLoadOp())
+                .setStencilStoreOp(state.getStencilStoreOp())
+                .setInitialLayout(state.getInitialLayout())
+                .setFinalLayout(state.getFinalLayout());
+        }) | stdr::to<std::vector>();
+    render_pass_info.setAttachments(attachment_descs)
         .setSubpasses(subpasses)
         .setDependencies(dependencies)
         .setCorrelatedViewMasks(rendering_info.getCorrelatedViewMasks());
@@ -37,7 +48,21 @@ std::error_code StaticRendering::create(
 void StaticRendering::begin(CommandBufferProxy &cmd, const RenderTarget &target) noexcept
 {
     vk::RenderPassBeginInfo render_pass_info;
-    vk::Framebuffer framebuffer; // get from cache
+    std::uint64_t target_hash = reinterpret_cast<std::uint64_t>(&target);
+    auto it = m_framebuffer_cache.find(target_hash);
+    if (it == m_framebuffer_cache.end()) {
+        auto [width, height] = target.getMaxExtent();
+        auto attachments = target.viewAttachmentImageViews() | stdr::to<std::vector>();
+        vk::FramebufferCreateInfo framebuffer_info;
+        framebuffer_info.setRenderPass(m_render_pass.get())
+            .setWidth(width)
+            .setHeight(height)
+            .setLayers(target.getLayerCount())
+            .setAttachments(attachments);
+        it = m_framebuffer_cache.emplace(target_hash, m_device.createFramebufferUnique(framebuffer_info)).first;
+    }
+    vk::Framebuffer framebuffer = it->second.get();
+        
     render_pass_info.setRenderPass(m_render_pass.get())
         .setFramebuffer(framebuffer)
         .setRenderArea(target.getRenderArea())
