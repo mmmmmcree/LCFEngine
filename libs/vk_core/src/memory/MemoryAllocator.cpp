@@ -16,6 +16,7 @@ std::error_code MemoryAllocator::create(
     vk::Instance instance, vk::PhysicalDevice physical_device, vk::Device device,
     const MemoryAllocatorCreateInfo &create_info) noexcept
 {
+    m_device = device;
     m_bda_enabled = create_info.isBufferDeviceAddressEnabled();
     m_allocator_up = std::make_unique<details::VMAllocator>();
     return m_allocator_up->create(instance, physical_device, device, create_info);
