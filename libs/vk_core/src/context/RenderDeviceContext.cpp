@@ -45,7 +45,7 @@ std::error_code RenderDeviceContext::create(vk::Instance instance, const DeviceC
     if (queue_family_map.empty()) { return errc::no_suitable_queue_family; }
     bs::DeviceCreateInfo device_info = create_info.getDeviceCreateInfo();
     device_info.addQueueFamilyRequests(queue_family_map | stdv::keys |
-        stdv::transform([](uint32_t family_index) { return std::make_pair(family_index, 1); }));
+        stdv::transform([](uint32_t family_index) { return std::make_pair(family_index, 2); }));
     auto expected_device = bs::create_device(m_physical_device, device_info);
     if (not expected_device) { return expected_device.error(); }
     m_device = std::move(expected_device.value());

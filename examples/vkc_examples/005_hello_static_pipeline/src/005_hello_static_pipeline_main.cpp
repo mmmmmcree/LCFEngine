@@ -112,12 +112,14 @@ int main()
 
     vkc::wsi::WindowHandle wsi_window_handle = to_wsi_window_handle(window.handle());
     vkc::wsi::Swapchain swapchain;
+    vk::Queue present_queue = render_device_context.getDevice().getQueue(render_device_context.getGraphicsQueueContext().getFamilyIndex(), 1);
     if (auto ec = swapchain.create(
         instance_context.getInstance(),
         render_device_context.getPhysicalDevice(),
         render_device_context.getDevice(),
         render_device_context.getGraphicsQueueContext().getFamilyIndex(),
-        render_device_context.getGraphicsQueueContext().getQueue(),
+        // render_device_context.getGraphicsQueueContext().getQueue(),
+        present_queue,
         wsi_window_handle))
     {
         lcf_log_error("Failed to create swapchain: {}", ec.message());
@@ -248,8 +250,10 @@ int main()
             cmd_buffer_batch.collect(std::move(cmd));
             auto expected_submit_result = gfx_queue_context.submit(std::move(cmd_buffer_batch));
             if (not expected_submit_result) { continue; }
+            auto & submit_semaphore_info = expected_submit_result.value();
             std::array<vk::Offset3D, 2> src_offsets {{ {0, 0, 0}, {static_cast<int32_t>(width), static_cast<int32_t>(height), 1} }};
-            auto expected_present_result = swapchain.present(src_offsets, render_target.getAttachment(0).getImage());
+            const vkc::Image & present_image = render_target.getAttachment(0).getImage();
+            auto expected_present_result = swapchain.present(src_offsets, present_image, present_image.lease(), submit_semaphore_info);
             if (expected_present_result) {
                 present_blit_finish_semaphore_info = expected_present_result.value();
                 continue;
@@ -260,9 +264,9 @@ int main()
         }
     });
 
-    // window.setResizeCallback([&swapchain](const win::ResizeEvent &) {
-    //     if (auto ec = swapchain.resizeToFit()) { lcf_log_error("resizeToFit failed: {}", ec.message()); }
-    // });
+    window.setResizeCallback([&swapchain](const win::ResizeEvent &) {
+        if (auto ec = swapchain.resizeToFit()) { lcf_log_error("resizeToFit failed: {}", ec.message()); }
+    });
 
     while (running.load(std::memory_order_relaxed)) {
         for (const win::WindowEvent & event : window.pollEvents()) {
