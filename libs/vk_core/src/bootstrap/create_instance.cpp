@@ -1,5 +1,5 @@
 #include "vk_core/bootstrap/create_instance.h"
-#include "vk_core/bootstrap/create_infos.h"
+#include "vk_core/bootstrap/info_structs.h"
 #include "vk_core/bootstrap/api_dispatch.h"
 #include "vk_core/manifest/InstanceExtensionManifest.h"
 #include "vk_core/error.h"

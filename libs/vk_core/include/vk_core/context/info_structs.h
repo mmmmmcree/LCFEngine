@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
-#include "vk_core/bootstrap/create_infos.h"
+#include "vk_core/bootstrap/info_structs.h"
 
 namespace lcf::vkc {
 

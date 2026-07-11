@@ -2,7 +2,7 @@
 #include "vk_core/context/QueueContext.h"
 #include "vk_core/memory/info_structs.h"
 #include "vk_core/memory/MemoryAllocator.h"
-#include "vk_core/context/create_infos.h"
+#include "vk_core/context/info_structs.h"
 #include "vk_core/bootstrap/select_physical_device.h"
 #include "vk_core/bootstrap/create_device.h"
 #include "vk_core/utils/find_proper_queue_family_index.h"

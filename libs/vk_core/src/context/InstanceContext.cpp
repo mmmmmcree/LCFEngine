@@ -1,5 +1,5 @@
 #include "vk_core/context/InstanceContext.h"
-#include "vk_core/bootstrap/create_infos.h"
+#include "vk_core/bootstrap/info_structs.h"
 #include "vk_core/bootstrap/create_instance.h"
 
 namespace lcf::vkc {
