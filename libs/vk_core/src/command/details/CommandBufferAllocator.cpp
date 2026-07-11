@@ -30,17 +30,17 @@ std::expected<CommandBufferBatch, std::error_code> CommandBufferAllocator::alloc
     uint32_t remaining_count = count - reused_count;
     if (remaining_count == 0u) {
         sub_pool.m_orphan_count += reused_count;
-        return CommandBufferBatch {cmd_buffers, info.getUsageFlags(), m_validation_data};
+        return CommandBufferBatch {std::move(cmd_buffers), info.getUsageFlags(), m_validation_data};
     }
     try {
         auto allocated = m_device.allocateCommandBuffers({sub_pool.m_pool.get(), info.getLevel(), remaining_count});
         cmd_buffers.append_range(allocated);
     } catch (const vk::SystemError & e) {
-        free_list.append_range(cmd_buffers);
+        free_list.append_range(std::move(cmd_buffers));
         return std::unexpected(e.code());
     }
     sub_pool.m_orphan_count += count;
-    return CommandBufferBatch {cmd_buffers, info.getUsageFlags(), m_validation_data};
+    return CommandBufferBatch {std::move(cmd_buffers), info.getUsageFlags(), m_validation_data};
 }
 
 void CommandBufferAllocator::retire(CommandBufferBatch && batch, uint64_t timestamp) noexcept

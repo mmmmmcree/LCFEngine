@@ -87,6 +87,14 @@ public:
         m_cmd_buffers(cmd_buffers.begin(), cmd_buffers.end()),
         m_usage_flags(usage_flags),
         m_validation_data(validation_data) {}
+CommandBufferBatch(
+        CommandBufferList cmd_buffers,
+        CommandBufferUsageFlags usage_flags,
+        ValidationData validation_data 
+    ) noexcept : 
+        m_cmd_buffers(std::move(cmd_buffers)),
+        m_usage_flags(usage_flags),
+        m_validation_data(validation_data) {}
     CommandBufferBatch(const Self &) = delete;
     Self & operator=(const Self &) = delete;
     CommandBufferBatch(Self && other) noexcept { this->stealFrom(other); }
