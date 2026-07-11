@@ -265,7 +265,7 @@ int main()
     });
 
     window.setResizeCallback([&swapchain](const win::ResizeEvent &) {
-        if (auto ec = swapchain.resizeToFit()) { lcf_log_error("resizeToFit failed: {}", ec.message()); }
+        if (auto ec = swapchain.resizeToFit(); ec and ec != vkc::errc::surface_zero_size) { lcf_log_error("resizeToFit failed: {}", ec.message()); }
     });
 
     while (running.load(std::memory_order_relaxed)) {
