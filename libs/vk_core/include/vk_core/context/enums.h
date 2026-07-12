@@ -5,6 +5,10 @@
 
 namespace lcf::vkc {
 
+enum class QueueSubmissionThreadTag : uint8_t {}; 
+
+enum class QueueKey : uint32_t {}; 
+
 enum class ContextCapabilitiesFlags : uint32_t
 {
     eNone = 0,

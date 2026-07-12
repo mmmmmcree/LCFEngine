@@ -2,10 +2,20 @@
 
 #include <vulkan/vulkan.hpp>
 #include "vk_core/bootstrap/info_structs.h"
+#include "vk_core/context/enums.h"
 
 namespace lcf::vkc {
 
 using InstanceContextCreateInfo = bs::InstanceCreateInfo;
+
+struct QueueRequest
+{
+    vk::QueueFlags required_flags = {};
+    vk::QueueFlags undesired_flags = {};
+    vk::SurfaceKHR present_surface = nullptr;
+    QueueSubmissionThreadTag submission_thread_tag = {};
+    float priority = 1.0f;
+};
 
 class DeviceContextCreateInfo
 {
