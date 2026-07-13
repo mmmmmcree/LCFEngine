@@ -16,6 +16,7 @@ class LogicalQueue
     using Self = LogicalQueue;
 public:
     ~LogicalQueue() noexcept = default;
+    LogicalQueue() noexcept = default;
     explicit LogicalQueue(const details::DeviceQueue & device_queue) noexcept : m_device_queue_p(&device_queue) {}
     LogicalQueue(const Self &) = default;
     LogicalQueue(Self &&) = default;

@@ -110,11 +110,13 @@ private:
     const DeviceExtensionManifest * m_extension_manifest_p = nullptr;
 };
 
+using QueueFamilyRequest = std::pair<uint32_t, float>; //- {family_index, priority}
+
 class DeviceCreateInfo
 {
     using Self = DeviceCreateInfo;
-    using QueueFamilyRequest = std::pair<uint32_t, uint32_t>;   // {family_index, queue_count}
-    using QueueFamilyRequestMap = std::unordered_map<uint32_t, uint32_t>; // {family_index, queue_count}
+    using PriorityList = std::vector<float>;
+    using QueueFamilyRequestMap = std::unordered_map<uint32_t, PriorityList>;
 public:
     ~DeviceCreateInfo() noexcept = default;
     DeviceCreateInfo() noexcept = default;
@@ -130,12 +132,14 @@ public:
     }
     Self & addQueueFamilyRequest(const QueueFamilyRequest & request) noexcept
     {
-        m_queue_family_requests.insert(request);
+        m_queue_family_requests[request.first].emplace_back(request.second);
         return *this;
     }
     Self & addQueueFamilyRequests(convertible_range_of_c<QueueFamilyRequest> auto && requests) noexcept
     {
-        m_queue_family_requests.insert_range(requests);
+        for (const auto & request : requests) {
+            m_queue_family_requests[request.first].emplace_back(request.second);
+        }
         return *this;
     }
     const QueueFamilyRequestMap & getQueueFamilyRequests() const noexcept { return m_queue_family_requests; }

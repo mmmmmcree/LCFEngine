@@ -48,39 +48,37 @@ DeviceContext::~DeviceContext() noexcept = default;
 
 std::error_code DeviceContext::create(vk::Instance instance, const DeviceContextCreateInfo &create_info) noexcept
 {
-    // static constexpr QueueFamilyRequestFlagsPair s_required_flags_pairs [] = {
-    //     { vk::QueueFlagBits::eGraphics, {} },
-    //     { vk::QueueFlagBits::eCompute, vk::QueueFlagBits::eTransfer },
-    //     { vk::QueueFlagBits::eTransfer, vk::QueueFlagBits::eCompute },
-    // };
-    // auto expected_physical_device = bs::select_physical_device(instance, create_info.getPhysicalDeviceSelectInfo());
-    // if (not expected_physical_device) { return expected_physical_device.error(); }
-    // m_physical_device = expected_physical_device.value();
-    // auto queue_family_properties = m_physical_device.getQueueFamilyProperties();   
-    // auto queue_family_map = find_queue_families(queue_family_properties, s_required_flags_pairs);   
-    // if (queue_family_map.empty()) { return errc::no_suitable_queue_family; }
-    // bs::DeviceCreateInfo device_info = create_info.getDeviceCreateInfo();
-    // device_info.addQueueFamilyRequests(queue_family_map | stdv::keys |
-    //     stdv::transform([](uint32_t family_index) { return std::make_pair(family_index, 2); }));
-    // auto expected_device = bs::create_device(m_physical_device, device_info);
-    // if (not expected_device) { return expected_device.error(); }
-    // m_device = std::move(expected_device.value());
-    // for (const auto & [family_index, desired_flags] : queue_family_map) {
-    //     auto queue_context_up = std::make_unique<QueueContext>();
-    //     if (auto ec = queue_context_up->create(m_device.get(), family_index, 0)) { return ec; } //- queue count is always 1, so index is always 0;
-    //     if (desired_flags & vk::QueueFlagBits::eGraphics) {
-    //         m_graphics_queue_context_p = queue_context_up.get();
-    //     } else if (desired_flags & vk::QueueFlagBits::eCompute) {
-    //         m_compute_queue_context_p = queue_context_up.get();
-    //     } else if (desired_flags & vk::QueueFlagBits::eTransfer) {
-    //         m_transfer_queue_context_p = queue_context_up.get();
-    //     }
-    //     m_queue_contexts.emplace_back(std::move(queue_context_up));
-    // }
-    // MemoryAllocatorCreateInfo allocator_create_info;
-    // allocator_create_info.setBufferDeviceAddress(device_info.isFeatureRequired(
-    //     utils::t_feature_bit<&vk::PhysicalDeviceVulkan12Features::bufferDeviceAddress>));
-    // if (auto ec = m_memory_allocator.create(instance, m_physical_device, m_device.get(), allocator_create_info)) { return ec; }
+    auto expected_physical_device = bs::select_physical_device(instance, create_info.getPhysicalDeviceSelectInfo());
+    if (not expected_physical_device) { return expected_physical_device.error(); }
+    m_physical_device = expected_physical_device.value();
+    const auto & queue_requests = create_info.getQueueRequests(); 
+    auto expected_device_queue_infos = solve_queue_requests(m_physical_device, queue_requests);
+    if (not expected_device_queue_infos) { return expected_device_queue_infos.error(); }
+    bs::DeviceCreateInfo device_info = create_info.getDeviceCreateInfo();
+    auto & device_queue_infos = expected_device_queue_infos.value();
+    for (const auto & device_queue_info : device_queue_infos) {
+        device_info.addQueueFamilyRequest({device_queue_info.m_family_index, device_queue_info.m_queue_priority});
+    }
+    auto expected_device = bs::create_device(m_physical_device, device_info);
+    if (not expected_device) { return expected_device.error(); }
+    m_device = std::move(expected_device.value());
+    m_device_queues.reserve(device_queue_infos.size());
+    m_logical_queues.resize(queue_requests.size());
+    for (const auto & device_queue_info : device_queue_infos) {
+        auto device_queue_up = std::make_unique<details::DeviceQueue>(
+            m_device.get(),
+            device_queue_info.m_family_index,
+            device_queue_info.m_queue_index,
+            device_queue_info.m_sharing_mode);
+        for (uint32_t req_id : device_queue_info.m_request_indices) {
+            m_logical_queues[req_id] = LogicalQueue {*device_queue_up};
+        }
+        m_device_queues.emplace_back(std::move(device_queue_up));
+    }
+    MemoryAllocatorCreateInfo allocator_create_info;
+    allocator_create_info.setBufferDeviceAddress(device_info.isFeatureRequired(
+        utils::t_feature_bit<&vk::PhysicalDeviceVulkan12Features::bufferDeviceAddress>));
+    if (auto ec = m_memory_allocator.create(instance, m_physical_device, m_device.get(), allocator_create_info)) { return ec; }
     return {};
 }
 

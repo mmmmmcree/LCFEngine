@@ -4,11 +4,12 @@
 #include "vk_core/debug/debug_utils.h"
 #include "vk_core/WSI/entry.h"
 #include "vk_core/WSI/WindowHandle.h"
+#include "vk_core/WSI/create_surface.h"
 #include "vk_core/WSI/Swapchain.h"
 #include "vk_core/context/entry.h"
 #include "vk_core/context/info_structs.h"
 #include "vk_core/context/InstanceContext.h"
-#include "vk_core/context/RenderDeviceContext.h"
+#include "vk_core/context/DeviceContext.h"
 #include "vk_core/context/QueueContext.h"
 #include "vk_core/memory/info_structs.h"
 #include "vk_core/memory/Image.h"
@@ -19,6 +20,7 @@
 #include "vk_core/pipeline/graphics/RenderTarget.h"
 #include "vk_core/command/CommandBufferAllocateInfo.h"
 #include "vk_core/command/CommandBufferProxy.h"
+#include "vk_core/queue/Queue.h"
 #include "win/Window.h"
 #include "shader_core/config.h"
 #include "shader_core/ShaderCompiler.h"
@@ -78,25 +80,11 @@ int main()
         .addRequiredInstanceLayer("VK_LAYER_KHRONOS_validation")
         .setRequiredInstanceExtensionManifest(inst_ext_manifest);
 
-    vkc::bs::PhysicalDeviceSelectInfo physical_device_select_info;
-    physical_device_select_info.setRequiredDeviceExtensionManifest(device_ext_manifest)
-        .setPreferredType(vk::PhysicalDeviceType::eDiscreteGpu);
-    vkc::DeviceContextCreateInfo device_context_info;
-    device_context_info.setRequiredDeviceExtensionManifest(device_ext_manifest)
-        .setPhysicalDeviceSelectInfo(physical_device_select_info);
-
     vkc::InstanceContext instance_context;
     if (auto ec = instance_context.create(instance_info)) {
         lcf_log_error("Failed to create instance_context: {}", ec.message());
         return 1;
     }
-
-    vkc::RenderDeviceContext render_device_context;
-    if (auto ec = render_device_context.create(instance_context.getInstance(), device_context_info)) {
-        lcf_log_error("Failed to create render_device_context: {}", ec.message());
-        return 1;
-    }
-
     win::WindowCreateInfo window_info;
     window_info.setTitle("hello static pipeline");
     win::Window window;
@@ -104,23 +92,48 @@ int main()
         lcf_log_error("Failed to create window: {}", ec.message());
         return 1;
     }
+    vkc::wsi::WindowHandle wsi_window_handle = to_wsi_window_handle(window.handle());
+    auto expected_surface = vkc::wsi::create_surface(instance_context.getInstance(), wsi_window_handle);
+    if (not expected_surface) {
+        lcf_log_error("Failed to create surface: {}", expected_surface.error().message());
+        return 1;
+    }
+    auto & unique_surface = expected_surface.value();
 
-    if (auto ec = window.show()) {
-        lcf_log_error("Failed to show window: {}", ec.message());
+    vkc::bs::PhysicalDeviceSelectInfo physical_device_select_info;
+    physical_device_select_info.setRequiredDeviceExtensionManifest(device_ext_manifest)
+        .setPreferredType(vk::PhysicalDeviceType::eDiscreteGpu);
+    vkc::DeviceContextCreateInfo device_context_info;
+    device_context_info.setRequiredDeviceExtensionManifest(device_ext_manifest)
+        .setPhysicalDeviceSelectInfo(physical_device_select_info);
+    vkc::QueueRequest graphics_queue_request {
+        vk::QueueFlagBits::eGraphics,
+        {},
+        vkc::QueueSubmissionThreadTag {0},
+        1.0f,
+    };
+    vkc::QueueRequest present_queue_request {
+        vk::QueueFlagBits::eGraphics,
+        {},
+        vkc::QueueSubmissionThreadTag {1},
+        1.0f,
+        unique_surface.get()
+    };
+    vkc::QueueKey graphics_queue_key = device_context_info.addQueueRequest(graphics_queue_request);
+    vkc::QueueKey present_queue_key = device_context_info.addQueueRequest(present_queue_request);
+
+    vkc::DeviceContext device_context;
+    if (auto ec = device_context.create(instance_context.getInstance(), device_context_info)) {
+        lcf_log_error("Failed to create render_device_context: {}", ec.message());
         return 1;
     }
 
-    vkc::wsi::WindowHandle wsi_window_handle = to_wsi_window_handle(window.handle());
     vkc::wsi::Swapchain swapchain;
-    vk::Queue present_queue = render_device_context.getDevice().getQueue(render_device_context.getGraphicsQueueContext().getFamilyIndex(), 1);
+    const auto & logical_present_queue = device_context.getLogicalQueue(present_queue_key);
     if (auto ec = swapchain.create(
-        instance_context.getInstance(),
-        render_device_context.getPhysicalDevice(),
-        render_device_context.getDevice(),
-        render_device_context.getGraphicsQueueContext().getFamilyIndex(),
-        // render_device_context.getGraphicsQueueContext().getQueue(),
-        present_queue,
-        wsi_window_handle))
+        std::move(unique_surface),
+        device_context.getPhysicalDevice(),
+        logical_present_queue))
     {
         lcf_log_error("Failed to create swapchain: {}", ec.message());
         return 1;
@@ -165,7 +178,7 @@ int main()
             .setInitialLayout(vk::ImageLayout::eUndefined);
         vkc::MemoryAllocationInfo mem_alloc_info;
         mem_alloc_info.setAccess(vkc::MemoryAccess::eDeviceLocal);
-        if (auto ec = image.create(render_device_context.getMemoryAllocator(), image_info, mem_alloc_info)) {
+        if (auto ec = image.create(device_context.getMemoryAllocator(), image_info, mem_alloc_info)) {
             lcf_log_error("Failed to create image: {}", ec.message());
             return 1;
         }
@@ -183,7 +196,7 @@ int main()
         }
     }
     
-    vk::Device device = render_device_context.getDevice();
+    vk::Device device = device_context.getDevice();
     //- create static rendering
     vkc::SubpassDescriptionInfo subpass_info;
     subpass_info.setBindPoint(vk::PipelineBindPoint::eGraphics)
@@ -217,7 +230,8 @@ int main()
     }
 
     //- render loop
-    auto & gfx_queue_context = render_device_context.getGraphicsQueueContext();
+    vkc::Queue gfx_queue;
+    gfx_queue.create(device_context.getLogicalQueue(graphics_queue_key));
     std::atomic<bool> running {true};
     std::thread render_thread([&] {
         static uint64_t frame = 0;
@@ -226,7 +240,7 @@ int main()
             vkc::CommandBufferAllocateInfo cmd_alloc_info;
             cmd_alloc_info.setLevel(vk::CommandBufferLevel::ePrimary)
                 .setCount(1);
-            auto expected_cmd_buffer_batch = gfx_queue_context.allocateCommandBufferBatch(cmd_alloc_info);
+            auto expected_cmd_buffer_batch = gfx_queue.allocateCommandBufferBatch(cmd_alloc_info);
             if (not expected_cmd_buffer_batch) {
                 lcf_log_error("Failed to allocate command buffer: {}", expected_cmd_buffer_batch.error().message());
                 continue;
@@ -248,7 +262,7 @@ int main()
             cmd.end();
             cmd.addWaitInfo(present_blit_finish_semaphore_info);
             cmd_buffer_batch.collect(std::move(cmd));
-            auto expected_submit_result = gfx_queue_context.submit(std::move(cmd_buffer_batch));
+            auto expected_submit_result = gfx_queue.submit(std::move(cmd_buffer_batch));
             if (not expected_submit_result) { continue; }
             auto & submit_semaphore_info = expected_submit_result.value();
             std::array<vk::Offset3D, 2> src_offsets {{ {0, 0, 0}, {static_cast<int32_t>(width), static_cast<int32_t>(height), 1} }};
@@ -269,7 +283,10 @@ int main()
             lcf_log_error("resizeToFit failed: {}", ec.message());
         }
     });
-
+    if (auto ec = window.show()) {
+        lcf_log_error("Failed to show window: {}", ec.message());
+        return 1;
+    }
     while (running.load(std::memory_order_relaxed)) {
         for (const win::WindowEvent & event : window.pollEvents()) {
             if (std::holds_alternative<win::CloseEvent>(event)) {
@@ -279,7 +296,7 @@ int main()
     }
 
     render_thread.join();
-    render_device_context.getDevice().waitIdle();
+    device_context.getDevice().waitIdle();
     return 0;
 }
 

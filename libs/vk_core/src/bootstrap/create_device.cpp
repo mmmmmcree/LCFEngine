@@ -51,20 +51,15 @@ std::expected<vk::UniqueDevice, std::error_code> create_device_maythrow(vk::Phys
     auto device_extension_names_cstr = device_extension_props |
         stdv::transform([](const vk::ExtensionProperties & extension) { return extension.extensionName.data(); }) |
         stdr::to<std::vector>();
-
-    auto queue_family_requests = create_info.getQueueFamilyRequests();
-    std::vector<std::vector<float>> priorities;
-    priorities.reserve(queue_family_requests.size());
+    const auto & queue_family_requests = create_info.getQueueFamilyRequests();
     std::vector<vk::DeviceQueueCreateInfo> queue_create_infos;
     queue_create_infos.reserve(queue_family_requests.size());
-    for (auto [family_index, queue_count] : queue_family_requests) {
-        priorities.emplace_back(queue_count, 1.0f);
-        queue_create_infos.emplace_back(
-            vk::DeviceQueueCreateInfo {}
-            .setQueueFamilyIndex(family_index)
-            .setQueuePriorities(priorities.back()));
+    for (const auto &[queue_family_index, priorities] : queue_family_requests) {
+        vk::DeviceQueueCreateInfo queue_create_info;
+        queue_create_info.setQueueFamilyIndex(queue_family_index)
+            .setQueuePriorities(priorities);
+        queue_create_infos.emplace_back(queue_create_info);
     }
-
     vk::DeviceCreateInfo device_create_info;
     device_create_info.setQueueCreateInfos(queue_create_infos)
         .setPEnabledExtensionNames(device_extension_names_cstr)

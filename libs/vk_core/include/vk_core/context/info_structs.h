@@ -44,6 +44,7 @@ private:
 class DeviceContextCreateInfo
 {
     using Self = DeviceContextCreateInfo;
+    using QueueRequestList = std::vector<QueueRequest>;
 public:
     ~DeviceContextCreateInfo() noexcept = default;
     DeviceContextCreateInfo() noexcept = default;
@@ -61,13 +62,19 @@ public:
     {
         m_device_create_info.setRequiredDeviceExtensionManifest(manifest);   
         return *this;
-        
+    }
+    QueueKey addQueueRequest(const QueueRequest & request) noexcept
+    {
+        m_queue_requests.push_back(request);
+        return QueueKey {static_cast<std::underlying_type_t<QueueKey>>(m_queue_requests.size()) - 1};
     }
     const bs::PhysicalDeviceSelectInfo & getPhysicalDeviceSelectInfo() const noexcept { return m_physical_device_select_info; }
     const bs::DeviceCreateInfo & getDeviceCreateInfo() const noexcept { return m_device_create_info; }   
+    const QueueRequestList & getQueueRequests() const noexcept { return m_queue_requests; } 
 private:
     bs::PhysicalDeviceSelectInfo m_physical_device_select_info;
     bs::DeviceCreateInfo m_device_create_info;
+    QueueRequestList m_queue_requests;   
 };
 
 } // namespace lcf::vkc
