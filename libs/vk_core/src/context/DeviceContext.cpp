@@ -125,7 +125,7 @@ struct EvaluatedPlan
         uint32_t total_queue_count = 0;
     };
     
-    Self & addCost(const Cost & cost) noexcept { m_cost += cost; }
+    Self & addCost(const Cost & cost) noexcept { m_cost += cost; return *this; }
     Self & addDeviceQueueInfo(DeviceQueueInfo device_queue_info) noexcept { m_device_queue_infos.emplace_back(std::move(device_queue_info)); return *this; }
     Self & merge(Self other) noexcept
     {
@@ -210,6 +210,7 @@ public:
     std::expected<DeviceQueueInfoList, std::error_code> solve(vk::PhysicalDevice physical_device, std::span<const QueueRequest> requests) noexcept
     {
         m_requests = requests;
+        m_family_of_requests.assign(requests.size(), 0u);
         if (auto ec = this->collectCandidateFamilies(physical_device)) { return std::unexpected<std::error_code>(ec); }
         this->makeSearchOrder();
         this->dfs(0);
@@ -289,9 +290,10 @@ private:
             }
         }
         while (queue_assignments.size() < available_queue_count) {
-            auto max_signature_count_assignment = *stdr::max_element(queue_assignments, {}, &QueueAssignment::getSignatureCount);
-            if (not max_signature_count_assignment.hasMixedSignatures()) { break; }
-            queue_assignments.emplace_back(max_signature_count_assignment.split());
+            auto & max_assignment = *stdr::max_element(queue_assignments, {}, &QueueAssignment::getSignatureCount);
+            if (not max_assignment.hasMixedSignatures()) { break; }
+            auto split_result = max_assignment.split();   // split before emplace_back to avoid invalidation
+            queue_assignments.emplace_back(std::move(split_result));
         }
         EvaluatedPlan evaluated_plan;
         for (uint32_t queue_index = 0; queue_index < queue_assignments.size(); ++queue_index) {
@@ -299,11 +301,15 @@ private:
             EvaluatedPlan::Cost cost;
             cost.forced_share_count += assignment.getForcedShareCount();
             cost.mixed_signature_count += assignment.getMixedSignatureCount();
+            float max_priority = 0.0f;
+            for (const auto & cluster : assignment.m_clustered_requests_list) {
+                for (uint32_t req_id : cluster) { max_priority = std::max(max_priority, m_requests[req_id].getPriority()); }
+            }
             DeviceQueueInfo device_queue_info;
             device_queue_info.setFamilyIndex(family_index)
                 .setQueueIndex(queue_index)
                 .setSharingMode(assignment.getSharingMode())
-                .setQueuePriority(assignment.m_max_priority)
+                .setQueuePriority(max_priority)
                 .setRequestIndices(assignment.m_clustered_requests_list | stdv::join | stdr::to<std::vector>());
             evaluated_plan.addCost(cost);
             evaluated_plan.addDeviceQueueInfo(std::move(device_queue_info));

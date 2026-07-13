@@ -27,7 +27,7 @@ public:
     Self & addUndesiredFlags(vk::QueueFlags flags) noexcept { m_undesired_flags |= flags; return *this; }
     Self & setPresentSurface(vk::SurfaceKHR surface) noexcept { m_present_surface = surface; return *this; }
     Self & setSubmissionThreadTag(QueueSubmissionThreadTag tag) noexcept { m_submission_thread_tag = tag; return *this; }
-    Self & setPriority(float priority) noexcept { priority = priority; return *this; }
+    Self & setPriority(float priority) noexcept { m_priority = priority; return *this; }
     const vk::QueueFlags & getRequiredFlags() const noexcept { return m_required_flags; }
     const vk::QueueFlags & getUndesiredFlags() const noexcept { return m_undesired_flags; }
     const vk::SurfaceKHR & getPresentSurface() const noexcept { return m_present_surface; }
