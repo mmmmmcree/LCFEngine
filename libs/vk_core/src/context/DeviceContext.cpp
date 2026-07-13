@@ -36,7 +36,9 @@ struct DeviceQueueInfo
     RequestIndices m_request_indices;
 };
 
-std::vector<DeviceQueueInfo> solve_queue_requests(vk::PhysicalDevice physical_device, std::span<const QueueRequest> queue_requests) noexcept;
+std::expected<std::vector<DeviceQueueInfo>, std::error_code> solve_queue_requests(
+    vk::PhysicalDevice physical_device,
+    std::span<const QueueRequest> queue_requests) noexcept;
 
 } // anonymous namespace
 
@@ -83,75 +85,6 @@ std::error_code DeviceContext::create(vk::Instance instance, const DeviceContext
 }
 
 } // namespace lcf::vkc
-
-namespace {
-
-std::vector<DeviceQueueInfo> solve_queue_requests(vk::PhysicalDevice physical_device, std::span<const QueueRequest> queue_requests) noexcept
-{
-    /*
-    1. merge requests -> map from QueueRequest to std::vector<uint32_t>: request_indices
-    2. find suitable queue families -> map from QueueRequest to std::vector<uint32_t>: family_indices, sort by order
-        if any request can't be satisfied, return empty result;
-    3. merge requests with same submission tag -> map from tag to QueueRequests
-    4. 
-        maintain a dirty map for <queue family index, queue index>
-        maintain remain count for each queue family
-        for each tag:
-            for each QueueRequest:
-                std::optional<DeviceQueueInfo> found_info;
-                for each queue family: (read from step 2)
-                    auto & remaining_count = remain_count[queue_family_index];
-                    if (remaining_count == 0) { continue; }
-                    queue_index = queue_family_props[queue_family_index].queueCount - remaining_count;
-                    found_info.emplace(queue_family_index, queue_index, request_indices: read from step 1})
-                    --remaining_count;
-                if found_info is empty:
-                    return empty result;
-
-    */
-    // auto queue_family_props = physical_device.getQueueFamilyProperties();   
-    // auto remaining_queue_count = queue_family_props | stdv::transform(&vk::QueueFamilyProperties::queueCount);
-    // vk::QueueFamilyProperties;
-    // //1.
-    // std::unordered_map<QueueRequest, std::vector<uint32_t>> merged_requests;
-    // for (auto && [index, queue_request] : queue_requests | stdv::enumerate) {
-    //     merged_requests[queue_request].emplace_back(index);
-    // }
-    // std::unordered_map<QueueSubmissionThreadTag, std::vector<QueueRequest>> tag_grouped_requests;
-    // std::unordered_map<QueueRequest, std::vector<uint32_t>> suitable_queue_family_indices;
-    // //2.
-    // for (auto && [queue_request, _] : merged_requests) {
-    //     std::vector<uint32_t> best_matched_family_indices;
-    //     std::vector<uint32_t> matched_family_indices;
-    //     for (const auto & [family_index, props] : queue_family_props | std::views::enumerate) {
-    //         if (not (props.queueFlags & queue_request.required_flags)) { continue; }
-    //         uint32_t found_family_index = static_cast<uint32_t>(family_index);
-    //         if (not (props.queueFlags & queue_request.undesired_flags)) {
-    //             best_matched_family_indices.emplace_back(found_family_index);
-    //         } else {
-    //             matched_family_indices.emplace_back(found_family_index);
-    //         }
-    //     }
-    //     if (best_matched_family_indices.empty() and matched_family_indices.empty()) { return {}; }
-    //     best_matched_family_indices.append_range(std::move(matched_family_indices));
-    //     suitable_queue_family_indices[queue_request] = std::move(best_matched_family_indices);
-    //     tag_grouped_requests[queue_request.submission_thread_tag].emplace_back(queue_request);
-    // }
-    // //3.
-    // std::vector<DeviceQueueInfo> device_queue_infos;
-    // for (auto && [tag, requests] : tag_grouped_requests) {
-    //     for (auto && request : requests) {
-    //         for (auto & family_index : suitable_queue_family_indices[request]) {
-    //             auto & remaining_count = remaining_queue_count[family_index];
-    //             if (remaining_count == 0) { continue; }
-    //             uint32_t queue_index = queue_family_props[family_index].queueCount - remaining_count;
-    //             device_queue_infos.emplace_back(DeviceQueueInfo {family_index, queue_index, std::move(merged_requests[request])});
-    //         }
-    //     }
-    // }
-    // return device_queue_infos;
-    return {};
-}
 
 namespace {
 
@@ -407,6 +340,12 @@ private:
     std::optional<EvaluatedPlan> m_best_plan;
 };
 
-} // anonymous namespace
+std::expected<std::vector<DeviceQueueInfo>, std::error_code> solve_queue_requests(
+    vk::PhysicalDevice physical_device,
+    std::span<const QueueRequest> queue_requests) noexcept
+{
+    QueueRequestSolver solver;
+    return solver.solve(physical_device, queue_requests);
+}
 
 } // anonymous namespace
