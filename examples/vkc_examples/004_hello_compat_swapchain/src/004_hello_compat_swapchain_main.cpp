@@ -47,7 +47,7 @@ vkc::wsi::WindowHandle to_wsi_window_handle(const win::WindowHandle & window_han
     }, window_handle);
 }
 
-std::optional<vkc::Image> create_single_color_image(vkc::DeviceContext & device_context, const std::array<float, 4> & color) noexcept;
+std::optional<vkc::Image> create_single_color_image(vkc::DeviceContext & device_context, const vkc::LogicalQueue & gfx_logical_queue, const std::array<float, 4> & color) noexcept;
 
 int main()
 {
@@ -134,8 +134,8 @@ int main()
     }
     lcf_log_info("Swapchain created successfully.");
 
-    auto white_image_opt = create_single_color_image(device_context, {1.0f, 1.0f, 1.0f, 1.0f});
-    auto red_image_opt = create_single_color_image(device_context, {1.0f, 1.0f, 0.0f, 1.0f});
+    auto white_image_opt = create_single_color_image(device_context, gfx_logical_queue, {1.0f, 1.0f, 1.0f, 1.0f});
+    auto red_image_opt = create_single_color_image(device_context, gfx_logical_queue, {1.0f, 1.0f, 0.0f, 1.0f});
     if (not white_image_opt or not red_image_opt) {
         lcf_log_error("Failed to create image source image.");
         return 1;
@@ -176,12 +176,9 @@ int main()
     return 0;
 }
 
-std::optional<vkc::Image> create_single_color_image(vkc::DeviceContext & device_context, const std::array<float, 4> & color) noexcept
+std::optional<vkc::Image> create_single_color_image(vkc::DeviceContext & device_context, const vkc::LogicalQueue & gfx_logical_queue, const std::array<float, 4> & color) noexcept
 {
     vk::Device device = device_context.getDevice();
-    vk::PhysicalDevice physical_device = device_context.getPhysicalDevice();
-    vkc::QueueKey gfx_queue_key {0};
-    auto & gfx_logical_queue = device_context.getLogicalQueue(gfx_queue_key);
     uint32_t gfx_family = gfx_logical_queue.getFamilyIndex();
 
     vkc::Image image;
