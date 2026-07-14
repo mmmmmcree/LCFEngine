@@ -53,9 +53,8 @@ std::expected<SubmissionToken, std::error_code> Queue::submit(CommandBufferBatch
         .setCommandBufferInfos(cmd_submit_infos)
         .setSignalSemaphoreInfos(signal_infos);
     try {
-        QueueAccess queue_access = m_logical_queue.acquireAccess();
-        auto & queue = queue_access.getQueue();
-        queue.submit2(submit_info);
+        QueueAccess queue_access {m_logical_queue};
+        queue_access->submit2(submit_info);
     } catch (const vk::SystemError & e) {
         m_cmd_allocator.retire(std::move(batch), 0u);
         return std::unexpected(e.code());

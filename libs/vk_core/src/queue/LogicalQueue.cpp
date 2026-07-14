@@ -13,10 +13,10 @@ const uint32_t & LogicalQueue::getFamilyIndex() const noexcept
     return m_device_queue_p->getFamilyIndex();
 }
 
-QueueAccess LogicalQueue::acquireAccess() const noexcept
-{
-    return QueueAccess(m_device_queue_p->getQueue(), m_device_queue_p->getMutexOpt());
-}
+// QueueAccess LogicalQueue::acquireAccess() const noexcept
+// {
+//     return QueueAccess(m_device_queue_p->getQueue(), m_device_queue_p->getMutexOpt());
+// }
 
 } // namespace lcf::vkc
 

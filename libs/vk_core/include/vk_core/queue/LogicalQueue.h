@@ -7,6 +7,8 @@ namespace lcf::vkc::details {
 
 class DeviceQueue;
 
+class QueueAccess;
+
 }
 
 namespace lcf::vkc {
@@ -14,6 +16,7 @@ namespace lcf::vkc {
 class LogicalQueue
 {
     using Self = LogicalQueue;
+    friend class QueueAccess;
 public:
     ~LogicalQueue() noexcept = default;
     LogicalQueue() noexcept = default;
@@ -25,7 +28,6 @@ public:
 public:
     const vk::Device & getDevice() const noexcept;
     const uint32_t & getFamilyIndex() const noexcept;
-    QueueAccess acquireAccess() const noexcept;
 private:
     const details::DeviceQueue * m_device_queue_p = nullptr;
 };
