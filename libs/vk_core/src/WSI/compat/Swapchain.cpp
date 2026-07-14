@@ -128,7 +128,7 @@ std::expected<vk::SemaphoreSubmitInfo, std::error_code> Swapchain::_present(
         .setSignalSemaphores(signal_semaphores)
         .setPNext(&timeline_info);
     try {
-        QueueAccess queue_access { m_logical_present_queue};
+        QueueAccess queue_access {m_logical_present_queue};
         queue_access->submit(submit_info, submit_fence);
     } catch (const vk::SystemError & e) {
         this->recyclePresentResources(m_present_resources);
