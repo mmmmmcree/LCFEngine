@@ -46,6 +46,8 @@ namespace lcf::vkc {
 
 DeviceContext::~DeviceContext() noexcept = default;
 
+DeviceContext::DeviceContext() noexcept = default;
+
 std::error_code DeviceContext::create(vk::Instance instance, const DeviceContextCreateInfo &create_info) noexcept
 {
     auto expected_physical_device = bs::select_physical_device(instance, create_info.getPhysicalDeviceSelectInfo());
@@ -93,7 +95,7 @@ struct QueueRequestSignature
     bool operator==(const QueueRequestSignature &) const noexcept = default;
     struct hasher
     {
-        static constexpr uint64_t hash(const QueueRequestSignature & signature) noexcept
+        constexpr uint64_t operator()(const QueueRequestSignature & signature) const noexcept
         {
             using MaskType = vk::QueueFlags::MaskType;
             return static_cast<uint64_t>(MaskType(signature.m_required_flags)) << 32 | static_cast<uint64_t>(MaskType(signature.m_undesired_flags));

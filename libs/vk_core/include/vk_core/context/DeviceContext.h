@@ -22,7 +22,7 @@ class DeviceContext
     using Self = DeviceContext;
 public:
     ~DeviceContext() noexcept;
-    DeviceContext() = default;
+    DeviceContext() noexcept;
     DeviceContext(const Self &) = delete;
     DeviceContext(Self &&) = default;
     Self & operator =(const Self &) = delete;
