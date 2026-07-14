@@ -28,23 +28,16 @@ void register_compat_swapchain(DeviceExtensionManifest & manifest) noexcept
 namespace lcf::vkc::wsi::compat {
 
 std::error_code Swapchain::create(
-    vk::Instance instance, vk::PhysicalDevice physical_device, vk::Device device,
-    uint32_t present_queue_family_index, vk::Queue present_queue,
-    const WindowHandle &window_handle) noexcept
+    vk::UniqueSurfaceKHR surface,
+    vk::PhysicalDevice physical_device,
+    const LogicalQueue & present_queue) noexcept
 {
     m_physical_device = physical_device;
-    m_device = device;
-    m_present_queue = present_queue;
-    auto expected_surface = create_surface(instance, window_handle);
-    if (not expected_surface) { return expected_surface.error(); }
-    m_surface = std::move(expected_surface.value());
-    bool supported = false;   
-    try {
-        supported = m_physical_device.getSurfaceSupportKHR(present_queue_family_index, m_surface.get());
-    } catch (const vk::SystemError & e) { return e.code(); }
-    if (not supported) { return errc::no_suitable_present_queue_family; }
-    if (auto ec = m_blit_timeline.create(device)) { return ec; }
-    vk::CommandPoolCreateInfo pool_info {vk::CommandPoolCreateFlagBits::eResetCommandBuffer, present_queue_family_index };
+    m_device = present_queue.getDevice();
+    m_logical_present_queue = present_queue;
+    m_surface = std::move(surface);
+    if (auto ec = m_blit_timeline.create(m_device)) { return ec; }
+    vk::CommandPoolCreateInfo pool_info {vk::CommandPoolCreateFlagBits::eResetCommandBuffer, m_logical_present_queue.getFamilyIndex()};
     try {
         m_cmd_pool = m_device.createCommandPoolUnique(pool_info);
     } catch (vk::SystemError &e) {
@@ -135,7 +128,8 @@ std::expected<vk::SemaphoreSubmitInfo, std::error_code> Swapchain::_present(
         .setSignalSemaphores(signal_semaphores)
         .setPNext(&timeline_info);
     try {
-        m_present_queue.submit(submit_info, submit_fence);
+        QueueAccess queue_access { m_logical_present_queue};
+        queue_access->submit(submit_info, submit_fence);
     } catch (const vk::SystemError & e) {
         this->recyclePresentResources(m_present_resources);
         return std::unexpected(e.code());
@@ -147,7 +141,8 @@ std::expected<vk::SemaphoreSubmitInfo, std::error_code> Swapchain::_present(
         .setPImageIndices(&m_image_index);
     vk::Result present_result = vk::Result::eSuccess;
     try {
-        present_result = m_present_queue.presentKHR(present_info);
+        QueueAccess queue_access {m_logical_present_queue};
+        present_result = queue_access->presentKHR(present_info);
     } catch (const vk::OutOfDateKHRError &e) {
         //- no need to recreate, recreation will happen in acquireNextImage, keep present_result as vk::Result::eSuccess
     } catch (const vk::SystemError &e) {
