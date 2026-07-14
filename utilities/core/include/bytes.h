@@ -56,14 +56,12 @@ namespace lcf {
     template <standard_layout_c T>
     std::span<const T> bytes_as_span(ByteView bytes) noexcept
     {
-        assert(bytes.size() % sizeof(T) == 0);
         return std::span<const T>(reinterpret_cast<const T *>(bytes.data()), bytes.size() / sizeof(T));
     }
 
     template <standard_layout_c T>
     std::span<T> bytes_as_span(WritableByteView bytes) noexcept
     {
-        assert(bytes.size() % sizeof(T) == 0);
         return std::span<T>(reinterpret_cast<T *>(bytes.data()), bytes.size() / sizeof(T));
     }
 }

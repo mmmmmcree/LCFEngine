@@ -18,8 +18,10 @@ if(LCF_VKC_ONLY)
         utilities/core
         utilities/enums
         utilities/log
+        utilities/json
         libs/vk_core
         libs/window
+        libs/shader_core
         examples/vkc_examples)
 elseif(LCF_TESTS_ONLY)
     set(LCF_SUBDIRS

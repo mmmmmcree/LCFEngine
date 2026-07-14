@@ -4,7 +4,6 @@
 #include "shader_core/Manifest.h"
 #include "file_utils.h"
 #include "bytes.h"
-#include "log.h"
 #include <format>
 #include <cstring>
 

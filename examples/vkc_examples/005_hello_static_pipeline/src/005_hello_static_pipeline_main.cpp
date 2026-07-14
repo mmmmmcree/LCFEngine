@@ -5,7 +5,7 @@
 #include "vk_core/WSI/entry.h"
 #include "vk_core/WSI/WindowHandle.h"
 #include "vk_core/WSI/create_surface.h"
-#include "vk_core/WSI/Swapchain.h"
+#include "vk_core/WSI/compat/Swapchain.h"
 #include "vk_core/context/entry.h"
 #include "vk_core/context/info_structs.h"
 #include "vk_core/context/InstanceContext.h"
@@ -64,7 +64,7 @@ int main()
         .setErrorSink([](std::string_view message) { lcf_log_error(message); });
     vkc::entry::register_debug_utils(inst_ext_manifest, vkc::dbg::SeverityFlags::eError | vkc::dbg::SeverityFlags::eWarning | vkc::dbg::SeverityFlags::eVerbose, debug_callbacks);
     vkc::entry::register_surface(inst_ext_manifest);
-    vkc::entry::register_swapchain(device_ext_manifest);
+    vkc::entry::register_compat_swapchain(device_ext_manifest);
     //- in this example, we use shader constants to draw a triangle, so we should enable shaderDrawParameters feature
     device_ext_manifest.addRequiredFeature(vkc::utils::t_feature_bit<&vk::PhysicalDeviceVulkan11Features::shaderDrawParameters>);
 
@@ -98,7 +98,7 @@ int main()
         lcf_log_error("Failed to create surface: {}", expected_surface.error().message());
         return 1;
     }
-    auto & unique_surface = expected_surface.value();
+    auto & surface = expected_surface.value();
 
     vkc::bs::PhysicalDeviceSelectInfo physical_device_select_info;
     physical_device_select_info.setRequiredDeviceExtensionManifest(device_ext_manifest)
@@ -117,7 +117,7 @@ int main()
         {},
         vkc::QueueSubmissionThreadTag {1},
         1.0f,
-        unique_surface.get()
+        surface.get()
     };
     vkc::QueueKey graphics_queue_key = device_context_info.addQueueRequest(graphics_queue_request);
     vkc::QueueKey present_queue_key = device_context_info.addQueueRequest(present_queue_request);
@@ -128,10 +128,10 @@ int main()
         return 1;
     }
 
-    vkc::wsi::Swapchain swapchain;
+    vkc::wsi::compat::Swapchain swapchain;
     const auto & logical_present_queue = device_context.getLogicalQueue(present_queue_key);
     if (auto ec = swapchain.create(
-        std::move(unique_surface),
+        std::move(surface),
         device_context.getPhysicalDevice(),
         logical_present_queue))
     {
