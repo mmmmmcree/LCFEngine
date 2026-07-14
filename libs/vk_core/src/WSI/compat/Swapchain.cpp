@@ -113,13 +113,16 @@ std::expected<vk::SemaphoreSubmitInfo, std::error_code> Swapchain::_present(
 
     //- 4. submit cmd
     std::array<vk::Semaphore, 2> wait_semaphores { target_available, wait_info.semaphore };
+    uint32_t wait_count = wait_semaphores.size() - (not wait_info.semaphore);
     std::array<vk::PipelineStageFlags, 2> wait_stages { vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer };
-    uint32_t wait_count = wait_info.semaphore ? 2u : 1u;
+    std::array<uint64_t, 2> wait_values { 0u, wait_info.value };
     vk::SemaphoreSubmitInfo blit_timeline_signal = m_blit_timeline.advanceTarget().generateSubmitInfo();
     vk::Semaphore signal_semaphores[] { present_ready, blit_timeline_signal.semaphore };
     uint64_t signal_values[] { 0u, blit_timeline_signal.value };
     vk::TimelineSemaphoreSubmitInfo timeline_info;
-    timeline_info.setSignalSemaphoreValues(signal_values);
+    timeline_info.setWaitSemaphoreValues(wait_values)
+        .setSignalSemaphoreValues(signal_values)
+        .setWaitSemaphoreValueCount(wait_count);
     vk::SubmitInfo submit_info;
     submit_info.setWaitSemaphoreCount(wait_count)
         .setPWaitSemaphores(wait_semaphores.data())

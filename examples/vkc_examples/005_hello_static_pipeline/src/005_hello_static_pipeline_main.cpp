@@ -66,7 +66,8 @@ int main()
     vkc::entry::register_surface(inst_ext_manifest);
     vkc::entry::register_compat_swapchain(device_ext_manifest);
     //- in this example, we use shader constants to draw a triangle, so we should enable shaderDrawParameters feature
-    device_ext_manifest.addRequiredFeature(vkc::utils::t_feature_bit<&vk::PhysicalDeviceVulkan11Features::shaderDrawParameters>);
+    device_ext_manifest.addRequiredFeature(vkc::utils::t_feature_bit<&vk::PhysicalDeviceVulkan13Features::synchronization2>)
+        .addRequiredFeature(vkc::utils::t_feature_bit<&vk::PhysicalDeviceVulkan11Features::shaderDrawParameters>);
 
     vk::ApplicationInfo app_info;
     app_info.setPApplicationName("LCFEngine")
@@ -110,7 +111,7 @@ int main()
         vk::QueueFlagBits::eGraphics,
         {},
         vkc::QueueSubmissionThreadTag {0},
-        1.0f,
+        1.0f
     };
     vkc::QueueRequest present_queue_request {
         vk::QueueFlagBits::eGraphics,
@@ -129,11 +130,10 @@ int main()
     }
 
     vkc::wsi::compat::Swapchain swapchain;
-    const auto & logical_present_queue = device_context.getLogicalQueue(present_queue_key);
     if (auto ec = swapchain.create(
         std::move(surface),
         device_context.getPhysicalDevice(),
-        logical_present_queue))
+        device_context.getLogicalQueue(present_queue_key)))
     {
         lcf_log_error("Failed to create swapchain: {}", ec.message());
         return 1;
