@@ -4,11 +4,12 @@
 #include "vk_core/debug/debug_utils.h"
 #include "vk_core/WSI/entry.h"
 #include "vk_core/WSI/WindowHandle.h"
+#include "vk_core/WSI/create_surface.h"
 #include "vk_core/WSI/compat/Swapchain.h"
 #include "vk_core/context/entry.h"
-#include "vk_core/context/create_infos.h"
+#include "vk_core/context/info_structs.h"
 #include "vk_core/context/InstanceContext.h"
-#include "vk_core/context/RenderDeviceContext.h"
+#include "vk_core/context/DeviceContext.h"
 #include "vk_core/context/QueueContext.h"
 #include "vk_core/memory/info_structs.h"
 #include "vk_core/memory/Image.h"
@@ -46,7 +47,7 @@ vkc::wsi::WindowHandle to_wsi_window_handle(const win::WindowHandle & window_han
     }, window_handle);
 }
 
-std::optional<vkc::Image> create_single_color_image(vkc::RenderDeviceContext & device_context, const std::array<float, 4> & color) noexcept;
+std::optional<vkc::Image> create_single_color_image(vkc::DeviceContext & device_context, const std::array<float, 4> & color) noexcept;
 
 int main()
 {
@@ -73,26 +74,12 @@ int main()
     instance_info.setApplicationInfo(app_info)
         .addRequiredInstanceLayer("VK_LAYER_KHRONOS_validation")
         .setRequiredInstanceExtensionManifest(inst_ext_manifest);
-
-    vkc::bs::PhysicalDeviceSelectInfo physical_device_select_info;
-    physical_device_select_info.setRequiredDeviceExtensionManifest(device_ext_manifest)
-        .setPreferredType(vk::PhysicalDeviceType::eIntegratedGpu);
-    vkc::DeviceContextCreateInfo device_context_info;
-    device_context_info.setRequiredDeviceExtensionManifest(device_ext_manifest)
-        .setPhysicalDeviceSelectInfo(physical_device_select_info);
-
     vkc::InstanceContext instance_context;
     if (auto ec = instance_context.create(instance_info)) {
         lcf_log_error("Failed to create instance_context: {}", ec.message());
         return 1;
     }
     lcf_log_info("InstanceContext created successfully.");
-
-    vkc::RenderDeviceContext render_device_context;
-    if (auto ec = render_device_context.create(instance_context.getInstance(), device_context_info)) {
-        lcf_log_error("Failed to create render_device_context: {}", ec.message());
-        return 1;
-    }
 
     win::WindowCreateInfo window_info;
     window_info.setTitle("hello compat swapchain");
@@ -101,29 +88,54 @@ int main()
         lcf_log_error("Failed to create window: {}", ec.message());
         return 1;
     }
+    vkc::wsi::WindowHandle wsi_window_handle = to_wsi_window_handle(window.handle());
+    auto expected_surface = vkc::wsi::create_surface(instance_context.getInstance(), wsi_window_handle);
+    if (not expected_surface) {
+        lcf_log_error("Failed to create surface: {}", expected_surface.error().message());
+        return 1;
+    }
+    auto & surface = expected_surface.value();
+
+    vkc::bs::PhysicalDeviceSelectInfo physical_device_select_info;
+    physical_device_select_info.setRequiredDeviceExtensionManifest(device_ext_manifest)
+        .setPreferredType(vk::PhysicalDeviceType::eIntegratedGpu);
+    vkc::DeviceContextCreateInfo device_context_info;
+    device_context_info.setRequiredDeviceExtensionManifest(device_ext_manifest)
+        .setPhysicalDeviceSelectInfo(physical_device_select_info);
+    vkc::QueueRequest gfx_queue_request {
+        vk::QueueFlagBits::eGraphics,
+        {},
+        vkc::QueueSubmissionThreadTag {0},
+        1.0f,
+        surface.get()
+    }; 
+    vkc::QueueKey gfx_queue_key = device_context_info.addQueueRequest(gfx_queue_request);
+
+    vkc::DeviceContext device_context;
+    if (auto ec = device_context.create(instance_context.getInstance(), device_context_info)) {
+        lcf_log_error("Failed to create _device_context: {}", ec.message());
+        return 1;
+    }
+    auto & gfx_logical_queue = device_context.getLogicalQueue(gfx_queue_key);
 
     if (auto ec = window.show()) {
         lcf_log_error("Failed to show window: {}", ec.message());
         return 1;
     }
 
-    vkc::wsi::WindowHandle wsi_window_handle = to_wsi_window_handle(window.handle());
     vkc::wsi::compat::Swapchain swapchain;
     if (auto ec = swapchain.create(
-        instance_context.getInstance(),
-        render_device_context.getPhysicalDevice(),
-        render_device_context.getDevice(),
-        render_device_context.getGraphicsQueueContext().getFamilyIndex(),
-        render_device_context.getGraphicsQueueContext().getQueue(),
-        wsi_window_handle))
+        std::move(surface),
+        device_context.getPhysicalDevice(),
+        gfx_logical_queue))
     {
         lcf_log_error("Failed to create swapchain: {}", ec.message());
         return 1;
     }
     lcf_log_info("Swapchain created successfully.");
 
-    auto white_image_opt = create_single_color_image(render_device_context, {1.0f, 1.0f, 1.0f, 1.0f});
-    auto red_image_opt = create_single_color_image(render_device_context, {1.0f, 1.0f, 0.0f, 1.0f});
+    auto white_image_opt = create_single_color_image(device_context, {1.0f, 1.0f, 1.0f, 1.0f});
+    auto red_image_opt = create_single_color_image(device_context, {1.0f, 1.0f, 0.0f, 1.0f});
     if (not white_image_opt or not red_image_opt) {
         lcf_log_error("Failed to create image source image.");
         return 1;
@@ -146,7 +158,9 @@ int main()
     });
 
     window.setResizeCallback([&swapchain](const win::ResizeEvent &) {
-        if (auto ec = swapchain.resizeToFit()) { lcf_log_error("resizeToFit failed: {}", ec.message()); }
+        if (auto ec = swapchain.resizeToFit(); ec and ec != vkc::errc::surface_zero_size) {
+            lcf_log_error("resizeToFit failed: {}", ec.message());
+        }
     });
 
     while (running.load(std::memory_order_relaxed)) {
@@ -158,16 +172,17 @@ int main()
     }
 
     render_thread.join();
-    render_device_context.getDevice().waitIdle();
+    device_context.getDevice().waitIdle();
     return 0;
 }
 
-std::optional<vkc::Image> create_single_color_image(vkc::RenderDeviceContext & device_context, const std::array<float, 4> & color) noexcept
+std::optional<vkc::Image> create_single_color_image(vkc::DeviceContext & device_context, const std::array<float, 4> & color) noexcept
 {
     vk::Device device = device_context.getDevice();
     vk::PhysicalDevice physical_device = device_context.getPhysicalDevice();
-    uint32_t gfx_family = device_context.getGraphicsQueueContext().getFamilyIndex();
-    vk::Queue gfx_queue = device_context.getGraphicsQueueContext().getQueue();
+    vkc::QueueKey gfx_queue_key {0};
+    auto & gfx_logical_queue = device_context.getLogicalQueue(gfx_queue_key);
+    uint32_t gfx_family = gfx_logical_queue.getFamilyIndex();
 
     vkc::Image image;
     try {
@@ -219,7 +234,8 @@ std::optional<vkc::Image> create_single_color_image(vkc::RenderDeviceContext & d
         cmd.end();
 
         vk::UniqueFence fence = device.createFenceUnique({});
-        gfx_queue.submit(vk::SubmitInfo().setCommandBuffers(cmd), fence.get());
+        vkc::QueueAccess queue_access {gfx_logical_queue};
+        queue_access->submit(vk::SubmitInfo().setCommandBuffers(cmd), fence.get());
         auto wait_result = device.waitForFences(fence.get(), VK_TRUE, UINT64_MAX);
         if (wait_result != vk::Result::eSuccess) {
             lcf_log_error("waitForFences failed while preparing white image.");
