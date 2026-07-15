@@ -238,7 +238,8 @@ int main()
         vk::SemaphoreSubmitInfo present_blit_finish_semaphore_info;
         while (running.load(std::memory_order_relaxed)) {
             vkc::CommandBufferAllocateInfo cmd_alloc_info;
-            cmd_alloc_info.setLevel(vk::CommandBufferLevel::ePrimary)
+            cmd_alloc_info.addUsageFlags(vkc::CommandBufferUsageFlagBits::eResetCommandBuffer)
+                .setLevel(vk::CommandBufferLevel::ePrimary)
                 .setCount(1);
             auto expected_cmd_buffer_batch = gfx_queue.allocateCommandBufferBatch(cmd_alloc_info);
             if (not expected_cmd_buffer_batch) {
@@ -263,6 +264,7 @@ int main()
             cmd.addWaitInfo(present_blit_finish_semaphore_info);
             cmd_buffer_batch.collect(std::move(cmd));
             auto expected_submit_result = gfx_queue.submit(std::move(cmd_buffer_batch));
+            gfx_queue.collectGarbage();
             if (not expected_submit_result) { continue; }
             auto & submit_semaphore_info = expected_submit_result.value();
             std::array<vk::Offset3D, 2> src_offsets {{ {0, 0, 0}, {static_cast<int32_t>(width), static_cast<int32_t>(height), 1} }};
