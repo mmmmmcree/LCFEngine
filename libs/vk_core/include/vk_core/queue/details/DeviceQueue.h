@@ -10,8 +10,8 @@ class DeviceQueue
 public:
     enum class SharingMode
     {
-        Exclusive,
-        Shared
+        eExclusive,
+        eShared
     };
 public:
     ~DeviceQueue() noexcept = default;
@@ -19,11 +19,11 @@ public:
         vk::Device device,
         uint32_t family_index,
         uint32_t queue_index,
-        SharingMode sharing_mode = SharingMode::Exclusive) noexcept :
+        SharingMode sharing_mode = SharingMode::eExclusive) noexcept :
         m_device(device), m_family_index(family_index)
     {
         m_queue = device.getQueue(family_index, queue_index);
-        if (sharing_mode == SharingMode::Shared) { m_mutex_opt.emplace(); }
+        if (sharing_mode == SharingMode::eShared) { m_mutex_opt.emplace(); }
     }
     DeviceQueue(const Self &) = delete;
     DeviceQueue(Self &&) = default;

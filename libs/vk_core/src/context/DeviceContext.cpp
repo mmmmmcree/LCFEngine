@@ -59,7 +59,9 @@ std::error_code DeviceContext::create(vk::Instance instance, const DeviceContext
     bs::DeviceCreateInfo device_info = create_info.getDeviceCreateInfo();
     auto & device_queue_infos = expected_device_queue_infos.value();
     for (const auto & device_queue_info : device_queue_infos) {
-        device_info.addQueueFamilyRequest({device_queue_info.m_family_index, device_queue_info.m_queue_priority});
+        device_info.addQueueFamilyRequest({
+            device_queue_info.m_family_index,
+            device_queue_info.m_queue_priority});
     }
     auto expected_device = bs::create_device(m_physical_device, device_info);
     if (not expected_device) { return expected_device.error(); }
@@ -195,7 +197,7 @@ struct QueueAssignment
     uint32_t getForcedShareCount() const noexcept { return m_tag_count - 1; }
     DeviceQueue::SharingMode getSharingMode() const noexcept
     {
-        return m_tag_count > 1 ?  DeviceQueue::SharingMode::Shared : DeviceQueue::SharingMode::Exclusive;
+        return m_tag_count > 1 ?  DeviceQueue::SharingMode::eShared : DeviceQueue::SharingMode::eExclusive;
     }
 
     RequestIndicesList m_clustered_requests_list;
