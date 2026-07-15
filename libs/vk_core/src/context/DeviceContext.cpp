@@ -227,6 +227,15 @@ private:
         try {
             m_family_props_list = physical_device.getQueueFamilyProperties();
         } catch (const vk::SystemError &e) { return e.code(); }
+        /*
+        - Vulkan spec: a graphics- or compute-capable family implicitly supports transfer,
+        - even if it does not report the transfer bit. 
+        */
+        for (auto & family_props : m_family_props_list) {
+            if (family_props.queueFlags & (vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute)) {
+                family_props.queueFlags |= vk::QueueFlagBits::eTransfer;
+            }
+        }
         m_candidate_families_list.resize(m_requests.size());
         for (auto && [request, candidate_families] : stdv::zip(m_requests, m_candidate_families_list)) {
             for (auto && [family_index, family_props] : m_family_props_list | stdv::enumerate) {
@@ -300,6 +309,7 @@ private:
             queue_assignments.emplace_back(std::move(split_result));
         }
         EvaluatedPlan evaluated_plan;
+        evaluated_plan.m_cost.total_queue_count = static_cast<uint32_t>(queue_assignments.size());
         for (uint32_t queue_index = 0; queue_index < queue_assignments.size(); ++queue_index) {
             auto & assignment = queue_assignments[queue_index];
             EvaluatedPlan::Cost cost;
