@@ -26,9 +26,9 @@ public:
         if (sharing_mode == SharingMode::eShared) { m_mutex_opt.emplace(); }
     }
     DeviceQueue(const Self &) = delete;
-    DeviceQueue(Self &&) = default;
+    DeviceQueue(Self &&) = delete;
     Self &operator=(const Self &) = delete;
-    Self &operator=(Self &&) = default;
+    Self &operator=(Self &&) = delete;
 public:
     const vk::Device & getDevice() const noexcept { return m_device; }
     const vk::Queue & getQueue() const noexcept { return m_queue; }
