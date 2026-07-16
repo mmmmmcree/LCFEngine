@@ -81,19 +81,19 @@ public:
     ~CommandBufferBatch() = default;
     CommandBufferBatch(
         std::span<vk::CommandBuffer> cmd_buffers,
-        CommandBufferUsageFlags usage_flags,
+        CommandPoolFlags usage_flags,
         ValidationData validation_data 
     ) noexcept : 
         m_cmd_buffers(cmd_buffers.begin(), cmd_buffers.end()),
-        m_usage_flags(usage_flags),
+        m_pool_flags(usage_flags),
         m_validation_data(validation_data) {}
 CommandBufferBatch(
         CommandBufferList cmd_buffers,
-        CommandBufferUsageFlags usage_flags,
+        CommandPoolFlags usage_flags,
         ValidationData validation_data 
     ) noexcept : 
         m_cmd_buffers(std::move(cmd_buffers)),
-        m_usage_flags(usage_flags),
+        m_pool_flags(usage_flags),
         m_validation_data(validation_data) {}
     CommandBufferBatch(const Self &) = delete;
     Self & operator=(const Self &) = delete;
@@ -125,7 +125,7 @@ private:
         m_acquire_cursor = std::exchange(other.m_acquire_cursor, 0u);
         m_wait_infos = std::move(other.m_wait_infos);
         m_signal_infos = std::move(other.m_signal_infos);
-        m_usage_flags = std::exchange(other.m_usage_flags, {});
+        m_pool_flags = std::exchange(other.m_pool_flags, {});
         m_leases = std::move(other.m_leases);
         m_validation_data = std::exchange(other.m_validation_data, nullptr);
     }
@@ -135,7 +135,7 @@ private:
     SemaphoreSubmitInfoList m_wait_infos;
     SemaphoreSubmitInfoList m_signal_infos;
     ResourceLeaseList m_leases;
-    CommandBufferUsageFlags m_usage_flags = {};
+    CommandPoolFlags m_pool_flags = {};
     ValidationData m_validation_data = nullptr;
 };
 

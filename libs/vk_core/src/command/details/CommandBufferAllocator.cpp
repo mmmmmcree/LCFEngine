@@ -19,7 +19,7 @@ std::error_code CommandBufferAllocator::create(vk::Device device, uint32_t famil
 
 std::expected<CommandBufferBatch, std::error_code> CommandBufferAllocator::allocate(const CommandBufferAllocateInfo & info) noexcept
 {
-    auto expected_sub_pool = this->acquireSubPool(info.getUsageFlags());
+    auto expected_sub_pool = this->acquireSubPool(info.getPoolFlags());
     if (not expected_sub_pool) { return std::unexpected(expected_sub_pool.error()); }
     SubPool & sub_pool = *expected_sub_pool.value();
     uint32_t count = info.getCount();
@@ -30,7 +30,7 @@ std::expected<CommandBufferBatch, std::error_code> CommandBufferAllocator::alloc
     uint32_t remaining_count = count - reused_count;
     if (remaining_count == 0u) {
         sub_pool.m_orphan_count += reused_count;
-        return CommandBufferBatch {std::move(cmd_buffers), info.getUsageFlags(), m_validation_data};
+        return CommandBufferBatch {std::move(cmd_buffers), info.getPoolFlags(), m_validation_data};
     }
     try {
         auto allocated = m_device.allocateCommandBuffers({sub_pool.m_pool.get(), info.getLevel(), remaining_count});
@@ -40,13 +40,13 @@ std::expected<CommandBufferBatch, std::error_code> CommandBufferAllocator::alloc
         return std::unexpected(e.code());
     }
     sub_pool.m_orphan_count += count;
-    return CommandBufferBatch {std::move(cmd_buffers), info.getUsageFlags(), m_validation_data};
+    return CommandBufferBatch {std::move(cmd_buffers), info.getPoolFlags(), m_validation_data};
 }
 
 void CommandBufferAllocator::retire(CommandBufferBatch && batch, uint64_t timestamp) noexcept
 {
     if (batch.m_validation_data != m_validation_data) { return; }
-    auto it = m_sub_pools.find(VkCommandPoolCreateFlags(batch.m_usage_flags));
+    auto it = m_sub_pools.find(VkCommandPoolCreateFlags(batch.m_pool_flags));
     if (it == m_sub_pools.end()) { return; }
     SubPool & sub_pool = it->second;
     sub_pool.m_orphan_count -= static_cast<uint32_t>(batch.m_cmd_buffers.size());

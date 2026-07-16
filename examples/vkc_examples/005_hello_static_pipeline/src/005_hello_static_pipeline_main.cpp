@@ -238,7 +238,7 @@ int main()
         vk::SemaphoreSubmitInfo present_blit_finish_semaphore_info;
         while (running.load(std::memory_order_relaxed)) {
             vkc::CommandBufferAllocateInfo cmd_alloc_info;
-            cmd_alloc_info.addUsageFlags(vkc::CommandBufferUsageFlagBits::eResetCommandBuffer)
+            cmd_alloc_info.addPoolFlags(vkc::CommandPoolFlagBits::eResetCommandBuffer)
                 .setLevel(vk::CommandBufferLevel::ePrimary)
                 .setCount(1);
             auto expected_cmd_buffer_batch = gfx_queue.allocateCommandBufferBatch(cmd_alloc_info);

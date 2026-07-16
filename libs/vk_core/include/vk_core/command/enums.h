@@ -5,8 +5,8 @@
 
 namespace lcf::vkc {
 
-using CommandBufferUsageFlagBits = vk::CommandPoolCreateFlagBits;
+using CommandPoolFlagBits = vk::CommandPoolCreateFlagBits;
 
-using CommandBufferUsageFlags = vk::CommandPoolCreateFlags;
+using CommandPoolFlags = vk::CommandPoolCreateFlags;
 
 } // namespace lcf::vkc
