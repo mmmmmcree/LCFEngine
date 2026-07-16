@@ -35,7 +35,7 @@ public:
 private:
     LogicalQueue m_logical_queue;
     TimelineSemaphore m_timeline;
-    details::CommandBufferAllocator m_cmd_allocator;
+    CommandBufferAllocator m_cmd_allocator;
     LeaseBatchQueue m_lease_batch_queue;
 };
 

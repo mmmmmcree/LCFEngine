@@ -52,16 +52,16 @@ std::expected<SubmissionToken, std::error_code> Queue::submit(CommandBufferBatch
     submit_info.setWaitSemaphoreInfos(wait_infos)
         .setCommandBufferInfos(cmd_submit_infos)
         .setSignalSemaphoreInfos(signal_infos);
+    uint64_t target_timestamp = m_timeline.getTargetTimestamp();
     try {
         QueueAccess queue_access {m_logical_queue};
         queue_access->submit2(submit_info);
     } catch (const vk::SystemError & e) {
-        m_cmd_allocator.retire(std::move(batch), 0u);
+        m_cmd_allocator.retire(target_timestamp, std::move(batch));
         return std::unexpected(e.code());
     }
-    uint64_t target_timestamp = m_timeline.getTargetTimestamp();
     m_lease_batch_queue.emplace(target_timestamp, batch.takeLeases());
-    m_cmd_allocator.retire(std::move(batch), target_timestamp);
+    m_cmd_allocator.retire(target_timestamp, std::move(batch));
     return timeline_signal;
 }
 

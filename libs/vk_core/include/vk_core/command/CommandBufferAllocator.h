@@ -15,9 +15,8 @@ class CommandBufferAllocator
 {
     using Self = CommandBufferAllocator;
     using CommandBufferList = std::vector<vk::CommandBuffer>;
-    
     using ResetablePoolMap = std::unordered_map<CommandBufferPoolKey, details::ResetableCommandPool, CommandBufferPoolKey>;
-    using RotationgPoolMap = std::unordered_map<CommandBufferPoolKey, details::RotatingCommandPool, CommandBufferPoolKey>;
+    using RotatingPoolMap = std::unordered_map<CommandBufferPoolKey, details::RotatingCommandPool, CommandBufferPoolKey>;
     using ValidationData = const void *;
 public:
     ~CommandBufferAllocator() noexcept = default;
@@ -36,7 +35,7 @@ private:
     uint32_t m_family_index = 0u;
     ValidationData m_validation_data = nullptr;
     ResetablePoolMap m_resetable_pool_map;
-    RotationgPoolMap m_rotating_pool_map;
+    RotatingPoolMap m_rotating_pool_map;
 };
 
 } // namespace lcf::vkc

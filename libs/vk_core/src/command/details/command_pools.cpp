@@ -16,12 +16,12 @@ auto PooledCommandBuffers::acquire(uint32_t count) noexcept -> CommandBufferList
 
 void PooledCommandBuffers::recycle(CommandBufferList && cmd_buffers) noexcept
 {
-    m_cmd_free_list.append_range(std::move(cmd_buffers));
+    m_cmd_free_list.append_range(std::exchange(cmd_buffers, {}));
 }
 
 void PooledCommandBuffers::recycle(Self && cmd_buffers) noexcept
 {
-    m_cmd_free_list.append_range(std::move(cmd_buffers.m_cmd_free_list));
+    this->recycle(std::move(cmd_buffers.m_cmd_free_list));
 }
 
 

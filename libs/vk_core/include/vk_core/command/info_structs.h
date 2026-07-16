@@ -32,9 +32,10 @@ struct CommandBufferPoolKey
         m_pool_flags(alloc_info.getPoolFlags()), m_cmd_level(alloc_info.getLevel()) {}
     constexpr uint64_t operator()(const CommandBufferPoolKey & key) const noexcept
     {
-        return static_cast<uint64_t>(static_cast<uint32_t>(m_pool_flags)) << 32 |
-            static_cast<uint32_t>(m_cmd_level);
+        return static_cast<uint64_t>(static_cast<uint32_t>(key.m_pool_flags)) << 32 |
+            static_cast<uint32_t>(key.m_cmd_level);
     }
+    bool operator==(const CommandBufferPoolKey &) const noexcept = default;
 
     vk::CommandPoolCreateFlags m_pool_flags;
     vk::CommandBufferLevel m_cmd_level;
