@@ -21,4 +21,23 @@ private:
     uint32_t m_count = 1u;
 };
 
+struct CommandBufferPoolKey
+{
+    CommandBufferPoolKey(
+        vk::CommandPoolCreateFlags pool_flags = {},
+        vk::CommandBufferLevel cmd_level = {}) noexcept :
+        m_pool_flags(pool_flags),
+        m_cmd_level(cmd_level) {}
+    explicit CommandBufferPoolKey(const CommandBufferAllocateInfo & alloc_info) noexcept :
+        m_pool_flags(alloc_info.getPoolFlags()), m_cmd_level(alloc_info.getLevel()) {}
+    constexpr uint64_t operator()(const CommandBufferPoolKey & key) const noexcept
+    {
+        return static_cast<uint64_t>(static_cast<uint32_t>(m_pool_flags)) << 32 |
+            static_cast<uint32_t>(m_cmd_level);
+    }
+
+    vk::CommandPoolCreateFlags m_pool_flags;
+    vk::CommandBufferLevel m_cmd_level;
+};
+
 } // namespace lcf::vkc

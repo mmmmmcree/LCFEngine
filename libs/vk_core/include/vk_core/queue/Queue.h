@@ -7,7 +7,7 @@
 #include "vk_core/queue/LogicalQueue.h"
 #include "vk_core/queue/SubmissionToken.h"
 #include "vk_core/sync/TimelineSemaphore.h"
-#include "vk_core/command/details/CommandBufferAllocator.h"
+#include "vk_core/command/CommandBufferAllocator.h"
 #include "resource_utils.h"
 
 namespace lcf::vkc {

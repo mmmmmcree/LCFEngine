@@ -8,21 +8,18 @@
 #include <system_error>
 #include "enums.h"
 #include "vk_core/error.h"
+#include "vk_core/command/info_structs.h"
 #include "resource_utils.h"
 
 namespace lcf::vkc {
 
-namespace details {
-
 class CommandBufferAllocator;
-
-} // namespace lcf::vkc::details
 
 class CommandBufferBatch;
 
 class CommandBufferProxy : public vk::CommandBuffer
 {
-    friend class details::CommandBufferAllocator;
+    friend class CommandBufferAllocator;
     friend class CommandBufferBatch;
     using Self = CommandBufferProxy;
     using Base = vk::CommandBuffer;
@@ -71,7 +68,7 @@ private:
 
 class CommandBufferBatch
 {
-    friend class details::CommandBufferAllocator;
+    friend class CommandBufferAllocator;
     using Self = CommandBufferBatch;
     using SemaphoreSubmitInfoList = std::vector<vk::SemaphoreSubmitInfo>;
     using ResourceLeaseList = std::vector<ResourceLease>;
@@ -81,19 +78,19 @@ public:
     ~CommandBufferBatch() = default;
     CommandBufferBatch(
         std::span<vk::CommandBuffer> cmd_buffers,
-        CommandPoolFlags usage_flags,
+        CommandBufferPoolKey pool_key,
         ValidationData validation_data 
     ) noexcept : 
         m_cmd_buffers(cmd_buffers.begin(), cmd_buffers.end()),
-        m_pool_flags(usage_flags),
+        m_pool_key(pool_key),
         m_validation_data(validation_data) {}
 CommandBufferBatch(
         CommandBufferList cmd_buffers,
-        CommandPoolFlags usage_flags,
+        CommandBufferPoolKey pool_key,
         ValidationData validation_data 
     ) noexcept : 
         m_cmd_buffers(std::move(cmd_buffers)),
-        m_pool_flags(usage_flags),
+        m_pool_key(pool_key),
         m_validation_data(validation_data) {}
     CommandBufferBatch(const Self &) = delete;
     Self & operator=(const Self &) = delete;
@@ -125,7 +122,7 @@ private:
         m_acquire_cursor = std::exchange(other.m_acquire_cursor, 0u);
         m_wait_infos = std::move(other.m_wait_infos);
         m_signal_infos = std::move(other.m_signal_infos);
-        m_pool_flags = std::exchange(other.m_pool_flags, {});
+        m_pool_key = std::exchange(other.m_pool_key, {});
         m_leases = std::move(other.m_leases);
         m_validation_data = std::exchange(other.m_validation_data, nullptr);
     }
@@ -135,7 +132,7 @@ private:
     SemaphoreSubmitInfoList m_wait_infos;
     SemaphoreSubmitInfoList m_signal_infos;
     ResourceLeaseList m_leases;
-    CommandPoolFlags m_pool_flags = {};
+    CommandBufferPoolKey m_pool_key;
     ValidationData m_validation_data = nullptr;
 };
 

@@ -5,7 +5,7 @@
 #include <expected>
 #include <vector>
 #include "vk_core/sync/TimelineSemaphore.h"
-#include "vk_core/command/details/CommandBufferAllocator.h"
+#include "vk_core/command/CommandBufferAllocator.h"
 #include "resource_utils.h"
 
 namespace lcf::vkc {
@@ -37,7 +37,7 @@ private:
     vk::Queue m_queue;
     uint32_t m_family_index = 0u;
     TimelineSemaphore m_timeline;
-    details::CommandBufferAllocator m_cmd_allocator;
+    CommandBufferAllocator m_cmd_allocator;
     LeaseBatchQueue m_lease_batch_queue;
 };
 

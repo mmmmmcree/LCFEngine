@@ -18,7 +18,7 @@
 #include "vk_core/pipeline/graphics/StaticGraphicsPipeline.h"
 #include "vk_core/pipeline/graphics/StaticRendering.h"
 #include "vk_core/pipeline/graphics/RenderTarget.h"
-#include "vk_core/command/CommandBufferAllocateInfo.h"
+#include "vk_core/command/info_structs.h"
 #include "vk_core/command/CommandBufferProxy.h"
 #include "vk_core/queue/Queue.h"
 #include "win/Window.h"

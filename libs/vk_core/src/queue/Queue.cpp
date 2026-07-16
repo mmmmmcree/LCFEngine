@@ -4,7 +4,7 @@
 #include "vk_core/manifest/InstanceExtensionManifest.h"
 #include "vk_core/manifest/DeviceExtensionManifest.h"
 #include "vk_core/command/CommandBufferProxy.h"
-#include "vk_core/command/CommandBufferAllocateInfo.h"
+#include "vk_core/command/info_structs.h"
 #include <ranges>
 #include <vector>
 

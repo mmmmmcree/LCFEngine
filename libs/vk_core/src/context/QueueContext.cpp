@@ -1,6 +1,6 @@
 #include "vk_core/context/QueueContext.h"
 #include "vk_core/command/CommandBufferProxy.h"
-#include "vk_core/command/CommandBufferAllocateInfo.h"
+#include "vk_core/command/info_structs.h"
 #include <ranges>
 #include <vector>
 
