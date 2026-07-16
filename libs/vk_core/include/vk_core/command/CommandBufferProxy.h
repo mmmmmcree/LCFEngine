@@ -105,9 +105,9 @@ public:
     Self & collect(CommandBufferProxy && proxy) noexcept
     {
         if (proxy.m_validation_data != m_validation_data) { return *this; }
-        m_leases.append_range(std::move(proxy.m_leases));
-        m_wait_infos.append_range(std::move(proxy.m_wait_infos));
-        m_signal_infos.append_range(std::move(proxy.m_signal_infos));
+        m_leases.append_range(std::exchange(proxy.m_leases, {}));
+        m_wait_infos.append_range(std::exchange(proxy.m_wait_infos, {}));
+        m_signal_infos.append_range(std::exchange(proxy.m_signal_infos, {}));
         return *this;
     }
     ValidationData getValidationData() const noexcept { return m_validation_data; }

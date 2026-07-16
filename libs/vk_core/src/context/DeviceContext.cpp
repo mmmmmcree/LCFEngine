@@ -134,7 +134,7 @@ struct EvaluatedPlan
     Self & merge(Self other) noexcept
     {
         m_cost += other.m_cost;
-        m_device_queue_infos.append_range(std::move(other.m_device_queue_infos));
+        m_device_queue_infos.append_range(std::exchange(other.m_device_queue_infos, {}));
         return *this;
     }
     const Cost & getCost() const noexcept { return m_cost; }
@@ -180,7 +180,7 @@ struct QueueAssignment
     }
     void absorb(Self other) noexcept
     {
-        m_clustered_requests_list.append_range(std::move(other.m_clustered_requests_list));
+        m_clustered_requests_list.append_range(std::exchange(other.m_clustered_requests_list, {}));
         m_tag_count += other.m_tag_count;
         m_max_priority = std::max(m_max_priority, other.m_max_priority);
     }

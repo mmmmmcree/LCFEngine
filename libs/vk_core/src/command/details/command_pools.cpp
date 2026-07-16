@@ -47,7 +47,7 @@ auto ResetableCommandPool::allocate(uint32_t count) noexcept -> std::expected<Co
     uint32_t remaining_count = count - static_cast<uint32_t>(cmd_buffers.size());
     try {
         auto allocated = m_device.allocateCommandBuffers({m_cmd_pool.get(), m_cmd_level, remaining_count});
-        cmd_buffers.append_range(std::move(allocated));
+        cmd_buffers.append_range(std::exchange(allocated, {}));
     } catch (const vk::SystemError & e) {
         m_reusable_buffers.recycle(std::move(cmd_buffers));
         return std::unexpected(e.code());
@@ -93,7 +93,7 @@ auto RotatingCommandPool::allocate(uint32_t count) noexcept -> std::expected<Com
     uint32_t remaining_count = count - static_cast<uint32_t>(cmd_buffers.size());
     try {
         auto allocated = m_device.allocateCommandBuffers({m_active_slot.m_cmd_pool.get(), m_cmd_level, remaining_count});
-        cmd_buffers.append_range(std::move(allocated));
+        cmd_buffers.append_range(std::exchange(allocated, {}));
     } catch (const vk::SystemError & e) {
         m_active_slot.m_reusable_buffers.recycle(std::move(cmd_buffers));
         return std::unexpected(e.code());
