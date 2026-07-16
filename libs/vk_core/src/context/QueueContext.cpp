@@ -53,7 +53,7 @@ std::expected<vk::SemaphoreSubmitInfo, std::error_code> QueueContext::submit(Com
 
 void QueueContext::collectGarbage() noexcept
 {
-    auto expected_timestamp = m_timeline.getCurrentTimestamp();
+    auto expected_timestamp = m_timeline.getCurrentGpuTimestamp();
     if (not expected_timestamp) { return; }
     auto completed_timestamp = expected_timestamp.value();
     m_cmd_allocator.recycle(completed_timestamp);

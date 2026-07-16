@@ -68,7 +68,7 @@ std::expected<SubmissionToken, std::error_code> Queue::submit(CommandBufferBatch
 
 void Queue::collectGarbage() noexcept
 {
-    auto expected_timestamp = m_timeline.getCurrentTimestamp();
+    auto expected_timestamp = m_timeline.getCurrentGpuTimestamp();
     if (not expected_timestamp) { return; }
     auto completed_timestamp = expected_timestamp.value();
     m_cmd_allocator.recycle(completed_timestamp);

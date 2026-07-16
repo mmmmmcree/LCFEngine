@@ -23,7 +23,7 @@ public:
     std::error_code waitFor(uint64_t timestamp) const noexcept;
     Self & advanceTarget() noexcept { ++m_target_timestamp; return *this; }
     const uint64_t & getTargetTimestamp() const noexcept { return m_target_timestamp; }
-    std::expected<uint64_t, std::error_code> getCurrentTimestamp() const noexcept;
+    std::expected<uint64_t, std::error_code> getCurrentGpuTimestamp() const noexcept;
     std::expected<bool, std::error_code> isTargetReached(uint64_t timestamp) const noexcept;
     std::expected<bool, std::error_code> isTargetReached() const noexcept { return this->isTargetReached(m_target_timestamp); }
     vk::SemaphoreSubmitInfo generateSubmitInfo() const noexcept;

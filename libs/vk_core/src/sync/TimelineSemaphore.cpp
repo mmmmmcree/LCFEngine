@@ -64,7 +64,7 @@ std::error_code TimelineSemaphore::waitFor(uint64_t timestamp) const noexcept
     return {};
 }
 
-std::expected<uint64_t, std::error_code> TimelineSemaphore::getCurrentTimestamp() const noexcept
+std::expected<uint64_t, std::error_code> TimelineSemaphore::getCurrentGpuTimestamp() const noexcept
 {
     uint64_t timestamp;
     try {
@@ -77,7 +77,7 @@ std::expected<uint64_t, std::error_code> TimelineSemaphore::getCurrentTimestamp(
 
 std::expected<bool, std::error_code> lcf::vkc::TimelineSemaphore::isTargetReached(uint64_t timestamp) const noexcept
 {
-    return this->getCurrentTimestamp().transform([timestamp](uint64_t current) { return timestamp <= current; });
+    return this->getCurrentGpuTimestamp().transform([timestamp](uint64_t current) { return timestamp <= current; });
 }
 
 vk::SemaphoreSubmitInfo TimelineSemaphore::generateSubmitInfo() const noexcept
