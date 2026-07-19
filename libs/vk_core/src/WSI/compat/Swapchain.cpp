@@ -2,8 +2,6 @@
 #include "vk_core/WSI/entry.h"
 #include "vk_core/sync/entry.h"
 #include "vk_core/manifest/DeviceExtensionManifest.h"
-#include "vk_core/WSI/create_surface.h"
-#include "vk_core/WSI/WindowHandle.h"
 #include "vk_core/error.h"
 #include <limits>
 #include <algorithm>

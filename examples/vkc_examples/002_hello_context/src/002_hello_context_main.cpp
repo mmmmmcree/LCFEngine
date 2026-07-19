@@ -3,8 +3,7 @@
 #include "vk_core/context/entry.h"
 #include "vk_core/context/info_structs.h"
 #include "vk_core/context/InstanceContext.h"
-#include "vk_core/context/RenderDeviceContext.h"
-#include "vk_core/context/QueueContext.h"
+#include "vk_core/context/DeviceContext.h"
 #include "log.h"
 
 using namespace lcf;
@@ -43,15 +42,10 @@ int main()
     }
     lcf_log_info("InstanceContext created successfully.");
 
-    vkc::RenderDeviceContext render_device_context;
-    if (auto ec = render_device_context.create(instance_context.getInstance(), device_context_info)) {
+    vkc::DeviceContext device_context;
+    if (auto ec = device_context.create(instance_context.getInstance(), device_context_info)) {
         lcf_log_error("Failed to create render_device_context: {}", ec.message());
         return 1;
     }
-    lcf_log_info("graphics queue context address: {},\ncompute queue context address: {},\ntransfer queue context address: {}",
-        static_cast<const void *>(&render_device_context.getGraphicsQueueContext()),
-        static_cast<const void *>(&render_device_context.getComputeQueueContext()),
-        static_cast<const void *>(&render_device_context.getTransferQueueContext()));
-
     return 0;
 }

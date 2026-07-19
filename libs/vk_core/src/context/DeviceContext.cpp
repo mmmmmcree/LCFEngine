@@ -1,5 +1,4 @@
 #include "vk_core/context/DeviceContext.h"
-#include "vk_core/context/QueueContext.h"
 #include "vk_core/queue/details/DeviceQueue.h"
 #include "vk_core/memory/info_structs.h"
 #include "vk_core/memory/MemoryAllocator.h"

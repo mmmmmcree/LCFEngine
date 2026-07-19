@@ -1,7 +1,8 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
-#include "WindowHandle.h"
+#include "vk_core/sync/TimelineSemaphore.h"
+#include "vk_core/queue/LogicalQueue.h"
 #include "resource_utils.h"
 #include "AtomicSnapshot.h"
 #include "SPSCValue.h"
@@ -11,7 +12,6 @@
 #include <expected>
 #include <atomic>
 #include <mutex>
-#include "vk_core/sync/TimelineSemaphore.h"
 
 namespace lcf::vkc {
 
@@ -58,9 +58,9 @@ public:
     Swapchain & operator=(Swapchain &&) noexcept = delete;
 public:
     std::error_code create(
-        vk::Instance instance, vk::PhysicalDevice physical_device, vk::Device device,
-        uint32_t present_queue_family_index, vk::Queue present_queue,
-        const WindowHandle & window_handle) noexcept;
+        vk::UniqueSurfaceKHR surface,
+        vk::PhysicalDevice physical_device,
+        const LogicalQueue & present_queue) noexcept;
     std::expected<vk::SemaphoreSubmitInfo, std::error_code> present(
         const std::array<vk::Offset3D, 2> & src_offsets,
         vk::Image src_image,
@@ -88,7 +88,7 @@ private:
 private:
     vk::PhysicalDevice m_physical_device;
     vk::Device m_device;
-    vk::Queue m_present_queue;
+    LogicalQueue m_logical_present_queue;
     vk::UniqueSurfaceKHR m_surface;
     vk::UniqueSwapchainKHR m_swapchain;
     ImageList m_swapchain_images;
