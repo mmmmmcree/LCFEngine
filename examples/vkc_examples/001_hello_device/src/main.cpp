@@ -3,7 +3,7 @@
 #include "vk_core/manifest/DeviceExtensionManifest.h"
 #include "vk_core/debug/entry.h"
 #include "vk_core/debug/debug_utils.h"
-#include "vk_core/bootstrap/create_infos.h"
+#include "vk_core/bootstrap/info_structs.h"
 #include "vk_core/bootstrap/create_instance.h"
 #include "vk_core/bootstrap/select_physical_device.h"
 #include "vk_core/bootstrap/create_device.h"
@@ -65,7 +65,7 @@ int main()
     }
     vkc::bs::DeviceCreateInfo device_info;
     device_info.setRequiredDeviceExtensionManifest(device_ext_manifest)
-        .addQueueFamilyRequest({queue_family_index, 1});
+        .addQueueFamilyRequest({queue_family_index, 1.0f});
     auto expected_device = vkc::bs::create_device(physical_device, device_info);
     if (not expected_device.has_value()) {
         lcf_log_error(expected_device.error().message());
