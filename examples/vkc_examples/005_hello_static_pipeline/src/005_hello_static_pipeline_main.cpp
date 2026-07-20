@@ -237,7 +237,7 @@ int main()
     std::atomic<bool> running {true};
     std::thread render_thread([&] {
         static uint64_t frame = 0;
-        vk::SemaphoreSubmitInfo present_blit_finish_semaphore_info;
+        std::array<vkc::SubmissionToken, 2> present_blit_finish_tokens;
         while (running.load(std::memory_order_relaxed)) {
             vkc::CommandBufferAllocateInfo cmd_alloc_info;
             cmd_alloc_info.setLevel(vk::CommandBufferLevel::ePrimary)
@@ -262,7 +262,7 @@ int main()
             cmd.draw(3, 1, 0, 0);
             static_rendering.end(cmd);
             cmd.end();
-            cmd.addWaitInfo(present_blit_finish_semaphore_info);
+            cmd.addWaitInfo(present_blit_finish_tokens[frame % 2]);
             cmd_buffer_batch.collect(std::move(cmd));
             auto expected_submit_result = gfx_queue.submit(std::move(cmd_buffer_batch));
             gfx_queue.collectGarbage();
@@ -272,7 +272,7 @@ int main()
             const vkc::Image & present_image = render_target.getAttachment(0).getImage();
             auto expected_present_result = swapchain.present(src_offsets, present_image, present_image.lease(), submit_semaphore_info);
             if (expected_present_result) {
-                present_blit_finish_semaphore_info = expected_present_result.value();
+                present_blit_finish_tokens[frame % 2] = expected_present_result.value();
                 continue;
             }
             auto ec = expected_present_result.error();
