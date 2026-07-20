@@ -1,4 +1,4 @@
-project(hello_static_pipeline)
+project(vkc_example_005_hello_static_pipeline)
 
 file(GLOB_RECURSE SOURCES "src/*.cpp")
 

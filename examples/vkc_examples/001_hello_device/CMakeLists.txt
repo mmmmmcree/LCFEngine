@@ -1,4 +1,4 @@
-project(hello_device)
+project(vkc_example_001_hello_device)
 
 file(GLOB_RECURSE SOURCES "src/*.cpp")
 

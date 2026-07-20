@@ -1,4 +1,4 @@
-project(hello_swapchain)
+project(vkc_example_003_hello_swapchain)
 
 file(GLOB_RECURSE SOURCES "src/*.cpp")
 

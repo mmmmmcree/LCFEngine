@@ -1,4 +1,4 @@
-project(hello_context)
+project(vkc_example_002_hello_context)
 
 file(GLOB_RECURSE SOURCES "src/*.cpp")
 
