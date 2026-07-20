@@ -170,11 +170,11 @@ int main()
     for (auto & image : render_target_images) {
         vk::ImageCreateInfo image_info;
         image_info.setImageType(vk::ImageType::e2D)
-            .setFormat(vk::Format::eR8G8B8A8Unorm)
+            .setFormat(render_target_info.getColorFormat(0))
             .setExtent({width, height, 1u})
             .setMipLevels(1u)
             .setArrayLayers(1u)
-            .setSamples(vk::SampleCountFlagBits::e1)
+            .setSamples(render_target_info.getSampleCount())
             .setTiling(vk::ImageTiling::eOptimal)
             .setUsage(vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc)
             .setInitialLayout(vk::ImageLayout::eUndefined);
@@ -200,12 +200,13 @@ int main()
     
     vk::Device device = device_context.getDevice();
     //- create static rendering
-    vkc::SubpassDescriptionInfo subpass_info;
-    subpass_info.setBindPoint(vk::PipelineBindPoint::eGraphics)
-        .addColorAttachment(vkc::AttachmentReferenceInfo{0, vk::ImageLayout::eColorAttachmentOptimal});
+    
     vkc::AttachmentStateInfo attachment_state_info;
     attachment_state_info.setLoadStoreOp(vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore)
         .setLayouts(vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferSrcOptimal);
+    vkc::SubpassDescriptionInfo subpass_info;
+    subpass_info.setBindPoint(vk::PipelineBindPoint::eGraphics)
+        .addColorAttachment(vkc::AttachmentReferenceInfo{0, vk::ImageLayout::eColorAttachmentOptimal});
     vkc::RenderingInfo rendering_info;
     rendering_info.addSubpass(subpass_info)
         .addAttachmentState(attachment_state_info);
@@ -219,8 +220,7 @@ int main()
     vkc::ViewportStateInfo viewport_state_info;
     viewport_state_info.addViewport(0, 0, width, height)
         .addScissor(0, 0, width, height);
-    vkc::ColorBlendStateInfo color_blend_state_info;
-    color_blend_state_info.addAttachment();   // 1 个 color attachment,匹配 subpass 的 colorAttachmentCount
+    vkc::ColorBlendStateInfo color_blend_state_info {subpass_info.getColorAttachmentReferenceCount()};
     vkc::GraphicsPipelineInfo graphic_pipeline_info;
     vkc::StaticGraphicsPipeline static_graphics_pipeline;
     graphic_pipeline_info.setShaderProgramInfo(std::move(shader_program_info))

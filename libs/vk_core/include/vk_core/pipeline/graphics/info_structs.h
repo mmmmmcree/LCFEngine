@@ -349,24 +349,25 @@ class ColorBlendStateInfo
 {
     using Self = ColorBlendStateInfo;
     using Root = vk::PipelineColorBlendStateCreateInfo;
-    using AttachmentList = std::vector<vk::PipelineColorBlendAttachmentState>;
+    using ColorBlendAttachmentStateList = std::vector<vk::PipelineColorBlendAttachmentState>;
     using BlendConstants = std::array<float, 4>;
 public:
     ~ColorBlendStateInfo() noexcept = default;
     ColorBlendStateInfo(
+        uint32_t blend_state_count,
         vk::PipelineColorBlendStateCreateFlags flags = {},
         vk::Bool32 logic_op_enable = false,
         vk::LogicOp logic_op = vk::LogicOp::eCopy,
-        AttachmentList attachments = {},
-        const BlendConstants & blend_constants = {}) :
-        m_attachments(std::move(attachments))
+        const BlendConstants & blend_constants = {})
     {
+        m_color_blend_attachment_states.resize(blend_state_count,
+            vk::PipelineColorBlendAttachmentState{}.setColorWriteMask(vk::FlagTraits<vk::ColorComponentFlagBits>::allFlags));
         m_color_blend_state.root()
             .setFlags(flags)
             .setLogicOpEnable(logic_op_enable)
             .setLogicOp(logic_op)
             .setBlendConstants(blend_constants)
-            .setAttachments(m_attachments);
+            .setAttachments(m_color_blend_attachment_states);
     }
     ColorBlendStateInfo(const Self & other) = default;
     ColorBlendStateInfo(Self && other) noexcept = default;
@@ -385,28 +386,23 @@ public:
         return *this;
     }
     Self & setBlendConstants(const BlendConstants & constants) noexcept { m_color_blend_state.root().setBlendConstants(constants); return *this; }
-    Self & addAttachment(vk::ColorComponentFlags write_mask = vk::FlagTraits<vk::ColorComponentFlagBits>::allFlags)
-    {
-        m_attachments.emplace_back(vk::PipelineColorBlendAttachmentState{}.setColorWriteMask(write_mask));
-        m_color_blend_state.root().setAttachments(m_attachments);
-        return *this;
-    }
-    Self & addBlendAttachment(
+    Self & setColorBlendAttachmentState(
+        uint32_t  attachment_index,
         vk::BlendFactor src_color, vk::BlendFactor dst_color, vk::BlendOp color_op,
         vk::BlendFactor src_alpha, vk::BlendFactor dst_alpha, vk::BlendOp alpha_op,
         vk::ColorComponentFlags write_mask = vk::FlagTraits<vk::ColorComponentFlagBits>::allFlags)
     {
-        m_attachments.emplace_back(true, src_color, dst_color, color_op, src_alpha, dst_alpha, alpha_op, write_mask);
-        m_color_blend_state.root().setAttachments(m_attachments);
+        m_color_blend_attachment_states[attachment_index] = vk::PipelineColorBlendAttachmentState {true, src_color, dst_color, color_op, src_alpha, dst_alpha, alpha_op, write_mask};
+        m_color_blend_state.root().setAttachments(m_color_blend_attachment_states);
         return *this;
     }
     const vk::PipelineColorBlendStateCreateFlags & getFlags() const noexcept { return m_color_blend_state.root().flags; }
     const vk::Bool32 & isLogicOpEnabled() const noexcept { return m_color_blend_state.root().logicOpEnable; }
     const vk::LogicOp & getLogicOp() const noexcept { return m_color_blend_state.root().logicOp; }
-    std::span<const vk::PipelineColorBlendAttachmentState> getAttachments() const noexcept { return m_attachments; }
+    const ColorBlendAttachmentStateList & getColorBlendAttachmentStates() const noexcept { return m_color_blend_attachment_states; }
 private:
     utils::DynamicStructureChain<Root> m_color_blend_state;
-    AttachmentList m_attachments;
+    ColorBlendAttachmentStateList m_color_blend_attachment_states;
 };
 
 class ViewportStateInfo
@@ -531,7 +527,7 @@ private:
     RasterizationStateInfo m_rasterization_info;
     MultisampleStateInfo m_multisample_info;
     DepthStencilStateInfo m_depth_stencil_info;
-    ColorBlendStateInfo m_color_blend_info;
+    ColorBlendStateInfo m_color_blend_info {0};
     ViewportStateInfo m_viewport_info;
     DynamicStateInfo m_dynamic_state_info;
 };
@@ -754,10 +750,11 @@ public:
         m_subpass.root().setPreserveAttachments(m_preserve_attachments);
         return *this;
     }
-    std::span<const AttachmentReferenceInfo> getColorReferences() const noexcept { return m_color_references; }
-    std::span<const AttachmentReferenceInfo> getResolveReferences() const noexcept { return m_resolve_references; }
+    uint32_t getColorAttachmentReferenceCount() const noexcept { return static_cast<uint32_t>(m_color_references.size()); }
+    const ReferenceInfoList & getColorAttachmentReferences() const noexcept { return m_color_references; }
+    const ReferenceInfoList & getResolveAttachmentReferences() const noexcept { return m_resolve_references; }
     bool hasDepthStencil() const noexcept { return m_depth_stencil_reference.has_value(); }
-    const AttachmentReferenceInfo & getDepthStencilReference() const noexcept { return *m_depth_stencil_reference; }
+    const AttachmentReferenceInfo & getDepthStencilAttachmentReference() const noexcept { return *m_depth_stencil_reference; }
 private:
     utils::DynamicStructureChain<Root> m_subpass;
     ReferenceInfoList m_input_references;
@@ -801,6 +798,7 @@ public:
     Self & setDepthStencilFormat(vk::Format depth_stencil_format) noexcept { m_depth_stencil_format = depth_stencil_format; return *this; }
     const vk::Extent2D & getExtent() const noexcept { return m_extent; }
     const FormatList & getColorFormats() const noexcept { return m_color_formats; }
+    const vk::Format & getColorFormat(uint32_t index) const noexcept { return m_color_formats[index]; }
     const vk::SampleCountFlagBits & getSampleCount() const noexcept { return m_sample_count; }
     bool hasDepthStencilFormat() const noexcept { return m_depth_stencil_format != vk::Format::eUndefined; }
     const vk::Format & getDepthStencilFormat() const noexcept { return m_depth_stencil_format; }

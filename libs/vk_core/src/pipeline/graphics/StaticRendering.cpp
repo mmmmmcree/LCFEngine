@@ -22,10 +22,10 @@ std::error_code StaticRendering::create(
         stdv::transform([](const auto &dependency) { return static_cast<vk::SubpassDependency2>(dependency); }) |
         stdr::to<std::vector>();
     auto attachment_descs = stdv::zip(rendering_info.getAttachmentStates(), render_target_info.getColorFormats()) |
-        stdv::transform([](auto && input) -> vk::AttachmentDescription2 {
+        stdv::transform([sample_count = render_target_info.getSampleCount()](auto && input) -> vk::AttachmentDescription2 {
             auto && [state, format] = std::forward<decltype(input)>(input);
             return vk::AttachmentDescription2 {}.setFormat(format)
-                .setSamples(vk::SampleCountFlagBits::e1)
+                .setSamples(sample_count)
                 .setLoadOp(state.getLoadOp())
                 .setStoreOp(state.getStoreOp())
                 .setStencilLoadOp(state.getStencilLoadOp())

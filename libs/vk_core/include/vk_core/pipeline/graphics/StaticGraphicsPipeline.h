@@ -23,7 +23,6 @@ public:
     Self &operator=(Self &&) noexcept = default;
     operator const vk::Pipeline &() const noexcept { return m_pipeline.get(); }
 public:
-    std::error_code create(vk::Device device, const GraphicsPipelineInfo & pipeline_info) noexcept;
     std::error_code create(
         vk::Device device,
         const GraphicsPipelineInfo & pipeline_info,
