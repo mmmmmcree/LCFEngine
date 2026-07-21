@@ -1,362 +1,435 @@
-# vkc AttachmentSet 单一权威设计 (v2)
+# vkc AttachmentSet + RenderScope 双层设计 (v3)
 
-> 目标：消除 attachment 描述信息在 `RenderTargetInfo` 与 `RenderingInfo` 间的**平行数组**。
-> 单一权威 `AttachmentSetInfo` 只冻结 **attachment 形态（个数 + 角色）**；`RenderingInfo` 与
-> `RenderTargetInfo` **各持 set 的引用**，各暴露一个编辑 ref 往共享 set 里填不相交的字段。
-> 只有一份数据，结构上杜绝 drift。
-> 本文是对 [`vkc-rendertarget-rendering-design.md`](./vkc-rendertarget-rendering-design.md) §3
-> 的演进，取代同名 v1 设计（v1 走「投影快照」，v2 改「共享引用」——见 §3 决策记录）。
-> 给设计与方案，不复制完整实现。
+> 目标：用**同一份描述信息**同时驱动 render pass 与 dynamic rendering 两条路，不隐藏 Vulkan 能力。
+> v2 确立了「`AttachmentSetInfo` 是 attachment 池的单一权威」；v3 在其上补一层 **`RenderScopeInfo`**
+> ——一次绘制阶段的「选择枢纽」，它是 `VkSubpassDescription2` 与 `VkPipelineRenderingCreateInfo`
+> 共同描述面的**并集超集**，向两条路各自投影。
+> 本文取代 v2，是对 [`vkc-rendertarget-rendering-design.md`](./vkc-rendertarget-rendering-design.md) §3 的最终演进。
+> 给设计与类定义（接口 + 成员布局），不复制完整实现。
 
 ---
 
-## 1. 动机：平行数组是唯一残余耦合
-
-现状（`StaticRendering::create`）把一个 attachment 的信息拆在两个对象里，用 `zip` 按位置隐式对齐：
-
-```cpp
-stdv::zip(rendering_info.getAttachmentStates(), render_target_info.getColorFormats())
-```
-
-- format ← `RenderTargetInfo`；load/store/layout ← `AttachmentStateInfo`（在 `RenderingInfo`）。
-- 调用方必须保证两列表**同数量、同顺序**。`zip` 取短截断——数量不一致时**静默丢 attachment**，
-  连 validation layer 都可能绕过（数量自洽、只是少了一个）。
-- 衍生问题：format 双声明（RTInfo 一次 + `ImageCreateInfo` 一次）；samples 在 create 里
-  硬编码 `e1`，无视 `RenderTargetInfo::getSampleCount()`；depth 在 static 路径完全没接。
-
-职责分层本身没错（format 是资源层、load/store 是 pass 语义层）。错的是**没有任何一方是 attachment
-集合的权威**，count 与顺序靠人工同步。
-
-## 2. 权威 = attachment 集合；`RenderingInfo` 与 `RenderTargetInfo` 平级
-
-让 `RenderingInfo`（render pass）当权威有两个坑：（1）它混了 attachment 叶子数据与 subpass 拓扑图，
-render target 只要前者；（2）dynamic rendering 没有 render pass / subpass，`VkAttachmentDescription`
-只存在于 render pass 模型，权威绑在 rendering 上会把耦合请回来。
-
-所以权威是 **attachment 集合本身**（`AttachmentSetInfo`），是 rendering 与 render target 的**共同上游**。
-
-### 2.1 平级，不是 chain —— `begin(cmd, target)` 是证据
-
-决定性证据是 `Rendering::begin(cmd, target)`：target 对应 **framebuffer**，是独立于 render pass 的
-运行期对象。基数关系 **1 render pass : N framebuffer**（per-frame-in-flight 就是一个 render pass 配
-N 个各绑各 image 的 framebuffer）。若 `RenderingInfo` 拥有/派生 `RenderTargetInfo`，这个 1:N 表达不出来。
-
-二者**平级**，各持同一个 set 的引用：
+## 1. 全景：三层模型
 
 ```
-AttachmentSetInfo  ── 权威；build() 冻结「N 个槽 + 每槽角色(color/depth)」，其余字段全空待填
-   ├── RenderingInfo(set&)     ── render-scope 半：经 stateRef(i) 填 load/store/layout；另加 subpass 拓扑 + deps
-   └── RenderTargetInfo(set&)  ── image-intrinsic 半：经 imageRef(i) 填 format/samples；自持 extent + 绑 image
-        二者平级，写 set 里不相交的字段；1 RenderingInfo : N RenderTargetInfo
+AttachmentSetInfo          ── 池权威：N 槽 + 角色 + format/samples/load-store/layout
+   │                          canonical 布局 [colors][ds?][resolve]；两条路共享同一批 image
+   │
+   ├─ RenderTargetInfo(set&)   ── image-intrinsic 半 + 绑定：setFormat(index,fmt) / setSampleCount(range)
+   │                             / extent / imageView；1 pass : N target
+   │
+   └─ RenderScopeInfo(set&)    ── 选择枢纽（= 去掉 RenderPass 包袱的 subpass）：
+        │                         有序 color 引用 + depth 引用 + input 引用 + resolve 链接 + viewMask
+        │                         独立于 VkRenderPass 存在；pipeline 与两条 begin 都消费它
+        │            ├─ 投影 → vk::SubpassDescription2            (RP 路径)
+        │            └─ 投影 → vk::PipelineRenderingCreateInfo    (dynamic 路径，pipeline 侧)
+        │                       + 每 attachment 的 layout/resolve   (dynamic 路径，begin 侧)
+        │
+        └─ RenderPassInfo(set&)  ── RP 图层超集：有序 [RenderScopeInfo] + dependency + 派生 preserve → VkRenderPass
+                                    单 scope 场景默认由一个全覆盖 scope 带出（取代当前 RenderingInfo）
 
-Rendering::create(device, renderingInfo)                        → VkRenderPass（1 个，读 set 的最终态）
-Rendering::begin(cmd, renderTarget)                             → 查/建 framebuffer（N 个，各绑各 image）
-Pipeline::create(device, pipelineInfo, rendering, subpassIndex) → pipeline（blend count 取自该 subpass）
+Pipeline::create(dev, pipelineInfo, scopeSource)  ── 两路统一入口：scope 给 formats/viewMask/blend-count
+    RP:      scopeSource = renderPass + subpassIndex（内部取该 subpass 的 scope）
+    dynamic: scopeSource = RenderScopeInfo（内部合成 PipelineRenderingCreateInfo，renderPass=nullptr）
 ```
 
-**subpass 不是平级对象**——它在 render pass 内部。pipeline 靠 `(rendering, subpass_index)` 选取，
-无需单独 `SubpassInfo` 传参。set 提供 `colorReference(i, layout)` / `defaultSubpass()` 作为在
-`RenderingInfo` 内 author subpass 拓扑的构件；单 subpass 由 `RenderingInfo` 默认带出，多 subpass /
-input attachment 依赖则手动 `addSubpass(...)`。
+**为什么 scope 不能当 attachment 数据的权威**：attachment 的身份与 format/samples（即那批共享 image）活在
+scope **之上**——多个 scope 引用同一批 image。若 scope 当权威，同一 attachment 的 format 会在每个引用它的
+scope 里重复，drift 又回来。所以是**两层**：set 定义身份/格式，scope 选择并排布。
 
-## 3. 冻结范围 = 只冻形态；其余经两个 ref 填
+## 2. 两条路描述的是同一件事，只是绑定时机不同
 
-核心简化：`build()` **只冻结 attachment 形态 = 个数 + 每槽角色（color/depth）**。其余字段全部 build 后
-经两个 ref 填，各走各的入口、写不相交的字段：
+pipeline 在两条路里都只需绑定「一个绘制阶段用到哪些 attachment、什么格式、什么顺序」：
 
-| 数据 | 归类 | 谁 author | build 后可改？ |
-|---|---|---|---|
-| attachment 个数 + 角色(color/depth) | **形态** | `add*`（build 前） | 冻结 |
-| format, samples | image-intrinsic | `RenderTargetInfo::imageRef(i)` | 可改 |
-| load/store, stencil ops, initial/final layout, flags | render-scope | `RenderingInfo::stateRef(i)` | 可改 |
-| extent, 绑的 image | framebuffer | `RenderTargetInfo` 自持字段 | 可改 |
-| resolve mode | subpass 概念 | `AttachmentSetInfo` 平行数组（`add*` 时） | 随形态冻结 |
+- **render pass 路径**：`(VkRenderPass, subpassIndex)` 定位到一个 `VkSubpassDescription2`；format 实际存在
+  `VkAttachmentDescription2`，subpass 只存 index+layout。
+- **dynamic 路径**：`VkPipelineRenderingCreateInfo{ pColorAttachmentFormats[], depthAttachmentFormat }`
+  直接列 format——dynamic 没有 attachment description 这个中间层。
 
-### 3.1 为什么只冻个数 + 角色
+两者都是「按某个顺序引用一批 attachment」，差别只在 format 从哪读。这正是 `RenderScopeInfo` 要抽出的东西。
 
-- 两个 ref 都存 `{set&, index}`。index 有效性依赖槽数固定：若 build 后还能 add，已发出的 ref 指向的
-  布局会变，新槽还是「format/state 全空」的半成品。冻结个数 = 保证「所有槽都存在，后续只往已存在的槽填」。
-- 角色由 `add*` 决定（`addColorAttachment` vs `setDepthStencilAttachment`），它定义 canonical index
-  布局 `[color 0..N-1][depth?]`，subpass reference 靠此寻址，故必须与个数一起冻。
-- format/samples/layout 不影响布局与 index，无需冻——这是相对 v1 的关键修正（v1 误把 format/samples
-  划进冻结层，导致 RenderTargetInfo 不能改 format）。
+### 2.1 「一个 subpass = 一次 begin/end 块」——仅在不含 input attachment 时成立
 
-### 3.2 format 单一权威落在 RenderTargetInfo 侧
+dynamic rendering **没有 subpass**。精确等价：
 
-RenderTargetInfo 的 `imageRef(i)` 把 format 写进**共享 set**；RenderingInfo 建 `AttachmentDescription`
-时从**同一个 set** 读这个 format。format 只被 author 一次（RenderTarget 侧），render pass 与 framebuffer
-都从 set 读同一份——§1 的「format 双声明」就此消失，且落点合理：format 本是 image 资源属性。
+| render pass | dynamic (base) | dynamic + `dynamic_rendering_local_read` (VK 1.4 core) |
+|---|---|---|
+| N 个**独立** subpass | N 个 `begin/end` 块 + 手插 barrier | 同左 |
+| N 个 subpass 带 **input attachment**（同像素读上一阶段输出） | ❌ 只能 store→load 绕，付带宽 | 1 个块 + block 内 by-region barrier |
 
-### 3.3 决策记录：为何 v2 从「快照」改回「共享引用」
+**立场**：vkc 只负责让「同一份 scope 描述在两条路产生等价效果」，barrier 实现还是驱动实现是后端细节。
+唯一硬裂缝是 input attachment：base dynamic 做不到，需 `local_read`。故 scope 把 input 建成**并集成员**——
+后端不支持时拒绝，而非从 scope 抹掉。
 
-v1 让 `RenderingInfo`/`RenderTargetInfo` 各自**快照**一份 set 数据，理由是「调用方不用管 set 生命周期」。
-v2 改为**共享同一个 set 引用**，因为那个生命周期顾虑不成立：`RenderingInfo`/`RenderTargetInfo` 都是
-**setup 期 schema 对象**，`create()` 时被读一次就烘进 `VkRenderPass` / framebuffer；真正跑 render loop
-的是烘出来的 `StaticRendering`（持 VkRenderPass）与 `RenderTarget`（持 framebuffer），二者都不引用 set。
-所以 set 只要活过 setup 段，三者同作用域天然满足。引用模型下「单一权威、零 drift」靠**物理共享同一份数据**
-达成，比快照 + 约定编辑顺序更直接、更难写错。
+## 3. canonical 布局 `[colors][ds?][resolve]` 与其理由
 
-### 3.4 不变量
+```
+索引:  0 .. C-1        C (若有 ds)      C+has_ds .. end
+      [ color 0..C-1 | depth_stencil? | resolve 0..M-1 ]
+       └──── 多重采样前缀 [0, C+has_ds) ────┘ └── 恒 e1 ──┘
+```
 
-1. **freeze 后禁 `add*`**：`build()` 后 `add*` 返回 error。build 时 `reserve` 到位，杜绝后续 realloc。
-   正常流程 `add* → build → (imageRef / stateRef 填) → create`，天然不交叉。
-2. **set 必须活过 `create()`**：`RenderingInfo`/`RenderTargetInfo` 持 set 引用，均为 setup 期对象，
-   与 set 同作用域。惯例 set 声明在最前。
-3. **读前写好**：唯一的时序真实约束——format 要在建 image 前经 imageRef 设好；load/store 要在
-   `Rendering::create` 前经 stateRef 设好。两个 ref 写不相交字段，彼此顺序自由。
+- **depth 紧跟 color**：color 与 depth 都是多重采样，resolve target 恒 `e1`。把两个 MS 槽排成**连续前缀**，
+  `setSampleCount` 就是「对前缀 range 统一写」一步搞定；depth 若垫在 resolve 之后，MS 槽会裂成头尾两段。
+- **代价**：depth 不再位于 `.back()`。用 `optional<uint32_t> m_depth_stencil_index` 记录「有没有 + 在哪」
+  （其值恒 `= m_color_attachment_count`），`at(ds)` 读它取位置，不假设尾元素。
+- resolve 段起点 `resolve_base = m_color_attachment_count + (m_depth_stencil_index ? 1 : 0)`。
+
+### 3.1 存在性不变量（决定 get 接口形态）
+
+三个 index 都是 **mint-only**（私有构造 + `friend AttachmentSetInfoBuilder`）+ 带 provenance
+（`m_set_id`）。于是构造期就绑死两条：
+
+1. **持有 `DepthStencilAttachmentIndex` ⟹ set 一定有 ds 槽**——该 index 只可能来自
+   `enableDepthStencilAttachment()`，它必然置上 `m_depth_stencil_index`，`build()` 必然 append ds 槽。
+2. **持有 `ResolveAttachmentIndex` ⟹ set 一定有对应 resolve 槽**——只可能来自 `addResolveAttachment()`，
+   必然 push 一条 resolve spec，`build()` 必然 append resolve 槽。
+
+结论：**`at(Index)` 返回非 optional `const &`**——「有 index」即「存在性证明」，让已证明存在的调用方再解包
+optional 是背叛不变量。optional 只属于「不知道有没有」的 discovery 层（§4.2）。
 
 ## 4. 类型定义
 
-骨架如下（省略实现，只定接口与成员布局）。
-
-### 4.1 `AttachmentDescription`（新类，chain 封装 `vk::AttachmentDescription2`）
-
-**新写一个类**（非 `AttachmentStateInfo` 改名），内部 `DynamicStructureChain<vk::AttachmentDescription2>`，
-与 `AttachmentReferenceInfo`（封装 `vk::AttachmentReference2`）完全对称。`AttachmentDescription2` 有真实
-pNext 需求（如 `vk::AttachmentDescriptionStencilLayout` 分离 depth/stencil layout），chain 值得。命名去
-`2` 后缀镜像 vk 结构；命名空间隔离（`lcf::vkc::AttachmentDescription` vs `vk::AttachmentDescription2`）不冲突。
-
-它是 set 内部的元素类型，聚合两类数据（image-intrinsic + render-scope），但**不自己开放 setter 给终端用户**——
-写入统一经 `AttachmentSetInfo` 发出的两个 ref（见 4.4 / 4.5），保证权威唯一。
+### 4.0 三个 index（mint-only + provenance，行为对称）
 
 ```cpp
-class AttachmentDescription
-{
-    using Self = AttachmentDescription;
-    using Root = vk::AttachmentDescription2;
-public:
-    // rule-of-five;operator const Root &() 返回 chain.root()
-    operator const Root &() const noexcept { return m_description.root(); }
-    template <utils::struct_extends_c<Root> T>
-    T & requestExtension() noexcept { return m_description.template request<T>(); }
-    // getters 全量;setter 由 friend 的 ref 类调用(见 4.4/4.5)
-    const vk::Format & getFormat() const noexcept;
-    const vk::SampleCountFlagBits & getSamples() const noexcept;
-    const vk::AttachmentLoadOp & getLoadOp() const noexcept;
-    // ... getStoreOp / getStencil* / getInitialLayout / getFinalLayout / getFlags ...
-private:
-    friend class AttachmentImageRef;   // 写 image-intrinsic 半(format/samples)
-    friend class AttachmentStateRef;   // 写 render-scope 半(load/store/layout/flags)
-    utils::DynamicStructureChain<Root> m_description;
-};
+enum class AttachmentSetId : uint32_t {};
+inline AttachmentSetId next_attachment_set_id() noexcept;   // 静态原子发号，build() 轮换
+
+// color / resolve 是 positional，存下标；ds 单例、位置归 set，只带 provenance
+class ColorAttachmentIndex        { friend AttachmentSetInfoBuilder; friend AttachmentSetInfo;
+    ColorAttachmentIndex(uint32_t, AttachmentSetId); uint32_t m_index; AttachmentSetId m_set_id; };
+class ResolveAttachmentIndex      { /* 同上 */ };
+class DepthStencilAttachmentIndex { friend AttachmentSetInfoBuilder; friend AttachmentSetInfo;
+    explicit DepthStencilAttachmentIndex(AttachmentSetId); AttachmentSetId m_set_id; };
 ```
 
-### 4.2 `AttachmentSetInfo`（权威容器）
+### 4.1 `AttachmentDescriptionInfo`（已存在，chain 封装 `vk::AttachmentDescription2`）
+
+聚合 image-intrinsic（format/samples）+ render-scope（load/store/layout）+ `m_resolve_mode`（非
+`AttachmentDescription2` 字段，仅 dynamic 用）。已具备两个投影：`operator const vk::AttachmentDescription2 &`
+（RP 路径）与 `operator vk::RenderingAttachmentInfo`（dynamic 路径，投影 loadOp/storeOp/resolveMode；
+imageView/imageLayout/clearValue 是 runtime，留给 begin 填）。**保留现状，不改。**
+
+### 4.2 `AttachmentSetInfo`（池权威，range view 暴露分区）
+
+去掉 `AttachmentFormatRef` / `AttachmentStateRef`——写入直接由 `RenderTargetInfo::setFormat(index, fmt)`
+和 `RenderScopeInfo` 的 stateRef 承担（见 §4.4）。set 只暴露**只读 range view** + **discovery 吐 key**。
 
 ```cpp
 class AttachmentSetInfo
 {
+    friend class AttachmentSetInfoBuilder;
+    friend class RenderTargetInfo2;
+    friend class RenderScopeInfo;
     using Self = AttachmentSetInfo;
-    using ElementList = std::vector<AttachmentDescription>;
-    using ResolveModeList = std::vector<vk::ResolveModeFlagBits>;   // 与 m_elements 同 index;depth 项恒 eNone
+    using DescriptionList = std::vector<AttachmentDescriptionInfo>;
 public:
     ~AttachmentSetInfo() noexcept = default;
-    AttachmentSetInfo() = default;
-    AttachmentSetInfo(const Self &) = delete;            // 持 ref 期间禁拷贝(不变量)
+    AttachmentSetInfo(const Self &) = delete;              // 持 ref 期间禁拷贝
     AttachmentSetInfo(Self &&) noexcept = default;
     Self & operator=(const Self &) = delete;
     Self & operator=(Self &&) noexcept = default;
-public:
-    // 形态声明(build 前);只定个数 + 角色,不带 format
-    uint32_t addColorAttachment(vk::ResolveModeFlagBits resolve = vk::ResolveModeFlagBits::eNone);  // 返回 index
-    uint32_t setDepthStencilAttachment();                                                           // 返回 index
-    Self & build() noexcept;   // 冻结「个数 + 角色」+ 填默认 op/layout + reserve(此后 add* 返回 error)
 
-    // subpass 拓扑构件(在 RenderingInfo 内 author 用)
-    SubpassDescriptionInfo  defaultSubpass() const;                                    // 全 color + depth,标准 layout
-    AttachmentReferenceInfo colorReference(uint32_t index,
-        vk::ImageLayout layout = vk::ImageLayout::eColorAttachmentOptimal) const;
+    // ── keyed 访问：非 optional，index 即存在性证明（§3.1）；release 编译掉断言 ──
+    const AttachmentDescriptionInfo & at(ColorAttachmentIndex k) const noexcept;        // m_descriptions[k.m_index]
+    const AttachmentDescriptionInfo & at(DepthStencilAttachmentIndex k) const noexcept; // m_descriptions[*m_depth_stencil_index]
+    const AttachmentDescriptionInfo & at(ResolveAttachmentIndex k) const noexcept;      // m_descriptions[resolveBase()+k.m_index]
 
-    // 查询
-    const AttachmentDescription & at(uint32_t index) const noexcept;   // 只读单个元素(取 format 建 image 等)
-    uint32_t getAttachmentCount() const noexcept;
-    uint32_t getColorAttachmentCount() const noexcept;
-    bool     hasDepthStencil() const noexcept;
-    uint32_t getDepthStencilIndex() const noexcept;   // 前置:hasDepthStencil()
-    vk::ResolveModeFlagBits getResolveMode(uint32_t index) const noexcept;
+    // ── discovery：optional 包 index（不是 desc）；有 ds 才吐 key，泛型消费方回喂 at() ──
+    std::optional<DepthStencilAttachmentIndex> getDepthStencilIndex() const noexcept;   // set 是 index friend，可盖章铸造
+    uint32_t getColorAttachmentCount() const noexcept   { return m_color_attachment_count; }
+    uint32_t getResolveAttachmentCount() const noexcept { return static_cast<uint32_t>(m_descriptions.size()) - resolveBase(); }
+    bool hasDepthStencil() const noexcept               { return m_depth_stencil_index.has_value(); }
+    ColorAttachmentIndex   colorIndex(uint32_t i) const noexcept;    // 断言 i<color_count，返回盖章 key
+    ResolveAttachmentIndex resolveIndex(uint32_t i) const noexcept;  // 断言 i<resolve_count
+
+    // ── range view：分区切片，供 RenderTargetInfo 批量写 / create 侧遍历读 ──
+    //  多重采样前缀 = colors + ds，正是 setSampleCount 的作用域
+    std::span<const AttachmentDescriptionInfo> multisampleSlots() const noexcept
+    { return { m_descriptions.data(), m_color_attachment_count + (m_depth_stencil_index ? 1u : 0u) }; }
+    std::span<const AttachmentDescriptionInfo> colorSlots() const noexcept
+    { return { m_descriptions.data(), m_color_attachment_count }; }
+    std::span<const AttachmentDescriptionInfo> resolveSlots() const noexcept
+    { return { m_descriptions.data() + resolveBase(), getResolveAttachmentCount() }; }
+    std::span<const AttachmentDescriptionInfo> allSlots() const noexcept { return m_descriptions; }
 private:
-    friend class RenderingInfo;       // 读全集 desc、发 stateRef
-    friend class RenderTargetInfo;    // 读 format/samples、发 imageRef
-    friend class AttachmentImageRef;
-    friend class AttachmentStateRef;
-    ElementList m_elements;
-    ResolveModeList m_resolve_modes;
-    std::optional<uint32_t> m_depth_stencil_index_opt;
-    bool m_built = false;
+    AttachmentSetInfo() noexcept = default;                 // 仅 builder 可造
+    uint32_t resolveBase() const noexcept { return m_color_attachment_count + (m_depth_stencil_index ? 1u : 0u); }
+    AttachmentDescriptionInfo & mutableAt(uint32_t index) noexcept { return m_descriptions[index]; }  // friend 写入用
+
+    DescriptionList m_descriptions;
+    AttachmentSetId m_set_id {};
+    uint32_t m_color_attachment_count = 0;
+    std::optional<uint32_t> m_depth_stencil_index;          // 有值=存在+位置(=color_count)
 };
 ```
 
-### 4.3 `RenderingInfo` 与 `RenderTargetInfo`：各持 set 引用
+> **写接口去哪了**：`RenderTargetInfo2`/`RenderScopeInfo` 是 friend，经私有 `mutableAt(uint32_t)` 拿可变
+> 引用改字段（RenderTarget 改 format/samples，Scope 经 stateRef 改 load/store/layout）。终端用户不直接碰
+> `AttachmentDescriptionInfo` 的 setter，权威唯一。
+
+### 4.3 `AttachmentSetInfoBuilder`（只授权形态；build 后重置可复用）
+
+`add*` 只在 builder 上，`build()` 返回的 `AttachmentSetInfo` 没有 `add*`——「build 完还 add」编译期不可能。
+布局在 `build()` 里落定为 `[colors][ds?][resolve]`。
 
 ```cpp
-class RenderingInfo   // render-scope 半 + subpass 拓扑
+class AttachmentSetInfoBuilder
 {
-    using Self = RenderingInfo;
+    using Self = AttachmentSetInfoBuilder;
 public:
-    explicit RenderingInfo(AttachmentSetInfo & set) noexcept;   // 持引用,不拥有
-    AttachmentStateRef stateRef(uint32_t index) noexcept;       // 写 set 元素的 load/store/layout
-    Self & addSubpass(SubpassDescriptionInfo subpass);          // 默认已含 set.defaultSubpass()
-    Self & addDependency(SubpassDependencyInfo dependency);
-    // create() 侧读:全集 AttachmentDescription(从 set)+ subpasses + deps
-private:
-    AttachmentSetInfo & m_set;
-    std::vector<SubpassDescriptionInfo> m_subpasses;
-    std::vector<SubpassDependencyInfo> m_dependencies;
-    // ... view masks / flags ...
-};
+    ColorAttachmentIndex addColorAttachment() noexcept;                 // push 一个 color 槽
+    DepthStencilAttachmentIndex enableDepthStencilAttachment() noexcept; // 置 has_ds（位置留到 build 落定）
+    ResolveAttachmentIndex addResolveAttachment(ColorAttachmentIndex resolved,
+        vk::ResolveModeFlagBits mode = vk::ResolveModeFlagBits::eAverage) noexcept;  // 记 {源,mode} spec
 
-class RenderTargetInfo   // image-intrinsic 半 + framebuffer 字段
-{
-    using Self = RenderTargetInfo;
-public:
-    explicit RenderTargetInfo(AttachmentSetInfo & set) noexcept;   // 持引用,不拥有
-    AttachmentImageRef imageRef(uint32_t index) noexcept;          // 写 set 元素的 format/samples
-    Self & setExtent(vk::Extent2D extent) noexcept;
-    // extent / 绑 image / clear values 等 framebuffer 字段自持(见 RenderTarget 模型)
+    AttachmentSetInfo build() noexcept;   // 排布 [colors][ds?][resolve]：
+        // 1. m_descriptions 现即 colors；append ds 槽（记 m_depth_stencil_index = color_count）
+        // 2. 逐条 resolve spec：把 mode 写到源 color 的 m_resolve_mode；append 一个 e1 的 resolve 槽
+        // 3. 盖 m_set_id、move 进 set；builder 自身重置 + 轮换 next_attachment_set_id() 供复用
 private:
-    AttachmentSetInfo & m_set;
+    std::vector<AttachmentDescriptionInfo> m_descriptions;
+    std::vector<std::pair<ColorAttachmentIndex, vk::ResolveModeFlagBits>> m_resolve_specs;
+    bool m_has_depth_stencil = false;
+    AttachmentSetId m_batch_id = next_attachment_set_id();
+};
+```
+
+> 注意 build 顺序：ds 必须在 resolve **之前** append，才能让 `m_depth_stencil_index == color_count`
+> 且 resolve 段整体在尾部。（当前代码里 ds/resolve 的 append 顺序需与此一致——见 §7 待做项。）
+
+### 4.4 `RenderTargetInfo2`（image-intrinsic 半 + 绑定；直接 setFormat(index,fmt)）
+
+取消 `AttachmentFormatRef`。format 用带 typed index 的 `setFormat` 直接写共享 set；`setSampleCount` 对
+`multisampleSlots()` range 整体写——一次覆盖 colors+ds，天然跳过 resolve 段。
+
+```cpp
+class RenderTargetInfo2
+{
+    using Self = RenderTargetInfo2;
+public:
+    explicit RenderTargetInfo2(AttachmentSetInfo & set) noexcept : m_set(set) {}
+    // 拷贝/移动按需（1 pass : N target，通常各自新建）
+
+    // format：typed index 直写共享 set（单一权威落在 RenderTarget 侧，image 与 RP 都从 set 读同一份）
+    Self & setFormat(ColorAttachmentIndex k, vk::Format fmt) noexcept;        // m_set.mutableAt(k.m_index).setFormat
+    Self & setFormat(DepthStencilAttachmentIndex k, vk::Format fmt) noexcept; // 经 m_set 私有位置写
+    // resolve 槽 format 跟随其源 color，由 create 侧合成，无需用户设
+
+    // sample count：对 multisample 前缀 range 统一写（colors + ds），resolve 恒 e1 不动
+    Self & setSampleCount(vk::SampleCountFlagBits s) noexcept;                // for (slot : m_set.multisampleSlots()) slot.setSamples(s)
+
+    Self & setExtent(vk::Extent2D e) noexcept { m_extent = e; return *this; }
+    const vk::Extent2D & getExtent() const noexcept { return m_extent; }
+    const vk::SampleCountFlagBits & getSampleCount() const noexcept { return m_sample_count; }
+    // imageView / clearValue 绑定见 RenderTarget 运行期模型
+private:
+    AttachmentSetInfo & m_set;                          // 持引用，不拥有
     vk::Extent2D m_extent;
-    // ...
+    vk::SampleCountFlagBits m_sample_count = vk::SampleCountFlagBits::e1;
 };
 ```
 
-### 4.4 `AttachmentImageRef`（RenderTargetInfo 发；写 image-intrinsic 半）
+> `multisampleSlots()` 返回的是 `const` span，`setSampleCount` 需要写——实现里经 friend 的 `mutableAt`
+> 按 `[0, prefix)` 循环写，或加一个私有 `mutableMultisampleSlots()` 返回可变 span。const 版对外，可变版内部用。
+
+### 4.5 `RenderScopeInfo`（选择枢纽 = 一等化的 subpass，两路共享）
+
+从 `AttachmentSetInfo` 挑一批 attachment 组成一个绘制阶段，独立于 VkRenderPass 存在。它是
+`vk::SubpassDescription2` 与 `vk::PipelineRenderingCreateInfo` 共同面的并集超集。
 
 ```cpp
-class AttachmentImageRef
+class RenderScopeInfo
 {
-    using Self = AttachmentImageRef;
+    using Self = RenderScopeInfo;
 public:
-    AttachmentImageRef(AttachmentSetInfo & set, uint32_t index) noexcept;
-    Self & setFormat(vk::Format format) noexcept;
-    Self & setSamples(vk::SampleCountFlagBits samples) noexcept;
-private:
-    AttachmentSetInfo & m_set;   // 写回目标,不拥有
-    uint32_t m_index;
-};
-```
+    explicit RenderScopeInfo(AttachmentSetInfo & set) noexcept : m_set(set) {}
 
-### 4.5 `AttachmentStateRef`（RenderingInfo 发；写 render-scope 半）
+    // ── 选择（拓扑层，两路都要）──
+    Self & addColor(ColorAttachmentIndex k,
+        vk::ImageLayout layout = vk::ImageLayout::eColorAttachmentOptimal);        // 有序 color 引用
+    Self & setDepthStencil(DepthStencilAttachmentIndex k,
+        vk::ImageLayout layout = vk::ImageLayout::eDepthStencilAttachmentOptimal);
+    Self & addInput(ColorAttachmentIndex k, vk::ImageLayout, vk::ImageAspectFlags);// RP 原生 / dynamic 需 local_read
+    Self & setViewMask(uint32_t mask) noexcept;
 
-```cpp
-class AttachmentStateRef
-{
-    using Self = AttachmentStateRef;
-public:
-    AttachmentStateRef(AttachmentSetInfo & set, uint32_t index) noexcept;
-    Self & setLoadStoreOp(vk::AttachmentLoadOp load_op, vk::AttachmentStoreOp store_op) noexcept;
-    Self & setStencilLoadStoreOp(vk::AttachmentLoadOp load_op, vk::AttachmentStoreOp store_op) noexcept;
-    Self & setLayouts(vk::ImageLayout initial_layout, vk::ImageLayout final_layout) noexcept;
-    Self & addFlags(vk::AttachmentDescriptionFlags flags) noexcept;
-    // 无 setFormat/setSamples —— 那是 image-intrinsic,归 AttachmentImageRef
+    // ── render-scope 状态写回 set（取代 AttachmentStateRef）──
+    Self & setLoadStoreOp(ColorAttachmentIndex k, vk::AttachmentLoadOp, vk::AttachmentStoreOp) noexcept;
+    Self & setLayouts(ColorAttachmentIndex k, vk::ImageLayout initial, vk::ImageLayout final) noexcept;
+    //   depth 版重载同理；这些经 m_set.mutableAt 写共享 set
+
+    // ── 投影（后端各取所需）──
+    vk::SubpassDescription2 toSubpassDescription() const;          // RP：color/input/depth ref + pResolveAttachments
+    // dynamic 侧：pipeline 从 colorFormats()/depthFormat() 合成 PipelineRenderingCreateInfo；
+    //             begin 从 color 引用 + set.at().operator vk::RenderingAttachmentInfo 合成
+    std::vector<vk::Format> colorFormats() const;                  // 按 addColor 顺序 = m_set.at(k).getFormat()
+    vk::Format depthFormat() const;                                // 无 depth 则 eUndefined
+    uint32_t colorReferenceCount() const noexcept;                 // pipeline blend-count 自动推导用
 private:
     AttachmentSetInfo & m_set;
-    uint32_t m_index;
+    std::vector<AttachmentReferenceInfo> m_color_refs;             // 保留 index+layout
+    std::vector<AttachmentReferenceInfo> m_input_refs;
+    std::optional<AttachmentReferenceInfo> m_depth_ref;
+    uint32_t m_view_mask = 0;
+    // resolve 链接从 set 的 m_resolve_mode 派生，无需在 scope 重存
 };
 ```
 
-### 4.6 配套改动
+### 4.6 `RenderPassInfo`（RP 图层超集，取代当前 `RenderingInfo`）
 
-- `StaticRendering::create` **去掉 `RenderTargetInfo` 形参**——format/samples/depth 现都在 set 里，
-  `RenderingInfo` 引用同一个 set，create 时读全集 `AttachmentDescription`，不再 zip；硬编码 samples 的
-  bug 一并消失。`begin(cmd, target)` 仍收 `RenderTarget`（framebuffer），体现 1 render pass : N framebuffer。
-- `StaticGraphicsPipeline::create(device, pipelineInfo, rendering, subpassIndex)`：blend attachment count
-  从该 subpass 的 color ref 数**自动推导 / 校验**（默认不透明、写全通道），收掉手传 `ColorBlendStateInfo{count}`。
-- 旧 `AttachmentStateInfo` 退役（其字段并入新 `AttachmentDescription`）。
-- canonical index 布局 `[color 0..N-1][depth?]`，resolve 目标由 create 侧按 `getResolveMode(i)` 合成、追加。
+```cpp
+class RenderPassInfo
+{
+    using Self = RenderPassInfo;
+public:
+    explicit RenderPassInfo(AttachmentSetInfo & set) noexcept;      // 默认带一个全覆盖 defaultScope()
+    RenderScopeInfo & defaultScope() noexcept;                      // 单 subpass 场景直接用这个
+    Self & addScope(RenderScopeInfo scope);                         // 多 subpass 手动追加
+    Self & addDependency(SubpassDependencyInfo dep);
+    // create 侧读：全集 AttachmentDescription（从 set 的 allSlots）+ [scope→SubpassDescription2] + deps
+    //             preserve attachment 从跨 scope 使用情况派生（推迟，先手写）
+private:
+    AttachmentSetInfo & m_set;
+    std::vector<RenderScopeInfo> m_scopes;
+    std::vector<SubpassDependencyInfo> m_dependencies;
+    vk::RenderPassCreateFlags m_flags;
+};
+```
 
-## 5. 005 example 写法
+## 5. 005 example：两条路的代码流程
+
+### 5.0 共享前半（两条路完全一致）——建 set + 建 image
 
 ```cpp
 auto [width, height] = window.getPixelSize();
 
-//- 权威:声明形态(个数 + 角色) → build 冻结
-vkc::AttachmentSetInfo attachments;
-uint32_t color0 = attachments.addColorAttachment();
-attachments.build();
+//- 形态声明：一个 color 槽（005 无 depth、无 resolve）
+vkc::AttachmentSetInfoBuilder builder;
+vkc::ColorAttachmentIndex color0 = builder.addColorAttachment();
+vkc::AttachmentSetInfo attachments = builder.build();       // 布局 = [color0]
 
-//- 两个平级 view,各持 attachments 引用,写不相交字段
-vkc::RenderTargetInfo render_target_info(attachments);   // image-intrinsic 半 + framebuffer
-render_target_info.imageRef(color0).setFormat(vk::Format::eR8G8B8A8Unorm);
+//- RenderTarget 侧写 image-intrinsic：format 单一权威落这里
+vkc::RenderTargetInfo2 render_target_info(attachments);
+render_target_info.setFormat(color0, vk::Format::eR8G8B8A8Unorm);   // typed index 直写，无 FormatRef
+render_target_info.setSampleCount(vk::SampleCountFlagBits::e1);     // 对 multisample range 写
 render_target_info.setExtent({width, height});
 
-vkc::RenderingInfo rendering_info(attachments);          // render-scope 半 + subpass(默认单 subpass)
-rendering_info.stateRef(color0)
-    .setLoadStoreOp(vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore)
-    .setLayouts(vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferSrcOptimal);
-
-//- 建 image:format 从 set 单一权威取,不再第二次声明
+//- 建 image：format 从 set 单一权威取，不再第二次声明
 for (auto & image : render_target_images) {
     vk::ImageCreateInfo image_info;
     image_info.setImageType(vk::ImageType::e2D)
-        .setFormat(attachments.at(color0).getFormat())          // 单一权威
+        .setFormat(attachments.at(color0).getFormat())             // 单一权威
         .setExtent({width, height, 1u}).setMipLevels(1u).setArrayLayers(1u)
-        .setSamples(vk::SampleCountFlagBits::e1)
+        .setSamples(attachments.at(color0).getSampleCount())
         .setUsage(vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc);
     // image.create(...) 不变
 }
-// render_target.build / setColorAttachment 不变(1 render pass : N render target)
+```
+
+### 5.1 render pass 路径
+
+```cpp
+//- RenderPassInfo 持同一个 set，默认已含全覆盖单 scope
+vkc::RenderPassInfo render_pass_info(attachments);
+render_pass_info.defaultScope()
+    .setLoadStoreOp(color0, vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore)
+    .setLayouts(color0, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferSrcOptimal);
 
 vkc::StaticRendering static_rendering;
-static_rendering.create(device, rendering_info);   // 读 set 全集 desc,无 zip
+static_rendering.create(device, render_pass_info);          // 读 set allSlots + scope→subpass，无 zip
 
-//- pipeline:blend count 由 rendering 的 subpass 自动推导,无需手传
+//- pipeline：blend count 由 scope 的 color ref 数自动推导，无需手传 ColorBlendStateInfo{count}
 vkc::GraphicsPipelineInfo pipeline_info;
 pipeline_info.setShaderProgramInfo(std::move(shader_program_info))
-    .setViewportStateInfo(viewport_state_info);          // 不再手写 ColorBlendStateInfo{count}
+    .setViewportStateInfo(viewport_state_info);
 static_graphics_pipeline.create(device, pipeline_info, static_rendering, /*subpass*/0);
+
+//- 循环：begin(cmd, target) 查/建 framebuffer（1 render pass : N target）
+static_rendering.begin(cmd, render_target);
+// ... draw ...
+static_rendering.end(cmd);
 ```
 
-`eR8G8B8A8Unorm` 只出现一次；render pass attachment desc、render target format、blend count 全从
-`attachments` 派生，无第二份数据需手工对齐。两个 view 写 set 里不相交字段，编辑顺序自由；唯一约束是
-「读前写好」（format 在建 image 前、load/store 在 create 前）。
+### 5.2 dynamic rendering 路径
 
-## 6. 加深度 = 加数据，不是改流程
+同一个 `attachments` 与 `RenderScopeInfo`；不建 VkRenderPass，scope 直接喂 pipeline，load/store/layout
+移到 begin 的 `VkRenderingAttachmentInfo`。
 
 ```cpp
-uint32_t depth = attachments.setDepthStencilAttachment();
-attachments.build();
-render_target_info.imageRef(depth).setFormat(vk::Format::eD32Sfloat);
-rendering_info.stateRef(depth).setLoadStoreOp(vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare);
-// RenderingInfo 默认 subpass 自动含 depthStencil reference;RenderTarget 自动多一个 depth 槽
-// blend count 不受影响(depth 非 color)
+//- 直接用 scope，不需要 RenderPassInfo（无 subpass/RP 对象）
+vkc::RenderScopeInfo scope(attachments);
+scope.addColor(color0, vk::ImageLayout::eColorAttachmentOptimal)
+     .setLoadStoreOp(color0, vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore);
+
+//- pipeline：dynamic 重载，内部把 scope.colorFormats()/depthFormat() 合成
+//  vk::PipelineRenderingCreateInfo 挂 pNext，setRenderPass(nullptr)
+vkc::GraphicsPipelineInfo pipeline_info;
+pipeline_info.setShaderProgramInfo(std::move(shader_program_info))
+    .setViewportStateInfo(viewport_state_info);
+static_graphics_pipeline.create(device, pipeline_info, scope);   // dynamic 重载
+
+//- 循环：begin 合成 VkRenderingInfo。每个 color 的 RenderingAttachmentInfo 由
+//  set.at(k).operator vk::RenderingAttachmentInfo()（给 loadOp/storeOp/resolveMode）
+//  + runtime 填 imageView/imageLayout/clearValue 合成
+vkc::DynamicRendering dynamic_rendering(scope);
+dynamic_rendering.begin(cmd, render_target);   // → vkCmdBeginRendering(VkRenderingInfo)
+// ... draw ...
+dynamic_rendering.end(cmd);                    // → vkCmdEndRendering
 ```
 
-对比当前模型：加深度要同时动 `create` 的 zip 实现、subpass、attachment state 三处并保证对齐。
+**两路差异总结**：前半（set + image + scope 的 color 选择与 load/store）**完全共享**；分岔只在
+①pipeline 传 `(static_rendering, subpassIndex)` vs `scope`；②循环用 `StaticRendering::begin`（framebuffer）
+vs `DynamicRendering::begin`（`VkRenderingInfo`）。同一份 `attachments` 与 scope 描述喂两条路。
 
-## 7. dynamic rendering 顺带解锁
-
-`AttachmentSetInfo` 与「render pass vs dynamic」正交：
-- **render pass 路径**：`RenderingInfo` 读全集 desc + subpass 引用。
-- **dynamic 路径**：subpass 选出的 color 子集 → `PipelineRenderingCreateInfo.colorAttachmentFormats`，
-  depth format 同理；load/store 移到 begin 时的 `VkRenderingAttachmentInfo`（与 image view 同居，
-  平行数组问题从根消失）。
-
-同一 `attachments` 喂两条路，`StaticGraphicsPipeline` 加 dynamic 重载不用新造 info：
+## 6. 加深度 / 加 resolve = 加数据，不改流程
 
 ```cpp
-std::error_code create(vk::Device, const GraphicsPipelineInfo &, const RenderTargetInfo &) noexcept;
+vkc::ColorAttachmentIndex        color0 = builder.addColorAttachment();
+vkc::DepthStencilAttachmentIndex depth  = builder.enableDepthStencilAttachment();
+vkc::ResolveAttachmentIndex      rslv   = builder.addResolveAttachment(color0);  // MSAA color → resolve
+vkc::AttachmentSetInfo attachments = builder.build();   // 布局 = [color0][depth][resolve0]
+
+render_target_info.setFormat(color0, vk::Format::eR8G8B8A8Unorm)
+                  .setFormat(depth,  vk::Format::eD32Sfloat);
+render_target_info.setSampleCount(vk::SampleCountFlagBits::e4);   // colors+depth 全设 e4；resolve 恒 e1
+
+// RP 路径：defaultScope 自动含 depth reference + resolve 链接（从 set.getResolveMode 派生）
+// dynamic 路径：scope.depthFormat() 非空 → PipelineRenderingCreateInfo.depthAttachmentFormat；
+//              resolve 走 begin 的 RenderingAttachmentInfo.resolveMode（挂在源 color 上）
 ```
 
-内部挂 `vk::PipelineRenderingCreateInfo` 到 pNext，`setRenderPass(nullptr)`。
+- **depth**：`setSampleCount` 因 depth 在 multisample 前缀内，自动同步——正是 §3 布局的收益。
+- **resolve**：mode 存在源 color 的 `m_resolve_mode`；RP 投影成 `pResolveAttachments`，dynamic 投影成
+  `RenderingAttachmentInfo.resolveMode`。blend count 不受 depth/resolve 影响（只数 color ref）。
 
-## 8. 待做项（按依赖顺序）
+## 7. 待做项（按依赖顺序）
 
-1. **`AttachmentDescription` 新类**：`DynamicStructureChain<vk::AttachmentDescription2>`，全量 getter，
-   `friend` 两个 ref 写入。旧 `AttachmentStateInfo` 退役。
-2. **`AttachmentSetInfo` + 两个 ref**：`add*`（只定形态）/ `build`（冻个数+角色）/ `at` getter；
-   `AttachmentImageRef`、`AttachmentStateRef`；subpass 构件 `defaultSubpass` / `colorReference`；
-   三条不变量（freeze 禁 add + reserve、set 活过 create、读前写好）。
-3. **`RenderingInfo` 改造**：改为 `explicit RenderingInfo(AttachmentSetInfo &)` 持引用，暴露 `stateRef`；
-   保留 subpass 拓扑 + dependency；缓存 per-subpass color ref 数供 pipeline 推导 blend count。
-4. **`RenderTargetInfo` 改造**：`explicit RenderTargetInfo(AttachmentSetInfo &)` 持引用，暴露 `imageRef`；
-   保留 extent / 绑 image / clear values（对接 [`vkc-rendertarget-rendering-design.md`](./vkc-rendertarget-rendering-design.md) §2）。
-5. **`StaticRendering::create` 去 `RenderTargetInfo` 形参**：全集 desc 从 rendering_info 引用的 set 生成；
-   samples 从 desc 取；depth 接入。zip 与硬编码 samples bug 消失。`begin(cmd, target)` 不变。
-6. **`StaticGraphicsPipeline::create` blend 自动推导**：从 `(rendering, subpassIndex)` 取 color ref 数，
-   补齐 / 校验 `ColorBlendStateInfo`（默认不透明、写全通道）。收掉手传 count。
-7. **重写 005 example** 验证（§5）。
-8. **（可选）`StaticGraphicsPipeline` dynamic 重载**（§7）+ `DynamicRendering::begin/end`。
+1. **`AttachmentSetInfo` 布局改 `[colors][ds?][resolve]`**：当前 `build()` 的 append 顺序需确认 ds 在
+   resolve 之前（使 `m_depth_stencil_index == color_count`、resolve 段在尾）。成员 `bool m_has_depth_stencil`
+   升级为 `std::optional<uint32_t> m_depth_stencil_index`。
+2. **`AttachmentSetInfo` 补接口**：`at(3 类 index)` 非 optional、`getDepthStencilIndex()` 吐 optional key、
+   `colorIndex/resolveIndex` discovery、四个 range view（`multisampleSlots/colorSlots/resolveSlots/allSlots`）、
+   私有 `mutableAt`。删掉空的 public 段。
+3. **删 `AttachmentFormatRef` / `AttachmentStateRef`**：写入改由 `RenderTargetInfo2::setFormat(index,fmt)`
+   与 `RenderScopeInfo::setLoadStoreOp/setLayouts(index,...)` 承担，经 friend `mutableAt`。
+4. **新建 `RenderScopeInfo`**：选择（color/depth/input/viewMask）+ 状态写回 + 投影
+   （`toSubpassDescription` / `colorFormats` / `depthFormat` / `colorReferenceCount`）。
+5. **`RenderingInfo` → `RenderPassInfo`**：持 set 引用、默认 `defaultScope()`、`addScope`/`addDependency`；
+   `create` 读 `allSlots` + scope 投影，去掉当前 `AttachmentStateInfo` 平行数组与 zip。
+6. **`RenderTargetInfo2` 落地**：`setFormat` 双重载、`setSampleCount` 写 multisample range、extent。
+7. **`StaticRendering::create` 去 `RenderTargetInfo` 形参**：全集 desc 从 set 生成、samples 从 desc 取、
+   depth 接入；`begin(cmd, target)` 不变（1 RP : N framebuffer）。
+8. **`StaticGraphicsPipeline`**：RP 重载 blend count 从 `scope.colorReferenceCount()` 推导；新增 dynamic
+   重载 `create(device, pipelineInfo, const RenderScopeInfo &)`，内部挂 `PipelineRenderingCreateInfo` +
+   `renderPass=nullptr`。
+9. **`DynamicRendering` begin/end**：合成 `VkRenderingInfo`，每 attachment 由
+   `set.at(k).operator vk::RenderingAttachmentInfo()` + runtime imageView/layout/clear 组装。
+10. **重写 005 example** 验证两条路（§5）。
 
-**推迟**：depth/stencil resolve；多 subpass 场景的手写 subpass 组装模板化（单 subpass 先行，多 subpass
-先用 `addSubpass(...)` + `colorReference(i, layout)` 手动）。
+**推迟**：depth/stencil resolve（mode 走 pNext）；多 scope 的 dependency 自动派生 + preserve 自动派生
+（先手写 `addDependency` / 手工 preserve）；dynamic 多 scope 的 barrier 自动插入（先单 scope）；
+`local_read` 下的 input attachment 与 location/input-index 重映射（并集成员已预留，实现推迟）。
+
+
+

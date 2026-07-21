@@ -721,7 +721,7 @@ public:
 private:
     AttachmentSetInfo() noexcept = default;
 public:
-    
+
 private:
     DescriptionList m_descriptions;
     uint32_t m_color_attachment_count = 0;
@@ -1027,63 +1027,5 @@ private:
     DependencyInfoList m_dependencies;
     ViewMaskList m_correlated_view_masks;
 };
-
-// class RenderTargetInfo2
-// {
-//     using Self = RenderTargetInfo2;
-// public:
-//     ~RenderTargetInfo2() noexcept = default;
-//     explicit RenderTargetInfo2(AttachmentSetInfo & set) noexcept : m_set(set) {}
-//     RenderTargetInfo2(const Self & other) noexcept = default;
-//     RenderTargetInfo2(Self && other) noexcept = default;
-//     Self & operator=(const Self & other) noexcept = delete;
-//     Self & operator=(Self && other) noexcept = delete;
-// public:
-//     AttachmentFormatRef formatRef(ColorAttachmentIndex key) noexcept { return { m_set.at(key) }; }
-//     Self & setSampleCount(vk::SampleCountFlagBits samples) noexcept
-//     {
-//         m_sample_count = samples;
-//         uint32_t rendering_count = m_set.getColorAttachmentCount();
-//         for (uint32_t i = 0; i < rendering_count; ++i) {
-//             m_set.at(static_cast<ColorAttachmentIndex>(i)).setSampleCount(samples);
-//         }
-//         return *this;
-//     }
-//     Self & setExtent(const vk::Extent2D & extent) noexcept { m_extent = extent; return *this; }
-//     const vk::Extent2D & getExtent() const noexcept { return m_extent; }
-//     const vk::SampleCountFlagBits & getSampleCount() const noexcept { return m_sample_count; }
-// private:
-//     AttachmentSetInfo & m_set;
-//     vk::Extent2D m_extent;
-//     vk::SampleCountFlagBits m_sample_count = vk::SampleCountFlagBits::e1;
-// };
-
-// class RenderingInfo2
-// {
-//     using Self = RenderingInfo2;
-//     using SubpassInfoList = std::vector<SubpassDescriptionInfo>;
-//     using DependencyInfoList = std::vector<SubpassDependencyInfo>;
-// public:
-//     ~RenderingInfo2() noexcept = default;
-//     explicit RenderingInfo2(AttachmentSetInfo & set) noexcept : m_set(set) {}
-//     RenderingInfo2(const Self & other) = default;
-//     RenderingInfo2(Self && other) noexcept = default;
-//     Self & operator=(const Self & other) = delete;
-//     Self & operator=(Self && other) noexcept = delete;
-// public:
-//     AttachmentStateRef stateRef(ColorAttachmentIndex key) noexcept { return { m_set.at(key) }; }
-//     Self & addFlags(vk::RenderPassCreateFlags flags) noexcept { m_flags |= flags; return *this; }
-//     Self & addSubpass(SubpassDescriptionInfo subpass) { m_subpasses.emplace_back(std::move(subpass)); return *this; }
-//     Self & addDependency(SubpassDependencyInfo dependency) { m_dependencies.emplace_back(std::move(dependency)); return *this; }
-//     const AttachmentSetInfo & getAttachmentSet() const noexcept { return m_set; }
-//     const vk::RenderPassCreateFlags & getFlags() const noexcept { return m_flags; }
-//     std::span<const SubpassDescriptionInfo> getSubpasses() const noexcept { return m_subpasses; }
-//     std::span<const SubpassDependencyInfo> getDependencies() const noexcept { return m_dependencies; }
-// private:
-//     AttachmentSetInfo & m_set;
-//     vk::RenderPassCreateFlags m_flags;
-//     SubpassInfoList m_subpasses;
-//     DependencyInfoList m_dependencies;
-// };
 
 } // namespace lcf::vkc
