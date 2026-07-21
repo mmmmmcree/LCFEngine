@@ -6,8 +6,6 @@
 #include <span>
 #include <optional>
 #include <utility>
-#include <atomic>
-#include <cassert>
 #include "vk_core/utils/DynamicStructureChain.h"
 #include "vk_core/pipeline/shader/info_structs.h"
 
@@ -701,33 +699,11 @@ class AttachmentSetInfoBuilder;
 class RenderTargetInfo2;
 class RenderingInfo2;
 
-enum class AttachmentSetId : uint32_t {};
+enum class ColorAttachmentIndex : uint32_t {};
 
-class ColorAttachmentIndex
-{
-    friend class AttachmentSetInfoBuilder;
-    friend class AttachmentSetInfo;
-    ColorAttachmentIndex(uint32_t index, AttachmentSetId set_id) noexcept : m_index(index), m_set_id(set_id) {}
-    uint32_t m_index;
-    AttachmentSetId m_set_id;
-};
+enum class ResolveAttachmentIndex : uint32_t {};
 
-class ResolveAttachmentIndex
-{
-    friend class AttachmentSetInfoBuilder;
-    friend class AttachmentSetInfo;
-    ResolveAttachmentIndex(uint32_t index, AttachmentSetId set_id) noexcept : m_index(index), m_set_id(set_id) {}
-    uint32_t m_index;
-    AttachmentSetId m_set_id;
-};
-
-class DepthStencilAttachmentIndex
-{
-    friend class AttachmentSetInfoBuilder;
-    friend class AttachmentSetInfo;
-    explicit DepthStencilAttachmentIndex(AttachmentSetId set_id) noexcept : m_set_id(set_id) {}
-    AttachmentSetId m_set_id;
-};
+enum class DepthStencilAttachmentIndex : uint32_t {};
 
 class AttachmentSetInfo
 {
@@ -745,26 +721,9 @@ public:
 private:
     AttachmentSetInfo() noexcept = default;
 public:
-    const AttachmentDescriptionInfo & at(ColorAttachmentIndex index) const noexcept
-    {
-        assert(index.m_set_id == m_set_id && "ColorAttachmentIndex from a different AttachmentSetInfo");
-        return m_descriptions[index.m_index];
-    }
-    const AttachmentDescriptionInfo & at(ResolveAttachmentIndex index) const noexcept
-    {
-        assert(index.m_set_id == m_set_id && "ResolveAttachmentIndex from a different AttachmentSetInfo");
-        return m_descriptions[m_color_attachment_count + index.m_index];
-    }
-    const AttachmentDescriptionInfo & at(DepthStencilAttachmentIndex index) const noexcept
-    {
-        assert(index.m_set_id == m_set_id && "DepthStencilAttachmentIndex from a different AttachmentSetInfo");
-        return m_descriptions.back();
-    }
-    uint32_t getColorAttachmentCount() const noexcept { return m_color_attachment_count; }
-    bool hasDepthStencil() const noexcept { return m_has_depth_stencil; }
+    
 private:
     DescriptionList m_descriptions;
-    AttachmentSetId m_set_id {};
     uint32_t m_color_attachment_count = 0;
     bool m_has_depth_stencil = false;
 };
@@ -775,49 +734,41 @@ class AttachmentSetInfoBuilder
     using DescriptionList = std::vector<AttachmentDescriptionInfo>;
     using ResolveSpecList = std::vector<std::pair<ColorAttachmentIndex, vk::ResolveModeFlagBits>>;   // {resolved_color, mode}
 public:
-    static AttachmentSetId next_attachment_set_id() noexcept
-    {
-        static std::atomic<uint32_t> counter { 1 };
-        return static_cast<AttachmentSetId>(counter.fetch_add(1, std::memory_order_relaxed));
-    }
-public:
     ColorAttachmentIndex addColorAttachment() noexcept
     {
         m_descriptions.emplace_back();
-        return { static_cast<uint32_t>(m_descriptions.size() - 1), m_batch_id };
+        return ColorAttachmentIndex{ static_cast<uint32_t>(m_descriptions.size() - 1) };
     }
-    ResolveAttachmentIndex addResolveAttachment(ColorAttachmentIndex resolved_key, vk::ResolveModeFlagBits mode = vk::ResolveModeFlagBits::eAverage) noexcept
+    ResolveAttachmentIndex addResolveAttachment(ColorAttachmentIndex resolved_index, vk::ResolveModeFlagBits mode = vk::ResolveModeFlagBits::eAverage) noexcept
     {
-        m_resolve_specs.emplace_back(resolved_key, mode);
-        return { static_cast<uint32_t>(m_resolve_specs.size() - 1), m_batch_id };
+        m_resolve_specs.emplace_back(resolved_index, mode);
+        return ResolveAttachmentIndex{ static_cast<uint32_t>(m_resolve_specs.size() - 1) };
     }
     DepthStencilAttachmentIndex enableDepthStencilAttachment() noexcept
     {
         m_has_depth_stencil = true;
-        return DepthStencilAttachmentIndex { m_batch_id };
+        return DepthStencilAttachmentIndex {};
     }
     AttachmentSetInfo build() noexcept
     {
         AttachmentSetInfo info;
-        info.m_set_id = m_batch_id;
         info.m_color_attachment_count = static_cast<uint32_t>(m_descriptions.size());
-        for (auto [resolved_key, mode] : m_resolve_specs) {
-            m_descriptions[resolved_key.m_index].setResolveMode(mode);
+        m_descriptions.reserve(m_descriptions.size() + m_resolve_specs.size() + m_has_depth_stencil);
+        if (m_has_depth_stencil) { m_descriptions.emplace_back(); }
+        for (auto [resolved_index, mode] : m_resolve_specs) {
+            m_descriptions[std::to_underlying(resolved_index)].setResolveMode(mode);
             m_descriptions.emplace_back().setSampleCount(vk::SampleCountFlagBits::e1);
         }
-        if (m_has_depth_stencil) { m_descriptions.emplace_back(); }
         info.m_descriptions = std::move(m_descriptions);
         m_descriptions.clear();
         m_resolve_specs.clear();
         m_has_depth_stencil = false;
-        m_batch_id = next_attachment_set_id();
         return info;
     }
 private:
     DescriptionList m_descriptions;
     ResolveSpecList m_resolve_specs;
     bool m_has_depth_stencil = false;
-    AttachmentSetId m_batch_id = next_attachment_set_id();
 };
 
 class AttachmentReferenceInfo
