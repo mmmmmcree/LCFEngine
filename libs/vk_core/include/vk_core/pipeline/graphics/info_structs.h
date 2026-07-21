@@ -5,6 +5,9 @@
 #include <vector>
 #include <span>
 #include <optional>
+#include <utility>
+#include <atomic>
+#include <cassert>
 #include "vk_core/utils/DynamicStructureChain.h"
 #include "vk_core/pipeline/shader/info_structs.h"
 
@@ -593,6 +596,230 @@ private:
     vk::ImageLayout m_final_layout;
 };
 
+class AttachmentDescriptionInfo
+{
+    using Self = AttachmentDescriptionInfo;
+    using Root = vk::AttachmentDescription2;
+public:
+    ~AttachmentDescriptionInfo() noexcept = default;
+    AttachmentDescriptionInfo() noexcept = default;
+    AttachmentDescriptionInfo(const Self & other) noexcept = default;
+    AttachmentDescriptionInfo(Self && other) noexcept = default;
+    Self & operator=(const Self & other) noexcept = default;
+    Self & operator=(Self && other) noexcept = default;
+    operator const Root &() const noexcept { return m_description.root(); }
+    operator vk::RenderingAttachmentInfo() const noexcept
+    {
+        const auto & r = m_description.root();
+        return vk::RenderingAttachmentInfo {}
+            .setLoadOp(r.loadOp)
+            .setStoreOp(r.storeOp)
+            .setResolveMode(m_resolve_mode);
+    }
+public:
+    template <utils::struct_extends_c<Root> T>
+    T & requestExtension() noexcept { return m_description.template request<T>(); }
+    Self & addFlags(vk::AttachmentDescriptionFlags flags) noexcept { m_description.root().flags |= flags; return *this; }
+    Self & setLoadStoreOp(vk::AttachmentLoadOp load_op, vk::AttachmentStoreOp store_op) noexcept
+    {
+        m_description.root().setLoadOp(load_op).setStoreOp(store_op);
+        return *this;
+    }
+    Self & setStencilLoadStoreOp(vk::AttachmentLoadOp load_op, vk::AttachmentStoreOp store_op) noexcept
+    {
+        m_description.root().setStencilLoadOp(load_op).setStencilStoreOp(store_op);
+        return *this;
+    }
+    Self & setFormat(vk::Format format) noexcept { m_description.root().setFormat(format); return *this; }
+    Self & setSampleCount(vk::SampleCountFlagBits samples) noexcept { m_description.root().setSamples(samples); return *this; }
+    Self & setInitialFinalLayout(vk::ImageLayout initial_layout, vk::ImageLayout final_layout) noexcept
+    {
+        m_description.root().setInitialLayout(initial_layout).setFinalLayout(final_layout);
+        return *this;
+    }
+    Self & setResolveMode(vk::ResolveModeFlagBits resolve_mode) noexcept { m_resolve_mode = resolve_mode; return *this; }
+    const vk::Format & getFormat() const noexcept { return m_description.root().format; }
+    const vk::SampleCountFlagBits & getSampleCount() const noexcept { return m_description.root().samples; }
+    const vk::AttachmentLoadOp & getLoadOp() const noexcept { return m_description.root().loadOp; }
+    const vk::AttachmentStoreOp & getStoreOp() const noexcept { return m_description.root().storeOp; }
+    const vk::ImageLayout & getInitialLayout() const noexcept { return m_description.root().initialLayout; }
+    const vk::ImageLayout & getFinalLayout() const noexcept { return m_description.root().finalLayout; }
+    const vk::ResolveModeFlagBits & getResolveMode() const noexcept { return m_resolve_mode; }
+private:
+    utils::DynamicStructureChain<Root> m_description;
+    vk::ResolveModeFlagBits m_resolve_mode = vk::ResolveModeFlagBits::eNone;
+};
+
+class AttachmentFormatRef
+{
+    using Self = AttachmentFormatRef;
+public:
+    AttachmentFormatRef(AttachmentDescriptionInfo & description_info) noexcept : m_description_info(description_info) {}
+    AttachmentFormatRef(const Self & other) noexcept = delete;
+    AttachmentFormatRef(Self && other) noexcept = delete;
+    Self & operator=(const Self & other) noexcept = delete;
+    Self & operator=(Self && other) noexcept = delete;
+public:
+    Self & setFormat(vk::Format format) noexcept { m_description_info.setFormat(format); return *this; }
+    const vk::Format & getFormat() const noexcept { return m_description_info.getFormat(); }
+    const vk::SampleCountFlagBits & getSampleCount() const noexcept { return m_description_info.getSampleCount(); }
+private:
+    AttachmentDescriptionInfo & m_description_info;
+};
+
+class AttachmentStateRef
+{
+    using Self = AttachmentStateRef;
+public:
+    AttachmentStateRef(AttachmentDescriptionInfo & description_info) noexcept : m_description_info(description_info) {}
+    AttachmentStateRef(const Self & other) noexcept = delete;
+    AttachmentStateRef(Self && other) noexcept = delete;
+    Self & operator=(const Self & other) noexcept = delete;
+    Self & operator=(Self && other) noexcept = delete;
+public:
+    Self & addFlags(vk::AttachmentDescriptionFlags flags) noexcept { m_description_info.addFlags(flags); return *this; }
+    Self & setLoadStoreOp(vk::AttachmentLoadOp load_op, vk::AttachmentStoreOp store_op) noexcept
+    {
+        m_description_info.setLoadStoreOp(load_op, store_op);
+        return *this;
+    }
+    Self & setStencilLoadStoreOp(vk::AttachmentLoadOp load_op, vk::AttachmentStoreOp store_op) noexcept
+    {
+        m_description_info.setStencilLoadStoreOp(load_op, store_op);
+        return *this;
+    }
+    Self & setInitialFinalLayout(vk::ImageLayout initial_layout, vk::ImageLayout final_layout) noexcept
+    {
+        m_description_info.setInitialFinalLayout(initial_layout, final_layout);
+        return *this;
+    }
+private:
+    AttachmentDescriptionInfo & m_description_info;
+};
+
+class AttachmentSetInfoBuilder;
+class RenderTargetInfo2;
+class RenderingInfo2;
+
+enum class AttachmentSetId : uint32_t {};
+
+class ColorAttachmentIndex
+{
+    friend class AttachmentSetInfoBuilder;
+    friend class AttachmentSetInfo;
+    ColorAttachmentIndex(uint32_t index, AttachmentSetId set_id) noexcept : m_index(index), m_set_id(set_id) {}
+    uint32_t m_index;
+    AttachmentSetId m_set_id;
+};
+
+class ResolveAttachmentIndex
+{
+    friend class AttachmentSetInfoBuilder;
+    friend class AttachmentSetInfo;
+    ResolveAttachmentIndex(uint32_t index, AttachmentSetId set_id) noexcept : m_index(index), m_set_id(set_id) {}
+    uint32_t m_index;
+    AttachmentSetId m_set_id;
+};
+
+class DepthStencilAttachmentIndex
+{
+    friend class AttachmentSetInfoBuilder;
+    friend class AttachmentSetInfo;
+    explicit DepthStencilAttachmentIndex(AttachmentSetId set_id) noexcept : m_set_id(set_id) {}
+    AttachmentSetId m_set_id;
+};
+
+class AttachmentSetInfo
+{
+    friend class AttachmentSetInfoBuilder;
+    friend class RenderTargetInfo2;
+    friend class RenderingInfo2;
+    using Self = AttachmentSetInfo;
+    using DescriptionList = std::vector<AttachmentDescriptionInfo>;
+public:
+    ~AttachmentSetInfo() noexcept = default;
+    AttachmentSetInfo(const Self &) = delete;
+    AttachmentSetInfo(Self &&) noexcept = default;
+    Self & operator=(const Self &) = delete;
+    Self & operator=(Self &&) noexcept = default;
+private:
+    AttachmentSetInfo() noexcept = default;
+public:
+    const AttachmentDescriptionInfo & at(ColorAttachmentIndex index) const noexcept
+    {
+        assert(index.m_set_id == m_set_id && "ColorAttachmentIndex from a different AttachmentSetInfo");
+        return m_descriptions[index.m_index];
+    }
+    const AttachmentDescriptionInfo & at(ResolveAttachmentIndex index) const noexcept
+    {
+        assert(index.m_set_id == m_set_id && "ResolveAttachmentIndex from a different AttachmentSetInfo");
+        return m_descriptions[m_color_attachment_count + index.m_index];
+    }
+    const AttachmentDescriptionInfo & at(DepthStencilAttachmentIndex index) const noexcept
+    {
+        assert(index.m_set_id == m_set_id && "DepthStencilAttachmentIndex from a different AttachmentSetInfo");
+        return m_descriptions.back();
+    }
+    uint32_t getColorAttachmentCount() const noexcept { return m_color_attachment_count; }
+    bool hasDepthStencil() const noexcept { return m_has_depth_stencil; }
+private:
+    DescriptionList m_descriptions;
+    AttachmentSetId m_set_id {};
+    uint32_t m_color_attachment_count = 0;
+    bool m_has_depth_stencil = false;
+};
+
+class AttachmentSetInfoBuilder
+{
+    using Self = AttachmentSetInfoBuilder;
+    using DescriptionList = std::vector<AttachmentDescriptionInfo>;
+    using ResolveSpecList = std::vector<std::pair<ColorAttachmentIndex, vk::ResolveModeFlagBits>>;   // {resolved_color, mode}
+public:
+    static AttachmentSetId next_attachment_set_id() noexcept
+    {
+        static std::atomic<uint32_t> counter { 1 };
+        return static_cast<AttachmentSetId>(counter.fetch_add(1, std::memory_order_relaxed));
+    }
+public:
+    ColorAttachmentIndex addColorAttachment() noexcept
+    {
+        m_descriptions.emplace_back();
+        return { static_cast<uint32_t>(m_descriptions.size() - 1), m_batch_id };
+    }
+    ResolveAttachmentIndex addResolveAttachment(ColorAttachmentIndex resolved_key, vk::ResolveModeFlagBits mode = vk::ResolveModeFlagBits::eAverage) noexcept
+    {
+        m_resolve_specs.emplace_back(resolved_key, mode);
+        return { static_cast<uint32_t>(m_resolve_specs.size() - 1), m_batch_id };
+    }
+    DepthStencilAttachmentIndex enableDepthStencilAttachment() noexcept
+    {
+        m_has_depth_stencil = true;
+        return DepthStencilAttachmentIndex { m_batch_id };
+    }
+    AttachmentSetInfo build() noexcept
+    {
+        AttachmentSetInfo info;
+        info.m_set_id = m_batch_id;
+        info.m_color_attachment_count = static_cast<uint32_t>(m_descriptions.size());
+        for (auto [resolved_key, mode] : m_resolve_specs) {
+            m_descriptions[resolved_key.m_index].setResolveMode(mode);
+            m_descriptions.emplace_back().setSampleCount(vk::SampleCountFlagBits::e1);
+        }
+        if (m_has_depth_stencil) { m_descriptions.emplace_back(); }
+        info.m_descriptions = std::move(m_descriptions);
+        m_descriptions.clear();
+        m_resolve_specs.clear();
+        m_has_depth_stencil = false;
+        m_batch_id = next_attachment_set_id();
+        return info;
+    }
+private:
+    DescriptionList m_descriptions;
+    ResolveSpecList m_resolve_specs;
+    bool m_has_depth_stencil = false;
+    AttachmentSetId m_batch_id = next_attachment_set_id();
+};
+
 class AttachmentReferenceInfo
 {
     using Self = AttachmentReferenceInfo;
@@ -695,7 +922,7 @@ class SubpassDescriptionInfo
     using Root = vk::SubpassDescription2;
     using ReferenceInfoList = std::vector<AttachmentReferenceInfo>;
     using PreserveList = std::vector<uint32_t>;
-    using ReferenceList2 = std::vector<vk::AttachmentReference2>;
+    using ReferenceList = std::vector<vk::AttachmentReference2>;
 public:
     ~SubpassDescriptionInfo() noexcept = default;
     SubpassDescriptionInfo(
@@ -762,9 +989,9 @@ private:
     ReferenceInfoList m_resolve_references;
     std::optional<AttachmentReferenceInfo> m_depth_stencil_reference;
     PreserveList m_preserve_attachments;
-    ReferenceList2 m_flat_input_refs;
-    ReferenceList2 m_flat_color_refs;
-    ReferenceList2 m_flat_resolve_refs;
+    ReferenceList m_flat_input_refs;
+    ReferenceList m_flat_color_refs;
+    ReferenceList m_flat_resolve_refs;
     vk::AttachmentReference2 m_flat_depth_stencil_ref;
 };
 
@@ -849,5 +1076,63 @@ private:
     DependencyInfoList m_dependencies;
     ViewMaskList m_correlated_view_masks;
 };
+
+// class RenderTargetInfo2
+// {
+//     using Self = RenderTargetInfo2;
+// public:
+//     ~RenderTargetInfo2() noexcept = default;
+//     explicit RenderTargetInfo2(AttachmentSetInfo & set) noexcept : m_set(set) {}
+//     RenderTargetInfo2(const Self & other) noexcept = default;
+//     RenderTargetInfo2(Self && other) noexcept = default;
+//     Self & operator=(const Self & other) noexcept = delete;
+//     Self & operator=(Self && other) noexcept = delete;
+// public:
+//     AttachmentFormatRef formatRef(ColorAttachmentIndex key) noexcept { return { m_set.at(key) }; }
+//     Self & setSampleCount(vk::SampleCountFlagBits samples) noexcept
+//     {
+//         m_sample_count = samples;
+//         uint32_t rendering_count = m_set.getColorAttachmentCount();
+//         for (uint32_t i = 0; i < rendering_count; ++i) {
+//             m_set.at(static_cast<ColorAttachmentIndex>(i)).setSampleCount(samples);
+//         }
+//         return *this;
+//     }
+//     Self & setExtent(const vk::Extent2D & extent) noexcept { m_extent = extent; return *this; }
+//     const vk::Extent2D & getExtent() const noexcept { return m_extent; }
+//     const vk::SampleCountFlagBits & getSampleCount() const noexcept { return m_sample_count; }
+// private:
+//     AttachmentSetInfo & m_set;
+//     vk::Extent2D m_extent;
+//     vk::SampleCountFlagBits m_sample_count = vk::SampleCountFlagBits::e1;
+// };
+
+// class RenderingInfo2
+// {
+//     using Self = RenderingInfo2;
+//     using SubpassInfoList = std::vector<SubpassDescriptionInfo>;
+//     using DependencyInfoList = std::vector<SubpassDependencyInfo>;
+// public:
+//     ~RenderingInfo2() noexcept = default;
+//     explicit RenderingInfo2(AttachmentSetInfo & set) noexcept : m_set(set) {}
+//     RenderingInfo2(const Self & other) = default;
+//     RenderingInfo2(Self && other) noexcept = default;
+//     Self & operator=(const Self & other) = delete;
+//     Self & operator=(Self && other) noexcept = delete;
+// public:
+//     AttachmentStateRef stateRef(ColorAttachmentIndex key) noexcept { return { m_set.at(key) }; }
+//     Self & addFlags(vk::RenderPassCreateFlags flags) noexcept { m_flags |= flags; return *this; }
+//     Self & addSubpass(SubpassDescriptionInfo subpass) { m_subpasses.emplace_back(std::move(subpass)); return *this; }
+//     Self & addDependency(SubpassDependencyInfo dependency) { m_dependencies.emplace_back(std::move(dependency)); return *this; }
+//     const AttachmentSetInfo & getAttachmentSet() const noexcept { return m_set; }
+//     const vk::RenderPassCreateFlags & getFlags() const noexcept { return m_flags; }
+//     std::span<const SubpassDescriptionInfo> getSubpasses() const noexcept { return m_subpasses; }
+//     std::span<const SubpassDependencyInfo> getDependencies() const noexcept { return m_dependencies; }
+// private:
+//     AttachmentSetInfo & m_set;
+//     vk::RenderPassCreateFlags m_flags;
+//     SubpassInfoList m_subpasses;
+//     DependencyInfoList m_dependencies;
+// };
 
 } // namespace lcf::vkc
