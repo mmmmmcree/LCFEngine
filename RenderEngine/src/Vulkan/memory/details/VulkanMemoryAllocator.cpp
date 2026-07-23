@@ -1,6 +1,6 @@
 #include "Vulkan/memory/details/VulkanMemoryAllocator.h"
 #include "Vulkan/memory/vulkan_memory_resources.h"
-#include <vma/vk_mem_alloc.h>
+#include <vk_mem_alloc.h>
 #include "log.h"
 
 using namespace lcf::render;

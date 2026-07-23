@@ -3,7 +3,7 @@
 #include "vk_core/memory/enums.h"
 #include "vk_core/bootstrap/api_dispatch.h"
 #define VMA_IMPLEMENTATION
-#include <vma/vk_mem_alloc.h>
+#include <vk_mem_alloc.h>
 #include <utility>
 
 namespace {

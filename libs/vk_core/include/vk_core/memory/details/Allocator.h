@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
-#include <vma/vk_mem_alloc.h>
+#include <vk_mem_alloc.h>
 #include <system_error>
 #include <expected>
 #include "vk_core/memory/details/Memory.h"
