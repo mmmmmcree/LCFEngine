@@ -23,14 +23,6 @@ void register_surface(InstanceExtensionManifest & manifest) noexcept
     #endif
     };
     manifest.addRequiredExtensions(k_extensions);
-    //todo optional
-    static constexpr std::array k_surface_maintenance1_extensions
-    {
-        vk::KHRGetSurfaceCapabilities2ExtensionName,
-        vk::KHRSurfaceMaintenance1ExtensionName,
-    };
-    // if constexpr xxx
-    manifest.addRequiredExtensions(k_surface_maintenance1_extensions);
 }
 
 } // namespace lcf::vkc::entry

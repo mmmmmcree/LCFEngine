@@ -65,7 +65,7 @@ int main()
     vkc::entry::register_debug_utils(inst_ext_manifest, vkc::dbg::SeverityFlags::eError | vkc::dbg::SeverityFlags::eWarning | vkc::dbg::SeverityFlags::eVerbose, debug_callbacks);
     vkc::entry::register_surface(inst_ext_manifest);
     // vkc::entry::register_compat_swapchain(device_ext_manifest);
-    vkc::entry::register_swapchain(device_ext_manifest);
+    vkc::entry::register_swapchain(inst_ext_manifest, device_ext_manifest);
     //- in this example, we use shader constants to draw a triangle, so we should enable shaderDrawParameters feature
     device_ext_manifest.addRequiredFeature(vkc::utils::t_feature_bit<&vk::PhysicalDeviceVulkan13Features::synchronization2>)
         .addRequiredFeature(vkc::utils::t_feature_bit<&vk::PhysicalDeviceVulkan11Features::shaderDrawParameters>);

@@ -1,6 +1,7 @@
 #include "vk_core/WSI/Swapchain.h"
 #include "vk_core/WSI/entry.h"
 #include "vk_core/sync/entry.h"
+#include "vk_core/manifest/InstanceExtensionManifest.h"
 #include "vk_core/manifest/DeviceExtensionManifest.h"
 #include "vk_core/error.h"
 #include <limits>
@@ -10,9 +11,14 @@ namespace stdr = std::ranges;
 
 namespace lcf::vkc::entry {
 
-void register_swapchain(DeviceExtensionManifest & manifest) noexcept
+void register_swapchain(InstanceExtensionManifest & instance_ext_manifest, DeviceExtensionManifest & device_ext_manifest) noexcept
 {
-    static constexpr std::array k_extensions
+    static constexpr std::array k_instance_extensions
+    {
+        vk::KHRGetSurfaceCapabilities2ExtensionName,
+        vk::KHRSurfaceMaintenance1ExtensionName,
+    };
+    static constexpr std::array k_device_extensions
     {
         vk::KHRSwapchainExtensionName,
         vk::KHRSwapchainMaintenance1ExtensionName
@@ -22,9 +28,10 @@ void register_swapchain(DeviceExtensionManifest & manifest) noexcept
         LCF_VKC_UTILS_FEATURE_BIT(&vk::PhysicalDeviceSwapchainMaintenance1FeaturesKHR::swapchainMaintenance1),
         LCF_VKC_UTILS_FEATURE_BIT(&vk::PhysicalDeviceVulkan13Features::synchronization2),
     };
-    manifest.addRequiredExtensions(k_extensions)
+    instance_ext_manifest.addRequiredExtensions(k_instance_extensions);
+    device_ext_manifest.addRequiredExtensions(k_device_extensions)
         .addRequiredFeatures(k_features);
-    register_timeline_semaphore(manifest);
+    register_timeline_semaphore(device_ext_manifest);
 }
 
 } // namespace lcf::vkc::entry
