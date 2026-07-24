@@ -12,7 +12,6 @@
 #   git_tag        optional override of version-as-tag
 #   fetch_target   optional, name of the upstream library target to alias
 #                  to ${name}::${name} (defaults to ${name})
-#   features       silently ignored (vcpkg-only concept)
 
 include(FetchContent)
 

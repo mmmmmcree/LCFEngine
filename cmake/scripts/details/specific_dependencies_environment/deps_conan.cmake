@@ -12,9 +12,6 @@
 #
 # We still ensure a `default` profile exists, because Conan 2.x looks one up
 # as the build profile by default.
-#
-# The "features" field on dependencies.json entries is silently ignored
-# (vcpkg-only concept; Conan options are per-recipe and not equivalent).
 
 # --- Backend interface: detect ----------------------------------------------
 #
