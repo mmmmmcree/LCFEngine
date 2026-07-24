@@ -1,9 +1,9 @@
 # deps_vcpkg.cmake — install dependencies via vcpkg manifest mode.
 #
-# Reads each dep's "name" plus optional "version" and "features". When
-# "version" is set, we pin via vcpkg's overrides (which requires a
-# `builtin-baseline`, synthesized from the active vcpkg's HEAD/embeddedsha).
-# When "features" is set, those port-features are forwarded into the
+# Reads each dep's "name" plus optional "version", "features", and
+# "default-features". When "version" is set, we pin via vcpkg's overrides
+# (which requires a `builtin-baseline`, synthesized from the active vcpkg's
+# HEAD/embeddedsha). "features" and "default-features" are forwarded into the
 # synthesized vcpkg.json's dependency entry.
 #
 # Structure: all platform/compiler/env-specific routing lives in the private
@@ -171,33 +171,50 @@ function(_vcpkg_read_baseline VCPKG_ROOT_DIR OUT_VAR)
     endif()
 endfunction()
 
-# Render a single dependency JSON entry. Strings if no features; otherwise
-# an object form { "name": "...", "features": [ "...", ... ] }.
+# Render a single dependency JSON entry. Use vcpkg's short string form only
+# when neither features nor default-features was specified; otherwise preserve
+# both fields in the object form.
 function(_vcpkg_render_dep_entry DEPS_JSON INDEX OUT_VAR)
     string(JSON _name GET "${DEPS_JSON}" dependencies ${INDEX} name)
+
+    set(_fields "\"name\": \"${_name}\"")
+    set(_needs_object FALSE)
+
+    string(JSON _default_features ERROR_VARIABLE _e_default_features
+           GET "${DEPS_JSON}" dependencies ${INDEX} default-features)
+    if(NOT _e_default_features)
+        set(_needs_object TRUE)
+        if(_default_features)
+            list(APPEND _fields "\"default-features\": true")
+        else()
+            list(APPEND _fields "\"default-features\": false")
+        endif()
+    endif()
+
     string(JSON _feats_arr ERROR_VARIABLE _e_feat
            GET "${DEPS_JSON}" dependencies ${INDEX} features)
-    if(_e_feat)
+    if(NOT _e_feat)
+        string(JSON _f_count LENGTH "${_feats_arr}")
+        if(_f_count GREATER 0)
+            set(_needs_object TRUE)
+            math(EXPR _f_last "${_f_count} - 1")
+            set(_feats "")
+            foreach(_fi RANGE 0 ${_f_last})
+                string(JSON _f GET "${_feats_arr}" ${_fi})
+                list(APPEND _feats "\"${_f}\"")
+            endforeach()
+            list(JOIN _feats ", " _feats_csv)
+            list(APPEND _fields "\"features\": [ ${_feats_csv} ]")
+        endif()
+    endif()
+
+    if(NOT _needs_object)
         set(${OUT_VAR} "    \"${_name}\"" PARENT_SCOPE)
         return()
     endif()
 
-    string(JSON _f_count LENGTH "${_feats_arr}")
-    if(_f_count EQUAL 0)
-        set(${OUT_VAR} "    \"${_name}\"" PARENT_SCOPE)
-        return()
-    endif()
-
-    math(EXPR _f_last "${_f_count} - 1")
-    set(_feats "")
-    foreach(_fi RANGE 0 ${_f_last})
-        string(JSON _f GET "${_feats_arr}" ${_fi})
-        list(APPEND _feats "\"${_f}\"")
-    endforeach()
-    list(JOIN _feats ", " _feats_csv)
-    set(${OUT_VAR}
-        "    { \"name\": \"${_name}\", \"features\": [ ${_feats_csv} ] }"
-        PARENT_SCOPE)
+    list(JOIN _fields ", " _fields_csv)
+    set(${OUT_VAR} "    { ${_fields_csv} }" PARENT_SCOPE)
 endfunction()
 
 # --- Main: from here on, only normalized variables are used. -----------------
