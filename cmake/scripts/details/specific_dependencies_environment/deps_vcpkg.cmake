@@ -82,6 +82,50 @@ function(_vcpkg_locate_root OUT_VAR)
     set(${OUT_VAR} "" PARENT_SCOPE)
 endfunction()
 
+# Resolve the macOS target triplet from an explicit deployment architecture
+# first, then from CMake's effective host architecture. A single vcpkg install
+# tree cannot represent a universal arm64+x86_64 dependency build; callers
+# requesting that must use separate build directories/triplets.
+function(_vcpkg_default_osx_triplet OUT_VAR)
+    set(_architectures "${CMAKE_OSX_ARCHITECTURES}")
+    if(NOT _architectures AND CMAKE_APPLE_SILICON_PROCESSOR)
+        set(_architectures "${CMAKE_APPLE_SILICON_PROCESSOR}")
+    endif()
+    if(NOT _architectures AND CMAKE_SYSTEM_PROCESSOR)
+        set(_architectures "${CMAKE_SYSTEM_PROCESSOR}")
+    endif()
+    if(NOT _architectures)
+        set(_architectures "${CMAKE_HOST_SYSTEM_PROCESSOR}")
+    endif()
+    if(NOT _architectures)
+        message(FATAL_ERROR
+            "vcpkg: unable to determine the macOS target architecture. "
+            "Set CMAKE_OSX_ARCHITECTURES or VCPKG_TARGET_TRIPLET explicitly.")
+    endif()
+
+    list(REMOVE_DUPLICATES _architectures)
+    list(LENGTH _architectures _architecture_count)
+    if(_architecture_count GREATER 1)
+        message(FATAL_ERROR
+            "vcpkg: universal macOS architectures '${_architectures}' require "
+            "separate arm64-osx and x64-osx dependency builds. Configure a "
+            "single CMAKE_OSX_ARCHITECTURES value or set "
+            "VCPKG_TARGET_TRIPLET explicitly.")
+    endif()
+
+    list(GET _architectures 0 _architecture)
+    string(TOLOWER "${_architecture}" _architecture)
+    if(_architecture MATCHES "^(arm64|aarch64)$")
+        set(${OUT_VAR} "arm64-osx" PARENT_SCOPE)
+    elseif(_architecture MATCHES "^(x86_64|amd64)$")
+        set(${OUT_VAR} "x64-osx" PARENT_SCOPE)
+    else()
+        message(FATAL_ERROR
+            "vcpkg: unsupported macOS architecture '${_architecture}'. "
+            "Set VCPKG_TARGET_TRIPLET explicitly.")
+    endif()
+endfunction()
+
 # Resolve the default triplet. Must work BOTH post-project() (MINGW and
 # CMAKE_CXX_COMPILER_ID are populated) AND pre-project() — _vcpkg_setup() calls
 # this before project() to seed VCPKG_TARGET_TRIPLET in the cache before the
@@ -108,8 +152,9 @@ function(_vcpkg_default_triplet OUT_VAR)
         set(${OUT_VAR} "x64-mingw-dynamic" PARENT_SCOPE)
     elseif(WIN32 OR CMAKE_HOST_WIN32)
         set(${OUT_VAR} "x64-windows"       PARENT_SCOPE)
-    elseif(APPLE)
-        set(${OUT_VAR} "x64-osx"           PARENT_SCOPE)
+    elseif(APPLE OR CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
+        _vcpkg_default_osx_triplet(_osx_triplet)
+        set(${OUT_VAR} "${_osx_triplet}" PARENT_SCOPE)
     else()
         set(${OUT_VAR} "x64-linux"         PARENT_SCOPE)
     endif()
