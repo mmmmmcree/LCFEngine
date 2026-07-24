@@ -115,9 +115,9 @@ WindowHandle Window::Impl::handle() const noexcept
             static_cast<void *>(glfwGetWaylandDisplay()),
             static_cast<void *>(glfwGetWaylandWindow(m_window)));
     }
-    return xcb::WindowHandle(
+    return xlib::WindowHandle(
         static_cast<void *>(glfwGetX11Display()),
-        static_cast<uint32_t>(glfwGetX11Window(m_window)));
+        static_cast<uint64_t>(glfwGetX11Window(m_window)));
 #endif
 }
 

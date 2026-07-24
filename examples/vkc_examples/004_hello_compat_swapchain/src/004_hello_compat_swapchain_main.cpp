@@ -38,6 +38,8 @@ vkc::wsi::WindowHandle to_wsi_window_handle(const win::WindowHandle & window_han
             return vkc::wsi::win32::WindowHandle(handle.m_hinstance, handle.m_hwnd);
         } else if constexpr (std::is_same_v<T, win::xcb::WindowHandle>) {
             return vkc::wsi::xcb::WindowHandle(handle.m_connection, handle.m_window);
+        } else if constexpr (std::is_same_v<T, win::xlib::WindowHandle>) {
+            return vkc::wsi::xlib::WindowHandle(handle.m_display, handle.m_window);
         } else if constexpr (std::is_same_v<T, win::wayland::WindowHandle>) {
             return vkc::wsi::wayland::WindowHandle(handle.m_display, handle.m_surface);
         } else {
@@ -97,7 +99,7 @@ int main()
 
     vkc::bs::PhysicalDeviceSelectInfo physical_device_select_info;
     physical_device_select_info.setRequiredDeviceExtensionManifest(device_ext_manifest)
-        .setPreferredType(vk::PhysicalDeviceType::eIntegratedGpu);
+        .setPreferredType(vk::PhysicalDeviceType::eDiscreteGpu);
     vkc::DeviceContextCreateInfo device_context_info;
     device_context_info.setRequiredDeviceExtensionManifest(device_ext_manifest)
         .setPhysicalDeviceSelectInfo(physical_device_select_info);
@@ -134,7 +136,7 @@ int main()
     lcf_log_info("Swapchain created successfully.");
 
     auto white_image_opt = create_single_color_image(device_context, gfx_logical_queue, {1.0f, 1.0f, 1.0f, 1.0f});
-    auto red_image_opt = create_single_color_image(device_context, gfx_logical_queue, {1.0f, 1.0f, 0.0f, 1.0f});
+    auto red_image_opt = create_single_color_image(device_context, gfx_logical_queue, {1.0f, 0.0f, 0.0f, 1.0f});
     if (not white_image_opt or not red_image_opt) {
         lcf_log_error("Failed to create image source image.");
         return 1;

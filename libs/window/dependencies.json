@@ -1,6 +1,7 @@
 {
   "dependencies": [
-    { "name": "sdl3", "condition": "LCF_WINDOW_BACKEND STREQUAL SDL3" },
+    { "name": "sdl3", "default-features": false, "features": ["x11", "wayland"], "condition": "LCF_WINDOW_BACKEND STREQUAL SDL3 AND CMAKE_SYSTEM_NAME STREQUAL Linux" },
+    { "name": "sdl3", "condition": "LCF_WINDOW_BACKEND STREQUAL SDL3 AND NOT CMAKE_SYSTEM_NAME STREQUAL Linux" },
     { "name": "glfw3", "condition": "LCF_WINDOW_BACKEND STREQUAL GLFW" }
   ]
 }

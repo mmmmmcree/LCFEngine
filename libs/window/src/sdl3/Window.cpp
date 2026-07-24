@@ -107,9 +107,9 @@ WindowHandle Window::Impl::handle() const noexcept
             SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_DISPLAY_POINTER, nullptr),
             SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER, nullptr));
     }
-    return xcb::WindowHandle(
+    return xlib::WindowHandle(
         SDL_GetPointerProperty(props, SDL_PROP_WINDOW_X11_DISPLAY_POINTER, nullptr),
-        static_cast<uint32_t>(SDL_GetNumberProperty(props, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0)));
+        static_cast<uint64_t>(SDL_GetNumberProperty(props, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0)));
 #endif
 }
 
@@ -125,6 +125,10 @@ std::span<const WindowEvent> Window::Impl::pollEvents() noexcept
     m_events.clear();
     for (SDL_Event event; SDL_PollEvent(&event);) {
         switch (event.type) {
+            case SDL_EVENT_WINDOW_CLOSE_REQUESTED: {
+                if (event.window.windowID != m_window_id) { break; }
+                m_events.emplace_back(CloseEvent {});
+            } break;
             case SDL_EVENT_QUIT: {
                 m_events.emplace_back(CloseEvent {});
             } break;

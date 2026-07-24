@@ -35,6 +35,8 @@ vkc::wsi::WindowHandle to_wsi_window_handle(const win::WindowHandle & window_han
             return vkc::wsi::win32::WindowHandle(handle.m_hinstance, handle.m_hwnd);
         } else if constexpr (std::is_same_v<T, win::xcb::WindowHandle>) {
             return vkc::wsi::xcb::WindowHandle(handle.m_connection, handle.m_window);
+        } else if constexpr (std::is_same_v<T, win::xlib::WindowHandle>) {
+            return vkc::wsi::xlib::WindowHandle(handle.m_display, handle.m_window);
         } else if constexpr (std::is_same_v<T, win::wayland::WindowHandle>) {
             return vkc::wsi::wayland::WindowHandle(handle.m_display, handle.m_surface);
         } else {

@@ -29,6 +29,18 @@ struct WindowHandle
 
 } // namespace lcf::win::xcb
 
+namespace xlib {
+
+struct WindowHandle
+{
+    WindowHandle(void * display, uint64_t window) : m_display(display), m_window(window) {}
+
+    void * m_display;
+    uint64_t m_window;
+};
+
+} // namespace lcf::win::xlib
+
 namespace wayland {
 
 struct WindowHandle
@@ -55,9 +67,9 @@ struct WindowHandle
 using WindowHandle = std::variant<
     win32::WindowHandle,
     xcb::WindowHandle,
+    xlib::WindowHandle,
     wayland::WindowHandle,
     metal::WindowHandle>;
 
 } // namespace lcf::win
-
 
