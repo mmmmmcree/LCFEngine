@@ -15,6 +15,9 @@ void register_surface(InstanceExtensionManifest & manifest) noexcept
     #if defined(VK_USE_PLATFORM_XCB_KHR)
         vk::KHRXcbSurfaceExtensionName,
     #endif
+    #if defined(VK_USE_PLATFORM_XLIB_KHR)
+        vk::KHRXlibSurfaceExtensionName,
+    #endif
     #if defined(VK_USE_PLATFORM_WAYLAND_KHR)
         vk::KHRWaylandSurfaceExtensionName,
     #endif
@@ -70,6 +73,23 @@ vk::UniqueSurfaceKHR create_surface( vk::Instance instance, const WindowHandle &
 
 } // namespace xcb
 
+namespace xlib {
+
+vk::UniqueSurfaceKHR create_surface(
+    vk::Instance instance, const WindowHandle & handle, const vk::AllocationCallbacks * allocator)
+{
+#if defined(VK_USE_PLATFORM_XLIB_KHR)
+    vk::XlibSurfaceCreateInfoKHR create_info;
+    create_info.setDpy(static_cast<Display *>(handle.m_display))
+        .setWindow(static_cast<Window>(handle.m_window));
+    return instance.createXlibSurfaceKHRUnique(create_info, allocator);
+#else
+    return {};
+#endif // VK_USE_PLATFORM_XLIB_KHR
+}
+
+} // namespace xlib
+
 namespace wayland {
 
 vk::UniqueSurfaceKHR create_surface(
@@ -122,6 +142,7 @@ vk::UniqueSurfaceKHR create_surface_maythrow(vk::Instance instance, const Window
     return std::visit( [&]<typename Handle>(const Handle & handle) {
         if constexpr (std::same_as<Handle, win32::WindowHandle>) { return win32::create_surface(instance, handle, allocator); }
         if constexpr (std::same_as<Handle, xcb::WindowHandle>) { return xcb::create_surface(instance, handle, allocator); }
+        if constexpr (std::same_as<Handle, xlib::WindowHandle>) { return xlib::create_surface(instance, handle, allocator); }
         if constexpr (std::same_as<Handle, wayland::WindowHandle>) { return wayland::create_surface(instance, handle, allocator); }
         if constexpr (std::same_as<Handle, metal::WindowHandle>) { return metal::create_surface(instance, handle, allocator); }
         return vk::UniqueSurfaceKHR{};

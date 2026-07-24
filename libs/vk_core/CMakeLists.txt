@@ -42,7 +42,10 @@ if(WIN32)
 elseif(APPLE)
     target_compile_definitions(${PROJECT_NAME} PRIVATE VK_USE_PLATFORM_METAL_EXT)
 elseif(UNIX)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE VK_USE_PLATFORM_XCB_KHR VK_USE_PLATFORM_WAYLAND_KHR)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+        VK_USE_PLATFORM_XCB_KHR
+        VK_USE_PLATFORM_XLIB_KHR
+        VK_USE_PLATFORM_WAYLAND_KHR)
 endif()
 target_compile_definitions(${PROJECT_NAME} PUBLIC
     VULKAN_HPP_STORAGE_SHARED
