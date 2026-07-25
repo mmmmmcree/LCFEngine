@@ -12,7 +12,7 @@ namespace lcf::vkc {
 
 class MemoryAllocator; 
 
-class RenderTargetInfo;
+class RenderTargetInfo_outdated;
 
 class RenderTarget
 {
@@ -20,7 +20,7 @@ class RenderTarget
     using AttachmentList = std::vector<Attachment>;
     using ClearValueList = std::vector<vk::ClearValue>;
 public:
-    std::error_code build(const RenderTargetInfo & info) noexcept;
+    std::error_code build(const RenderTargetInfo_outdated & info) noexcept;
     std::error_code setColorAttachment(uint32_t index, const Image & image, uint32_t mip_level = 0, uint32_t array_layer = 0) noexcept;
     // std::error_code setDepthStencilAttachment(const Image & image, uint32_t mip_level = 0, uint32_t array_layer = 0) noexcept;
     Self & setRenderArea(const vk::Rect2D & render_area) noexcept { m_render_area = render_area; return *this; }

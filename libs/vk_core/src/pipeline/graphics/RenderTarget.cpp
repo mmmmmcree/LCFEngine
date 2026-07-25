@@ -3,7 +3,7 @@
 
 namespace lcf::vkc {
 
-std::error_code RenderTarget::build(const RenderTargetInfo & info) noexcept
+std::error_code RenderTarget::build(const RenderTargetInfo_outdated & info) noexcept
 {
     m_max_extent = info.getExtent();
     m_render_area = vk::Rect2D { {0, 0}, m_max_extent };

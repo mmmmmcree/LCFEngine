@@ -11,7 +11,7 @@ namespace lcf::vkc {
 std::error_code StaticRendering::create(
     vk::Device device,
     const RenderingInfo & rendering_info,
-    const RenderTargetInfo & render_target_info) noexcept
+    const RenderTargetInfo_outdated & render_target_info) noexcept
 {
     m_device = device;
     vk::RenderPassCreateInfo2 render_pass_info;

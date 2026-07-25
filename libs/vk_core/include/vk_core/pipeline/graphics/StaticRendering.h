@@ -8,7 +8,7 @@
 namespace lcf::vkc {
 
 class RenderingInfo;
-class RenderTargetInfo;
+class RenderTargetInfo_outdated;
 class RenderTarget;
 class CommandBufferProxy;
 
@@ -21,7 +21,7 @@ public:
     std::error_code create(
         vk::Device device,
         const RenderingInfo & rendering_info,
-        const RenderTargetInfo & render_target_info) noexcept;
+        const RenderTargetInfo_outdated & render_target_info) noexcept;
     void begin(CommandBufferProxy & cmd, const RenderTarget & target) noexcept;
     void end(CommandBufferProxy & cmd) noexcept;
     const vk::RenderPass & getRenderPass() const noexcept { return m_render_pass.get(); }
