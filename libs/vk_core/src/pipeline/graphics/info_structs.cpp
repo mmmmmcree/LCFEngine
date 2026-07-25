@@ -95,11 +95,11 @@ AttachmentSetInfo AttachmentSetInfoBuilder::build() const noexcept
 auto RenderTargetInfo::setSampleCount(vk::SampleCountFlagBits sample_count) noexcept -> Self &
 {
     m_sample_count = std::max(sample_count, m_min_sample_count);
-    for (auto & desc : m_set_p->m_descriptions | stdv::take(m_set_p->getColorAttachmentCount())) {
+    for (auto & desc : m_set.m_descriptions | stdv::take(m_set.getColorAttachmentCount())) {
         desc.setSampleCount(m_sample_count);
     }
-    if (m_set_p->m_has_depth_stencil) {
-        m_set_p->m_descriptions.back().setSampleCount(m_sample_count);
+    if (m_set.m_has_depth_stencil) {
+        m_set.m_descriptions.back().setSampleCount(m_sample_count);
     }
     return *this;
 }
