@@ -16,7 +16,7 @@
 #include "vk_core/error.h"
 #include "vk_core/pipeline/graphics/info_structs.h"
 #include "vk_core/pipeline/graphics/StaticGraphicsPipeline.h"
-#include "vk_core/pipeline/graphics/StaticRendering.h"
+#include "vk_core/pipeline/graphics/StaticRender.h"
 #include "vk_core/pipeline/graphics/RenderTarget.h"
 #include "vk_core/command/info_structs.h"
 #include "vk_core/command/CommandBufferProxy.h"
@@ -160,17 +160,22 @@ int main()
         shader_program_info.addStageInfo(std::move(shader_stage_info));
     }
 
+    //- declare the attachment set: one color attachment, no resolve, no depth stencil
+    vkc::AttachmentSetInfoBuilder attachment_set_builder;
+    vkc::ColorAttachmentKey color_key = attachment_set_builder.addColorAttachment();
+    vkc::AttachmentSetInfo attachment_set = attachment_set_builder.build();
+
     //- create render targets
-    vkc::RenderTargetInfo render_target_info;
     auto [width, height] = window.getPixelSize();
+    vkc::RenderTargetInfo render_target_info {attachment_set};
     render_target_info.setExtent({width, height})
-        .addColorAttachment(vk::Format::eR8G8B8A8Unorm);
+        .setFormat(color_key, vk::Format::eR8G8B8A8Unorm);
     std::array<vkc::Image, 2> render_target_images;
     std::array<vkc::RenderTarget, 2> render_targets;
     for (auto & image : render_target_images) {
         vk::ImageCreateInfo image_info;
         image_info.setImageType(vk::ImageType::e2D)
-            .setFormat(render_target_info.getColorFormat(0))
+            .setFormat(attachment_set.at(color_key).getFormat())
             .setExtent({width, height, 1u})
             .setMipLevels(1u)
             .setArrayLayers(1u)
@@ -192,27 +197,25 @@ int main()
         }
     }
     for (auto && [render_target, image] : stdv::zip(render_targets, render_target_images)) {
-        if (auto ec = render_target.setColorAttachment(0, image)) {
+        if (auto ec = render_target.setColorAttachment(color_key, image)) {
             lcf_log_error("Failed to set color attachment: {}", ec.message());
             return 1;
         }
     }
-    
+
     vk::Device device = device_context.getDevice();
-    //- create static rendering
-    
-    vkc::AttachmentStateInfo attachment_state_info;
-    attachment_state_info.setLoadStoreOp(vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore)
-        .setLayouts(vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferSrcOptimal);
+    //- create static render
+
     vkc::SubpassDescriptionInfo subpass_info;
     subpass_info.setBindPoint(vk::PipelineBindPoint::eGraphics)
-        .addColorAttachment(vkc::AttachmentReferenceInfo{0, vk::ImageLayout::eColorAttachmentOptimal});
-    vkc::RenderingInfo rendering_info;
-    rendering_info.addSubpass(subpass_info)
-        .addAttachmentState(attachment_state_info);
-    vkc::StaticRendering static_rendering;
-    if (auto ec = static_rendering.create(device, rendering_info, render_target_info)) {
-        lcf_log_error("Failed to create static_rendering: {}", ec.message());
+        .addColorAttachment(attachment_set.makeAttachmentReference(color_key));
+    vkc::StaticRenderInfo static_render_info {attachment_set};
+    static_render_info.setLoadStoreOp(color_key, vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore)
+        .setInitialFinalLayout(color_key, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferSrcOptimal)
+        .addSubpass(std::move(subpass_info));
+    vkc::StaticRender static_render;
+    if (auto ec = static_render.create(device, static_render_info)) {
+        lcf_log_error("Failed to create static_render: {}", ec.message());
         return 1;
     }
     //- create static graphics pipeline with static rendering
@@ -220,13 +223,13 @@ int main()
     vkc::ViewportStateInfo viewport_state_info;
     viewport_state_info.addViewport(0, 0, width, height)
         .addScissor(0, 0, width, height);
-    vkc::ColorBlendStateInfo color_blend_state_info {subpass_info.getColorAttachmentReferenceCount()};
+    vkc::ColorBlendStateInfo color_blend_state_info {static_render_info.getColorAttachmentCount()};
     vkc::GraphicsPipelineInfo graphic_pipeline_info;
     vkc::StaticGraphicsPipeline static_graphics_pipeline;
     graphic_pipeline_info.setShaderProgramInfo(std::move(shader_program_info))
         .setViewportStateInfo(viewport_state_info)
         .setColorBlendStateInfo(color_blend_state_info);
-    if (auto ec = static_graphics_pipeline.create(device, graphic_pipeline_info, static_rendering)) {
+    if (auto ec = static_graphics_pipeline.create(device, graphic_pipeline_info, static_render.makeScopeInfo(0))) {
         lcf_log_error("Failed to create static_graphics_pipeline: {}", ec.message());
         return 1;
     }
@@ -257,10 +260,10 @@ int main()
             auto & render_target = render_targets[frame % 2];
             vk::CommandBufferBeginInfo cmd_begin_info {};
             cmd.begin(cmd_begin_info);
-            static_rendering.begin(cmd, render_target);
+            static_render.begin(cmd, render_target);
             static_graphics_pipeline.bind(cmd);
             cmd.draw(3, 1, 0, 0);
-            static_rendering.end(cmd);
+            static_render.end(cmd);
             cmd.end();
             cmd.addWaitInfo(present_blit_finish_tokens[frame % 2]);
             cmd_buffer_batch.collect(std::move(cmd));
@@ -269,7 +272,7 @@ int main()
             if (not expected_submit_result) { continue; }
             auto & submit_semaphore_info = expected_submit_result.value();
             std::array<vk::Offset3D, 2> src_offsets {{ {0, 0, 0}, {static_cast<int32_t>(width), static_cast<int32_t>(height), 1} }};
-            const vkc::Image & present_image = render_target.getAttachment(0).getImage();
+            const vkc::Image & present_image = render_target.getAttachment(color_key).getImage();
             auto expected_present_result = swapchain.present(src_offsets, present_image, present_image.lease(), submit_semaphore_info);
             if (expected_present_result) {
                 present_blit_finish_tokens[frame % 2] = expected_present_result.value();

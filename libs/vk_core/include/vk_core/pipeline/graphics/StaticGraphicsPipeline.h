@@ -9,7 +9,7 @@ class GraphicsPipelineInfo;
 
 class CommandBufferProxy;
 
-class StaticRendering;
+class StaticRenderScopeInfo;
 
 class StaticGraphicsPipeline
 {
@@ -26,7 +26,7 @@ public:
     std::error_code create(
         vk::Device device,
         const GraphicsPipelineInfo & pipeline_info,
-        const StaticRendering & static_rendering, uint32_t subpass_index = 0) noexcept;
+        const StaticRenderScopeInfo & render_scope_info) noexcept;
     void bind(CommandBufferProxy & cmd) const noexcept;
     const vk::Pipeline & handle() const noexcept { return m_pipeline.get(); }
 private:

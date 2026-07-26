@@ -1,5 +1,5 @@
 #include "vk_core/pipeline/graphics/StaticGraphicsPipeline.h"
-#include "vk_core/pipeline/graphics/StaticRendering.h"
+#include "vk_core/pipeline/graphics/StaticRender.h"
 #include "vk_core/pipeline/graphics/info_structs.h"
 #include "vk_core/command/CommandBufferProxy.h"
 #include <ranges>
@@ -12,7 +12,7 @@ namespace lcf::vkc {
 std::error_code StaticGraphicsPipeline::create(
     vk::Device device,
     const GraphicsPipelineInfo & pipeline_info,
-    const StaticRendering & static_rendering, uint32_t subpass_index) noexcept
+    const StaticRenderScopeInfo & render_scope_info) noexcept
 {
     const ShaderProgramInfo & shader_program_info = pipeline_info.getShaderProgramInfo();
     auto shader_stage_infos_view = shader_program_info.viewStageInfos();
@@ -59,8 +59,8 @@ std::error_code StaticGraphicsPipeline::create(
         .setPColorBlendState(&static_cast<const vk::PipelineColorBlendStateCreateInfo &>(pipeline_info.getColorBlendStateInfo()))
         .setPDynamicState(&static_cast<const vk::PipelineDynamicStateCreateInfo &>(pipeline_info.getDynamicStateInfo()))
         .setLayout(m_pipeline_layout.get())
-        .setRenderPass(static_rendering.getRenderPass())
-        .setSubpass(subpass_index);
+        .setRenderPass(render_scope_info.getRenderPass())
+        .setSubpass(render_scope_info.getSubpassIndex());
     try {
         auto [result, pipeline] = device.createGraphicsPipelineUnique(nullptr, pipeline_create_info);
         if (result != vk::Result::eSuccess) { return result; }
