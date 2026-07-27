@@ -28,6 +28,8 @@ public:
                 return "surface exposes no supported present mode";
             case errc::no_suitable_present_queue_family:
                 return "no queue family supports presentation to the surface";
+            case errc::no_device_queue_requested:
+                return "at least one device queue must be requested";
             case errc::main_device_role_not_configured:
                 return "the main device role must be configured";
             case errc::surface_zero_size:

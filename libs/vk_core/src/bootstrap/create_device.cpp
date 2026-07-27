@@ -52,6 +52,7 @@ std::expected<vk::UniqueDevice, std::error_code> create_device_maythrow(vk::Phys
         stdv::transform([](const vk::ExtensionProperties & extension) { return extension.extensionName.data(); }) |
         stdr::to<std::vector>();
     const auto & queue_family_requests = create_info.getQueueFamilyRequests();
+    if (queue_family_requests.empty()) { return std::unexpected(make_error_code(errc::no_device_queue_requested)); }
     std::vector<vk::DeviceQueueCreateInfo> queue_create_infos;
     queue_create_infos.reserve(queue_family_requests.size());
     for (const auto &[queue_family_index, priorities] : queue_family_requests) {

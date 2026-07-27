@@ -31,10 +31,17 @@ int main()
     vkc::bs::PhysicalDeviceSelectInfo physical_device_select_info;
     physical_device_select_info.setRequiredDeviceExtensionManifest(device_ext_manifest)
         .setPreferredType(vk::PhysicalDeviceType::eDiscreteGpu);
+    vkc::QueueRequest graphics_queue_request {
+        vk::QueueFlagBits::eGraphics,
+        {},
+        vkc::QueueSubmissionThreadTag {0},
+        1.0f
+    };
     vkc::DeviceContextCreateInfo device_context_info;
     device_context_info.setRequiredDeviceExtensionManifest(device_ext_manifest)
         .setPhysicalDeviceSelectInfo(physical_device_select_info);
-    
+    device_context_info.addQueueRequest(graphics_queue_request);
+
     vkc::InstanceContext instance_context;
     if (auto ec = instance_context.create(instance_info)) {
         lcf_log_error("Failed to create instance_context: {}", ec.message());

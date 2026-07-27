@@ -14,6 +14,7 @@ enum class errc
     no_suitable_surface_format,
     no_suitable_present_mode,
     no_suitable_present_queue_family,
+    no_device_queue_requested,
     main_device_role_not_configured,
     surface_zero_size,
     missing_required_instance_layer,
