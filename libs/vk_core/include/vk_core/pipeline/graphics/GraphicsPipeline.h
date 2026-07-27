@@ -11,14 +11,16 @@ class CommandBufferProxy;
 
 class StaticRenderScopeInfo;
 
-class StaticGraphicsPipeline
+class DynamicRenderScopeInfo;
+
+class GraphicsPipeline
 {
-    using Self = StaticGraphicsPipeline;
+    using Self = GraphicsPipeline;
 public:
-    ~StaticGraphicsPipeline() noexcept = default;
-    StaticGraphicsPipeline() noexcept = default;
-    StaticGraphicsPipeline(const Self &) noexcept = delete;
-    StaticGraphicsPipeline(Self &&) noexcept = default;
+    ~GraphicsPipeline() noexcept = default;
+    GraphicsPipeline() noexcept = default;
+    GraphicsPipeline(const Self &) noexcept = delete;
+    GraphicsPipeline(Self &&) noexcept = default;
     Self &operator=(const Self &) noexcept = delete;
     Self &operator=(Self &&) noexcept = default;
     operator const vk::Pipeline &() const noexcept { return m_pipeline.get(); }
@@ -27,6 +29,10 @@ public:
         vk::Device device,
         const GraphicsPipelineInfo & pipeline_info,
         const StaticRenderScopeInfo & render_scope_info) noexcept;
+    std::error_code create(
+        vk::Device device,
+        const GraphicsPipelineInfo & pipeline_info,
+        const DynamicRenderScopeInfo & render_scope_info) noexcept;
     void bind(CommandBufferProxy & cmd) const noexcept;
     const vk::Pipeline & handle() const noexcept { return m_pipeline.get(); }
 private:

@@ -14,9 +14,11 @@
 #include "vk_core/memory/info_structs.h"
 #include "vk_core/memory/Image.h"
 #include "vk_core/error.h"
+#include "vk_core/pipeline/graphics/entry.h"
 #include "vk_core/pipeline/graphics/info_structs.h"
-#include "vk_core/pipeline/graphics/StaticGraphicsPipeline.h"
+#include "vk_core/pipeline/graphics/GraphicsPipeline.h"
 #include "vk_core/pipeline/graphics/StaticRender.h"
+#include "vk_core/pipeline/graphics/DynamicRender.h"
 #include "vk_core/pipeline/graphics/RenderTarget.h"
 #include "vk_core/command/info_structs.h"
 #include "vk_core/command/CommandBufferProxy.h"
@@ -66,6 +68,7 @@ int main()
     vkc::entry::register_surface(inst_ext_manifest);
     // vkc::entry::register_compat_swapchain(device_ext_manifest);
     vkc::entry::register_swapchain(inst_ext_manifest, device_ext_manifest);
+    vkc::entry::register_dynamic_render(device_ext_manifest);
     //- in this example, we use shader constants to draw a triangle, so we should enable shaderDrawParameters feature
     device_ext_manifest.addRequiredFeature(vkc::utils::t_feature_bit<&vk::PhysicalDeviceVulkan13Features::synchronization2>)
         .addRequiredFeature(vkc::utils::t_feature_bit<&vk::PhysicalDeviceVulkan11Features::shaderDrawParameters>);
@@ -225,12 +228,31 @@ int main()
         .addScissor(0, 0, width, height);
     vkc::ColorBlendStateInfo color_blend_state_info {static_render_info.getColorAttachmentCount()};
     vkc::GraphicsPipelineInfo graphic_pipeline_info;
-    vkc::StaticGraphicsPipeline static_graphics_pipeline;
-    graphic_pipeline_info.setShaderProgramInfo(std::move(shader_program_info))
+    vkc::GraphicsPipeline static_graphics_pipeline;
+    graphic_pipeline_info.setShaderProgramInfo(shader_program_info)
         .setViewportStateInfo(viewport_state_info)
         .setColorBlendStateInfo(color_blend_state_info);
     if (auto ec = static_graphics_pipeline.create(device, graphic_pipeline_info, static_render.makeScopeInfo(0))) {
         lcf_log_error("Failed to create static_graphics_pipeline: {}", ec.message());
+        return 1;
+    }
+
+    //-
+    vkc::DynamicRenderInfo dynamic_render_info {attachment_set};
+    dynamic_render_info.setLoadStoreOp(color_key, vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore);
+    vkc::DynamicRender dynamic_render;
+    if (auto ec = dynamic_render.create(dynamic_render_info)) {
+        lcf_log_error("Failed to create dynamic_render: {}", ec.message());
+        return 1;
+    }
+    //- create graphics pipeline with dynamic rendering
+
+    vkc::GraphicsPipeline dynamic_graphics_pipeline;
+    graphic_pipeline_info.setShaderProgramInfo(shader_program_info)
+        .setViewportStateInfo(viewport_state_info)
+        .setColorBlendStateInfo(color_blend_state_info);
+    if (auto ec = dynamic_graphics_pipeline.create(device, graphic_pipeline_info, dynamic_render.makeScopeInfo())) {
+        lcf_log_error("Failed to create dynamic_graphics_pipeline: {}", ec.message());
         return 1;
     }
 
@@ -260,10 +282,41 @@ int main()
             auto & render_target = render_targets[frame % 2];
             vk::CommandBufferBeginInfo cmd_begin_info {};
             cmd.begin(cmd_begin_info);
-            static_render.begin(cmd, render_target);
-            static_graphics_pipeline.bind(cmd);
+            // static_render.begin(cmd, render_target);
+            // static_graphics_pipeline.bind(cmd);
+            // cmd.draw(3, 1, 0, 0);
+            // static_render.end(cmd);
+            const vkc::Attachment & color_attachment = render_target.getAttachment(color_key);
+            vk::ImageSubresourceRange color_range = color_attachment.getDescription().getSubresourceRange();
+            vk::ImageMemoryBarrier2 to_color_barrier;
+            to_color_barrier.setImage(color_attachment.getImage())
+                .setOldLayout(vk::ImageLayout::eUndefined)
+                .setNewLayout(vk::ImageLayout::eColorAttachmentOptimal)
+                .setSubresourceRange(color_range)
+                .setSrcStageMask(vk::PipelineStageFlagBits2::eAllCommands)
+                .setSrcAccessMask(vk::AccessFlagBits2::eNone)
+                .setDstStageMask(vk::PipelineStageFlagBits2::eColorAttachmentOutput)
+                .setDstAccessMask(vk::AccessFlagBits2::eColorAttachmentWrite);
+            vk::DependencyInfo to_color_dep_info;
+            to_color_dep_info.setImageMemoryBarriers(to_color_barrier);
+            cmd.pipelineBarrier2(to_color_dep_info);
+            dynamic_render.begin(cmd, render_target);
+            dynamic_graphics_pipeline.bind(cmd);
             cmd.draw(3, 1, 0, 0);
-            static_render.end(cmd);
+            dynamic_render.end(cmd);
+            vk::ImageMemoryBarrier2 to_transfer_src_barrier;
+            to_transfer_src_barrier.setImage(color_attachment.getImage())
+                .setOldLayout(vk::ImageLayout::eColorAttachmentOptimal)
+                .setNewLayout(vk::ImageLayout::eTransferSrcOptimal)
+                .setSubresourceRange(color_range)
+                .setSrcStageMask(vk::PipelineStageFlagBits2::eColorAttachmentOutput)
+                .setSrcAccessMask(vk::AccessFlagBits2::eColorAttachmentWrite)
+                .setDstStageMask(vk::PipelineStageFlagBits2::eBlit)
+                .setDstAccessMask(vk::AccessFlagBits2::eTransferRead);
+            vk::DependencyInfo to_transfer_src_dep_info;
+            to_transfer_src_dep_info.setImageMemoryBarriers(to_transfer_src_barrier);
+            cmd.pipelineBarrier2(to_transfer_src_dep_info);
+
             cmd.end();
             cmd.addWaitInfo(present_blit_finish_tokens[frame % 2]);
             cmd_buffer_batch.collect(std::move(cmd));

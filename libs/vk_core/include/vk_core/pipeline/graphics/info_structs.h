@@ -1002,4 +1002,59 @@ private:
     std::vector<uint32_t> m_correlated_view_masks;
 };
 
+class DynamicRenderInfo
+{
+    friend class DynamicRender;
+    using Self = DynamicRenderInfo;
+    using Root = vk::RenderingInfo;
+    using LayoutList = std::vector<vk::ImageLayout>;
+    using DescriptionList = std::vector<AttachmentDescriptionInfo>;
+    using ColorResolveList = std::vector<std::pair<vk::ResolveModeFlagBits, uint32_t>>;
+public:
+    ~DynamicRenderInfo() noexcept = default;
+    explicit DynamicRenderInfo(AttachmentSetInfo & attachments) noexcept :
+        m_attachments(attachments),
+        m_layouts(attachments.m_descriptions.size(), vk::ImageLayout::eColorAttachmentOptimal)
+    {
+        if (m_attachments.m_has_depth_stencil) {
+            m_layouts.back() = vk::ImageLayout::eDepthStencilAttachmentOptimal;
+        }
+    }
+    DynamicRenderInfo(const Self &) = delete;
+    DynamicRenderInfo(Self &&) noexcept = default;
+    Self & operator=(const Self &) = delete;
+    Self & operator=(Self &&) noexcept = default;
+    operator const Root &() const noexcept { return m_rendering.root(); }
+public:
+    template <utils::struct_extends_c<Root> T>
+    T & requestExtension() noexcept { return m_rendering.template request<T>(); }
+    Self & addFlags(vk::RenderingFlags flags) noexcept { m_rendering.root().flags |= flags; return *this; }
+    Self & setViewMask(uint32_t view_mask) noexcept { m_rendering.root().setViewMask(view_mask); return *this; }
+    Self & setLoadStoreOp(details::attachment_key_c auto key, vk::AttachmentLoadOp load, vk::AttachmentStoreOp store) noexcept
+    {
+        m_attachments.mutableAt(key).setLoadStoreOp(load, store);
+        return *this;
+    }
+    Self & setStencilLoadStoreOp(DepthStencilAttachmentKey key, vk::AttachmentLoadOp load, vk::AttachmentStoreOp store) noexcept
+    {
+        m_attachments.mutableAt(key).setStencilLoadStoreOp(load, store);
+        return *this;
+    }
+    Self & setLayout(details::attachment_key_c auto key, vk::ImageLayout layout) noexcept
+    {
+        m_layouts[m_attachments.getIndex(key)] = layout;
+        return *this;
+    }
+    uint32_t getColorAttachmentCount() const noexcept { return m_attachments.getColorAttachmentCount(); }
+private:
+    const DescriptionList & getAttachmentDescriptions() const noexcept { return m_attachments.m_descriptions; }
+    const ColorResolveList & getColorResolveList() const noexcept { return m_attachments.m_color_resolve_list; }
+    const LayoutList & getLayouts() const noexcept { return m_layouts; }
+    bool hasDepthStencilAttachment() const noexcept { return m_attachments.m_has_depth_stencil; }
+private:
+    utils::DynamicStructureChain<Root> m_rendering;
+    AttachmentSetInfo & m_attachments;
+    LayoutList m_layouts;
+};
+
 } // namespace lcf::vkc
