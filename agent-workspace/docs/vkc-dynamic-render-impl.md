@@ -224,7 +224,7 @@ public:
     //- keeps the shape symmetric with StaticRender::create and currently always yields {}
     std::error_code create(const DynamicRenderInfo & render_info) noexcept;
     void begin(CommandBufferProxy & cmd, const RenderTarget & render_target) noexcept;
-    void end(CommandBufferProxy & cmd) noexcept;
+    void end(CommandBufferProxy & cmd) noexcept;j'j
     DynamicRenderScopeInfo makeScopeInfo() const noexcept;
 private:
     //- owns a relinked copy of the info's chain, so create() does not outlive-depend on the info
