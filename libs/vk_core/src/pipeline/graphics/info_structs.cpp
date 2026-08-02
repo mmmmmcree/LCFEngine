@@ -35,6 +35,24 @@ AttachmentDescriptionInfo * AttachmentSetInfo::getResolveAttachmentDescription(C
     return &m_descriptions[index];
 }
 
+auto AttachmentSetInfo::makeDefaultTransitions() const noexcept -> TransitionList
+{
+    uint32_t attachment_count = static_cast<uint32_t>(m_descriptions.size());
+    uint32_t color_count = this->getColorAttachmentCount();
+    uint32_t resolve_end = attachment_count - m_has_depth_stencil;
+    TransitionList transitions(attachment_count);
+    for (uint32_t i = 0; i < resolve_end; ++i) {
+        transitions[i].setInPassUsage(AttachmentUsage::eColorAttachment);
+    }
+    for (uint32_t i = color_count; i < resolve_end; ++i) {
+        transitions[i].setEntryUsage(AttachmentUsage::eDiscard);
+    }
+    if (m_has_depth_stencil) {
+        transitions.back().setInPassUsage(AttachmentUsage::eDepthStencilAttachment);
+    }
+    return transitions;
+}
+
 AttachmentSetInfoBuilder::AttachmentSetInfoBuilder() noexcept :
     m_set_id(next_attachment_set_id())
 {

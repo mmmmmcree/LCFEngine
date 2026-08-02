@@ -239,7 +239,9 @@ int main()
 
     //-
     vkc::DynamicRenderInfo dynamic_render_info {attachment_set};
-    dynamic_render_info.setLoadStoreOp(color_key, vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore);
+    dynamic_render_info.setLoadStoreOp(color_key, vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore)
+        .setExitUsage(color_key, vkc::AttachmentUsage::eTransferSource)
+        .setExitDstScope(color_key, {vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferRead});
     vkc::DynamicRender dynamic_render;
     if (auto ec = dynamic_render.create(dynamic_render_info)) {
         lcf_log_error("Failed to create dynamic_render: {}", ec.message());
@@ -286,36 +288,10 @@ int main()
             // static_graphics_pipeline.bind(cmd);
             // cmd.draw(3, 1, 0, 0);
             // static_render.end(cmd);
-            const vkc::Attachment & color_attachment = render_target.getAttachment(color_key);
-            vk::ImageSubresourceRange color_range = color_attachment.getDescription().getSubresourceRange();
-            vk::ImageMemoryBarrier2 to_color_barrier;
-            to_color_barrier.setImage(color_attachment.getImage())
-                .setOldLayout(vk::ImageLayout::eUndefined)
-                .setNewLayout(vk::ImageLayout::eColorAttachmentOptimal)
-                .setSubresourceRange(color_range)
-                .setSrcStageMask(vk::PipelineStageFlagBits2::eAllCommands)
-                .setSrcAccessMask(vk::AccessFlagBits2::eNone)
-                .setDstStageMask(vk::PipelineStageFlagBits2::eColorAttachmentOutput)
-                .setDstAccessMask(vk::AccessFlagBits2::eColorAttachmentWrite);
-            vk::DependencyInfo to_color_dep_info;
-            to_color_dep_info.setImageMemoryBarriers(to_color_barrier);
-            cmd.pipelineBarrier2(to_color_dep_info);
             dynamic_render.begin(cmd, render_target);
             dynamic_graphics_pipeline.bind(cmd);
             cmd.draw(3, 1, 0, 0);
             dynamic_render.end(cmd);
-            vk::ImageMemoryBarrier2 to_transfer_src_barrier;
-            to_transfer_src_barrier.setImage(color_attachment.getImage())
-                .setOldLayout(vk::ImageLayout::eColorAttachmentOptimal)
-                .setNewLayout(vk::ImageLayout::eTransferSrcOptimal)
-                .setSubresourceRange(color_range)
-                .setSrcStageMask(vk::PipelineStageFlagBits2::eColorAttachmentOutput)
-                .setSrcAccessMask(vk::AccessFlagBits2::eColorAttachmentWrite)
-                .setDstStageMask(vk::PipelineStageFlagBits2::eBlit)
-                .setDstAccessMask(vk::AccessFlagBits2::eTransferRead);
-            vk::DependencyInfo to_transfer_src_dep_info;
-            to_transfer_src_dep_info.setImageMemoryBarriers(to_transfer_src_barrier);
-            cmd.pipelineBarrier2(to_transfer_src_dep_info);
 
             cmd.end();
             cmd.addWaitInfo(present_blit_finish_tokens[frame % 2]);

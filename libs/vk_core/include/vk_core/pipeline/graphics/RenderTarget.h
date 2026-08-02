@@ -28,6 +28,7 @@ public:
     const Attachment & getAttachment(const ColorAttachmentKey & key) const noexcept { return m_attachments[this->getIndex(key)]; }
     const Attachment & getAttachment(const DepthStencilAttachmentKey & key) const noexcept { return m_attachments[this->getIndex(key)]; }
     const Attachment & getAttachment(const ResolveAttachmentKey & key) const noexcept { return m_attachments[this->getIndex(key)]; }
+    std::span<const Attachment> viewAttachments() const noexcept { return m_attachments; }
     auto viewAttachmentImageViews() const noexcept { return m_attachments | std::views::transform(&Attachment::getImageView); }
     const ClearValueList & getClearValues() const noexcept { return m_clear_values; }
 private:
