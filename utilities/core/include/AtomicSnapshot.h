@@ -10,7 +10,13 @@
 namespace lcf {
 
 #if defined(__cpp_lib_atomic_shared_ptr) && __cpp_lib_atomic_shared_ptr >= 201711L
-
+/*
+ A lock-free single-value container. Multiple providers publish; any number of
+ consumers read the latest complete snapshot. Reads never block writes and
+ observe a consistent value (never a half-updated one). The held shared_ptr is
+ an implementation detail; consumers see a Snapshot guard that keeps the value
+ alive while in use.
+*/
 // Native C++20 implementation for standard libraries with atomic<shared_ptr>.
 template <typename T>
 requires std::copy_constructible<T>
