@@ -12,7 +12,8 @@ inline std::optional<uint32_t> find_proper_queue_family_index(
     vk::QueueFlags undesired_flags) noexcept
 {
     std::optional<uint32_t> found_family_index = std::nullopt;
-    for (const auto & [family_index, props] : properties | std::views::enumerate) {
+    for (uint32_t family_index = 0; family_index < properties.size(); ++family_index) {
+        const auto & props = properties[family_index];
         if (not (props.queueFlags & desired_flags)) { continue; }
         found_family_index = static_cast<uint32_t>(family_index);
         if (not (props.queueFlags & undesired_flags)) { break; }

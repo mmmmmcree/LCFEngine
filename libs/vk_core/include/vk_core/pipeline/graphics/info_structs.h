@@ -974,7 +974,7 @@ public:
     RenderTargetInfo(const Self &) noexcept = delete;
     RenderTargetInfo(Self &&) noexcept = default;
     Self & operator=(const Self &) noexcept = delete;
-    Self & operator=(Self &&) noexcept = default;
+    Self & operator=(Self &&) noexcept = delete;
 public:
     Self & setFormat(ColorAttachmentKey key, vk::Format format) noexcept
     {
@@ -1015,7 +1015,7 @@ public:
     StaticRenderInfo(const Self &) = delete;
     StaticRenderInfo(Self &&) noexcept = default;
     Self & operator=(const Self &) = delete;
-    Self & operator=(Self &&) noexcept = default;
+    Self & operator=(Self &&) noexcept = delete;
     operator const Root &() const noexcept { return m_render_pass.root(); }
 public:
     template <utils::struct_extends_c<Root> T>
@@ -1073,7 +1073,7 @@ public:
     DynamicRenderInfo(const Self &) = delete;
     DynamicRenderInfo(Self &&) noexcept = default;
     Self & operator=(const Self &) = delete;
-    Self & operator=(Self &&) noexcept = default;
+    Self & operator=(Self &&) noexcept = delete;
     operator const Root &() const noexcept { return m_rendering.root(); }
 public:
     template <utils::struct_extends_c<Root> T>

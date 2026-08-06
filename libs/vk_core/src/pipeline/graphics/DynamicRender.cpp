@@ -7,9 +7,6 @@
 #include "vk_core/utils/format_utils.h"
 #include <ranges>
 
-namespace stdr = std::ranges;
-namespace stdv = std::views;
-
 namespace lcf::vkc::entry {
 
 void register_dynamic_render(DeviceExtensionManifest & manifest) noexcept
@@ -147,7 +144,8 @@ void DynamicRender::begin(CommandBufferProxy &cmd, const RenderTarget &render_ta
     }
     auto image_views = render_target.viewAttachmentImageViews();
     const auto & clear_values = render_target.getClearValues();
-    for (auto && [color_index, color_attachment] : m_color_attachments | stdv::enumerate) {
+    for (uint32_t color_index = 0; color_index < m_color_attachments.size(); ++color_index) {
+        auto & color_attachment = m_color_attachments[color_index];
         color_attachment.setImageView(image_views[color_index])
             .setClearValue(clear_values[color_index]);
         uint32_t resolve_slot = m_resolve_indices[color_index];
@@ -260,7 +258,8 @@ ResolvedTransition resolve_transition(
 BakeBarriersResult bake_barriers(std::span<const ResolvedTransition> resolved) noexcept
 {
     BakeBarriersResult result;
-    for (auto && [slot, transition] : resolved | stdv::enumerate) {
+    for (std::size_t slot = 0; slot < resolved.size(); ++slot) {
+        const auto & transition = resolved[slot];
         BarrierSlotMap slot_map;
         slot_map.slot = static_cast<uint32_t>(slot);
         slot_map.required_image_usage = transition.required_image_usage;

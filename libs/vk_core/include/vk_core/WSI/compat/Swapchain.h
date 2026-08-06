@@ -23,6 +23,8 @@ class Swapchain
     struct DesiredParams
     {
         bool operator==(const DesiredParams & other) const noexcept = default;
+        DesiredParams() noexcept = default;
+        DesiredParams(const DesiredParams &) noexcept = default;
         uint32_t image_count = 4u;
         vk::SurfaceFormatKHR surface_format = {vk::Format::eB8G8R8A8Srgb, vk::ColorSpaceKHR::eSrgbNonlinear};
         vk::PresentModeKHR present_mode = vk::PresentModeKHR::eMailbox;

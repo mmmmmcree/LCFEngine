@@ -237,8 +237,8 @@ private:
         }
         m_candidate_families_list.resize(m_requests.size());
         for (auto && [request, candidate_families] : stdv::zip(m_requests, m_candidate_families_list)) {
-            for (auto && [i, family_props] : m_family_props_list | stdv::enumerate) {
-                uint32_t family_index = static_cast<uint32_t>(i);
+            for (uint32_t family_index = 0; family_index < m_family_props_list.size(); ++family_index) {
+                const auto & family_props = m_family_props_list[family_index];
                 bool flags_satisfied = (family_props.queueFlags & request.getRequiredFlags()) == request.getRequiredFlags();
                 if (not flags_satisfied) { continue; }
                 vk::SurfaceKHR present_surface = request.getPresentSurface();
