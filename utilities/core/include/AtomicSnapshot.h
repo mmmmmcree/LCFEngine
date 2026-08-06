@@ -4,15 +4,14 @@
 #include <memory>
 #include <concepts>
 #include <utility>
+#include <version>
 #include "type_traits/member_pointer_traits.h"
 
 namespace lcf {
 
-// A lock-free single-value container. Multiple providers publish; any number of
-// consumers read the latest complete snapshot. Reads never block writes and
-// observe a consistent value (never a half-updated one). The held shared_ptr is
-// an implementation detail; consumers see a Snapshot guard that keeps the value
-// alive while in use.
+#if defined(__cpp_lib_atomic_shared_ptr) && __cpp_lib_atomic_shared_ptr >= 201711L
+
+// Native C++20 implementation for standard libraries with atomic<shared_ptr>.
 template <typename T>
 requires std::copy_constructible<T>
 class AtomicSnapshot
@@ -65,6 +64,86 @@ public:
 private:
     std::atomic<ConstSP> m_value;
 };
+
+#else
+
+// Compatibility implementation for standard libraries without the C++20
+// atomic<shared_ptr> specialization.
+template <typename T>
+requires std::copy_constructible<T>
+class AtomicSnapshot
+{
+    using ConstSP = std::shared_ptr<const T>;
+public:
+    class Snapshot
+    {
+        friend class AtomicSnapshot;
+        explicit Snapshot(ConstSP value) noexcept : m_value(std::move(value)) {}
+    public:
+        Snapshot() noexcept = default;
+        explicit operator bool() const noexcept { return static_cast<bool>(m_value); }
+        const T & operator*() const noexcept { return *m_value; }
+        const T * operator->() const noexcept { return m_value.get(); }
+        bool operator==(const Snapshot & other) const noexcept { return m_value == other.m_value; }
+    public:
+        const T & value() const noexcept { return *m_value; }
+    private:
+        ConstSP m_value;
+    };
+public:
+    ~AtomicSnapshot() noexcept = default;
+    AtomicSnapshot() noexcept = default;
+    explicit AtomicSnapshot(T initial) noexcept : m_value(std::make_shared<const T>(std::move(initial))) {}
+    AtomicSnapshot(const AtomicSnapshot & other) noexcept : m_value(std::atomic_load_explicit(&other.m_value, std::memory_order_acquire)) {}
+    AtomicSnapshot(AtomicSnapshot && other) noexcept : m_value(std::atomic_exchange_explicit(&other.m_value, {}, std::memory_order_acq_rel)) {}
+    AtomicSnapshot & operator=(const AtomicSnapshot & other) noexcept
+    {
+        if (this == &other) { return *this; }
+        std::atomic_store_explicit(
+            &m_value,
+            std::atomic_load_explicit(&other.m_value, std::memory_order_acquire),
+            std::memory_order_release);
+        return *this;
+    }
+    AtomicSnapshot & operator=(AtomicSnapshot && other) noexcept
+    {
+        if (this == &other) { return *this; }
+        std::atomic_store_explicit(
+            &m_value,
+            std::atomic_exchange_explicit(&other.m_value, {}, std::memory_order_acq_rel),
+            std::memory_order_release);
+        return *this;
+    }
+public:
+    Snapshot load() const noexcept { return Snapshot(std::atomic_load_explicit(&m_value, std::memory_order_acquire)); }
+    void update(T value) noexcept
+    {
+        std::atomic_store_explicit(&m_value, std::make_shared<const T>(std::move(value)), std::memory_order_release);
+    }
+    template <auto MemberPtr>
+    requires std::default_initializable<T>
+    void update(member_pointer_member_t<MemberPtr> value) noexcept
+    {
+        auto current = std::atomic_load_explicit(&m_value, std::memory_order_acquire);
+        while (true) {
+            auto next = std::make_shared<T>(current ? *current : T{});
+            (*next).*MemberPtr = std::move(value);
+            if constexpr (std::equality_comparable<T>) {
+                if (current and *next == *current) { return; }
+            }
+            if (std::atomic_compare_exchange_weak_explicit(
+                &m_value,
+                &current,
+                ConstSP(std::move(next)),
+                std::memory_order_release,
+                std::memory_order_acquire)) { return; }
+        }
+    }
+private:
+    ConstSP m_value;
+};
+
+#endif
 
 // AtomicSnapshot plus a single-consumer cursor remembering the last value it
 // consumed. Lets one consumer ask "changed since I last looked?" and latch the
