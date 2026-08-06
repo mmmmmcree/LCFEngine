@@ -102,6 +102,21 @@
       "cacheVariables": { "LCF_VKC_ONLY": "ON" }
     },
     {
+      "name": "clang-vkc",
+      "inherits": "_base",
+      "displayName": "Clang vk_core-only (macOS)",
+      "description": "Minimal macOS vk_core iteration build using Clang",
+      "generator": "Ninja Multi-Config",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_OSX_ARCHITECTURES": "arm64",
+        "LCF_VKC_ONLY": "ON",
+        "DEPS_BACKEND": "vcpkg",
+        "VCPKG_TARGET_TRIPLET": "arm64-osx"
+      }
+    },
+    {
       "name": "msvc-vkc",
       "inherits": "msvc",
       "displayName": "MSVC vk_core-only",
@@ -140,6 +155,9 @@
 
     { "name": "gcc-vkc-debug",        "configurePreset": "gcc-vkc",     "configuration": "Debug"          },
     { "name": "gcc-vkc-release",      "configurePreset": "gcc-vkc",     "configuration": "Release"        },
+
+    { "name": "clang-vkc-debug",      "configurePreset": "clang-vkc",   "configuration": "Debug"          },
+    { "name": "clang-vkc-release",    "configurePreset": "clang-vkc",   "configuration": "Release"        },
 
     { "name": "msvc-vkc-debug",       "configurePreset": "msvc-vkc",    "configuration": "Debug"          },
     { "name": "msvc-vkc-release",     "configurePreset": "msvc-vkc",    "configuration": "Release"        }

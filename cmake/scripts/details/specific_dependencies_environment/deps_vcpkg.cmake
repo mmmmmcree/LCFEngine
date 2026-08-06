@@ -300,7 +300,13 @@ function(deps_install_vcpkg DEPS_JSON)
     set(_install_root "${CMAKE_BINARY_DIR}/vcpkg_installed")
     set(_blds_root    "${_install_root}/vcpkg/blds")
     set(_pkgs_root    "${_install_root}/vcpkg/pkgs")
+    set(_downloads_root "${_install_root}/vcpkg/downloads")
     set(_manifest_dir "${CMAKE_BINARY_DIR}/_vcpkg_aggregate")
+
+    # Keep vcpkg's writable work directories inside this preset's build tree.
+    # Fresh vcpkg clones do not contain buildtrees/, and some vcpkg-tool
+    # releases try to lock it before creating the parent directory.
+    file(MAKE_DIRECTORY "${_blds_root}" "${_pkgs_root}" "${_downloads_root}")
 
     string(JSON _len LENGTH "${DEPS_JSON}" dependencies)
     math(EXPR _last "${_len} - 1")
@@ -360,12 +366,9 @@ ${_deps_block}
         endforeach()
     endif()
 
-    # 4) Run vcpkg install. Default behavior: let vcpkg use its global
-    #    buildtrees/packages dirs so it can clean them up post-install (and
-    #    binary cache hits stay clean — no extracted source under build/).
-    #    With DEPS_KEEP_SOURCES=ON, pin both under the install root for
-    #    per-preset isolation and pass --no-binarycaching so the build is
-    #    forced to extract source.
+    # 4) Run vcpkg install. Buildtrees/packages are pinned under the install
+    #    root for per-preset isolation. With DEPS_KEEP_SOURCES=ON, disable the
+    #    binary cache so the build is forced to extract source.
     # Pin the host triplet to the target. Otherwise vcpkg defaults the host
     # triplet to its detected host (x64-windows on Windows), so any dep with a
     # host-tool dependency forces an x64-windows build — which needs Visual
@@ -377,13 +380,12 @@ ${_deps_block}
         "--triplet=${VCPKG_TARGET_TRIPLET}"
         "--host-triplet=${VCPKG_TARGET_TRIPLET}"
         "--feature-flags=manifests,versions"
+        "--x-buildtrees-root=${_blds_root}"
+        "--x-packages-root=${_pkgs_root}"
+        "--downloads-root=${_downloads_root}"
     )
     if(DEPS_KEEP_SOURCES)
-        list(APPEND _install_args
-            "--x-buildtrees-root=${_blds_root}"
-            "--x-packages-root=${_pkgs_root}"
-            "--no-binarycaching"
-        )
+        list(APPEND _install_args "--no-binarycaching")
     endif()
 
     execute_process(
