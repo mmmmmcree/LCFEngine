@@ -59,7 +59,7 @@ int main()
         .setErrorSink([](std::string_view message) { lcf_log_error(message); });
     vkc::entry::register_debug_utils(inst_ext_manifest, vkc::dbg::SeverityFlags::eError | vkc::dbg::SeverityFlags::eWarning | vkc::dbg::SeverityFlags::eVerbose, debug_callbacks);
     vkc::entry::register_surface(inst_ext_manifest);
-    vkc::entry::register_swapchain(device_ext_manifest);
+    vkc::entry::register_swapchain(inst_ext_manifest, device_ext_manifest);
 
     vk::ApplicationInfo app_info;
     app_info.setPApplicationName("LCFEngine")

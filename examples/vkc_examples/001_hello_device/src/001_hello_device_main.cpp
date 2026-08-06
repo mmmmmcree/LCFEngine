@@ -10,8 +10,6 @@
 #include "log.h"
 
 using namespace lcf;
-namespace stdv = std::views;
-
 int main()
 {
     log::init();
@@ -57,9 +55,11 @@ int main()
     lcf_log_info("Physical device selected successfully, device name: {}", std::string(physical_device.getProperties().deviceName.data()));
 
     uint32_t queue_family_index = 0;
-    for (const auto & [index, props] : physical_device.getQueueFamilyProperties() | stdv::enumerate) {
+    const auto queue_family_properties = physical_device.getQueueFamilyProperties();
+    for (std::size_t index = 0; index < queue_family_properties.size(); ++index) {
+        const auto & props = queue_family_properties[index];
         if (props.queueFlags & vk::QueueFlagBits::eGraphics) {
-            queue_family_index = index;
+            queue_family_index = static_cast<uint32_t>(index);
             break;
         }
     }
