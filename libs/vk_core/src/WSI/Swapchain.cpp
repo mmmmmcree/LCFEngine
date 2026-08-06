@@ -65,10 +65,6 @@ std::expected<vk::SemaphoreSubmitInfo, std::error_code> Swapchain::_present(
     vk::ImageSubresourceLayers src_subresource_layers) noexcept
 {
     //- 1. check pre-conditions
-    //- consider this if condition as a dirty flag, swapchain becomes dirty after first creation or any change in desired params
-    if (auto snapshot = m_desired_params_snapshot.loadIfChanged()) {
-        if (auto ec = this->recreate(*snapshot)) { return std::unexpected(ec); }
-    }
     if (auto ec = this->acquireNextImage()) { return std::unexpected(ec); }
     //- 2. fill m_present_resources
     auto expected_cmd = this->acquireCmdBuffer();
@@ -187,6 +183,9 @@ std::expected<vk::SemaphoreSubmitInfo, std::error_code> Swapchain::present(
     m_cached_present_input.write({src_offsets, src_image, image_lease, wait_info, src_subresource_layers});
     if (m_resize_has_priority.load(std::memory_order_acquire)) { return std::unexpected(errc::present_skipped_for_resize); }
     std::lock_guard lock(m_present_mutex);
+    if (auto snapshot = m_desired_params_snapshot.loadIfChanged()) {
+        if (auto ec = this->recreate(*snapshot)) { return std::unexpected(ec); }
+    }
     return this->_present(src_offsets, src_image, std::move(image_lease), wait_info, src_subresource_layers);
 }
 
@@ -202,6 +201,9 @@ std::error_code Swapchain::resizeToFit() noexcept
     std::lock_guard lock(m_present_mutex);
     auto [src_offsets, src_image, image_lease, wait_info, src_subresource_layers] = m_cached_present_input.read();
     if (not src_image) { return {}; }
+    auto desired_params = m_desired_params_snapshot.loadIfChanged();
+    if (not desired_params) { desired_params = m_desired_params_snapshot.read(); }
+    if (auto ec = this->recreate(desired_params.value())) { return ec; }
     auto expected_present_result = this->_present(src_offsets, src_image, std::move(image_lease), wait_info, src_subresource_layers);
     if (not expected_present_result) { return expected_present_result.error(); }
     return {};
@@ -244,7 +246,9 @@ std::error_code Swapchain::recreate(const DesiredParams & desired_params) noexce
     std::vector<vk::Image> swapchain_images;
     uint32_t image_count = std::clamp(desired_params.image_count,
         surface_capabilities.minImageCount,
-        std::max(surface_capabilities.maxImageCount, desired_params.image_count));
+        surface_capabilities.maxImageCount ?
+        surface_capabilities.maxImageCount :
+        std::numeric_limits<uint32_t>::max());
     
     vk::SwapchainCreateInfoKHR swapchain_info;
     swapchain_info.setSurface(m_surface.get())
