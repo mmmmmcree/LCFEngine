@@ -1070,21 +1070,17 @@ class DynamicRenderInfo
             vk::ImageUsageFlags required_image_usage = {} ) noexcept :
             m_layout(layout),
             m_stage_flags(stage_flags),
-            m_access_flags(access_flags),
-            m_required_image_usage(required_image_usage) {}
+            m_access_flags(access_flags) {}
         AttachmentUsageAttributes(AttachmentUsage usage, bool unified_layouts_enabled) noexcept :
             m_layout(enum_traits<AttachmentUsage>::layout_of(usage, unified_layouts_enabled)),
             m_stage_flags(enum_traits<AttachmentUsage>::stage_flags_of(usage)),
-            m_access_flags(enum_traits<AttachmentUsage>::access_flags_of(usage)),
-            m_required_image_usage(enum_traits<AttachmentUsage>::required_image_usage_of(usage)) {}
+            m_access_flags(enum_traits<AttachmentUsage>::access_flags_of(usage)) {}
         const vk::ImageLayout & getImageLayout() const noexcept { return m_layout; }
         const vk::PipelineStageFlags2 & getStageFlags() const noexcept { return m_stage_flags; }
         const vk::AccessFlags2 & getAccessFlags() const noexcept { return m_access_flags; }
-        const vk::ImageUsageFlags & getRequiredImageUsage() const noexcept { return m_required_image_usage; }
         vk::ImageLayout m_layout;
         vk::PipelineStageFlags2 m_stage_flags;
         vk::AccessFlags2 m_access_flags;
-        vk::ImageUsageFlags m_required_image_usage;
     };
     struct AttachmentPassInfo
     {
@@ -1100,12 +1096,6 @@ class DynamicRenderInfo
             m_stencil_load_op = load_op;
             m_stencil_store_op = store_op;
             return *this;
-        }
-        vk::ImageUsageFlags getRequiredImageUsage() const noexcept
-        {
-            return m_entry_attributes.getRequiredImageUsage() |
-                m_in_pass_attributes.getRequiredImageUsage() |
-                m_exit_attributes.getRequiredImageUsage();
         }
         std::optional<vk::ImageMemoryBarrier2> makeEntryBarrier(bool is_load_discards) const noexcept;
         std::optional<vk::ImageMemoryBarrier2> makeExitBarrier(bool is_store_discards) const noexcept;

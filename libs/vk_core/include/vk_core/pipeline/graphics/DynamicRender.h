@@ -86,7 +86,6 @@ private:
     BarrierSlotList m_barrier_slots;
     BarrierList m_entry_barriers;
     BarrierList m_exit_barriers;
-    RequiredImageUsageList m_required_image_usages;
 };
 
 } // namespace lcf::vkc

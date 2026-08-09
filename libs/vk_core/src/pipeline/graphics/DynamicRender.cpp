@@ -73,7 +73,6 @@ std::error_code DynamicRender::create(const DynamicRenderInfo & render_info) noe
     for (uint32_t i = 0; i < attachment_count; ++i) {
         const auto & pass_info = pass_infos[i];
         vk::Format format = resources[i].getFormat();
-        m_required_image_usages.emplace_back(pass_info.getRequiredImageUsage());
         bool load_discards = utils::discards_on_load(format, pass_info.m_load_op, pass_info.m_stencil_load_op);
         bool store_discards = utils::discards_on_store(format, pass_info.m_store_op, pass_info.m_stencil_store_op);
         auto entry_barrier = pass_info.makeEntryBarrier(load_discards);
@@ -111,6 +110,7 @@ void DynamicRender::begin(CommandBufferProxy &cmd, const RenderTarget &render_ta
         vk::DependencyInfo dependency_info;
         dependency_info.setImageMemoryBarriers(m_entry_barriers);
         cmd.pipelineBarrier2(dependency_info);
+
     }
     auto image_views = render_target.viewAttachmentImageViews();
     const auto & clear_values = render_target.getClearValues();

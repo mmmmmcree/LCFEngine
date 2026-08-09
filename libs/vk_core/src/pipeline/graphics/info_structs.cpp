@@ -172,8 +172,7 @@ DynamicRenderInfo::DynamicRenderInfo(AttachmentSetInfo & attachments, bool unifi
         pass_info.m_entry_attributes = AttachmentUsageAttributes {
             in_pass.getImageLayout(),
             vk::PipelineStageFlagBits2::eAllCommands,
-            vk::AccessFlagBits2::eMemoryWrite,
-            in_pass.getRequiredImageUsage()};
+            vk::AccessFlagBits2::eMemoryWrite};
     };
     AttachmentUsageAttributes color_attributes {AttachmentUsage::eColorAttachment, m_unified_layout_enabled};
     for (auto & pass_info : m_pass_infos) { init_pass_info(pass_info, color_attributes); }
