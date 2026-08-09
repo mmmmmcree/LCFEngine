@@ -708,49 +708,24 @@ private:
     ReferenceList m_flat_depth_stencil_ref; //- stable address
 };
 
-class AttachmentDescriptionInfo
+class AttachmentResourceInfo
 {
-    using Self = AttachmentDescriptionInfo;
-    using Root = vk::AttachmentDescription2;
+    using Self = AttachmentResourceInfo;
 public:
-    ~AttachmentDescriptionInfo() noexcept = default;
-    AttachmentDescriptionInfo() noexcept = default;
-    AttachmentDescriptionInfo(const Self & other) noexcept = default;
-    AttachmentDescriptionInfo(Self && other) noexcept = default;
-    Self & operator=(const Self & other) noexcept = default;
-    Self & operator=(Self && other) noexcept = default;
-    operator const Root &() const noexcept { return m_description.root(); }
+    ~AttachmentResourceInfo() noexcept = default;
+    AttachmentResourceInfo() noexcept = default;
+    AttachmentResourceInfo(const Self &) noexcept = default;
+    AttachmentResourceInfo(Self &&) noexcept = default;
+    Self & operator=(const Self &) noexcept = default;
+    Self & operator=(Self &&) noexcept = default;
 public:
-    template <utils::struct_extends_c<Root> T>
-    T & requestExtension() noexcept { return m_description.template request<T>(); }
-    Self & addFlags(vk::AttachmentDescriptionFlags flags) noexcept { m_description.root().flags |= flags; return *this; }
-    Self & setLoadStoreOp(vk::AttachmentLoadOp load_op, vk::AttachmentStoreOp store_op) noexcept
-    {
-        m_description.root().setLoadOp(load_op).setStoreOp(store_op);
-        return *this;
-    }
-    Self & setStencilLoadStoreOp(vk::AttachmentLoadOp load_op, vk::AttachmentStoreOp store_op) noexcept
-    {
-        m_description.root().setStencilLoadOp(load_op).setStencilStoreOp(store_op);
-        return *this;
-    }
-    Self & setFormat(vk::Format format) noexcept { m_description.root().setFormat(format); return *this; }
-    Self & setSampleCount(vk::SampleCountFlagBits samples) noexcept { m_description.root().setSamples(samples); return *this; }
-    Self & setInitialFinalLayout(vk::ImageLayout initial_layout, vk::ImageLayout final_layout) noexcept
-    {
-        m_description.root().setInitialLayout(initial_layout).setFinalLayout(final_layout);
-        return *this;
-    }
-    const vk::Format & getFormat() const noexcept { return m_description.root().format; }
-    const vk::SampleCountFlagBits & getSampleCount() const noexcept { return m_description.root().samples; }
-    const vk::AttachmentLoadOp & getLoadOp() const noexcept { return m_description.root().loadOp; }
-    const vk::AttachmentLoadOp & getStencilLoadOp() const noexcept { return m_description.root().stencilLoadOp; }
-    const vk::AttachmentStoreOp & getStencilStoreOp() const noexcept { return m_description.root().stencilStoreOp; }
-    const vk::AttachmentStoreOp & getStoreOp() const noexcept { return m_description.root().storeOp; }
-    const vk::ImageLayout & getInitialLayout() const noexcept { return m_description.root().initialLayout; }
-    const vk::ImageLayout & getFinalLayout() const noexcept { return m_description.root().finalLayout; }
+    Self & setFormat(vk::Format format) noexcept { m_format = format; return *this; }
+    Self & setSampleCount(vk::SampleCountFlagBits sample_count) noexcept { m_sample_count = sample_count; return *this; }
+    const vk::Format & getFormat() const noexcept { return m_format; }
+    const vk::SampleCountFlagBits & getSampleCount() const noexcept { return m_sample_count; }
 private:
-    utils::DynamicStructureChain<Root> m_description;
+    vk::Format m_format = vk::Format::eUndefined;
+    vk::SampleCountFlagBits m_sample_count = vk::SampleCountFlagBits::e1;
 };
 
 class ColorAttachmentKey
@@ -819,57 +794,25 @@ concept attachment_key_c = std::same_as<Key, ColorAttachmentKey> or
     std::same_as<Key, ResolveAttachmentKey> or
     std::same_as<Key, DepthStencilAttachmentKey>;
 
+template <typename Key>
+struct default_attachment_usage;
+
+template <>
+struct default_attachment_usage<ColorAttachmentKey>
+{ static constexpr AttachmentUsage value = AttachmentUsage::eColorAttachment; };
+
+template <>
+struct default_attachment_usage<ResolveAttachmentKey>
+{ static constexpr AttachmentUsage value = AttachmentUsage::eColorAttachment; };
+
+template <>
+struct default_attachment_usage<DepthStencilAttachmentKey>
+{ static constexpr AttachmentUsage value = AttachmentUsage::eDepthStencilAttachment; };
+
+template <typename Key>
+constexpr AttachmentUsage default_attachment_usage_v = default_attachment_usage<Key>::value;
+
 } // namespace lcf::vkc::details
-
-struct AccessScope
-{
-    AccessScope(
-        vk::PipelineStageFlags2 stage_mask = {},
-        vk::AccessFlags2 access_mask = {}) noexcept :
-        m_stage_mask(stage_mask),
-        m_access_mask(access_mask) {}
-    vk::PipelineStageFlags2 m_stage_mask;
-    vk::AccessFlags2 m_access_mask;
-};
-
-class AttachmentTransitionInfo
-{
-    using Self = AttachmentTransitionInfo;
-public:
-    AttachmentTransitionInfo(
-        AttachmentUsage entry_usage = AttachmentUsage::eNone,
-        AttachmentUsage in_pass_usage = AttachmentUsage::eNone,
-        AttachmentUsage exit_usage = AttachmentUsage::eNone,
-        std::optional<AccessScope> entry_src_scope_opt = std::nullopt,
-        std::optional<AccessScope> exit_dst_scope_opt = std::nullopt,
-        std::optional<vk::ImageLayout> in_pass_layout_opt = std::nullopt) noexcept :
-        m_entry_usage(entry_usage),
-        m_in_pass_usage(in_pass_usage),
-        m_exit_usage(exit_usage),
-        m_entry_src_scope_opt(entry_src_scope_opt),
-        m_exit_dst_scope_opt(exit_dst_scope_opt),
-        m_in_pass_layout_opt(in_pass_layout_opt) {}
-public:
-    Self & setEntryUsage(AttachmentUsage usage) noexcept { m_entry_usage = usage; return *this; }
-    Self & setInPassUsage(AttachmentUsage usage) noexcept { m_in_pass_usage = usage; return *this; }
-    Self & setExitUsage(AttachmentUsage usage) noexcept { m_exit_usage = usage; return *this; }
-    Self & setEntrySrcScope(const AccessScope & scope) noexcept { m_entry_src_scope_opt = scope; return *this; }
-    Self & setExitDstScope(const AccessScope & scope) noexcept { m_exit_dst_scope_opt = scope; return *this; }
-    Self & setInPassLayout(vk::ImageLayout layout) noexcept { m_in_pass_layout_opt = layout; return *this; }
-    AttachmentUsage getEntryUsage() const noexcept { return m_entry_usage; }
-    AttachmentUsage getInPassUsage() const noexcept { return m_in_pass_usage; }
-    AttachmentUsage getExitUsage() const noexcept { return m_exit_usage; }
-    AccessScope getEntrySrcScopeOr(AccessScope scope = {}) const noexcept { return m_entry_src_scope_opt.value_or(scope); }
-    AccessScope getExitDstScopeOr(AccessScope scope = {}) const noexcept { return m_exit_dst_scope_opt.value_or(scope); }
-    vk::ImageLayout getInPassLayoutOr(vk::ImageLayout layout = {}) const noexcept { return m_in_pass_layout_opt.value_or(layout); }
-private:
-    AttachmentUsage m_entry_usage;
-    AttachmentUsage m_in_pass_usage;
-    AttachmentUsage m_exit_usage;
-    std::optional<AccessScope> m_entry_src_scope_opt;
-    std::optional<AccessScope> m_exit_dst_scope_opt;
-    std::optional<vk::ImageLayout> m_in_pass_layout_opt;
-};
 
 class AttachmentSetInfo
 {
@@ -878,9 +821,8 @@ class AttachmentSetInfo
     friend class StaticRenderInfo;
     friend class DynamicRenderInfo;
     using Self = AttachmentSetInfo;
-    using DescriptionList = std::vector<AttachmentDescriptionInfo>;
+    using ResourceInfoList = std::vector<AttachmentResourceInfo>;
     using ColorResolveList = std::vector<std::pair<vk::ResolveModeFlagBits, uint32_t>>; // uint32_t: resolve index
-    using TransitionList = std::vector<AttachmentTransitionInfo>;
 public:
     ~AttachmentSetInfo() noexcept = default;
     AttachmentSetInfo(const Self &) = delete;
@@ -889,38 +831,31 @@ public:
     Self & operator=(Self &&) noexcept = default;
 private:
     AttachmentSetInfo(
-        DescriptionList && descriptions,
+        ResourceInfoList && resource_info_list,
         ColorResolveList && color_resolve_list,
         uint32_t set_id,
         bool has_depth_stencil) noexcept:
-        m_descriptions(std::move(descriptions)),
+        m_resource_info_list(std::move(resource_info_list)),
         m_color_resolve_list(std::move(color_resolve_list)),
         m_set_id(set_id),
         m_has_depth_stencil(has_depth_stencil) {}
 public:
-    const AttachmentDescriptionInfo & at(details::attachment_key_c auto key) const noexcept { return m_descriptions[this->getIndex(key)]; }
+    uint32_t getAttachmentCount() const noexcept { return static_cast<uint32_t>(m_resource_info_list.size()); }
     uint32_t getColorAttachmentCount() const noexcept { return static_cast<uint32_t>(m_color_resolve_list.size()); }
-    AttachmentReferenceInfo makeAttachmentReference(
-        ColorAttachmentKey key,
-        vk::ImageLayout layout = vk::ImageLayout::eColorAttachmentOptimal) const noexcept { return {this->getIndex(key), layout}; }
-    AttachmentReferenceInfo makeAttachmentReference(
-        ResolveAttachmentKey key,
-        vk::ImageLayout layout = vk::ImageLayout::eColorAttachmentOptimal) const noexcept { return {this->getIndex(key), layout}; }
-    AttachmentReferenceInfo makeAttachmentReference(
-        DepthStencilAttachmentKey key,
-        vk::ImageLayout layout = vk::ImageLayout::eDepthStencilAttachmentOptimal) const noexcept { return {this->getIndex(key), layout}; }
+    bool hasDepthStencilAttachment() const noexcept { return m_has_depth_stencil; }
+    bool hasAnyResolveAttachment() const noexcept { return this->getColorAttachmentCount() + this->hasDepthStencilAttachment() < this->getAttachmentCount(); }
+    const AttachmentResourceInfo & at(details::attachment_key_c auto key) const noexcept { return m_resource_info_list[this->getIndex(key)]; }
 private:
     uint32_t getIndex(ColorAttachmentKey key) const noexcept;
     uint32_t getIndex(ResolveAttachmentKey key) const noexcept;
     uint32_t getIndex(DepthStencilAttachmentKey key) const noexcept;
-    AttachmentDescriptionInfo & mutableAt(details::attachment_key_c auto key) noexcept { return m_descriptions[this->getIndex(key)]; }
-    AttachmentDescriptionInfo * getResolveAttachmentDescription(ColorAttachmentKey key) noexcept;
-    AttachmentDescriptionInfo * getDepthStencilAttachmentDescription() noexcept { return m_has_depth_stencil ? &m_descriptions.back() : nullptr; }
-    std::span<AttachmentDescriptionInfo> viewColorAttachmentDescriptions() noexcept { return std::span(m_descriptions).subspan(0, this->getColorAttachmentCount()); }
-    bool hasAnyResolveAttachment() const noexcept { return m_descriptions.size() > this->getColorAttachmentCount() + m_has_depth_stencil; }
-    TransitionList makeDefaultTransitions() const noexcept;
+    AttachmentResourceInfo & mutableAt(details::attachment_key_c auto key) noexcept { return m_resource_info_list[this->getIndex(key)]; }
+    AttachmentResourceInfo * getResolveAttachmentResource(ColorAttachmentKey key) noexcept;
+    AttachmentResourceInfo * getDepthStencilAttachmentResource() noexcept;
+    std::span<const AttachmentResourceInfo> viewAttachmentResources() const noexcept { return m_resource_info_list; }
+    std::span<AttachmentResourceInfo> viewColorAttachmentResources() noexcept;
 private:
-    DescriptionList m_descriptions; //- [colors][resolves][ds?]
+    ResourceInfoList m_resource_info_list;
     ColorResolveList m_color_resolve_list;
     uint32_t m_set_id = -1u;
     bool m_has_depth_stencil = false;
@@ -929,7 +864,7 @@ private:
 class AttachmentSetInfoBuilder
 {
     using Self = AttachmentSetInfoBuilder;
-    using DescriptionList = std::vector<AttachmentDescriptionInfo>;
+    using ResourceInfoList = typename AttachmentSetInfo::ResourceInfoList;
     using ColorResolveModeMap = std::unordered_map<uint32_t, vk::ResolveModeFlagBits>; // color attachmt index -> resolve mode
 public:
     ~AttachmentSetInfoBuilder() noexcept = default;
@@ -941,8 +876,8 @@ public:
 public:
     ColorAttachmentKey addColorAttachment() noexcept
     {
-        m_color_descriptions.emplace_back();
-        return ColorAttachmentKey {m_set_id, static_cast<uint32_t>(m_color_descriptions.size() - 1u)};
+        m_color_resource_info_list.emplace_back();
+        return ColorAttachmentKey {m_set_id, static_cast<uint32_t>(m_color_resource_info_list.size() - 1u)};
     }
     DepthStencilAttachmentKey enableDepthStencilAttachment() noexcept
     {
@@ -954,7 +889,7 @@ public:
         vk::ResolveModeFlagBits mode = vk::ResolveModeFlagBits::eAverage) noexcept;
     AttachmentSetInfo build() const noexcept;
 private:
-    mutable DescriptionList m_color_descriptions;
+    mutable ResourceInfoList m_color_resource_info_list;
     mutable ColorResolveModeMap m_color_resolve_modes;
     mutable uint32_t m_set_id;
     mutable bool m_has_depth_stencil = false;
@@ -979,9 +914,9 @@ public:
     Self & setFormat(ColorAttachmentKey key, vk::Format format) noexcept
     {
         m_set.mutableAt(key).setFormat(format);
-        auto resolve_attachment_description_p = m_set.getResolveAttachmentDescription(key);
-        if (resolve_attachment_description_p) {
-            resolve_attachment_description_p->setFormat(format);
+        auto resolve_attachment_resource_p = m_set.getResolveAttachmentResource(key);
+        if (resolve_attachment_resource_p) {
+            resolve_attachment_resource_p->setFormat(format);
         }
         return *this;
     }
@@ -991,7 +926,7 @@ public:
     const vk::Extent2D & getExtent() const noexcept { return m_extent; }
     const vk::SampleCountFlagBits & getSampleCount() const noexcept { return m_sample_count; }
     uint32_t getSetId() const noexcept { return m_set.m_set_id; }
-    uint32_t getAttachmentCount() const noexcept { return static_cast<uint32_t>(m_set.m_descriptions.size()); }
+    uint32_t getAttachmentCount() const noexcept { return m_set.getAttachmentCount(); }
     bool hasDepthStencilAttachment() const noexcept { return m_set.m_has_depth_stencil; }
     const ColorResolveList & getColorResolveList() const noexcept { return m_set.m_color_resolve_list; }
 private:
@@ -1008,10 +943,49 @@ class StaticRenderInfo
     using Root = vk::RenderPassCreateInfo2;
     using SubpassInfoList = std::vector<SubpassDescriptionInfo>;
     using DependencyInfoList = std::vector<SubpassDependencyInfo>;
-    using DescriptionList = std::vector<AttachmentDescriptionInfo>;
+    struct AttachmentPassInfo
+    {
+        using Self = AttachmentPassInfo;
+        using Root = vk::AttachmentDescription2;
+        operator const Root &() const noexcept { return m_description.root(); }
+        template <utils::struct_extends_c<Root> T>
+        T & requestExtension() noexcept { return m_description.template request<T>(); }
+        Self & addFlags(vk::AttachmentDescriptionFlags flags) noexcept
+        {
+            m_description.root().flags |= flags;
+            return *this;
+        }
+        Self & setLoadStoreOp(vk::AttachmentLoadOp load_op, vk::AttachmentStoreOp store_op) noexcept
+        {
+            m_description.root().setLoadOp(load_op).setStoreOp(store_op);
+            return *this;
+        }
+        Self & setStencilLoadStoreOp(vk::AttachmentLoadOp load_op, vk::AttachmentStoreOp store_op) noexcept
+        {
+            m_description.root().setStencilLoadOp(load_op).setStencilStoreOp(store_op);
+            return *this;
+        }
+        Self & setInitialLayout(vk::ImageLayout layout) noexcept
+        {
+            m_description.root().setInitialLayout(layout);
+            return *this;
+        }
+        Self & setFinalLayout(vk::ImageLayout layout) noexcept
+        {
+            m_description.root().setFinalLayout(layout);
+            return *this;
+        }
+        const vk::AttachmentLoadOp & getLoadOp() const noexcept { return m_description.root().loadOp; }
+        const vk::AttachmentLoadOp & getStencilLoadOp() const noexcept { return m_description.root().stencilLoadOp; }
+        const vk::ImageLayout & getInitialLayout() const noexcept { return m_description.root().initialLayout; }
+        const vk::ImageLayout & getFinalLayout() const noexcept { return m_description.root().finalLayout; }
+
+        utils::DynamicStructureChain<Root> m_description;
+    };
+    using PassInfoList = std::vector<AttachmentPassInfo>;
 public:
     ~StaticRenderInfo() noexcept = default;
-    explicit StaticRenderInfo(AttachmentSetInfo & attachments) noexcept : m_attachments(attachments) {}
+    explicit StaticRenderInfo(AttachmentSetInfo & attachments, bool unified_layouts_enabled = false) noexcept;
     StaticRenderInfo(const Self &) = delete;
     StaticRenderInfo(Self &&) noexcept = default;
     Self & operator=(const Self &) = delete;
@@ -1024,37 +998,61 @@ public:
     Self & addSubpass(SubpassDescriptionInfo && subpass_info) noexcept { m_subpasses.emplace_back(std::move(subpass_info)); return *this; }
     Self & addDependency(SubpassDependencyInfo && dependency_info) noexcept { m_dependencies.emplace_back(std::move(dependency_info)); return *this; }
     Self & addCorrelatedViewMask(uint32_t mask) noexcept { m_correlated_view_masks.emplace_back(mask); return *this; }
-    Self & setLoadStoreOp(details::attachment_key_c auto key, vk::AttachmentLoadOp load, vk::AttachmentStoreOp store) noexcept
+    Self & setLoadStoreOp(details::attachment_key_c auto key, vk::AttachmentLoadOp load_op, vk::AttachmentStoreOp store_op) noexcept
     {
-        m_attachments.mutableAt(key).setLoadStoreOp(load, store);
+        this->mutableAt(key).setLoadStoreOp(load_op, store_op);
         return *this;
     }
-    Self & setStencilLoadStoreOp(DepthStencilAttachmentKey key, vk::AttachmentLoadOp load, vk::AttachmentStoreOp store) noexcept
+    Self & setStencilLoadStoreOp(DepthStencilAttachmentKey key, vk::AttachmentLoadOp load_op, vk::AttachmentStoreOp store_op) noexcept
     {
-        m_attachments.mutableAt(key).setStencilLoadStoreOp(load, store); 
-        return *this; 
-    }
-    Self & setInitialFinalLayout(details::attachment_key_c auto key, vk::ImageLayout initial, vk::ImageLayout final) noexcept
-    {
-        m_attachments.mutableAt(key).setInitialFinalLayout(initial, final); 
+        this->mutableAt(key).setStencilLoadStoreOp(load_op, store_op);
         return *this;
+    }
+    Self & setInitialFinalLayout(details::attachment_key_c auto key, vk::ImageLayout initial_layout, vk::ImageLayout final_layout) noexcept
+    {
+        this->mutableAt(key).setInitialLayout(initial_layout).setFinalLayout(final_layout);
+        return *this;
+    }
+    Self & setEntryExitUsage(details::attachment_key_c auto key, AttachmentUsage initial_usage, AttachmentUsage final_usage) noexcept
+    {
+        return this->setInitialFinalLayout(key,
+            enum_traits<AttachmentUsage>::layout_of(initial_usage, m_unified_layout_enabled),
+            enum_traits<AttachmentUsage>::layout_of(final_usage, m_unified_layout_enabled));
     }
     Self & addAttachmentFlags(details::attachment_key_c auto key, vk::AttachmentDescriptionFlags flags) noexcept
     {
-        m_attachments.mutableAt(key).addFlags(flags);
+        this->mutableAt(key).addFlags(flags);
         return *this;
+    }
+    template <utils::struct_extends_c<vk::AttachmentDescription2> T>
+    T & requestAttachmentExtension(details::attachment_key_c auto key) noexcept
+    {
+        return this->mutableAt(key).template requestExtension<T>();
+    }
+    template <details::attachment_key_c Key>
+    AttachmentReferenceInfo makeAttachmentReference(
+        Key key, AttachmentUsage usage = details::default_attachment_usage_v<Key>) const noexcept
+    {
+        return {m_attachments.getIndex(key), enum_traits<AttachmentUsage>::layout_of(usage, m_unified_layout_enabled)};
     }
     uint32_t getColorAttachmentCount() const noexcept { return m_attachments.getColorAttachmentCount(); }
     const SubpassInfoList & getSubpasses() const noexcept { return m_subpasses; }
     const DependencyInfoList & getDependencies() const noexcept { return m_dependencies; }
     const std::vector<uint32_t> & getCorrelatedViewMasks() const noexcept { return m_correlated_view_masks; }
-    const DescriptionList & getAttachmentDescriptions() const noexcept { return m_attachments.m_descriptions; }
+private:
+    AttachmentPassInfo & mutableAt(details::attachment_key_c auto key) noexcept
+    {
+        return m_pass_infos[m_attachments.getIndex(key)];
+    }
+    std::vector<vk::AttachmentDescription2> makeAttachmentDescriptions() const noexcept;
 private:
     utils::DynamicStructureChain<Root> m_render_pass;
     AttachmentSetInfo & m_attachments;
+    PassInfoList m_pass_infos; //- [colors][resolves][ds?], one per slot
     SubpassInfoList m_subpasses;
     DependencyInfoList m_dependencies;
     std::vector<uint32_t> m_correlated_view_masks;
+    bool m_unified_layout_enabled = false;
 };
 
 class DynamicRenderInfo
@@ -1062,14 +1060,68 @@ class DynamicRenderInfo
     friend class DynamicRender;
     using Self = DynamicRenderInfo;
     using Root = vk::RenderingInfo;
-    using DescriptionList = std::vector<AttachmentDescriptionInfo>;
     using ColorResolveList = std::vector<std::pair<vk::ResolveModeFlagBits, uint32_t>>;
-    using TransitionList = std::vector<AttachmentTransitionInfo>;
+    struct AttachmentUsageAttributes
+    {
+        explicit AttachmentUsageAttributes(
+            vk::ImageLayout layout = vk::ImageLayout::eUndefined,
+            vk::PipelineStageFlags2 stage_flags = {},
+            vk::AccessFlags2 access_flags = {},
+            vk::ImageUsageFlags required_image_usage = {} ) noexcept :
+            m_layout(layout),
+            m_stage_flags(stage_flags),
+            m_access_flags(access_flags),
+            m_required_image_usage(required_image_usage) {}
+        AttachmentUsageAttributes(AttachmentUsage usage, bool unified_layouts_enabled) noexcept :
+            m_layout(enum_traits<AttachmentUsage>::layout_of(usage, unified_layouts_enabled)),
+            m_stage_flags(enum_traits<AttachmentUsage>::stage_flags_of(usage)),
+            m_access_flags(enum_traits<AttachmentUsage>::access_flags_of(usage)),
+            m_required_image_usage(enum_traits<AttachmentUsage>::required_image_usage_of(usage)) {}
+        const vk::ImageLayout & getImageLayout() const noexcept { return m_layout; }
+        const vk::PipelineStageFlags2 & getStageFlags() const noexcept { return m_stage_flags; }
+        const vk::AccessFlags2 & getAccessFlags() const noexcept { return m_access_flags; }
+        const vk::ImageUsageFlags & getRequiredImageUsage() const noexcept { return m_required_image_usage; }
+        vk::ImageLayout m_layout;
+        vk::PipelineStageFlags2 m_stage_flags;
+        vk::AccessFlags2 m_access_flags;
+        vk::ImageUsageFlags m_required_image_usage;
+    };
+    struct AttachmentPassInfo
+    {
+        using Self = AttachmentPassInfo;
+        Self & setLoadStoreOp(vk::AttachmentLoadOp load_op, vk::AttachmentStoreOp store_op) noexcept
+        {
+            m_load_op = load_op;
+            m_store_op = store_op;
+            return *this;
+        }
+        Self & setStencilLoadStoreOp(vk::AttachmentLoadOp load_op, vk::AttachmentStoreOp store_op) noexcept
+        {
+            m_stencil_load_op = load_op;
+            m_stencil_store_op = store_op;
+            return *this;
+        }
+        vk::ImageUsageFlags getRequiredImageUsage() const noexcept
+        {
+            return m_entry_attributes.getRequiredImageUsage() |
+                m_in_pass_attributes.getRequiredImageUsage() |
+                m_exit_attributes.getRequiredImageUsage();
+        }
+        std::optional<vk::ImageMemoryBarrier2> makeEntryBarrier(bool is_load_discards) const noexcept;
+        std::optional<vk::ImageMemoryBarrier2> makeExitBarrier(bool is_store_discards) const noexcept;
+
+        vk::AttachmentLoadOp m_load_op = vk::AttachmentLoadOp::eLoad;
+        vk::AttachmentStoreOp m_store_op = vk::AttachmentStoreOp::eStore;
+        vk::AttachmentLoadOp m_stencil_load_op = vk::AttachmentLoadOp::eLoad;
+        vk::AttachmentStoreOp m_stencil_store_op = vk::AttachmentStoreOp::eStore;
+        AttachmentUsageAttributes m_entry_attributes;
+        AttachmentUsageAttributes m_in_pass_attributes;
+        AttachmentUsageAttributes m_exit_attributes;
+    };
+    using PassInfoList = std::vector<AttachmentPassInfo>;
 public:
     ~DynamicRenderInfo() noexcept = default;
-    explicit DynamicRenderInfo(AttachmentSetInfo & attachments) noexcept :
-        m_attachments(attachments),
-        m_transitions(attachments.makeDefaultTransitions()) {}
+    explicit DynamicRenderInfo(AttachmentSetInfo & attachments, bool unified_layouts_enabled = false) noexcept;
     DynamicRenderInfo(const Self &) = delete;
     DynamicRenderInfo(Self &&) noexcept = default;
     Self & operator=(const Self &) = delete;
@@ -1080,58 +1132,84 @@ public:
     T & requestExtension() noexcept { return m_rendering.template request<T>(); }
     Self & addFlags(vk::RenderingFlags flags) noexcept { m_rendering.root().flags |= flags; return *this; }
     Self & setViewMask(uint32_t view_mask) noexcept { m_rendering.root().setViewMask(view_mask); return *this; }
-    Self & setLoadStoreOp(details::attachment_key_c auto key, vk::AttachmentLoadOp load, vk::AttachmentStoreOp store) noexcept
+    Self & setLoadStoreOp(details::attachment_key_c auto key, vk::AttachmentLoadOp load_op, vk::AttachmentStoreOp store_op) noexcept
     {
-        m_attachments.mutableAt(key).setLoadStoreOp(load, store);
+        this->mutableAt(key).setLoadStoreOp(load_op, store_op); 
         return *this;
     }
-    Self & setStencilLoadStoreOp(DepthStencilAttachmentKey key, vk::AttachmentLoadOp load, vk::AttachmentStoreOp store) noexcept
+    Self & setStencilLoadStoreOp(DepthStencilAttachmentKey key, vk::AttachmentLoadOp load_op, vk::AttachmentStoreOp store_op) noexcept
     {
-        m_attachments.mutableAt(key).setStencilLoadStoreOp(load, store);
+        this->mutableAt(key).setStencilLoadStoreOp(load_op, store_op);
         return *this;
     }
-    Self & enableUnifiedLayouts() noexcept { m_unified_layout_enabled = true; return *this; }
+    Self & setEntryAttributes(
+        details::attachment_key_c auto key,
+        vk::ImageLayout layout = vk::ImageLayout::eUndefined,
+        vk::PipelineStageFlags2 stage_flags = {},
+        vk::AccessFlags2 access_flags = {},
+        vk::ImageUsageFlags required_image_usage = {}) noexcept
+    {
+        this->mutableAt(key).m_entry_attributes = AttachmentUsageAttributes(layout, stage_flags, access_flags, required_image_usage); 
+        return *this;
+    }
+    Self & setInPassAttributes(
+        details::attachment_key_c auto key,
+        vk::ImageLayout layout = vk::ImageLayout::eUndefined,
+        vk::PipelineStageFlags2 stage_flags = {},
+        vk::AccessFlags2 access_flags = {},
+        vk::ImageUsageFlags required_image_usage = {}) noexcept
+    {
+        this->mutableAt(key).m_in_pass_attributes = AttachmentUsageAttributes(layout, stage_flags, access_flags, required_image_usage); 
+        return *this;
+    }
+    Self & setExitAttributes(
+        details::attachment_key_c auto key,
+        vk::ImageLayout layout = vk::ImageLayout::eUndefined,
+        vk::PipelineStageFlags2 stage_flags = {},
+        vk::AccessFlags2 access_flags = {},
+        vk::ImageUsageFlags required_image_usage = {}) noexcept
+    {
+        this->mutableAt(key).m_exit_attributes = AttachmentUsageAttributes(layout, stage_flags, access_flags, required_image_usage); 
+        return *this;
+    }
     Self & setEntryUsage(details::attachment_key_c auto key, AttachmentUsage usage) noexcept
     {
-        m_transitions[m_attachments.getIndex(key)].setEntryUsage(usage);
-        return *this;
-    }
-    Self & setExitUsage(details::attachment_key_c auto key, AttachmentUsage usage) noexcept
-    {
-        m_transitions[m_attachments.getIndex(key)].setExitUsage(usage);
+        this->mutableAt(key).m_entry_attributes = AttachmentUsageAttributes(usage, m_unified_layout_enabled); 
         return *this;
     }
     Self & setInPassUsage(details::attachment_key_c auto key, AttachmentUsage usage) noexcept
     {
-        m_transitions[m_attachments.getIndex(key)].setInPassUsage(usage);
-        return *this; 
+        this->mutableAt(key).m_in_pass_attributes = AttachmentUsageAttributes(usage, m_unified_layout_enabled); 
+        return *this;
     }
-    Self & setInPassLayout(details::attachment_key_c auto key, vk::ImageLayout layout) noexcept
+    Self & setExitUsage(details::attachment_key_c auto key, AttachmentUsage usage) noexcept
     {
-        m_transitions[m_attachments.getIndex(key)].setInPassLayout(layout); 
-        return *this; 
+        this->mutableAt(key).m_exit_attributes = AttachmentUsageAttributes(usage, m_unified_layout_enabled); 
+        return *this;
     }
-    Self & setEntrySrcScope(details::attachment_key_c auto key, const AccessScope & scope) noexcept
+    Self & setEntryInPassExitUsage(
+        details::attachment_key_c auto key,
+        AttachmentUsage entry_usage,
+        AttachmentUsage in_pass_usage,
+        AttachmentUsage exit_usage) noexcept
     {
-        m_transitions[m_attachments.getIndex(key)].setEntrySrcScope(scope); 
-        return *this; 
-    }
-    Self & setExitDstScope(details::attachment_key_c auto key, const AccessScope & scope) noexcept
-    {
-        m_transitions[m_attachments.getIndex(key)].setExitDstScope(scope); 
-        return *this; 
+        return this->setEntryUsage(key, entry_usage).setInPassUsage(key, in_pass_usage).setExitUsage(key, exit_usage); 
     }
     uint32_t getColorAttachmentCount() const noexcept { return m_attachments.getColorAttachmentCount(); }
-    const TransitionList & getTransitions() const noexcept { return m_transitions; }
-    bool isUnifiedLayoutEnabled() const noexcept { return m_unified_layout_enabled; }
 private:
-    const DescriptionList & getAttachmentDescriptions() const noexcept { return m_attachments.m_descriptions; }
+    AttachmentPassInfo & mutableAt(details::attachment_key_c auto key) noexcept
+    {
+        return m_pass_infos[m_attachments.getIndex(key)];
+    }
+    std::span<const AttachmentPassInfo> viewPassInfos() const noexcept { return m_pass_infos; }
+    std::span<const AttachmentResourceInfo> viewAttachmentResources() const noexcept { return m_attachments.viewAttachmentResources(); }
     const ColorResolveList & getColorResolveList() const noexcept { return m_attachments.m_color_resolve_list; }
-    bool hasDepthStencilAttachment() const noexcept { return m_attachments.m_has_depth_stencil; }
+    uint32_t getAttachmentCount() const noexcept { return m_attachments.getAttachmentCount(); }
+    bool hasDepthStencilAttachment() const noexcept { return m_attachments.hasDepthStencilAttachment(); }
 private:
     utils::DynamicStructureChain<Root> m_rendering;
     AttachmentSetInfo & m_attachments;
-    TransitionList m_transitions;
+    PassInfoList m_pass_infos;
     bool m_unified_layout_enabled = false;
 };
 

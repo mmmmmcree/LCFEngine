@@ -18,9 +18,7 @@ std::error_code StaticRender::create(vk::Device device, const StaticRenderInfo &
     auto dependencies = render_info.getDependencies() |
         stdv::transform([](const auto &dependency) { return static_cast<vk::SubpassDependency2>(dependency); }) |
         stdr::to<std::vector>();
-    auto attachments = render_info.getAttachmentDescriptions() |
-        stdv::transform([](const auto &desc) { return static_cast<vk::AttachmentDescription2>(desc); }) |
-        stdr::to<std::vector>();
+    auto attachments = render_info.makeAttachmentDescriptions();
     
     render_pass_info.setAttachments(attachments)
         .setSubpasses(subpasses)

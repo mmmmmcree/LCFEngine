@@ -50,16 +50,15 @@ class DynamicRender
     using AttachmentInfoList = std::vector<vk::RenderingAttachmentInfo>;
     using ResolveIndices = std::vector<uint32_t>;
     using FormatList = std::vector<vk::Format>;
-public:
-    struct BarrierSlotMap
+    struct BarrierSlot
     {
-        uint32_t slot = vk::AttachmentUnused;
+        uint32_t slot_index = vk::AttachmentUnused;
         uint32_t entry_index = vk::AttachmentUnused;
         uint32_t exit_index = vk::AttachmentUnused;
-        vk::ImageUsageFlags required_image_usage;
     };
+    using BarrierSlotList = std::vector<BarrierSlot>;
     using BarrierList = std::vector<vk::ImageMemoryBarrier2>;
-    using BarrierSlotMapList = std::vector<BarrierSlotMap>;
+    using RequiredImageUsageList = std::vector<vk::ImageUsageFlags>;
 public:
     ~DynamicRender() noexcept = default;
     DynamicRender() noexcept = default;
@@ -84,10 +83,10 @@ private:
     vk::RenderingAttachmentInfo m_stencil_attachment;
     vk::Format m_depth_format = vk::Format::eUndefined;
     vk::Format m_stencil_format = vk::Format::eUndefined;
+    BarrierSlotList m_barrier_slots;
     BarrierList m_entry_barriers;
     BarrierList m_exit_barriers;
-    BarrierSlotMapList m_barrier_slot_maps;
-    vk::DependencyFlags m_dependency_flags;
+    RequiredImageUsageList m_required_image_usages;
 };
 
 } // namespace lcf::vkc

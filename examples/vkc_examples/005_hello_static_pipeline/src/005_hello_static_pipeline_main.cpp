@@ -209,10 +209,11 @@ int main()
     vk::Device device = device_context.getDevice();
     //- create static render
 
+    
+    vkc::StaticRenderInfo static_render_info {attachment_set};
     vkc::SubpassDescriptionInfo subpass_info;
     subpass_info.setBindPoint(vk::PipelineBindPoint::eGraphics)
-        .addColorAttachment(attachment_set.makeAttachmentReference(color_key));
-    vkc::StaticRenderInfo static_render_info {attachment_set};
+        .addColorAttachment(static_render_info.makeAttachmentReference(color_key));
     static_render_info.setLoadStoreOp(color_key, vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore)
         .setInitialFinalLayout(color_key, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferSrcOptimal)
         .addSubpass(std::move(subpass_info));
@@ -240,8 +241,11 @@ int main()
     //-
     vkc::DynamicRenderInfo dynamic_render_info {attachment_set};
     dynamic_render_info.setLoadStoreOp(color_key, vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore)
-        .setExitUsage(color_key, vkc::AttachmentUsage::eTransferSource)
-        .setExitDstScope(color_key, {vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferRead});
+        .setExitAttributes(color_key,
+            vk::ImageLayout::eTransferSrcOptimal,
+            vk::PipelineStageFlagBits2::eBlit,
+            vk::AccessFlagBits2::eTransferRead,
+            vk::ImageUsageFlagBits::eTransferSrc);
     vkc::DynamicRender dynamic_render;
     if (auto ec = dynamic_render.create(dynamic_render_info)) {
         lcf_log_error("Failed to create dynamic_render: {}", ec.message());
@@ -284,10 +288,11 @@ int main()
             auto & render_target = render_targets[frame % 2];
             vk::CommandBufferBeginInfo cmd_begin_info {};
             cmd.begin(cmd_begin_info);
-            // static_render.begin(cmd, render_target);
-            // static_graphics_pipeline.bind(cmd);
-            // cmd.draw(3, 1, 0, 0);
-            // static_render.end(cmd);
+            static_render.begin(cmd, render_target);
+            static_graphics_pipeline.bind(cmd);
+            cmd.draw(3, 1, 0, 0);
+            static_render.end(cmd);
+            
             dynamic_render.begin(cmd, render_target);
             dynamic_graphics_pipeline.bind(cmd);
             cmd.draw(3, 1, 0, 0);
