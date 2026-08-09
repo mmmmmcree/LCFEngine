@@ -310,6 +310,7 @@ int main()
             auto expected_present_result = swapchain.present(src_offsets, present_image, present_image.lease(), submit_semaphore_info);
             if (expected_present_result) {
                 present_blit_finish_tokens[frame % 2] = expected_present_result.value();
+                ++frame;
                 continue;
             }
             auto ec = expected_present_result.error();
