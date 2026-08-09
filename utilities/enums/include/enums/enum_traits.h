@@ -8,7 +8,7 @@
 namespace lcf {
 
 template <enum_c Enum>
-struct enum_common_attributes_traits
+struct enum_basic_traits
 {
     template <Enum enum_value>
     inline static constexpr auto index_of_v = std::to_underlying(enum_value);
@@ -18,6 +18,6 @@ struct enum_common_attributes_traits
 };
 
 template <enum_c Enum>
-struct enum_specialized_attributes_traits;
+struct enum_traits;
 
 } // namespace lcf
