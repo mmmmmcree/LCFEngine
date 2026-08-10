@@ -1,5 +1,4 @@
 #include "vk_core/memory/Image.h"
-#include "vk_core/memory/details/Memory.h"
 #include "vk_core/memory/MemoryAllocator.h"
 #include "vk_core/memory/info_structs.h"
 
@@ -12,7 +11,7 @@ std::error_code Image::create(
 {
     auto expected_memory = allocator.allocateImage(image_info, alloc_info);
     if (not expected_memory) { return expected_memory.error(); }
-    m_memory_rp = std::move(expected_memory.value());
+    m_memory_rh = std::move(expected_memory.value());
     m_device = allocator.getDevice();
     m_desc = image_info;
     return {};
@@ -20,24 +19,24 @@ std::error_code Image::create(
 
 Image::operator vk::Image() const noexcept
 {
-    return m_memory_rp->handle();
+    return m_memory_rh->handle();
 }
 
 ResourceLease Image::lease() const noexcept
 {
-    return m_memory_rp.lease();
+    return m_memory_rh.lease();
 }
 
 const vk::Image & Image::handle() const noexcept
 {
-    return m_memory_rp->handle();
+    return m_memory_rh->handle();
 }
 
 std::expected<vk::UniqueImageView, std::error_code> Image::createView(
     const vk::ImageSubresourceRange & range, vk::ImageViewType view_type) const noexcept
 {
     vk::ImageViewCreateInfo view_info;
-    view_info.setImage(m_memory_rp->handle())
+    view_info.setImage(m_memory_rh->handle())
         .setViewType(view_type)
         .setFormat(m_desc.getFormat())
         .setSubresourceRange(range);

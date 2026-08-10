@@ -57,7 +57,7 @@ std::error_code VMAllocator::create(vk::Instance instance, vk::PhysicalDevice ph
     return {};
 }
 
-std::expected<Memory<vk::Buffer>, std::error_code> VMAllocator::allocateBuffer(const vk::BufferCreateInfo & buffer_info, const MemoryAllocationInfo & alloc_info) const noexcept
+std::expected<UniqueBufferMemory, std::error_code> VMAllocator::allocateBuffer(const vk::BufferCreateInfo & buffer_info, const MemoryAllocationInfo & alloc_info) const noexcept
 {
     VmaAllocationCreateInfo create_info = to_vma_allocation_create_info(alloc_info);
     VkBuffer buffer = nullptr;
@@ -70,10 +70,10 @@ std::expected<Memory<vk::Buffer>, std::error_code> VMAllocator::allocateBuffer(c
         &allocation,
         nullptr);
     if (result != VK_SUCCESS) { return std::unexpected(vk::make_error_code(static_cast<vk::Result>(result))); }
-    return Memory<vk::Buffer>(m_allocator, allocation, buffer);
+    return UniqueBufferMemory(Memory<vk::Buffer>(m_allocator, allocation, buffer));
 }
 
-std::expected<Memory<vk::Image>, std::error_code> VMAllocator::allocateImage(const vk::ImageCreateInfo & image_info, const MemoryAllocationInfo & alloc_info) const noexcept
+std::expected<UniqueImageMemory, std::error_code> VMAllocator::allocateImage(const vk::ImageCreateInfo & image_info, const MemoryAllocationInfo & alloc_info) const noexcept
 {
     VmaAllocationCreateInfo create_info = to_vma_allocation_create_info(alloc_info);
     VkImage image = nullptr;
@@ -86,7 +86,7 @@ std::expected<Memory<vk::Image>, std::error_code> VMAllocator::allocateImage(con
         &allocation,
         nullptr);
     if (result != VK_SUCCESS) { return std::unexpected(vk::make_error_code(static_cast<vk::Result>(result))); }
-    return Memory<vk::Image>(m_allocator, allocation, image);
+    return UniqueImageMemory(Memory<vk::Image>(m_allocator, allocation, image));
 }
 
 } // namespace lcf::vkc::details

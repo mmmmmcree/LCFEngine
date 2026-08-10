@@ -5,14 +5,8 @@
 #include <expected>
 #include <system_error>
 #include "resource_utils.h"
-
-namespace lcf::vkc::details {
-
-template <typename Handle>
-requires std::is_same_v<Handle, vk::Image> or std::is_same_v<Handle, vk::Buffer>
-class Memory;
-
-} // namespace lcf::vkc::details
+#include "vk_core/utils/ResourceHandle.h"
+#include "vk_core/memory/details/Memory.h"
 
 namespace lcf::vkc {
 
@@ -119,7 +113,7 @@ public:
         const vk::ImageSubresourceRange & range,
         vk::ImageViewType view_type) const noexcept;
 private:
-    ResourcePtr<Memory> m_memory_rp;
+    utils::ResourceHandle<Memory> m_memory_rh;
     vk::Device m_device;
     ImageDescription m_desc;
 };

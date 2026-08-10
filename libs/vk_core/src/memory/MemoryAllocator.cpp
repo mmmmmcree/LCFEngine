@@ -22,13 +22,13 @@ std::error_code MemoryAllocator::create(
     return m_allocator_up->create(instance, physical_device, device, create_info);
 }
 
-std::expected<details::Memory<vk::Buffer>, std::error_code> MemoryAllocator::allocateBuffer(
+std::expected<details::UniqueBufferMemory, std::error_code> MemoryAllocator::allocateBuffer(
     const vk::BufferCreateInfo & buffer_info, const MemoryAllocationInfo & alloc_info) const noexcept
 {
     return m_allocator_up->allocateBuffer(buffer_info, alloc_info);
 }
 
-std::expected<details::Memory<vk::Image>, std::error_code> MemoryAllocator::allocateImage(
+std::expected<details::UniqueImageMemory, std::error_code> MemoryAllocator::allocateImage(
     const vk::ImageCreateInfo & image_info, const MemoryAllocationInfo & alloc_info) const noexcept
 {
     return m_allocator_up->allocateImage(image_info, alloc_info);

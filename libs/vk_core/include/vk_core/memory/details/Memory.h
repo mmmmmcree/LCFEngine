@@ -31,30 +31,25 @@ class Memory
     using ByteSpan = std::span<std::byte>;
     using ReadableByteSpan = std::span<const std::byte>;
 public:
-    ~Memory() noexcept { vma::destroy_memory(m_allocator, m_handle, m_allocation); }
+    ~Memory() noexcept = default;
+    Memory() noexcept = default;
     Memory(VmaAllocator allocator,
         VmaAllocation allocation,
         Handle handle) noexcept :
         m_allocator(allocator),
         m_allocation(allocation),
         m_handle(handle) {}
-    Memory(const Self &) = delete;
-    Self & operator=(const Self &) = delete;
-    Memory(Self && other) noexcept :
-        m_allocator(std::exchange(other.m_allocator, nullptr)),
-        m_allocation(std::exchange(other.m_allocation, nullptr)),
-        m_handle(std::exchange(other.m_handle, nullptr)) {}
-    Self & operator=(Self && other) noexcept
-    {
-        if (this == &other) { return *this; }
-        destroy_memory(m_allocator, m_handle, m_allocation);
-        m_allocator = std::exchange(other.m_allocator, nullptr);
-        m_allocation = std::exchange(other.m_allocation, nullptr);
-        m_handle = std::exchange(other.m_handle, nullptr);
-        return *this;
-    }
-    operator Handle() const noexcept { return m_handle; }
+    Memory(const Self &) noexcept = default;
+    Self & operator=(const Self &) noexcept = default;
+    Memory(Self &&) noexcept = default;
+    Self & operator=(Self &&) noexcept = default;
+    Memory(std::nullptr_t) noexcept {}
+    Self & operator=(std::nullptr_t) noexcept { *this = Self {}; return *this; }
+    bool operator==(const Self &) const noexcept = default;
+    explicit operator bool() const noexcept { return static_cast<bool>(m_handle); }
+    operator const Handle &() const noexcept { return m_handle; }
 public:
+    void destroy() const noexcept { vma::destroy_memory(m_allocator, m_handle, m_allocation); }
     const Handle & handle() const noexcept { return m_handle; }
     vk::DeviceSize getSizeInBytes() const noexcept
     {
@@ -104,5 +99,53 @@ private:
     VmaAllocation m_allocation = nullptr;
     Handle m_handle = nullptr;
 };
+
+template <typename Dispatch>
+class MemoryDestroy
+{
+public:
+    MemoryDestroy() = default;
+    MemoryDestroy(Dispatch const &) noexcept {}
+protected:
+    template <typename T>
+    void destroy(T t) const noexcept { t.destroy(); }
+};
+
+} // namespace lcf::vkc::details
+
+namespace VULKAN_HPP_NAMESPACE {
+
+template <>
+struct isVulkanHandleType<lcf::vkc::details::Memory<vk::Buffer>>
+{
+    static VULKAN_HPP_CONST_OR_CONSTEXPR bool value = true;
+};
+
+template <>
+struct isVulkanHandleType<lcf::vkc::details::Memory<vk::Image>>
+{
+    static VULKAN_HPP_CONST_OR_CONSTEXPR bool value = true;
+};
+
+template <typename Dispatch>
+class UniqueHandleTraits<lcf::vkc::details::Memory<vk::Buffer>, Dispatch>
+{
+public:
+    using deleter = lcf::vkc::details::MemoryDestroy<Dispatch>;
+};
+
+template <typename Dispatch>
+class UniqueHandleTraits<lcf::vkc::details::Memory<vk::Image>, Dispatch>
+{
+public:
+    using deleter = lcf::vkc::details::MemoryDestroy<Dispatch>;
+};
+
+} // namespace VULKAN_HPP_NAMESPACE
+
+namespace lcf::vkc::details {
+
+using UniqueBufferMemory = vk::UniqueHandle<Memory<vk::Buffer>, vk::detail::DispatchLoaderDynamic>;
+using UniqueImageMemory = vk::UniqueHandle<Memory<vk::Image>, vk::detail::DispatchLoaderDynamic>;
 
 } // namespace lcf::vkc::details

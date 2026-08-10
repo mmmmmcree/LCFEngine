@@ -4,16 +4,13 @@
 #include <memory>
 #include <expected>
 #include <type_traits>
+#include "vk_core/memory/details/Memory.h"
 
 namespace lcf::vkc {
 
 namespace details {
 
 class VMAllocator;
-
-template <typename Handle>
-requires std::is_same_v<Handle, vk::Image> or std::is_same_v<Handle, vk::Buffer>
-class Memory;
 
 }
 
@@ -36,10 +33,10 @@ public:
         vk::Instance instance, vk::PhysicalDevice physical_device, vk::Device device,
         const MemoryAllocatorCreateInfo & create_info) noexcept;
     const vk::Device & getDevice() const noexcept { return m_device; }
-    std::expected<details::Memory<vk::Buffer>, std::error_code> allocateBuffer(
+    std::expected<details::UniqueBufferMemory, std::error_code> allocateBuffer(
         const vk::BufferCreateInfo & buffer_info,
         const MemoryAllocationInfo & alloc_info) const noexcept;
-    std::expected<details::Memory<vk::Image>, std::error_code> allocateImage(
+    std::expected<details::UniqueImageMemory, std::error_code> allocateImage(
         const vk::ImageCreateInfo & image_info,
         const MemoryAllocationInfo & alloc_info) const noexcept;
 private:

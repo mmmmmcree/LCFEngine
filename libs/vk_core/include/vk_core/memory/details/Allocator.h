@@ -28,8 +28,10 @@ public:
     Self & operator=(Self && other) noexcept;
 public:
     std::error_code create(vk::Instance instance, vk::PhysicalDevice physical_device, vk::Device device, const MemoryAllocatorCreateInfo & create_info) noexcept;
-    std::expected<Memory<vk::Buffer>, std::error_code> allocateBuffer(const vk::BufferCreateInfo & buffer_info, const MemoryAllocationInfo & alloc_info) const noexcept;
-    std::expected<Memory<vk::Image>, std::error_code> allocateImage(const vk::ImageCreateInfo & image_info, const MemoryAllocationInfo & alloc_info) const noexcept;
+    //- Memory is no longer RAII, so it never leaves here bare: UniqueHandle closes the
+    //- window between allocation and the caller's ResourceHandle taking ownership
+    std::expected<UniqueBufferMemory, std::error_code> allocateBuffer(const vk::BufferCreateInfo & buffer_info, const MemoryAllocationInfo & alloc_info) const noexcept;
+    std::expected<UniqueImageMemory, std::error_code> allocateImage(const vk::ImageCreateInfo & image_info, const MemoryAllocationInfo & alloc_info) const noexcept;
 private:
     VmaAllocator m_allocator = nullptr;
 };
