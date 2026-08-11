@@ -1,16 +1,15 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
+#include <flat_map>
 #include <vector>
 #include <string>
 #include <string_view>
 #include <span>
-#include <unordered_map>
-#include <map>
-#include <optional>
 #include <concepts>
 #include "concepts/range_concept.h"
 #include "bytes.h"
+#include "vk_core/pipeline/shader/enums.h"
 
 namespace lcf::vkc {
 
@@ -72,8 +71,10 @@ private:
 class ShaderProgramInfo
 {
     using Self = ShaderProgramInfo;
-    using StageInfoMap = std::unordered_map<vk::ShaderStageFlagBits, ShaderStageInfo>;
-    using DescriptorSetLayoutMap = std::map<uint32_t, vk::DescriptorSetLayout>;    
+    using StageInfoMap = std::flat_map<
+        vk::ShaderStageFlagBits, ShaderStageInfo,
+        enum_traits<vk::ShaderStageFlagBits>::pipeline_order_less_t>;
+    using DescriptorSetLayoutMap = std::flat_map<uint32_t, vk::DescriptorSetLayout>;
 public:
     ~ShaderProgramInfo() noexcept = default;
     ShaderProgramInfo() noexcept = default;
@@ -84,19 +85,19 @@ public:
 public:
     Self & addStageInfo(ShaderStageInfo stage_info) noexcept
     {
-        m_stage_info_map.emplace(stage_info.getStage(), std::move(stage_info));
+        m_stage_infos.emplace(stage_info.getStage(), std::move(stage_info));
         return *this;
     }
     Self & addDescriptorSetLayout(uint32_t set, vk::DescriptorSetLayout descriptor_set_layout) noexcept
     {
-        m_descriptor_set_layout_map.emplace(set, descriptor_set_layout);
+        m_descriptor_set_layouts.insert_or_assign(set, descriptor_set_layout);
         return *this;
     }
-    auto viewStageInfos() const noexcept { return m_stage_info_map | std::views::values; }
-    auto viewDescriptorSetLayouts() const noexcept { return m_descriptor_set_layout_map | std::views::values; } // view by order
+    std::span<const ShaderStageInfo> viewStageInfos() const noexcept { return m_stage_infos.values(); }
+    std::span<const vk::DescriptorSetLayout> viewDescriptorSetLayouts() const noexcept { return m_descriptor_set_layouts.values(); }
 private:
-    StageInfoMap m_stage_info_map;
-    DescriptorSetLayoutMap m_descriptor_set_layout_map;
+    StageInfoMap m_stage_infos;
+    DescriptorSetLayoutMap m_descriptor_set_layouts;
 };
 
 } // namespace lcf::vkc

@@ -19,10 +19,10 @@
 #include "vk_core/pipeline/graphics/GraphicsPipeline.h"
 #include "vk_core/pipeline/graphics/StaticRender.h"
 #include "vk_core/pipeline/graphics/DynamicRender.h"
+#include "vk_core/pipeline/graphics/DynamicGraphicsState.h"
 #include "vk_core/pipeline/graphics/RenderTarget.h"
 #include "vk_core/pipeline/shader/entry.h"
 #include "vk_core/pipeline/shader/ShaderObject.h"
-#include "vk_core/pipeline/shader/ShaderObjects.h"
 #include "vk_core/command/info_structs.h"
 #include "vk_core/command/CommandBufferProxy.h"
 #include "vk_core/queue/Queue.h"
@@ -160,8 +160,6 @@ int main()
     auto & spv_units = expected_compile_result.value();
 
     vkc::ShaderProgramInfo shader_program_info;
-    std::vector<vkc::ShaderObject> shader_object_storage;
-    vkc::ShaderObjects shader_objects;
     for (const auto & spv_unit : spv_units) {
         vk::ShaderStageFlagBits stage = enum_cast<vk::ShaderStageFlagBits>(spv_unit.getStage());
 
@@ -170,21 +168,18 @@ int main()
             .setCode(spv_unit.getCode())
             .setEntryPoint(spv_unit.getEntryPoint());
         shader_program_info.addStageInfo(std::move(shader_stage_info));
-
-        vk::ShaderCreateInfoEXT shader_info;
-        shader_info.setStage(stage)
-            .setNextStage(stage == vk::ShaderStageFlagBits::eVertex ? vk::ShaderStageFlagBits::eFragment : vk::ShaderStageFlags {})
-            .setCodeType(vk::ShaderCodeTypeEXT::eSpirv)
-            .setCodeSize(spv_unit.getCode().size() * sizeof(uint32_t))
-            .setPCode(spv_unit.getCode().data())
-            .setPName(spv_unit.getEntryPoint().c_str());
-        auto & shader_object = shader_object_storage.emplace_back();
-        if (auto ec = shader_object.create(device, shader_info)) {
-            lcf_log_error("Failed to create shader object: {}", ec.message());
-            return 1;
-        }
-        shader_objects.setStage(shader_object);
     }
+    vkc::ShaderObjectGroup shader_objects;
+    if (auto ec = shader_objects.create(
+        device,
+        shader_program_info,
+        vk::ShaderCreateFlagBitsEXT::eLinkStage))
+    {
+        lcf_log_error("Failed to create shader objects: {}", ec.message());
+        return 1;
+    }
+    vkc::ShaderObjectBindingState shader_object_binding_states;
+    shader_object_binding_states.assign(shader_objects);
 
     //- declare the attachment set: one color attachment, no resolve, no depth stencil
     vkc::AttachmentSetInfoBuilder attachment_set_builder;
@@ -273,16 +268,6 @@ int main()
         lcf_log_error("Failed to create dynamic_render: {}", ec.message());
         return 1;
     }
-    //- create graphics pipeline with dynamic rendering
-
-    vkc::GraphicsPipeline dynamic_graphics_pipeline;
-    graphic_pipeline_info.setShaderProgramInfo(shader_program_info)
-        .setViewportStateInfo(viewport_state_info)
-        .setColorBlendStateInfo(color_blend_state_info);
-    if (auto ec = dynamic_graphics_pipeline.create(device, graphic_pipeline_info, dynamic_render.makeScopeInfo())) {
-        lcf_log_error("Failed to create dynamic_graphics_pipeline: {}", ec.message());
-        return 1;
-    }
 
     //- render loop
     vkc::Queue gfx_queue;
@@ -316,7 +301,7 @@ int main()
             static_render.end(cmd);
             
             dynamic_render.begin(cmd, render_target);
-            dynamic_graphics_pipeline.bind(cmd);
+            vkc::bind_dynamic_graphics_state(cmd, graphic_pipeline_info, shader_object_binding_states);
             cmd.draw(3, 1, 0, 0);
             dynamic_render.end(cmd);
 
