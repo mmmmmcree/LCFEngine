@@ -10,6 +10,7 @@
 #include "vk_core/error.h"
 #include "vk_core/command/info_structs.h"
 #include "resource_utils.h"
+#include "concepts/range_concept.h"
 
 namespace lcf::vkc {
 
@@ -38,6 +39,11 @@ public:
     Self & pinLease(ResourceLease lease) noexcept
     {
         if (lease) { m_leases.emplace_back(std::move(lease)); }
+        return *this;
+    }
+    Self & pinLeases(range_of_c<ResourceLease> auto && leases) noexcept
+    {
+        for (auto && lease : leases) { this->pinLease(std::forward<decltype(lease)>(lease)); }
         return *this;
     }
     Self & addWaitInfo(vk::SemaphoreSubmitInfo wait_info) noexcept

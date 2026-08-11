@@ -20,6 +20,9 @@
 #include "vk_core/pipeline/graphics/StaticRender.h"
 #include "vk_core/pipeline/graphics/DynamicRender.h"
 #include "vk_core/pipeline/graphics/RenderTarget.h"
+#include "vk_core/pipeline/shader/entry.h"
+#include "vk_core/pipeline/shader/ShaderObject.h"
+#include "vk_core/pipeline/shader/ShaderObjects.h"
 #include "vk_core/command/info_structs.h"
 #include "vk_core/command/CommandBufferProxy.h"
 #include "vk_core/queue/Queue.h"
@@ -69,6 +72,7 @@ int main()
     // vkc::entry::register_compat_swapchain(device_ext_manifest);
     vkc::entry::register_swapchain(inst_ext_manifest, device_ext_manifest);
     vkc::entry::register_dynamic_render(device_ext_manifest);
+    vkc::entry::register_shader_object(device_ext_manifest);
     //- in this example, we use shader constants to draw a triangle, so we should enable shaderDrawParameters feature
     device_ext_manifest.addRequiredFeature(vkc::utils::t_feature_bit<&vk::PhysicalDeviceVulkan13Features::synchronization2>)
         .addRequiredFeature(vkc::utils::t_feature_bit<&vk::PhysicalDeviceVulkan11Features::shaderDrawParameters>);
@@ -132,6 +136,7 @@ int main()
         lcf_log_error("Failed to create render_device_context: {}", ec.message());
         return 1;
     }
+    vk::Device device = device_context.getDevice();
 
     // vkc::wsi::compat::Swapchain swapchain;
     vkc::wsi::Swapchain swapchain;
@@ -155,12 +160,30 @@ int main()
     auto & spv_units = expected_compile_result.value();
 
     vkc::ShaderProgramInfo shader_program_info;
+    std::vector<vkc::ShaderObject> shader_object_storage;
+    vkc::ShaderObjects shader_objects;
     for (const auto & spv_unit : spv_units) {
+        vk::ShaderStageFlagBits stage = enum_cast<vk::ShaderStageFlagBits>(spv_unit.getStage());
+
         vkc::ShaderStageInfo shader_stage_info;
-        shader_stage_info.setStage(enum_cast<vk::ShaderStageFlagBits>(spv_unit.getStage()))
+        shader_stage_info.setStage(stage)
             .setCode(spv_unit.getCode())
             .setEntryPoint(spv_unit.getEntryPoint());
         shader_program_info.addStageInfo(std::move(shader_stage_info));
+
+        vk::ShaderCreateInfoEXT shader_info;
+        shader_info.setStage(stage)
+            .setNextStage(stage == vk::ShaderStageFlagBits::eVertex ? vk::ShaderStageFlagBits::eFragment : vk::ShaderStageFlags {})
+            .setCodeType(vk::ShaderCodeTypeEXT::eSpirv)
+            .setCodeSize(spv_unit.getCode().size() * sizeof(uint32_t))
+            .setPCode(spv_unit.getCode().data())
+            .setPName(spv_unit.getEntryPoint().c_str());
+        auto & shader_object = shader_object_storage.emplace_back();
+        if (auto ec = shader_object.create(device, shader_info)) {
+            lcf_log_error("Failed to create shader object: {}", ec.message());
+            return 1;
+        }
+        shader_objects.setStage(shader_object);
     }
 
     //- declare the attachment set: one color attachment, no resolve, no depth stencil
@@ -206,7 +229,6 @@ int main()
         }
     }
 
-    vk::Device device = device_context.getDevice();
     //- create static render
 
     

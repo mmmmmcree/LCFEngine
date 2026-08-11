@@ -30,14 +30,18 @@ public:
     Self & operator=(const Self & other) = default;
     Self & operator=(Self && other) noexcept = default;
 public:
-    Self & setStage(vk::ShaderStageFlagBits stage) noexcept { m_stage = stage; return *this; }
+    Self & setStage(vk::ShaderStageFlagBits stage) noexcept {
+        m_stage = stage;
+        for (auto & range : m_push_constant_ranges) { range.setStageFlags(m_stage); }
+        return *this;
+    }
     Self & setCode(Code code) noexcept { m_code = std::move(code); return *this; }
     Self & setCode(CodeView code) noexcept { m_code.assign_range(code); return *this; }
     Self & setEntryPoint(std::string entry_point) noexcept { m_entry_point = std::move(entry_point); return *this; }
     Self & setEntryPoint(std::string_view entry_point) noexcept { m_entry_point = entry_point; return *this; }
     Self & addPushConstantRange(uint32_t offset, uint32_t size) noexcept
     {
-        m_push_constant_ranges.emplace_back(vk::PushConstantRange{{}, offset, size});
+        m_push_constant_ranges.emplace_back(vk::PushConstantRange{m_stage, offset, size});
         return *this;
     }
     template <typename T>
@@ -56,7 +60,7 @@ public:
     const PushConstantRangeList & getPushConstantRanges() const noexcept { return m_push_constant_ranges; }
     const vk::SpecializationInfo & getSpecializationInfo() const noexcept { return m_specialization_info; }
 private:
-    vk::ShaderStageFlagBits m_stage;
+    vk::ShaderStageFlagBits m_stage = {};
     Code m_code;
     std::string m_entry_point;
     PushConstantRangeList m_push_constant_ranges;

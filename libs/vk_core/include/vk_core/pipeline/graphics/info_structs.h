@@ -204,6 +204,9 @@ public:
     const vk::CullModeFlags & getCullMode() const noexcept { return m_rasterization_state.root().cullMode; }
     const vk::FrontFace & getFrontFace() const noexcept { return m_rasterization_state.root().frontFace; }
     const vk::Bool32 & isDepthBiasEnabled() const noexcept { return m_rasterization_state.root().depthBiasEnable; }
+    const float & getDepthBiasConstantFactor() const noexcept { return m_rasterization_state.root().depthBiasConstantFactor; }
+    const float & getDepthBiasClamp() const noexcept { return m_rasterization_state.root().depthBiasClamp; }
+    const float & getDepthBiasSlopeFactor() const noexcept { return m_rasterization_state.root().depthBiasSlopeFactor; }
     const float & getLineWidth() const noexcept { return m_rasterization_state.root().lineWidth; }
 private:
     utils::DynamicStructureChain<Root> m_rasterization_state;
@@ -266,6 +269,7 @@ public:
     const float & getMinSampleShading() const noexcept { return m_multisample_state.root().minSampleShading; }
     const vk::Bool32 & isAlphaToCoverageEnabled() const noexcept { return m_multisample_state.root().alphaToCoverageEnable; }
     const vk::Bool32 & isAlphaToOneEnabled() const noexcept { return m_multisample_state.root().alphaToOneEnable; }
+    const SampleMaskList & getSampleMask() const noexcept { return m_sample_mask; }
 private:
     utils::DynamicStructureChain<Root> m_multisample_state;
     SampleMaskList m_sample_mask;
@@ -402,6 +406,7 @@ public:
     const vk::PipelineColorBlendStateCreateFlags & getFlags() const noexcept { return m_color_blend_state.root().flags; }
     const vk::Bool32 & isLogicOpEnabled() const noexcept { return m_color_blend_state.root().logicOpEnable; }
     const vk::LogicOp & getLogicOp() const noexcept { return m_color_blend_state.root().logicOp; }
+    const std::array<float, 4> & getBlendConstants() const noexcept { return m_color_blend_state.root().blendConstants; }
     const ColorBlendAttachmentStateList & getColorBlendAttachmentStates() const noexcept { return m_color_blend_attachment_states; }
 private:
     utils::DynamicStructureChain<Root> m_color_blend_state;
