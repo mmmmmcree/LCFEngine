@@ -104,6 +104,8 @@ public:
     bool isRequiredFeaturesSupported(vk::PhysicalDevice physical_device) const noexcept;
     bool isExtensionRequired(const std::string & extension_name) const noexcept;
     std::size_t getRequiredDeviceExtensionCount() const noexcept;
+    void printUnsupportedExtensions(vk::PhysicalDevice physical_device) const noexcept;
+    void printUnsupportedFeatures(vk::PhysicalDevice physical_device) const noexcept;
 private:
     std::optional<vk::PhysicalDeviceType> m_preferred_type;
     vk::QueueFlags m_required_queue_flags = {};

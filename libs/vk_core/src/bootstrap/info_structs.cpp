@@ -63,6 +63,18 @@ std::size_t PhysicalDeviceSelectInfo::getRequiredDeviceExtensionCount() const no
     return m_extension_manifest_p->getRequiredExtensionCount();
 }
 
+void PhysicalDeviceSelectInfo::printUnsupportedExtensions(vk::PhysicalDevice physical_device) const noexcept
+{
+    if (not m_extension_manifest_p) { return; }
+    m_extension_manifest_p->printUnsupportedExtensions(physical_device);
+}
+
+void PhysicalDeviceSelectInfo::printUnsupportedFeatures(vk::PhysicalDevice physical_device) const noexcept
+{
+    if (not m_extension_manifest_p) { return; }
+    m_extension_manifest_p->printUnsupportedFeatures(physical_device);
+}
+
 bool DeviceCreateInfo::isExtensionRequired(const std::string &extension_name) const noexcept
 {
     if (not m_extension_manifest_p) { return false; }

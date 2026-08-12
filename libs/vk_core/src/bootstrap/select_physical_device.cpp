@@ -89,14 +89,21 @@ vk::PhysicalDevice select_physical_device_maythrow(vk::Instance instance, const 
         uint64_t vram_mib;
     };
     std::vector<Candidate> candidates;
-    for (const auto & physical_device : instance.enumeratePhysicalDevices()) {
+    auto physical_devices = instance.enumeratePhysicalDevices();
+    for (const auto & physical_device : physical_devices) {
         if (not physical_device_filter(physical_device, info)) { continue; }
         candidates.emplace_back(
             physical_device,
             physical_device.getProperties().deviceType,
             get_physical_device_vram_mib(physical_device));
     }
-    if (candidates.empty()) { return {}; }
+    if (candidates.empty()) {
+       for (const auto & physical_device : physical_devices) {
+            info.printUnsupportedExtensions(physical_device);
+            info.printUnsupportedFeatures(physical_device);
+        }
+        return {};
+    }
     const auto & preferred_type_opt = info.getPreferredTypeOptional();
     auto best_candidate = stdr::max_element(candidates, {}, [&](const Candidate & candidate) {
         bool preferred_match = preferred_type_opt.has_value() and candidate.type == preferred_type_opt.value();
