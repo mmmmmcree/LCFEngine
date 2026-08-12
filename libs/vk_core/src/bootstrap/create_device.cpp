@@ -12,15 +12,15 @@ namespace {
 using namespace lcf::vkc;
 using namespace lcf::vkc::bs;
 
-std::expected<vk::UniqueDevice, std::error_code> create_device_maythrow(vk::PhysicalDevice physical_device, const DeviceCreateInfo & create_info);
+std::expected<vk::UniqueDevice, Error> create_device_maythrow(vk::PhysicalDevice physical_device, const DeviceCreateInfo & create_info);
 
 } // namespace
 
 namespace lcf::vkc::bs {
 
-std::expected<vk::UniqueDevice, std::error_code> create_device(vk::PhysicalDevice physical_device, const DeviceCreateInfo & create_info) noexcept
+std::expected<vk::UniqueDevice, Error> create_device(vk::PhysicalDevice physical_device, const DeviceCreateInfo & create_info) noexcept
 {
-    std::expected<vk::UniqueDevice, std::error_code> expected_device;
+    std::expected<vk::UniqueDevice, Error> expected_device;
     try {
         expected_device = create_device_maythrow(physical_device, create_info);
     } catch (const vk::SystemError & e) {
@@ -35,18 +35,16 @@ std::expected<vk::UniqueDevice, std::error_code> create_device(vk::PhysicalDevic
 
 namespace {
 
-std::expected<vk::UniqueDevice, std::error_code> create_device_maythrow(vk::PhysicalDevice physical_device, const DeviceCreateInfo & create_info)
+std::expected<vk::UniqueDevice, Error> create_device_maythrow(vk::PhysicalDevice physical_device, const DeviceCreateInfo & create_info)
 {
     auto device_extension_props = physical_device.enumerateDeviceExtensionProperties() |
         stdv::filter([&](const vk::ExtensionProperties & ext_props) { return create_info.isExtensionRequired(ext_props.extensionName.data()); }) |
         stdr::to<std::vector>();
     if (device_extension_props.size() != create_info.getRequiredDeviceExtensionCount()) {
-        create_info.printUnsupportedExtensions(physical_device);
-        return std::unexpected(make_error_code(errc::missing_required_device_extension));
+        return std::unexpected(Error {errc::missing_required_device_extension, create_info.getUnsupportedExtensionsMessage(physical_device)});
     }
     if (not create_info.isRequiredFeaturesSupported(physical_device)) {
-        create_info.printUnsupportedFeatures(physical_device);
-        return std::unexpected(make_error_code(errc::missing_required_device_feature));
+        return std::unexpected(Error {errc::missing_required_device_feature, create_info.getUnsupportedFeaturesMessage(physical_device)});
     }
     auto device_extension_names_cstr = device_extension_props |
         stdv::transform([](const vk::ExtensionProperties & extension) { return extension.extensionName.data(); }) |

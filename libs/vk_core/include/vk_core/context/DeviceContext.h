@@ -6,6 +6,7 @@
 #include "vk_core/context/enums.h"
 #include "vk_core/memory/MemoryAllocator.h"
 #include "vk_core/queue/LogicalQueue.h"
+#include "vk_core/error.h"
 
 namespace lcf::vkc::details {
 
@@ -28,7 +29,7 @@ public:
     Self & operator =(const Self &) = delete;
     Self & operator =(Self &&) = default;
 public:
-    std::error_code create(vk::Instance instance, const DeviceContextCreateInfo & create_info) noexcept;
+    Error create(vk::Instance instance, const DeviceContextCreateInfo & create_info) noexcept;
     const vk::PhysicalDevice & getPhysicalDevice() const noexcept { return m_physical_device; }
     const vk::Device & getDevice() const noexcept { return m_device.get(); }
     const MemoryAllocator & getMemoryAllocator() const noexcept { return m_memory_allocator; }

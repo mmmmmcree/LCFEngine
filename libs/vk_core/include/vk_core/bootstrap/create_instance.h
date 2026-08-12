@@ -2,11 +2,13 @@
 
 #include <vulkan/vulkan.hpp>
 #include <expected>
+#include "vk_core/error.h"
 
 namespace lcf::vkc::bs {
 
 class InstanceCreateInfo;
 
-std::expected<vk::UniqueInstance, std::error_code> create_instance(const InstanceCreateInfo & create_info) noexcept;
+//! @param warning_out optional; receives a non-fatal diagnostic (missing instance layers) when one occurs.
+std::expected<vk::UniqueInstance, Error> create_instance(const InstanceCreateInfo & create_info, Error * warning_out = nullptr) noexcept;
 
 } // namespace lcf::vkc::bs
