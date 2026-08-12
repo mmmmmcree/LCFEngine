@@ -24,7 +24,7 @@ void DeviceExtensionManifest::printUnsupportedExtensions(vk::PhysicalDevice phys
         auto found_it = stdr::find_if(supported_extension_props, [&requried_ext_name](const vk::ExtensionProperties &props) {
             return std::string(props.extensionName.data()) == requried_ext_name; });
         if (found_it != supported_extension_props.end()) { continue; }
-        std::cout << std::format("[vkc error] unsupported device extension on physical device {}: {}\n", device_name, requried_ext_name);
+        std::cout << std::format("[vkc error] unsupported device extension on {}: {}\n", device_name, requried_ext_name);
     }
 }
 
@@ -36,7 +36,7 @@ void DeviceExtensionManifest::printUnsupportedFeatures(vk::PhysicalDevice physic
     feature_chain.queryFrom(physical_device);
     for (const auto & feature : m_required_features) {
         if (not feature.test(feature_chain)) {
-            std::cout << std::format("[vkc error] unsupported device feature on physical device {}: {}\n", device_name, feature.name);
+            std::cout << std::format("[vkc error] unsupported device feature on {}: {}\n", device_name, feature.name);
         }
     }
 }
