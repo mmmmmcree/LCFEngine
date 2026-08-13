@@ -116,7 +116,7 @@ public:
         return std::visit([](const auto & diagnostic) -> const std::string & { return diagnostic.message(); }, m_diagnostic);
     }
 private:
-    Diagnostic m_diagnostic;
+    Diagnostic m_diagnostic = Monostate {};
 };
 
 } // namespace lcf::vkc
