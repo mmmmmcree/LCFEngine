@@ -31,7 +31,7 @@ int main()
     vkc::bs::InstanceCreateInfo instance_info;
     instance_info.setApplicationInfo(app_info)
         .addRequiredInstanceLayer("VK_LAYER_KHRONOS_validation")
-        // .addRequiredInstanceLayer("SomeStupidLayer")
+        .addRequiredInstanceLayer("SomeStupidLayer")
         .setRequiredInstanceExtensionManifest(inst_ext_manifest);
     auto expected_instance = vkc::bs::create_instance(instance_info);
     if (not expected_instance.has_value()) {
@@ -39,8 +39,12 @@ int main()
         return 1;
     }
     lcf_log_info("Instance created successfully");
-    auto _instance = std::move(expected_instance.value());
-    auto instance = _instance.get();
+    auto instance_create_result = std::move(expected_instance.value());
+    if (instance_create_result.getWarning()) {
+        lcf_log_warn(instance_create_result.getWarning().message());
+    }
+    vk::UniqueInstance unieuqe_instance = std::move(instance_create_result);
+    auto instance = unieuqe_instance.get();
     auto instance_ext_leases = inst_ext_manifest.enableExtensions(instance);
     lcf_log_info("leases count: {}", instance_ext_leases.size());
     vkc::bs::PhysicalDeviceSelectInfo physical_device_select_info;
