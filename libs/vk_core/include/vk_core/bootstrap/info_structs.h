@@ -64,8 +64,8 @@ public:
     std::size_t getRequiredInstanceLayerCount() const noexcept { return m_required_instance_layers.size(); }
     std::size_t getRequiredInstanceExtensionCount() const noexcept;
     ExtEnableCallback getExtensionEnableCallback() const noexcept;
-    void printUnsupportedExtensions() const noexcept;
-    void printUnsupportedLayers() const noexcept;
+    std::string getUnsupportedExtensionsMessage() const noexcept;
+    std::string getUnsupportedLayersMessage() const noexcept;
 private:
     vk::ApplicationInfo m_application_info;
     StringSet m_required_instance_layers;
@@ -104,8 +104,8 @@ public:
     bool isRequiredFeaturesSupported(vk::PhysicalDevice physical_device) const noexcept;
     bool isExtensionRequired(const std::string & extension_name) const noexcept;
     std::size_t getRequiredDeviceExtensionCount() const noexcept;
-    void printUnsupportedExtensions(vk::PhysicalDevice physical_device) const noexcept;
-    void printUnsupportedFeatures(vk::PhysicalDevice physical_device) const noexcept;
+    std::string getUnsupportedExtensionsMessage(vk::PhysicalDevice physical_device) const noexcept;
+    std::string getUnsupportedFeaturesMessage(vk::PhysicalDevice physical_device) const noexcept;
 private:
     std::optional<vk::PhysicalDeviceType> m_preferred_type;
     vk::QueueFlags m_required_queue_flags = {};
@@ -150,8 +150,8 @@ public:
     std::size_t getRequiredDeviceExtensionCount() const noexcept;
     const vk::PhysicalDeviceFeatures2 * getRequiredFeatures() const noexcept;
     bool isRequiredFeaturesSupported(vk::PhysicalDevice physical_device) const noexcept;
-    void printUnsupportedExtensions(vk::PhysicalDevice physical_device) const noexcept;
-    void printUnsupportedFeatures(vk::PhysicalDevice physical_device) const noexcept;
+    std::string getUnsupportedExtensionsMessage(vk::PhysicalDevice physical_device) const noexcept;
+    std::string getUnsupportedFeaturesMessage(vk::PhysicalDevice physical_device) const noexcept;
 private:
     const DeviceExtensionManifest * m_extension_manifest_p = nullptr;
     QueueFamilyRequestMap m_queue_family_requests;

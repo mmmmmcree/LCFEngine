@@ -1,7 +1,6 @@
 #include "vk_core/bootstrap/info_structs.h"
 #include "vk_core/manifest/InstanceExtensionManifest.h"
 #include "vk_core/manifest/DeviceExtensionManifest.h"
-#include <iostream>
 #include <format>
 #include <algorithm>
 #include <ranges>
@@ -29,21 +28,23 @@ auto InstanceCreateInfo::getExtensionEnableCallback() const noexcept -> ExtEnabl
     return [manifest_p = m_extension_manifest_p](vk::Instance instance) { return manifest_p->enableExtensions(instance); };
 }
 
-void InstanceCreateInfo::printUnsupportedExtensions() const noexcept
+std::string InstanceCreateInfo::getUnsupportedExtensionsMessage() const noexcept
 {
-    if (not m_extension_manifest_p) { return; }
-    m_extension_manifest_p->printUnsupportedExtensions();
+    if (not m_extension_manifest_p) { return {}; }
+    return m_extension_manifest_p->getUnsupportedExtensionsMessage();
 }
 
-void InstanceCreateInfo::printUnsupportedLayers() const noexcept
+std::string InstanceCreateInfo::getUnsupportedLayersMessage() const noexcept
 {
+    std::string message;
     auto supported_layer_props = vk::enumerateInstanceLayerProperties();
     for (const auto & requried_layer_name : m_required_instance_layers) {
         auto found_it = stdr::find_if(supported_layer_props, [&requried_layer_name](const vk::LayerProperties &layer) {
             return std::string(layer.layerName.data()) == requried_layer_name; });
         if (found_it != supported_layer_props.end()) { continue; }
-        std::cout << std::format("[vkc error] unsupported instance layer: {}\n", requried_layer_name);
+        message += std::format("unsupported instance layer: {}\n", requried_layer_name);
     }
+    return message;
 }
 
 bool PhysicalDeviceSelectInfo::isRequiredFeaturesSupported(vk::PhysicalDevice physical_device) const noexcept
@@ -63,16 +64,16 @@ std::size_t PhysicalDeviceSelectInfo::getRequiredDeviceExtensionCount() const no
     return m_extension_manifest_p->getRequiredExtensionCount();
 }
 
-void PhysicalDeviceSelectInfo::printUnsupportedExtensions(vk::PhysicalDevice physical_device) const noexcept
+std::string PhysicalDeviceSelectInfo::getUnsupportedExtensionsMessage(vk::PhysicalDevice physical_device) const noexcept
 {
-    if (not m_extension_manifest_p) { return; }
-    m_extension_manifest_p->printUnsupportedExtensions(physical_device);
+    if (not m_extension_manifest_p) { return {}; }
+    return m_extension_manifest_p->getUnsupportedExtensionsMessage(physical_device);
 }
 
-void PhysicalDeviceSelectInfo::printUnsupportedFeatures(vk::PhysicalDevice physical_device) const noexcept
+std::string PhysicalDeviceSelectInfo::getUnsupportedFeaturesMessage(vk::PhysicalDevice physical_device) const noexcept
 {
-    if (not m_extension_manifest_p) { return; }
-    m_extension_manifest_p->printUnsupportedFeatures(physical_device);
+    if (not m_extension_manifest_p) { return {}; }
+    return m_extension_manifest_p->getUnsupportedFeaturesMessage(physical_device);
 }
 
 bool DeviceCreateInfo::isExtensionRequired(const std::string &extension_name) const noexcept
@@ -99,16 +100,16 @@ const vk::PhysicalDeviceFeatures2 * DeviceCreateInfo::getRequiredFeatures() cons
     return &m_extension_manifest_p->getRequiredFeatures();
 }
 
-void DeviceCreateInfo::printUnsupportedExtensions(vk::PhysicalDevice physical_device) const noexcept
+std::string DeviceCreateInfo::getUnsupportedExtensionsMessage(vk::PhysicalDevice physical_device) const noexcept
 {
-    if (not m_extension_manifest_p) { return; }
-    m_extension_manifest_p->printUnsupportedExtensions(physical_device);
+    if (not m_extension_manifest_p) { return {}; }
+    return m_extension_manifest_p->getUnsupportedExtensionsMessage(physical_device);
 }
 
-void DeviceCreateInfo::printUnsupportedFeatures(vk::PhysicalDevice physical_device) const noexcept
+std::string DeviceCreateInfo::getUnsupportedFeaturesMessage(vk::PhysicalDevice physical_device) const noexcept
 {
-    if (not m_extension_manifest_p) { return; }
-    m_extension_manifest_p->printUnsupportedFeatures(physical_device);
+    if (not m_extension_manifest_p) { return {}; }
+    return m_extension_manifest_p->getUnsupportedFeaturesMessage(physical_device);
 }
 
 bool DeviceCreateInfo::isRequiredFeaturesSupported(vk::PhysicalDevice physical_device) const noexcept

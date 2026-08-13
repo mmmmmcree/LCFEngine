@@ -12,18 +12,18 @@ namespace {
 using namespace lcf::vkc;
 using namespace lcf::vkc::bs;
 
-std::expected<vk::UniqueInstance, std::error_code> create_instance_maythrow(const InstanceCreateInfo & create_info);
+std::expected<vk::UniqueInstance, Error> create_instance_maythrow(const InstanceCreateInfo & create_info, Error * warning_out);
 
 } // namespace
 
 namespace lcf::vkc::bs {
 
-std::expected<vk::UniqueInstance, std::error_code> create_instance(const InstanceCreateInfo &create_info) noexcept
+std::expected<vk::UniqueInstance, Error> create_instance(const InstanceCreateInfo &create_info, Error * warning_out) noexcept
 {
     initialize_loader();
-    std::expected<vk::UniqueInstance, std::error_code> expected_instance;
+    std::expected<vk::UniqueInstance, Error> expected_instance;
     try {
-        expected_instance = create_instance_maythrow(create_info);
+        expected_instance = create_instance_maythrow(create_info, warning_out);
     } catch (const vk::SystemError & e) {
         return std::unexpected(e.code());
     }
@@ -36,21 +36,20 @@ std::expected<vk::UniqueInstance, std::error_code> create_instance(const Instanc
 
 namespace {
 
-std::expected<vk::UniqueInstance, std::error_code> create_instance_maythrow(const InstanceCreateInfo &create_info)
+std::expected<vk::UniqueInstance, Error> create_instance_maythrow(const InstanceCreateInfo &create_info, Error * warning_out)
 {
     auto instance_layer_props = vk::enumerateInstanceLayerProperties() |
         stdv::filter([&](const vk::LayerProperties & layer) { return create_info.isLayerRequired(layer.layerName.data()); }) |
         stdr::to<std::vector>();
-    if (instance_layer_props.size() != create_info.getRequiredInstanceLayerCount()) {
-        create_info.printUnsupportedLayers();
-        //- missing required instance layer is not an error
+    if (instance_layer_props.size() != create_info.getRequiredInstanceLayerCount() and warning_out) {
+        //- missing required instance layer is not an error; the unsupported ones are simply left disabled
+        *warning_out = Error {errc::missing_required_instance_layer, create_info.getUnsupportedLayersMessage()};
     }
     auto instance_extension_props = vk::enumerateInstanceExtensionProperties() |
         stdv::filter([&](const vk::ExtensionProperties & ext_props) { return create_info.isExtensionRequired(ext_props.extensionName.data()); }) |
         stdr::to<std::vector>();
     if (instance_extension_props.size() != create_info.getRequiredInstanceExtensionCount()) {
-        create_info.printUnsupportedExtensions();
-        return std::unexpected(errc::missing_required_instance_extension);
+        return std::unexpected(Error {errc::missing_required_instance_extension, create_info.getUnsupportedExtensionsMessage()});
     }
     auto instance_layer_names_cstr = instance_layer_props |
         stdv::transform([](const vk::LayerProperties & layer) { return layer.layerName.data(); }) |

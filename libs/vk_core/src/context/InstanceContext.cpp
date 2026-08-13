@@ -4,9 +4,9 @@
 
 namespace lcf::vkc {
 
-std::error_code InstanceContext::create(const bs::InstanceCreateInfo &instance_info) noexcept
+Error InstanceContext::create(const bs::InstanceCreateInfo &instance_info, Error * warning_out) noexcept
 {
- auto expected_instance = bs::create_instance(instance_info);
+    auto expected_instance = bs::create_instance(instance_info, warning_out);
     if (not expected_instance) { return expected_instance.error(); }
     m_instance = std::move(expected_instance.value());
     auto ext_enable_callback = instance_info.getExtensionEnableCallback();

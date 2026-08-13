@@ -48,7 +48,7 @@ DeviceContext::~DeviceContext() noexcept = default;
 
 DeviceContext::DeviceContext() noexcept = default;
 
-std::error_code DeviceContext::create(vk::Instance instance, const DeviceContextCreateInfo &create_info) noexcept
+Error DeviceContext::create(vk::Instance instance, const DeviceContextCreateInfo &create_info) noexcept
 {
     auto expected_physical_device = bs::select_physical_device(instance, create_info.getPhysicalDeviceSelectInfo());
     if (not expected_physical_device) { return expected_physical_device.error(); }

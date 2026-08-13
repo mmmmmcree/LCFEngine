@@ -18,24 +18,20 @@ constexpr int physical_device_type_rank(vk::PhysicalDeviceType type) noexcept;
 
 uint64_t get_physical_device_vram_mib(vk::PhysicalDevice physical_device);
 
-vk::PhysicalDevice select_physical_device_maythrow(vk::Instance instance, const PhysicalDeviceSelectInfo & info);
+std::expected<vk::PhysicalDevice, Error> select_physical_device_maythrow(vk::Instance instance, const PhysicalDeviceSelectInfo & info);
 
 } // namespace
 
 namespace lcf::vkc::bs {
 
-std::expected<vk::PhysicalDevice, std::error_code> select_physical_device(vk::Instance instance, const PhysicalDeviceSelectInfo & info) noexcept
+std::expected<vk::PhysicalDevice, Error> select_physical_device(vk::Instance instance, const PhysicalDeviceSelectInfo & info) noexcept
 {
-    vk::PhysicalDevice picked{};
     try {
-        picked = select_physical_device_maythrow(instance, info);
+        return select_physical_device_maythrow(instance, info);;
     } catch (const vk::SystemError & e) {
         return std::unexpected(e.code());
     }
-    if (not picked) {
-        return std::unexpected(make_error_code(errc::no_suitable_physical_device));
-    }
-    return picked;
+    return {};
 }
 
 } // namespace lcf::vkc::bs
@@ -80,7 +76,7 @@ uint64_t get_physical_device_vram_mib(vk::PhysicalDevice physical_device)
     return vram_mib;
 }
 
-vk::PhysicalDevice select_physical_device_maythrow(vk::Instance instance, const PhysicalDeviceSelectInfo & info)
+std::expected<vk::PhysicalDevice, Error> select_physical_device_maythrow(vk::Instance instance, const PhysicalDeviceSelectInfo & info)
 {
     struct Candidate
     {
@@ -98,11 +94,12 @@ vk::PhysicalDevice select_physical_device_maythrow(vk::Instance instance, const 
             get_physical_device_vram_mib(physical_device));
     }
     if (candidates.empty()) {
-       for (const auto & physical_device : physical_devices) {
-            info.printUnsupportedExtensions(physical_device);
-            info.printUnsupportedFeatures(physical_device);
+        std::string err_msg;
+        for (const auto & physical_device : physical_devices) {
+            err_msg += info.getUnsupportedExtensionsMessage(physical_device);
+            err_msg += info.getUnsupportedFeaturesMessage(physical_device);
         }
-        return {};
+        return std::unexpected(Error {errc::no_suitable_physical_device, err_msg});
     }
     const auto & preferred_type_opt = info.getPreferredTypeOptional();
     auto best_candidate = stdr::max_element(candidates, {}, [&](const Candidate & candidate) {
