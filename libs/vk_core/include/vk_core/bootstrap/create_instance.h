@@ -8,7 +8,22 @@ namespace lcf::vkc::bs {
 
 class InstanceCreateInfo;
 
-//! @param warning_out optional; receives a non-fatal diagnostic (missing instance layers) when one occurs.
-std::expected<vk::UniqueInstance, Error> create_instance(const InstanceCreateInfo & create_info, Error * warning_out = nullptr) noexcept;
+struct InstanceCreateResult
+{
+    InstanceCreateResult() noexcept = default;
+    InstanceCreateResult(vk::UniqueInstance instance, Warning warning = {}) noexcept :
+        m_instance(std::move(instance)), m_warning({warning}) {}
+    operator vk::UniqueInstance &&() && noexcept
+    {
+        return std::move(m_instance);
+    }
+
+    const Warning & getWarning() const noexcept { return m_warning; }
+
+    vk::UniqueInstance m_instance;
+    Warning m_warning;
+};
+
+std::expected<InstanceCreateResult, Error> create_instance(const InstanceCreateInfo & create_info) noexcept;
 
 } // namespace lcf::vkc::bs

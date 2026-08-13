@@ -25,8 +25,7 @@ public:
     Self & operator =(const Self &) = delete;
     Self & operator =(Self &&) noexcept = default;
 public:
-    //! @param warning_out optional; receives a non-fatal diagnostic (missing instance layers) when one occurs.
-    Error create(const bs::InstanceCreateInfo & instance_info, Error * warning_out = nullptr) noexcept;
+    Failure create(const bs::InstanceCreateInfo & instance_info) noexcept;
     const vk::Instance & getInstance() const noexcept { return m_instance.get(); }
 private:
     vk::UniqueInstance m_instance;

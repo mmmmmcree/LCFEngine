@@ -34,8 +34,6 @@ public:
                 return "the main device role must be configured";
             case errc::surface_zero_size:
                 return "surface has zero size";
-            case errc::missing_required_instance_layer:
-                return "a required instance layer is not supported";
             case errc::missing_required_instance_extension:
                 return "a required instance extension is not supported";
             case errc::missing_required_device_extension:
@@ -60,6 +58,30 @@ const ErrorCategory & error_category() noexcept
     return instance;
 }
 
+class WarningCategory : public std::error_category
+{
+public:
+    const char * name() const noexcept override { return "lcf::vkc.warning"; }
+
+    std::string message(int value) const override
+    {
+        switch (static_cast<warnc>(value)) {
+            case warnc::no_warning:
+                return "no warning";
+            case warnc::requested_instance_layer_unavailable:
+                return "a requested instance layer is unavailable";
+            default:
+                return "unrecognized lcf::vkc warning";
+        }
+    }
+};
+
+const WarningCategory & warning_category() noexcept
+{
+    static const WarningCategory instance;
+    return instance;
+}
+
 } // namespace
 
 namespace lcf::vkc {
@@ -67,6 +89,11 @@ namespace lcf::vkc {
 std::error_code make_error_code(errc error) noexcept
 {
     return { static_cast<int>(error), error_category() };
+}
+
+std::error_code make_error_code(warnc warning) noexcept
+{
+    return { static_cast<int>(warning), warning_category() };
 }
 
 } // namespace lcf::vkc

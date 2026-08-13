@@ -4,14 +4,15 @@
 
 namespace lcf::vkc {
 
-Error InstanceContext::create(const bs::InstanceCreateInfo &instance_info, Error * warning_out) noexcept
+Failure InstanceContext::create(const bs::InstanceCreateInfo &instance_info) noexcept
 {
-    auto expected_instance = bs::create_instance(instance_info, warning_out);
+    auto expected_instance = bs::create_instance(instance_info);
     if (not expected_instance) { return expected_instance.error(); }
+    Warning warning = expected_instance->getWarning();
     m_instance = std::move(expected_instance.value());
     auto ext_enable_callback = instance_info.getExtensionEnableCallback();
     m_ext_resource_leases = ext_enable_callback(m_instance.get());
-    return {};
+    return warning;
 }
 
 } // namespace lcf::vkc
