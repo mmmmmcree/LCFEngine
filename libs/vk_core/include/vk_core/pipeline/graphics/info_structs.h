@@ -3,7 +3,7 @@
 #include <vulkan/vulkan.hpp>
 #include <array>
 #include <vector>
-#include <unordered_map>
+#include <flat_map>
 #include <span>
 #include <optional>
 #include <utility>
@@ -870,7 +870,7 @@ class AttachmentSetInfoBuilder
 {
     using Self = AttachmentSetInfoBuilder;
     using ResourceInfoList = typename AttachmentSetInfo::ResourceInfoList;
-    using ColorResolveModeMap = std::unordered_map<uint32_t, vk::ResolveModeFlagBits>; // color attachmt index -> resolve mode
+    using ColorResolveModeMap = std::flat_map<uint32_t, vk::ResolveModeFlagBits>; // color attachmt index -> resolve mode
 public:
     ~AttachmentSetInfoBuilder() noexcept = default;
     AttachmentSetInfoBuilder() noexcept;

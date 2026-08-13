@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
-#include <unordered_set>
+#include <flat_set>
 #include "vk_core/utils/physical_device_feature_utils.h"
 #include "concepts/range_concept.h"
 
@@ -10,7 +10,7 @@ namespace lcf::vkc {
 class DeviceExtensionManifest
 {
     using Self = DeviceExtensionManifest;
-    using StringSet = std::unordered_set<std::string>;
+    using StringSet = std::flat_set<std::string>;
     using PhysicalDeviceFeatureBitList = std::vector<utils::PhysicalDeviceFeatureBit>;
 public:
     Self & addRequiredExtension(std::string_view extension_name) noexcept

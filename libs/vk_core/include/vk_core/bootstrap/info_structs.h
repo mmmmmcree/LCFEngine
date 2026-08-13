@@ -1,8 +1,8 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
-#include <unordered_set>
-#include <unordered_map>
+#include <flat_set>
+#include <flat_map>
 #include <optional>
 #include <functional>
 #include "concepts/range_concept.h"
@@ -27,7 +27,7 @@ namespace lcf::vkc::bs {
 class InstanceCreateInfo 
 {
     using Self = InstanceCreateInfo;
-    using StringSet = std::unordered_set<std::string>;
+    using StringSet = std::flat_set<std::string>;
     using ResourceLeaseList = std::vector<ResourceLease>;
     using ExtEnableCallback = std::function<ResourceLeaseList(vk::Instance)>;
 public:
@@ -118,7 +118,7 @@ class DeviceCreateInfo
 {
     using Self = DeviceCreateInfo;
     using PriorityList = std::vector<float>;
-    using QueueFamilyRequestMap = std::unordered_map<uint32_t, PriorityList>;
+    using QueueFamilyRequestMap = std::flat_map<uint32_t, PriorityList>;
 public:
     ~DeviceCreateInfo() noexcept = default;
     DeviceCreateInfo() noexcept = default;

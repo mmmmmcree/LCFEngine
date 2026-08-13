@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
-#include <unordered_set>
+#include <flat_set>
 #include "concepts/range_concept.h"                                                               
 #include "resource_utils.h"    
 
@@ -10,7 +10,7 @@ namespace lcf::vkc {
 class InstanceExtensionManifest
 {
     using Self = InstanceExtensionManifest;
-    using StringSet = std::unordered_set<std::string>;
+    using StringSet = std::flat_set<std::string>;
     using ExtEnableCallback = std::function<ResourceLease(vk::Instance)>;
     using ExtEnableCallbackList = std::vector<ExtEnableCallback>; 
     using ResourceLeaseList = std::vector<ResourceLease>;

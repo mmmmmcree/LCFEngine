@@ -8,6 +8,7 @@
 #include "vk_core/utils/find_proper_queue_family_index.h"
 #include "vk_core/utils/physical_device_feature_utils.h"
 #include "vk_core/error.h"
+#include <flat_map>
 
 namespace stdr = std::ranges;
 namespace stdv = std::views;
@@ -94,12 +95,15 @@ struct QueueRequestSignature
     QueueRequestSignature(const QueueRequest & request) noexcept :
         m_required_flags(request.getRequiredFlags()), m_undesired_flags(request.getUndesiredFlags()) {}
     bool operator==(const QueueRequestSignature &) const noexcept = default;
-    struct hasher
+    struct less
     {
-        constexpr uint64_t operator()(const QueueRequestSignature & signature) const noexcept
+        constexpr bool operator()(const QueueRequestSignature & lhs, const QueueRequestSignature & rhs) const noexcept
         {
             using MaskType = vk::QueueFlags::MaskType;
-            return static_cast<uint64_t>(MaskType(signature.m_required_flags)) << 32 | static_cast<uint64_t>(MaskType(signature.m_undesired_flags));
+            const auto lhs_required = MaskType(lhs.m_required_flags);
+            const auto rhs_required = MaskType(rhs.m_required_flags);
+            if (lhs_required != rhs_required) { return lhs_required < rhs_required; }
+            return MaskType(lhs.m_undesired_flags) < MaskType(rhs.m_undesired_flags);
         }
     };
     vk::QueueFlags m_required_flags = {};
@@ -147,7 +151,7 @@ struct SubmissionThreadTaggedGroup
 {
     using Self = SubmissionThreadTaggedGroup;
     using RequestIndices = std::vector<uint32_t>;
-    using SignatureCluster = std::unordered_map<QueueRequestSignature, RequestIndices, QueueRequestSignature::hasher>;
+    using SignatureCluster = std::flat_map<QueueRequestSignature, RequestIndices, QueueRequestSignature::less>;
 
     bool operator>(const Self & other) const noexcept
     {
@@ -285,7 +289,7 @@ private:
     {
         uint32_t available_queue_count = m_family_props_list[family_index].queueCount;
         std::vector<SubmissionThreadTaggedGroup> tagged_groups;
-        std::unordered_map<QueueSubmissionThreadTag, uint32_t> tagged_group_id_map;
+        std::flat_map<QueueSubmissionThreadTag, uint32_t> tagged_group_id_map;
         for (uint32_t id : req_ids) {
             const QueueRequest & request = m_requests[id];
             auto [it, inserted] = tagged_group_id_map.try_emplace(request.getSubmissionThreadTag(), static_cast<uint32_t>(tagged_groups.size()));
