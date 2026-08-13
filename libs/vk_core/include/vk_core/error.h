@@ -83,14 +83,7 @@ private:
 
 class Failure
 {
-    struct Monostate
-    {
-        const std::error_code & code() const noexcept { return m_code; }
-        const std::string & message() const noexcept { return m_detail; }
-        std::error_code m_code {};
-        std::string m_detail {};
-    };
-    using Diagnostic = std::variant<Monostate, Warning, Error>;
+    using Diagnostic = std::variant<std::monostate, Warning, Error>;
 public:
     Failure() noexcept = default;
     Failure(Error error) noexcept : m_diagnostic(std::move(error)) {}
@@ -109,14 +102,23 @@ public:
     }
     std::error_code code() const noexcept
     {
-        return std::visit([](const auto & diagnostic) { return diagnostic.code(); }, m_diagnostic);
+        return std::visit([](const auto & diagnostic) -> std::error_code {
+            using T = std::remove_cvref_t<decltype(diagnostic)>;
+            if constexpr (std::same_as<T, std::monostate>) { return {}; }
+            else { return diagnostic.code(); }
+        }, m_diagnostic);
     }
     const std::string & message() const noexcept
     {
-        return std::visit([](const auto & diagnostic) -> const std::string & { return diagnostic.message(); }, m_diagnostic);
+        static const std::string empty_message;
+        return std::visit([&](const auto & diagnostic) -> const std::string & {
+            using T = std::remove_cvref_t<decltype(diagnostic)>;
+            if constexpr (std::same_as<T, std::monostate>) { return empty_message; }
+            else { return diagnostic.message(); }
+        }, m_diagnostic);
     }
 private:
-    Diagnostic m_diagnostic = Monostate {};
+    Diagnostic m_diagnostic = std::monostate {};
 };
 
 } // namespace lcf::vkc
