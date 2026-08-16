@@ -2,10 +2,8 @@
 #include "vk_core/manifest/DeviceExtensionManifest.h"
 #include "vk_core/debug/entry.h"
 #include "vk_core/debug/debug_utils.h"
-#include "vk_core/WSI/entry.h"
 #include "vk_core/WSI/WindowHandle.h"
 #include "vk_core/WSI/create_surface.h"
-#include "vk_core/WSI/compat/Swapchain.h"
 #include "vk_core/context/entry.h"
 #include "vk_core/context/info_structs.h"
 #include "vk_core/context/InstanceContext.h"
@@ -20,12 +18,13 @@
 #include <array>
 #include <optional>
 #include "log.h"
+#include "vk_config.h"
 
 using namespace lcf;
 namespace stdv = std::views;
 
-//- 004 mirrors 003 (hello_swapchain), it runs on vkc::wsi::compat::Swapchain (core 1.0 path),
-//- device will wait idle during swapchain recreation
+//- 004 lets the build-time probe select the default swapchain implementation
+//- or its compatibility fallback for the selected physical device.
 
 //- lcf::win::WindowHandle and vkc::wsi::WindowHandle are same-shaped variants;
 //- the window library is Vulkan-agnostic, so the mapping happens here at the
@@ -61,8 +60,8 @@ int main()
     debug_callbacks.setWarningSink([](std::string_view message) { lcf_log_warn(message); })
         .setErrorSink([](std::string_view message) { lcf_log_error(message); });
     vkc::entry::register_debug_utils(inst_ext_manifest, vkc::dbg::SeverityFlags::eError | vkc::dbg::SeverityFlags::eWarning | vkc::dbg::SeverityFlags::eVerbose, debug_callbacks);
-    vkc::entry::register_surface(inst_ext_manifest);
-    vkc::entry::register_compat_swapchain(device_ext_manifest);
+    vkc::probe::CapabilityRegistry capabilities {inst_ext_manifest, device_ext_manifest};
+    vkc::probe::register_capabilities(capabilities);
 
     vk::ApplicationInfo app_info;
     app_info.setPApplicationName("LCFEngine")
@@ -98,8 +97,8 @@ int main()
     auto & surface = expected_surface.value();
 
     vkc::bs::PhysicalDeviceSelectInfo physical_device_select_info;
-    physical_device_select_info.setRequiredDeviceExtensionManifest(device_ext_manifest)
-        .setPreferredType(vk::PhysicalDeviceType::eDiscreteGpu);
+    vkc::probe::configure_physical_device(physical_device_select_info);
+    physical_device_select_info.setRequiredDeviceExtensionManifest(device_ext_manifest);
     vkc::DeviceContextCreateInfo device_context_info;
     device_context_info.setRequiredDeviceExtensionManifest(device_ext_manifest)
         .setPhysicalDeviceSelectInfo(physical_device_select_info);
@@ -124,7 +123,7 @@ int main()
         return 1;
     }
 
-    vkc::wsi::compat::Swapchain swapchain;
+    vkc::wsi::probed::Swapchain swapchain;
     if (auto ec = swapchain.create(
         std::move(surface),
         device_context.getPhysicalDevice(),
