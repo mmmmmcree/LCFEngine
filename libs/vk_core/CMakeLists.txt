@@ -1,7 +1,7 @@
 project(vk_core)
 
-file(GLOB_RECURSE HEADERS "include/*.h")
-file(GLOB_RECURSE SOURCES "src/*.cpp") 
+file(GLOB_RECURSE HEADERS CONFIGURE_DEPENDS "include/*.h")
+file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "src/*.cpp")
 
 add_library(${PROJECT_NAME} SHARED
     ${HEADERS}
@@ -66,3 +66,5 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
 target_link_libraries(${PROJECT_NAME} PUBLIC Vulkan::Headers)
 target_link_libraries(${PROJECT_NAME} PUBLIC GPUOpen::VulkanMemoryAllocator)
 #todo link libraries in private once the encaptulation is done
+
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake_include/probe.cmake")

@@ -1,0 +1,136 @@
+#include "@VKC_PROBE_CONFIG_HEADER@"
+#include "vk_core/manifest/DeviceExtensionManifest.h"
+#include "vk_core/manifest/InstanceExtensionManifest.h"
+#include "vk_core/probe/probe.h"
+#include <filesystem>
+#include <fstream>
+#include <format>
+#include <iostream>
+#include <iterator>
+#include <string>
+#include <string_view>
+#include <system_error>
+
+namespace {
+
+std::string escape_json(std::string_view value);
+
+lcf::vkc::Error write_json(const lcf::vkc::probe::ProbeResult & result, const std::filesystem::path & output_path) noexcept;
+
+} // namespace
+
+int main(int argc, char ** argv)
+{
+    if (argc != 2) {
+        std::cerr << "usage: vkc_probe <output-profile>\n";
+        return 2;
+    }
+
+    lcf::vkc::bs::PhysicalDeviceSelectInfo physical_device_selection;
+    lcf::vkc::probe::configure_physical_device(physical_device_selection);
+    lcf::vkc::InstanceExtensionManifest instance_manifest;
+    lcf::vkc::DeviceExtensionManifest device_manifest;
+    lcf::vkc::probe::CapabilityRegistry capabilities {
+        instance_manifest,
+        device_manifest
+    };
+    lcf::vkc::probe::register_capabilities(capabilities);
+
+    auto result = lcf::vkc::probe::run(physical_device_selection, capabilities);
+    if (not result) {
+        std::cerr << "Vulkan capability probe failed: " << result.error().message() << '\n';
+        return 1;
+    }
+
+    if (auto error = write_json(*result, argv[1])) {
+        std::cerr << "Vulkan capability probe failed: " << error.message() << '\n';
+        return 1;
+    }
+    return 0;
+}
+
+namespace {
+
+std::string escape_json(std::string_view value)
+{
+    constexpr char hexadecimal[] = "0123456789abcdef";
+    std::string output;
+    output.reserve(value.size());
+    for (unsigned char character : value) {
+        switch (character) {
+            case '"': output.append("\\\""); break;
+            case '\\': output.append("\\\\"); break;
+            case '\b': output.append("\\b"); break;
+            case '\f': output.append("\\f"); break;
+            case '\n': output.append("\\n"); break;
+            case '\r': output.append("\\r"); break;
+            case '\t': output.append("\\t"); break;
+            default:
+                if (character < 0x20) {
+                    output.append("\\u00");
+                    output.push_back(hexadecimal[character >> 4]);
+                    output.push_back(hexadecimal[character & 0x0f]);
+                } else {
+                    output.push_back(static_cast<char>(character));
+                }
+        }
+    }
+    return output;
+}
+
+lcf::vkc::Error write_json(
+    const lcf::vkc::probe::ProbeResult & result,
+    const std::filesystem::path & output_path) noexcept
+{
+    try {
+        std::ofstream output(output_path, std::ios::binary | std::ios::trunc);
+        if (not output) {
+            return {std::make_error_code(std::errc::io_error), "failed to open probe output: " + output_path.string() };
+        }
+        auto output_iterator = std::ostreambuf_iterator<char> {output};
+        std::format_to(output_iterator,
+            "{{\n"
+            "  \"schema_version\": 2,\n"
+            "  \"physical_device\": {{\n"
+            "    \"name\": \"{}\",\n"
+            "    \"vendor_id\": {},\n"
+            "    \"device_id\": {},\n"
+            "    \"api_version\": {}\n"
+            "  }},\n"
+            "  \"capabilities\": [",
+            escape_json(result.name),
+            result.vendor_id,
+            result.device_id,
+            result.api_version);
+        for (std::size_t index = 0; index < result.capabilities.size(); ++index) {
+            const lcf::vkc::probe::ProbeResult::CapabilityResolution & resolution =
+                result.capabilities[index];
+            const lcf::vkc::probe::CapabilityDescriptor & capability = *resolution.capability;
+            const lcf::vkc::probe::CapabilityOption & option = capability[resolution.option_index];
+            std::format_to(output_iterator,
+                "{}    {{\n"
+                "      \"option_index\": {},\n"
+                "      \"type_header\": \"{}\"\n"
+                "    }}",
+                index == 0 ? "\n" : ",\n",
+                resolution.option_index,
+                escape_json(option.type_header));
+        }
+        if (not result.capabilities.empty()) { output.put('\n'); }
+        std::format_to(output_iterator, "  ]\n}}\n");
+
+        if (not output) {
+            return {std::make_error_code(std::errc::io_error), "failed to write probe output: " + output_path.string() };
+        }
+        return {};
+    } catch (const std::system_error & error) {
+        return {error.code(), error.what()};
+    } catch (const std::exception & error) {
+        return {
+            std::make_error_code(std::errc::io_error),
+            error.what()
+        };
+    }
+}
+
+} // namespace

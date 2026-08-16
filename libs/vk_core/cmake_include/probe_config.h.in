@@ -1,0 +1,4 @@
+#pragma once
+
+@CAPABILITY_INCLUDES@
+#include "@SOURCE_CONFIG@"
