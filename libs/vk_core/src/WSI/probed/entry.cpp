@@ -24,7 +24,7 @@ void register_compat_swapchain(
 constexpr std::array k_swapchain_options
 {
     probe::CapabilityOption {
-        .type_header = "vk_core/WSI/probed/default_wapchain.h",
+        .type_header = "vk_core/WSI/probed/default_swapchain.h",
         .register_requirements = &register_default_swapchain,
     },
     probe::CapabilityOption {
