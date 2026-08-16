@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
-#include <flat_map>
+#include <unordered_map>
 #include <any>
 #include <typeindex>
 #include <utility>
@@ -20,7 +20,7 @@ class DynamicStructureChain
         std::any value;
         void * (*address)(std::any &) noexcept = nullptr;
     };
-    using NodeMap = std::flat_map<std::type_index, Node>;
+    using NodeMap = std::unordered_map<std::type_index, Node>;
 public:
     ~DynamicStructureChain() noexcept = default;
     DynamicStructureChain() { this->emplaceNode<Root>(); }
