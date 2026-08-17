@@ -66,14 +66,14 @@ function(vkc_configure_probe)
         "${_runner_source}"
         @ONLY)
 
-    set(_probe_target "${VKC_PROBE_TARGET}_vkc_probe")
-    set(_run_target "${VKC_PROBE_TARGET}_run_vkc_probe")
+    set(_probe_target "vkc_probe_${VKC_PROBE_TARGET}")
     add_executable(${_probe_target} EXCLUDE_FROM_ALL
         "${_runner_source}"
         "${_config_header}")
     target_link_libraries(${_probe_target} PRIVATE vk_core)
 
-    add_custom_target(${_run_target}
+    add_custom_command(
+        OUTPUT "${_generated_header}"
         COMMAND ${CMAKE_COMMAND} -E make_directory "${_generated_header_dir}"
         COMMAND $<TARGET_FILE:${_probe_target}> "${_profile}"
         COMMAND ${CMAKE_COMMAND}
@@ -84,19 +84,17 @@ function(vkc_configure_probe)
             -P "${_module_dir}/generate_probe_config.cmake"
         BYPRODUCTS
             "${_profile}"
-            "${_generated_header}"
         DEPENDS
             ${_probe_target}
             "${_config_header}"
             "${_module_dir}/probe_config.h.in"
             "${_module_dir}/generate_probe_config.cmake"
+        COMMENT "Running Vulkan capability probe for ${VKC_PROBE_TARGET}"
         VERBATIM)
 
-    set_source_files_properties("${_generated_header}" PROPERTIES GENERATED TRUE)
     target_sources(${VKC_PROBE_TARGET} PRIVATE
         "${_config_header}"
         "${_generated_header}")
     target_include_directories(${VKC_PROBE_TARGET} BEFORE PRIVATE
         "${_generated_dir}")
-    add_dependencies(${VKC_PROBE_TARGET} ${_run_target})
 endfunction()
