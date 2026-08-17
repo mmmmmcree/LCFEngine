@@ -67,4 +67,4 @@ target_link_libraries(${PROJECT_NAME} PUBLIC Vulkan::Headers)
 target_link_libraries(${PROJECT_NAME} PUBLIC GPUOpen::VulkanMemoryAllocator)
 #todo link libraries in private once the encaptulation is done
 
-include("${CMAKE_CURRENT_SOURCE_DIR}/cmake_include/probe.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake_include/probe/configure.cmake")

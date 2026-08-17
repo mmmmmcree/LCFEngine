@@ -54,7 +54,7 @@ function(vkc_configure_probe)
     set(_module_dir "${CMAKE_CURRENT_FUNCTION_LIST_DIR}")
     set(_generated_dir
         "${CMAKE_CURRENT_BINARY_DIR}/vkc_probe/${VKC_PROBE_TARGET}")
-    set(_runner_source "${_generated_dir}/probe_main.cpp")
+    set(_runner_source "${_generated_dir}/main.cpp")
     set(_profile "${_generated_dir}/profile.json")
     set(_generated_header "${_generated_dir}/${_output_header}")
     get_filename_component(_generated_header_dir "${_generated_header}" DIRECTORY)
@@ -62,7 +62,7 @@ function(vkc_configure_probe)
 
     set(VKC_PROBE_CONFIG_HEADER "${_config_header_for_cpp}")
     configure_file(
-        "${_module_dir}/probe_main.cpp.in"
+        "${_module_dir}/main.cpp.in"
         "${_runner_source}"
         @ONLY)
 
@@ -79,16 +79,16 @@ function(vkc_configure_probe)
         COMMAND ${CMAKE_COMMAND}
             "-DINPUT=${_profile}"
             "-DOUTPUT=${_generated_header}"
-            "-DTEMPLATE=${_module_dir}/probe_config.h.in"
+            "-DTEMPLATE=${_module_dir}/config.h.in"
             "-DSOURCE_CONFIG=${_config_header_for_cpp}"
-            -P "${_module_dir}/generate_probe_config.cmake"
+            -P "${_module_dir}/generate_config.cmake"
         BYPRODUCTS
             "${_profile}"
         DEPENDS
             ${_probe_target}
             "${_config_header}"
-            "${_module_dir}/probe_config.h.in"
-            "${_module_dir}/generate_probe_config.cmake"
+            "${_module_dir}/config.h.in"
+            "${_module_dir}/generate_config.cmake"
         COMMENT "Running Vulkan capability probe for ${VKC_PROBE_TARGET}"
         VERBATIM)
 

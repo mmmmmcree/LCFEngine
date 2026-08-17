@@ -1,7 +1,7 @@
 foreach(_required_variable IN ITEMS INPUT OUTPUT TEMPLATE SOURCE_CONFIG)
     if(NOT DEFINED ${_required_variable})
         message(FATAL_ERROR
-            "generate_probe_config.cmake requires ${_required_variable}")
+            "generate_config.cmake requires ${_required_variable}")
     endif()
 endforeach()
 
