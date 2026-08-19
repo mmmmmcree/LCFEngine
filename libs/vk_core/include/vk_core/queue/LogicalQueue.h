@@ -7,8 +7,6 @@ namespace lcf::vkc::details {
 
 class DeviceQueue;
 
-class QueueAccess;
-
 }
 
 namespace lcf::vkc {
