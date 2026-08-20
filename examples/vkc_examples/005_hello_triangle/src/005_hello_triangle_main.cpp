@@ -44,6 +44,14 @@ namespace stdv = std::views;
 #error "Exactly one triangle rendering mode must be selected"
 #endif
 
+#if defined(VKCE_005_RENDER_PASS_PIPELINE)
+constexpr const char * k_window_title = "hello triangle - render pass pipeline";
+#elif defined(VKCE_005_DYNAMIC_RENDERING_PIPELINE)
+constexpr const char * k_window_title = "hello triangle - dynamic rendering pipeline";
+#elif defined(VKCE_005_DYNAMIC_RENDERING_SHADER_OBJECT)
+constexpr const char * k_window_title = "hello triangle - shader object";
+#endif
+
 namespace lcf {
 template <>
 struct enum_mapping_traits<ShaderTypeFlagBits, vk::ShaderStageFlagBits>
@@ -100,7 +108,7 @@ int main()
         return 1;
     }
     win::WindowCreateInfo window_info;
-    window_info.setTitle("hello triangle");
+    window_info.setTitle(k_window_title);
     win::Window window;
     if (auto ec = window.create(window_info)) {
         lcf_log_error("Failed to create window: {}", ec.message());
