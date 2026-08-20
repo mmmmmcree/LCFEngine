@@ -224,9 +224,16 @@ int main()
         }
     }
 
-    //- create static render
+    vkc::ViewportStateInfo viewport_state_info;
+    viewport_state_info.addViewport(0, 0, width, height)
+        .addScissor(0, 0, width, height);
+    vkc::ColorBlendStateInfo color_blend_state_info {attachment_set.getColorAttachmentCount()};
+    vkc::GraphicsPipelineInfo graphic_pipeline_info;
+    graphic_pipeline_info.setShaderProgramInfo(shader_program_info)
+        .setViewportStateInfo(viewport_state_info)
+        .setColorBlendStateInfo(color_blend_state_info);
 
-    
+    //- create static render
     vkc::StaticRenderInfo static_render_info {attachment_set};
     vkc::SubpassDescriptionInfo subpass_info;
     subpass_info.setBindPoint(vk::PipelineBindPoint::eGraphics)
@@ -239,17 +246,7 @@ int main()
         lcf_log_error("Failed to create static_render: {}", ec.message());
         return 1;
     }
-    //- create static graphics pipeline with static rendering
-
-    vkc::ViewportStateInfo viewport_state_info;
-    viewport_state_info.addViewport(0, 0, width, height)
-        .addScissor(0, 0, width, height);
-    vkc::ColorBlendStateInfo color_blend_state_info {static_render_info.getColorAttachmentCount()};
-    vkc::GraphicsPipelineInfo graphic_pipeline_info;
     vkc::GraphicsPipeline static_graphics_pipeline;
-    graphic_pipeline_info.setShaderProgramInfo(shader_program_info)
-        .setViewportStateInfo(viewport_state_info)
-        .setColorBlendStateInfo(color_blend_state_info);
     if (auto ec = static_graphics_pipeline.create(device, graphic_pipeline_info, static_render.makeScopeInfo(0))) {
         lcf_log_error("Failed to create static_graphics_pipeline: {}", ec.message());
         return 1;
@@ -266,6 +263,11 @@ int main()
     vkc::DynamicRender dynamic_render;
     if (auto ec = dynamic_render.create(dynamic_render_info)) {
         lcf_log_error("Failed to create dynamic_render: {}", ec.message());
+        return 1;
+    }
+    vkc::GraphicsPipeline dynamic_graphics_pipeline;
+    if (auto ec = dynamic_graphics_pipeline.create(device, graphic_pipeline_info, dynamic_render.makeScopeInfo())) {
+        lcf_log_error("Failed to create dynamic_graphics_pipeline: {}", ec.message());
         return 1;
     }
 
@@ -294,11 +296,18 @@ int main()
             vkc::CommandBufferProxy & cmd = expected_cmd_buffer_proxy.value();
             auto & render_target = render_targets[frame % 2];
             vk::CommandBufferBeginInfo cmd_begin_info {};
+
             cmd.begin(cmd_begin_info);
+
             static_render.begin(cmd, render_target);
             static_graphics_pipeline.bind(cmd);
             cmd.draw(3, 1, 0, 0);
             static_render.end(cmd);
+
+            dynamic_render.begin(cmd, render_target);
+            dynamic_graphics_pipeline.bind(cmd);
+            cmd.draw(3, 1, 0, 0);
+            dynamic_render.end(cmd);
             
             dynamic_render.begin(cmd, render_target);
             vkc::bind_dynamic_graphics_state(cmd, graphic_pipeline_info, shader_object_binding_states);
