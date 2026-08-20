@@ -1,7 +1,8 @@
 project(vkc_examples)
 
+add_subdirectory(common)
 add_subdirectory(001_hello_device)
 add_subdirectory(002_hello_context)
 add_subdirectory(003_hello_swapchain)
 add_subdirectory(004_hello_compat_swapchain)
-add_subdirectory(005_hello_static_pipeline)
+add_subdirectory(005_hello_triangle)

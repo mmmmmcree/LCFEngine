@@ -2,11 +2,7 @@
 #include "vk_core/manifest/DeviceExtensionManifest.h"
 #include "vk_core/debug/entry.h"
 #include "vk_core/debug/debug_utils.h"
-#include "vk_core/WSI/entry.h"
-#include "vk_core/WSI/WindowHandle.h"
 #include "vk_core/WSI/create_surface.h"
-// #include "vk_core/WSI/compat/Swapchain.h"
-#include "vk_core/WSI/Swapchain.h"
 #include "vk_core/context/entry.h"
 #include "vk_core/context/info_structs.h"
 #include "vk_core/context/InstanceContext.h"
@@ -26,6 +22,7 @@
 #include "vk_core/command/info_structs.h"
 #include "vk_core/command/CommandBufferProxy.h"
 #include "vk_core/queue/Queue.h"
+#include "common/window_handle.h"
 #include "win/Window.h"
 #include "shader_core/config.h"
 #include "shader_core/ShaderCompiler.h"
@@ -36,11 +33,16 @@
 #include <optional>
 #include "log.h"
 #include "enums/enum_cast.h"
+#include "vkc_config.h"
 
 using namespace lcf;
 namespace stdv = std::views;
 
-vkc::wsi::WindowHandle to_wsi_window_handle(const win::WindowHandle & window_handle) noexcept;
+#if (defined(VKCE_005_RENDER_PASS_PIPELINE) + \
+    defined(VKCE_005_DYNAMIC_RENDERING_PIPELINE) + \
+    defined(VKCE_005_DYNAMIC_RENDERING_SHADER_OBJECT)) != 1
+#error "Exactly one triangle rendering mode must be selected"
+#endif
 
 namespace lcf {
 template <>
@@ -68,11 +70,14 @@ int main()
     debug_callbacks.setWarningSink([](std::string_view message) { lcf_log_warn(message); })
         .setErrorSink([](std::string_view message) { lcf_log_error(message); });
     vkc::entry::register_debug_utils(inst_ext_manifest, vkc::dbg::SeverityFlags::eError | vkc::dbg::SeverityFlags::eWarning | vkc::dbg::SeverityFlags::eVerbose, debug_callbacks);
-    vkc::entry::register_surface(inst_ext_manifest);
-    // vkc::entry::register_compat_swapchain(device_ext_manifest);
-    vkc::entry::register_swapchain(inst_ext_manifest, device_ext_manifest);
+    vkc::probe::CapabilityRegistry capabilities {inst_ext_manifest, device_ext_manifest};
+    vkc::probe::register_capabilities(capabilities);
+#if defined(VKCE_005_DYNAMIC_RENDERING_PIPELINE) || defined(VKCE_005_DYNAMIC_RENDERING_SHADER_OBJECT)
     vkc::entry::register_dynamic_render(device_ext_manifest);
+#endif
+#if defined(VKCE_005_DYNAMIC_RENDERING_SHADER_OBJECT)
     vkc::entry::register_shader_object(device_ext_manifest);
+#endif
     //- in this example, we use shader constants to draw a triangle, so we should enable shaderDrawParameters feature
     device_ext_manifest.addRequiredFeature(vkc::utils::t_feature_bit<&vk::PhysicalDeviceVulkan13Features::synchronization2>)
         .addRequiredFeature(vkc::utils::t_feature_bit<&vk::PhysicalDeviceVulkan11Features::shaderDrawParameters>);
@@ -95,13 +100,13 @@ int main()
         return 1;
     }
     win::WindowCreateInfo window_info;
-    window_info.setTitle("hello static pipeline");
+    window_info.setTitle("hello triangle");
     win::Window window;
     if (auto ec = window.create(window_info)) {
         lcf_log_error("Failed to create window: {}", ec.message());
         return 1;
     }
-    vkc::wsi::WindowHandle wsi_window_handle = to_wsi_window_handle(window.handle());
+    vkc::wsi::WindowHandle wsi_window_handle = vkce::to_wsi_window_handle(window.handle());
     auto expected_surface = vkc::wsi::create_surface(instance_context.getInstance(), wsi_window_handle);
     if (not expected_surface) {
         lcf_log_error("Failed to create surface: {}", expected_surface.error().message());
@@ -110,8 +115,8 @@ int main()
     auto & surface = expected_surface.value();
 
     vkc::bs::PhysicalDeviceSelectInfo physical_device_select_info;
-    physical_device_select_info.setRequiredDeviceExtensionManifest(device_ext_manifest)
-        .setPreferredType(vk::PhysicalDeviceType::eDiscreteGpu);
+    vkc::probe::configure_physical_device(physical_device_select_info);
+    physical_device_select_info.setRequiredDeviceExtensionManifest(device_ext_manifest);
     vkc::DeviceContextCreateInfo device_context_info;
     device_context_info.setRequiredDeviceExtensionManifest(device_ext_manifest)
         .setPhysicalDeviceSelectInfo(physical_device_select_info);
@@ -138,8 +143,7 @@ int main()
     }
     vk::Device device = device_context.getDevice();
 
-    // vkc::wsi::compat::Swapchain swapchain;
-    vkc::wsi::Swapchain swapchain;
+    vkc::wsi::probed::Swapchain swapchain;
     if (auto ec = swapchain.create(
         std::move(surface),
         device_context.getPhysicalDevice(),
@@ -169,6 +173,7 @@ int main()
             .setEntryPoint(spv_unit.getEntryPoint());
         shader_program_info.addStageInfo(std::move(shader_stage_info));
     }
+#if defined(VKCE_005_DYNAMIC_RENDERING_SHADER_OBJECT)
     vkc::ShaderObjectGroup shader_objects;
     if (auto ec = shader_objects.create(
         device,
@@ -180,6 +185,7 @@ int main()
     }
     vkc::ShaderObjectBindingState shader_object_binding_states;
     shader_object_binding_states.assign(shader_objects);
+#endif
 
     //- declare the attachment set: one color attachment, no resolve, no depth stencil
     vkc::AttachmentSetInfoBuilder attachment_set_builder;
@@ -233,7 +239,7 @@ int main()
         .setViewportStateInfo(viewport_state_info)
         .setColorBlendStateInfo(color_blend_state_info);
 
-    //- create static render
+#if defined(VKCE_005_RENDER_PASS_PIPELINE)
     vkc::StaticRenderInfo static_render_info {attachment_set};
     vkc::SubpassDescriptionInfo subpass_info;
     subpass_info.setBindPoint(vk::PipelineBindPoint::eGraphics)
@@ -251,8 +257,7 @@ int main()
         lcf_log_error("Failed to create static_graphics_pipeline: {}", ec.message());
         return 1;
     }
-
-    //-
+#elif defined(VKCE_005_DYNAMIC_RENDERING_PIPELINE) || defined(VKCE_005_DYNAMIC_RENDERING_SHADER_OBJECT)
     vkc::DynamicRenderInfo dynamic_render_info {attachment_set};
     dynamic_render_info.setLoadStoreOp(color_key, vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore)
         .setExitAttributes(color_key,
@@ -265,11 +270,14 @@ int main()
         lcf_log_error("Failed to create dynamic_render: {}", ec.message());
         return 1;
     }
+#endif
+#if defined(VKCE_005_DYNAMIC_RENDERING_PIPELINE)
     vkc::GraphicsPipeline dynamic_graphics_pipeline;
     if (auto ec = dynamic_graphics_pipeline.create(device, graphic_pipeline_info, dynamic_render.makeScopeInfo())) {
         lcf_log_error("Failed to create dynamic_graphics_pipeline: {}", ec.message());
         return 1;
     }
+#endif
 
     //- render loop
     vkc::Queue gfx_queue;
@@ -299,20 +307,22 @@ int main()
 
             cmd.begin(cmd_begin_info);
 
+#if defined(VKCE_005_RENDER_PASS_PIPELINE)
             static_render.begin(cmd, render_target);
             static_graphics_pipeline.bind(cmd);
             cmd.draw(3, 1, 0, 0);
             static_render.end(cmd);
-
+#elif defined(VKCE_005_DYNAMIC_RENDERING_PIPELINE)
             dynamic_render.begin(cmd, render_target);
             dynamic_graphics_pipeline.bind(cmd);
             cmd.draw(3, 1, 0, 0);
             dynamic_render.end(cmd);
-            
+#elif defined(VKCE_005_DYNAMIC_RENDERING_SHADER_OBJECT)
             dynamic_render.begin(cmd, render_target);
             vkc::bind_dynamic_graphics_state(cmd, graphic_pipeline_info, shader_object_binding_states);
             cmd.draw(3, 1, 0, 0);
             dynamic_render.end(cmd);
+#endif
 
             cmd.end();
             cmd.addWaitInfo(present_blit_finish_tokens[frame % 2]);
@@ -355,22 +365,4 @@ int main()
     render_thread.join();
     device_context.getDevice().waitIdle();
     return 0;
-}
-
-vkc::wsi::WindowHandle to_wsi_window_handle(const win::WindowHandle & window_handle) noexcept
-{
-    return std::visit([](const auto & handle) -> vkc::wsi::WindowHandle {
-        using T = std::decay_t<decltype(handle)>;
-        if constexpr (std::is_same_v<T, win::win32::WindowHandle>) {
-            return vkc::wsi::win32::WindowHandle(handle.m_hinstance, handle.m_hwnd);
-        } else if constexpr (std::is_same_v<T, win::xcb::WindowHandle>) {
-            return vkc::wsi::xcb::WindowHandle(handle.m_connection, handle.m_window);
-        } else if constexpr (std::is_same_v<T, win::xlib::WindowHandle>) {
-            return vkc::wsi::xlib::WindowHandle(handle.m_display, handle.m_window);
-        } else if constexpr (std::is_same_v<T, win::wayland::WindowHandle>) {
-            return vkc::wsi::wayland::WindowHandle(handle.m_display, handle.m_surface);
-        } else {
-            return vkc::wsi::metal::WindowHandle(handle.m_layer);
-        }
-    }, window_handle);
 }
