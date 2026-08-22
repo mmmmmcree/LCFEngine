@@ -17,28 +17,26 @@ public:
         m_descriptor_type(descriptor_type),
         m_descriptor_count(descriptor_count),
         m_stage_flags(stage_flags),
-        m_flags(flags) {}
+        m_binding_flags(flags) {}
     DescriptorSetBindingInfo(const Self &) = default;
     DescriptorSetBindingInfo(Self &&) noexcept = default;
     Self & operator=(const Self &) = default;
     Self & operator=(Self &&) noexcept = default;
 public:
-    Self & addFlags(vk::DescriptorBindingFlags flags) noexcept { m_flags |= flags; return *this; }
+    Self & addFlags(vk::DescriptorBindingFlags flags) noexcept { m_binding_flags |= flags; return *this; }
     Self & setDescriptorType(vk::DescriptorType type) noexcept { m_descriptor_type = type; return *this; }
     Self & setDescriptorCount(uint32_t count) noexcept { m_descriptor_count = count; return *this; }
-    Self & addStageFlags(vk::ShaderStageFlags flags) noexcept { m_flags |= flags; return *this; }
-    bool containsFlags(vk::DescriptorBindingFlagBits flags) const noexcept { return static_cast<bool>(m_flags & flags); }
-    const uint32_t & getBindingIndex() const noexcept { return m_binding.binding; }
-    const vk::DescriptorType & getDescriptorType() const noexcept { return m_binding.descriptorType; }
-    const uint32_t & getDescriptorCount() const noexcept { return m_binding.descriptorCount; }
-    const vk::ShaderStageFlags & getStageFlags() const noexcept { return m_binding.stageFlags; }
-    const vk::DescriptorBindingFlags & getFlags() const noexcept { return m_flags; }
-    const vk::DescriptorSetLayoutBinding & getLayoutBinding() const noexcept { return m_binding; }
+    Self & addStageFlags(vk::ShaderStageFlags flags) noexcept { m_stage_flags |= flags; return *this; }
+    Self & addBindingFlags(vk::DescriptorBindingFlags flags) noexcept { m_binding_flags |= flags; return *this; }
+    const vk::DescriptorType & getDescriptorType() const noexcept { return m_descriptor_type; }
+    const uint32_t & getDescriptorCount() const noexcept { return m_descriptor_count; }
+    const vk::ShaderStageFlags & getStageFlags() const noexcept { return m_stage_flags; }
+    const vk::DescriptorBindingFlags & getBindingFlags() const noexcept { return m_binding_flags; }
 private:
     vk::DescriptorType m_descriptor_type;
     uint32_t m_descriptor_count;
     vk::ShaderStageFlags m_stage_flags;
-    vk::DescriptorBindingFlags m_flags;
+    vk::DescriptorBindingFlags m_binding_flags;
 };
 
 class DescriptorSetLayoutInfo
@@ -63,7 +61,7 @@ public:
             binding_info.getDescriptorType(),
             binding_info.getDescriptorCount(),
             binding_info.getStageFlags(),
-            binding_info.getFlags());
+            binding_info.getBindingFlags());
     };
 private:
     BindingInfoList m_bindings;

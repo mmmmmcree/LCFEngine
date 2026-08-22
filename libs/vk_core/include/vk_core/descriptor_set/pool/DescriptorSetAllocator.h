@@ -33,7 +33,6 @@ public:
     std::error_code create(vk::Device device, const DescriptorSetAllocatorInfo & info) noexcept;
     std::expected<DescriptorSetProxy, std::error_code> allocate(const DescriptorSetLayout & layout) noexcept;
 private:
-    vk::DescriptorPool p;
 };
 
 
