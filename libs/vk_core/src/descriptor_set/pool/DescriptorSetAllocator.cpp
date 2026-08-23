@@ -2,6 +2,7 @@
 #include "vk_core/descriptor_set/pool/DescriptorSetLayout.h"
 #include <ranges>
 #include <algorithm>
+#include <utility>
 
 namespace stdr = std::ranges;
 namespace stdv = std::views;
@@ -26,6 +27,41 @@ bool DescriptorSetAllocator::PoolSetCompare::operator()(vk::DescriptorPool lhs, 
     const auto rhs_priority = m_pool_states_p->find(rhs)->second.getPriority();
     if (lhs_priority != rhs_priority) { return lhs_priority > rhs_priority; }
     return lhs < rhs;
+}
+
+DescriptorSetAllocator::~DescriptorSetAllocator() noexcept
+{
+    for (const auto &[pool, _] : m_pool_states) { m_device.destroyDescriptorPool(pool); }
+}
+
+DescriptorSetAllocator::DescriptorSetAllocator(Self && other) noexcept :
+    m_device(std::exchange(other.m_device, {})),
+    m_allocator_info(std::move(other.m_allocator_info)),
+    m_pool_states(std::move(other.m_pool_states)),
+    m_pool_sets(std::move(other.m_pool_sets))
+{
+    for (auto && [_, pools] : m_pool_sets) {
+        pools = PoolSet(std::sorted_unique, std::move(pools).extract(), PoolSetCompare {&m_pool_states});
+    }
+    other.m_pool_sets.clear();
+    other.m_pool_states.clear();
+}
+
+DescriptorSetAllocator & DescriptorSetAllocator::operator=(Self && other) noexcept
+{
+    if (this == &other) { return *this; }
+    for (const auto &[pool, _] : m_pool_states) { m_device.destroyDescriptorPool(pool); }
+    m_pool_sets.clear();
+    m_pool_states = std::move(other.m_pool_states);
+    m_pool_sets = std::move(other.m_pool_sets);
+    m_device = std::exchange(other.m_device, {});
+    m_allocator_info = std::move(other.m_allocator_info);
+    for (auto && [_, pools] : m_pool_sets) {
+        pools = PoolSet(std::sorted_unique, std::move(pools).extract(), PoolSetCompare {&m_pool_states});
+    }
+    other.m_pool_sets.clear();
+    other.m_pool_states.clear();
+    return *this;
 }
 
 std::error_code DescriptorSetAllocator::create(vk::Device device, const DescriptorSetAllocatorInfo & info) noexcept
