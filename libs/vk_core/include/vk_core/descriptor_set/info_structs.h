@@ -42,7 +42,8 @@ private:
 class DescriptorSetLayoutInfo
 {
     using Self = DescriptorSetLayoutInfo;
-    using BindingInfoList = std::vector<vk::DescriptorSetLayoutBinding>;
+    using BindingList = std::vector<vk::DescriptorSetLayoutBinding>;
+    using BindingFlagsList = std::vector<vk::DescriptorBindingFlags>;
 public:
     Self & addBindingInfo(
         vk::DescriptorType descriptor_type,
@@ -52,7 +53,7 @@ public:
     {
         uint32_t binding = static_cast<uint32_t>(m_bindings.size());
         m_bindings.emplace_back(binding, descriptor_type, descriptor_count, stage_flags);
-        m_flags |= flags;
+        m_flags_list.emplace_back(flags);
         return *this;
     }
     Self & addBindingInfo(const DescriptorSetBindingInfo & binding_info) noexcept
@@ -63,9 +64,11 @@ public:
             binding_info.getStageFlags(),
             binding_info.getBindingFlags());
     };
+    const BindingList & getBindings() const noexcept { return m_bindings; }
+    const BindingFlagsList & getBindingFlags() const noexcept { return m_flags_list; }
 private:
-    BindingInfoList m_bindings;
-    vk::DescriptorBindingFlags m_flags = {};
+    BindingList m_bindings;
+    BindingFlagsList m_flags_list;
 };
 
 
