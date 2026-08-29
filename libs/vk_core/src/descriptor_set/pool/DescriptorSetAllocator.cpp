@@ -113,23 +113,33 @@ std::expected<DescriptorSetAllocation, std::error_code> DescriptorSetAllocator::
     return DescriptorSetAllocation {pool, pool_group_key, std::move(*descriptor_sets_result)};
 }
 
-void DescriptorSetAllocator::deallocate(std::span<const DescriptorSetAllocation> allocations) noexcept
+void DescriptorSetAllocator::recycle(const DescriptorSetAllocation &allocation, ResourceLease lease) noexcept
 {
-    for (auto && [pool, pool_key, descriptor_sets] : allocations) {
-        auto state_it = m_pool_states.find(pool);
-        auto pool_set_it = m_pool_sets.find(pool_key);
-        auto & state = state_it->second;
-        auto & pool_set = pool_set_it->second;
-        pool_set.erase(pool);
-        state.markDeallocate(static_cast<uint32_t>(descriptor_sets.size()));
-        if (not state.isDestroyable()) {
-            pool_set.emplace(pool);
-            continue;
-        }
-        m_device.destroyDescriptorPool(pool);
-        m_pool_states.erase(state_it);
-        if (pool_set.empty()) { m_pool_sets.erase(pool_set_it); }
+    m_pending_allocations.emplace_back(allocation, std::move(lease));
+    while (not m_pending_allocations.empty()) {
+        auto && [allocation, lease] = m_pending_allocations.front();
+        if (lease.getRefCount() > 1u) { break; }
+        this->deallocate(std::move(allocation));
+        m_pending_allocations.pop_front();
     }
+}
+
+void DescriptorSetAllocator::deallocate(DescriptorSetAllocation allocation) noexcept
+{
+    auto && [pool, pool_key, descriptor_sets] = allocation;
+    auto state_it = m_pool_states.find(pool);
+    auto pool_set_it = m_pool_sets.find(pool_key);
+    auto & state = state_it->second;
+    auto & pool_set = pool_set_it->second;
+    pool_set.erase(pool);
+    state.markDeallocate(static_cast<uint32_t>(descriptor_sets.size()));
+    if (not state.isDestroyable()) {
+        pool_set.emplace(pool);
+        return;
+    }
+    m_device.destroyDescriptorPool(pool);
+    m_pool_states.erase(state_it);
+    if (pool_set.empty()) { m_pool_sets.erase(pool_set_it); }
 }
 
 std::expected<std::vector<vk::DescriptorSet>, std::error_code> DescriptorSetAllocator::allocateFromPool(

@@ -28,6 +28,7 @@ public:
 public:
     std::error_code create(vk::Device device, const DescriptorSetLayoutInfo & info) noexcept;
     const vk::DescriptorSetLayout & handle() const noexcept { return m_layout.get(); }
+    ResourceLease lease() const noexcept { return m_layout.lease(); }
     const BindingList & getBindings() const noexcept { return m_bindings; }
     const vk::DescriptorBindingFlags & getBindingFlags() const noexcept { return m_flags; }
 private:
