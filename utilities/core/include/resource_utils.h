@@ -35,7 +35,7 @@ namespace lcf {
             return false;
         }
         uint32_t getRefCount() const noexcept { return m_strong_count.load(std::memory_order_acquire); }
-        void destroyResource() noexcept { m_deleter(); }
+        void destroyResource() noexcept { if (m_deleter) { m_deleter(); }; }
         void increaseWeakRefCount() noexcept { m_weak_count.fetch_add(1, std::memory_order_relaxed); }
         bool decreaseWeakRefCountAndShouldDelete() noexcept { return m_weak_count.fetch_sub(1, std::memory_order_acq_rel) == 1; }
     private:
