@@ -85,6 +85,8 @@ namespace lcf {
             return *this;
         }
         operator bool() const noexcept { return m_control_block_p; }
+    public:
+        uint32_t getRefCount() const noexcept { return m_control_block_p ? m_control_block_p->getRefCount() : 0u; }
     private:
         void tryDestroy() noexcept
         {
