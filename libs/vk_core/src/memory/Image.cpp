@@ -4,6 +4,22 @@
 
 namespace lcf::vkc {
 
+
+std::error_code ImageView::create(vk::Device device, const vk::ImageViewCreateInfo & view_info, ResourceLease image_lease) noexcept
+{
+    vk::ImageView view;
+    try {
+        view = device.createImageView(view_info);
+    } catch (const vk::SystemError & e) {
+        return e.code();
+    }
+    m_view_rh = ResourceHandle {view, [device, view, image_lease = std::move(image_lease)]() mutable noexcept {
+        device.destroyImageView(view);
+        image_lease = {};
+    }};
+    return {};
+}
+
 std::error_code Image::create(
     const MemoryAllocator & allocator,
     const vk::ImageCreateInfo & image_info,
@@ -32,7 +48,22 @@ const vk::Image & Image::handle() const noexcept
     return m_memory_rh->handle();
 }
 
-std::expected<vk::UniqueImageView, std::error_code> Image::createView(
+std::expected<ImageView, std::error_code> Image::createView(
+    const vk::ImageSubresourceRange & range, vk::ImageViewType view_type) const noexcept
+{
+    vk::ImageViewCreateInfo view_info;
+    view_info.setImage(m_memory_rh->handle())
+        .setViewType(view_type)
+        .setFormat(m_desc.getFormat())
+        .setSubresourceRange(range);
+    ImageView view;
+    if (auto ec = view.create(m_device, view_info, m_memory_rh.lease())) {
+        return std::unexpected(ec);
+    }
+    return view;
+}
+
+std::expected<vk::UniqueImageView, std::error_code> Image::createUniqueView(
     const vk::ImageSubresourceRange & range, vk::ImageViewType view_type) const noexcept
 {
     vk::ImageViewCreateInfo view_info;
@@ -45,11 +76,12 @@ std::expected<vk::UniqueImageView, std::error_code> Image::createView(
     } catch (const vk::SystemError & e) {
         return std::unexpected(e.code());
     }
+    return {};
 }
 
 std::error_code Attachment::create(const Image & image, const AttachmentDescription & desc) noexcept
 {
-    auto expected_view = image.createView(desc.getSubresourceRange(), desc.getViewType());
+    auto expected_view = image.createUniqueView(desc.getSubresourceRange(), desc.getViewType());
     if (not expected_view) { return expected_view.error(); }
     m_image = image;
     m_view = std::move(expected_view.value());

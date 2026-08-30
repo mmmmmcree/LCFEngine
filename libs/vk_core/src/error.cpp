@@ -14,6 +14,8 @@ public:
         switch (static_cast<errc>(value)) {
             case errc::no_error: 
                 return "no error";
+            case errc::already_created:
+                return "the object has already been created";
             case errc::no_suitable_instance:
                 return "no instance satisfies the selection requirements";
             case errc::no_suitable_physical_device:

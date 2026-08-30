@@ -25,6 +25,7 @@ enum class errc
     present_skipped_for_resize,
     command_buffer_batch_exhausted,
     command_buffer_batch_queue_mismatch,
+    already_created,
 };
 
 enum class warnc

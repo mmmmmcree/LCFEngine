@@ -28,17 +28,25 @@ public:
     ~ResourceHandle() noexcept { this->tryDestroy(); }
     ResourceHandle() noexcept = default;
     template <typename Dispatch>
-    ResourceHandle(vk::UniqueHandle<Handle, Dispatch> && unique)
+    ResourceHandle(vk::UniqueHandle<Handle, Dispatch> && unique_handle) noexcept
     {
-        if (not unique) { return; }
+        if (not unique_handle) { return; }
         using Deleter = typename vk::UniqueHandleTraits<Handle, Dispatch>::deleter;
-        details::deleter_access<Deleter> deleter { static_cast<const Deleter &>(unique) };
-        m_handle = unique.get();
+        details::deleter_access<Deleter> deleter { static_cast<const Deleter &>(unique_handle) };
+        m_handle = unique_handle.get();
         m_control_block_p = new ResourceControlBlock([deleter, handle = m_handle]() mutable { deleter.destroy(handle); });
         m_control_block_p->increaseRefCount();
         m_control_block_p->increaseWeakRefCount();
-        (void)unique.release();
+        (void)unique_handle.release();
     }
+    explicit ResourceHandle(Handle handle, ResourceControlBlock::deleter_t deleter = nullptr) noexcept
+    {
+        if (not handle) { return; }
+        m_handle = handle;
+        m_control_block_p = new ResourceControlBlock(std::move(deleter));
+        m_control_block_p->increaseRefCount();
+        m_control_block_p->increaseWeakRefCount();
+    };
     ResourceHandle(const Self & other) noexcept { this->copyFrom(other); }
     Self & operator=(const Self & other) noexcept
     {
@@ -56,9 +64,9 @@ public:
         return *this;
     }
     template <typename Dispatch>
-    Self & operator=(vk::UniqueHandle<Handle, Dispatch> && unique)
+    Self & operator=(vk::UniqueHandle<Handle, Dispatch> && unique_handle)
     {
-        return this->operator=(Self(std::move(unique)));
+        return this->operator=(Self(std::move(unique_handle)));
     }
     operator const Handle &() const noexcept { return m_handle; }
     explicit operator bool() const noexcept { return m_control_block_p; }

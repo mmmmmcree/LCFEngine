@@ -89,6 +89,25 @@ private:
     uint32_t m_array_layer_count; 
 };
 
+class ImageView
+{
+    using Self = ImageView;
+    using ResourceHandle = utils::ResourceHandle<vk::ImageView>;
+public:
+    ~ImageView() noexcept = default;
+    ImageView() noexcept = default;
+    ImageView(const Self &) noexcept = default;
+    Self & operator=(const Self &) noexcept = default;
+    ImageView(Self &&) noexcept = default;
+    Self & operator=(Self &&) noexcept = default;
+public:
+    std::error_code create(vk::Device device, const vk::ImageViewCreateInfo & view_info, ResourceLease image_lease) noexcept;
+    const vk::ImageView & handle() const noexcept { return m_view_rh.get(); }
+    ResourceLease lease() const noexcept { return m_view_rh.lease(); }
+private:
+    ResourceHandle m_view_rh;
+};
+
 class Image
 {
     using Self = Image;
@@ -109,7 +128,10 @@ public:
     const vk::Image & handle() const noexcept;
     ResourceLease lease() const noexcept;
     const ImageDescription & getDescription() const noexcept { return m_desc; }
-    std::expected<vk::UniqueImageView, std::error_code> createView(
+    std::expected<ImageView, std::error_code> createView(
+        const vk::ImageSubresourceRange & range,
+        vk::ImageViewType view_type) const noexcept;
+    std::expected<vk::UniqueImageView, std::error_code> createUniqueView(
         const vk::ImageSubresourceRange & range,
         vk::ImageViewType view_type) const noexcept;
 private:

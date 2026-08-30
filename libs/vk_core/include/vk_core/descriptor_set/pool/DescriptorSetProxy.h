@@ -1,8 +1,8 @@
 #pragma once
-
 #include "details/info_structs.h"
 #include "vk_core/utils/ResourceHandle.h"
 #include "DescriptorSetLayout.h"
+#include <deque>
 #include <variant>
 
 namespace lcf::vkc {
@@ -17,6 +17,7 @@ class Sampler;
 namespace lcf::vkc::dsp {
 
 class DescriptorSetAllocator;
+struct DescriptorSetAllocation;
 
 class DescriptorSetProxy
 {
@@ -25,17 +26,23 @@ class DescriptorSetProxy
     struct AuthorityBinding
     {
         DescriptorInfo m_descriptor_info;
-        ResourceLease m_lease;
+        std::array<ResourceLease, 2> m_resource_leases;
     };
     struct DescriptorSet
     {
+        operator DescriptorSetAllocation() const noexcept;
+        bool isAvailable() const noexcept;
+        const vk::DescriptorSet & handle() const noexcept { return m_descriptor_set.get(); }
+        ResourceLease lease() const noexcept { return m_descriptor_set.lease(); }
+
         vk::DescriptorPool m_pool;
         vk::DescriptorPoolCreateFlags m_pool_key;
-        vk::DescriptorSet m_descriptor_set;
+        utils::ResourceHandle<vk::DescriptorSet> m_descriptor_set;
         uint32_t m_version = 0u;
     };
     using AuthorityBindingMap = std::vector<std::vector<AuthorityBinding>>;
     using DescriptorSetList = std::vector<DescriptorSet>;
+    using DescriptorSetQueue = std::deque<DescriptorSet>;
 public:
     ~DescriptorSetProxy() noexcept;
     DescriptorSetProxy() noexcept = default;
@@ -53,7 +60,6 @@ public:
     Self & setImage(uint32_t binding, const vkc::ImageView & image_view, vk::ImageLayout image_layout) noexcept;
     Self & setSampler(uint32_t binding, uint32_t array_index, const vkc::Sampler & sampler) noexcept;
     Self & setSampler(uint32_t binding, const vkc::Sampler & sampler) noexcept;
-    std::error_code commitUpdate(CommandBufferProxy & cmd) noexcept;
     void bind(CommandBufferProxy & cmd, vk::PipelineBindPoint bind_point, vk::PipelineLayout pipeline_layout) noexcept;
 private:
     DescriptorSetAllocator * m_allocator_p = nullptr;
@@ -61,7 +67,7 @@ private:
     uint32_t m_version = 0u;
     DescriptorSetLayout m_layout;
     AuthorityBindingMap m_authority_bindings;
-    DescriptorSetList m_in_use_descriptor_sets;
+    DescriptorSetQueue m_in_use_descriptor_sets;
     DescriptorSetList m_available_descriptor_sets;
 };
 
