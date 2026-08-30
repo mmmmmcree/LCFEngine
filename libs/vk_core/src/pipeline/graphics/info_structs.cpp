@@ -121,7 +121,7 @@ std::vector<vk::AttachmentDescription2> StaticRenderInfo::makeAttachmentDescript
     for (const auto & [resource, pass_info] : stdv::zip(attachment_resources, m_pass_infos)) {
         vk::AttachmentDescription2 & description = descriptions.emplace_back(pass_info);
         description.setFormat(resource.getFormat()).setSamples(resource.getSampleCount());
-        if (utils::discards_on_load(resource.getFormat(), pass_info.getLoadOp(), pass_info.getStencilLoadOp())) {
+        if (enum_traits<vk::AttachmentLoadOp>::discards_on(resource.getFormat(), pass_info.getLoadOp(), pass_info.getStencilLoadOp())) {
             description.setInitialLayout(vk::ImageLayout::eUndefined);
         }
     }

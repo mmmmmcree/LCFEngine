@@ -2,7 +2,7 @@
 
 #include "enums/enum_traits.h"
 #include <vulkan/vulkan_enums.hpp>
-#include "vk_core/utils/format_utils.h"
+#include "vk_core/utils/vk_enums_traits.h"
 
 namespace lcf::vkc {
 
@@ -91,7 +91,7 @@ public:
     static constexpr vk::ImageLayout layout_of(AttachmentUsage usage, bool unified_enabled = false) noexcept
     {
         vk::ImageLayout image_layout = get_attributes(usage).image_layout;
-        return unified_enabled ? lcf::vkc::utils::to_unified_image_layout(image_layout) : image_layout;
+        return unified_enabled ? lcf::enum_traits<vk::ImageLayout>::to_unified(image_layout) : image_layout;
     }
     template <lcf::vkc::AttachmentUsage usage>
     static constexpr vk::ImageLayout layout_of(bool unified_enabled = false) noexcept

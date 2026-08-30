@@ -4,7 +4,7 @@
 #include "vk_core/pipeline/graphics/RenderTarget.h"
 #include "vk_core/pipeline/graphics/info_structs.h"
 #include "vk_core/command/CommandBufferProxy.h"
-#include "vk_core/utils/format_utils.h"
+#include "vk_core/utils/vk_enums_traits.h"
 #include <ranges>
 
 namespace lcf::vkc::entry {
@@ -59,11 +59,11 @@ std::error_code DynamicRender::create(const DynamicRenderInfo & render_info) noe
         depth_stencil_attachment.setImageLayout(pass_info.m_in_pass_attributes.getImageLayout())
             .setLoadOp(pass_info.m_load_op)
             .setStoreOp(pass_info.m_store_op);
-        if (utils::is_depth_format(format)) {
+        if (enum_traits<vk::Format>::is_depth_format(format)) {
             m_depth_attachment = depth_stencil_attachment;
             m_depth_format = format;
         }
-        if (utils::is_stencil_format(format)) {
+        if (enum_traits<vk::Format>::is_stencil_format(format)) {
             m_stencil_attachment = depth_stencil_attachment
                 .setLoadOp(pass_info.m_stencil_load_op)
                 .setStoreOp(pass_info.m_stencil_store_op);
@@ -73,8 +73,8 @@ std::error_code DynamicRender::create(const DynamicRenderInfo & render_info) noe
     for (uint32_t i = 0; i < attachment_count; ++i) {
         const auto & pass_info = pass_infos[i];
         vk::Format format = resources[i].getFormat();
-        bool load_discards = utils::discards_on_load(format, pass_info.m_load_op, pass_info.m_stencil_load_op);
-        bool store_discards = utils::discards_on_store(format, pass_info.m_store_op, pass_info.m_stencil_store_op);
+        bool load_discards = enum_traits<vk::AttachmentLoadOp>::discards_on(format, pass_info.m_load_op, pass_info.m_stencil_load_op);
+        bool store_discards = enum_traits<vk::AttachmentStoreOp>::discards_on(format, pass_info.m_store_op, pass_info.m_stencil_store_op);
         auto entry_barrier = pass_info.makeEntryBarrier(load_discards);
         auto exit_barrier = pass_info.makeExitBarrier(store_discards);
         if (not entry_barrier and not exit_barrier) { continue; }
