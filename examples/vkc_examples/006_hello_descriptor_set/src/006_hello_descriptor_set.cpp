@@ -8,7 +8,16 @@
 #include "vk_core/context/InstanceContext.h"
 #include "vk_core/context/DeviceContext.h"  
 #include "vk_core/memory/info_structs.h"
+#include "vk_core/memory/MemoryAllocator.h"
+#include "vk_core/memory/Buffer.h"
 #include "vk_core/memory/Image.h"
+#include "vk_core/descriptor_set/info_structs.h"
+#include "vk_core/descriptor_set/pool/info_structs.h"
+#include "vk_core/descriptor_set/pool/DescriptorSetLayout.h"
+#include "vk_core/descriptor_set/pool/DescriptorSetAllocator.h"
+#include "vk_core/descriptor_set/pool/DescriptorSetProxy.h"
+#include "vk_core/sampler/info_structs.h"
+#include "vk_core/sampler/Sampler.h"
 #include "vk_core/error.h"
 #include "vk_core/pipeline/graphics/entry.h"
 #include "vk_core/pipeline/graphics/info_structs.h"
@@ -24,6 +33,7 @@
 #include "win/Window.h"
 #include "shader_core/config.h"
 #include "shader_core/ShaderCompiler.h"
+#include "image/Image.h"
 #include <atomic>
 #include <thread>
 #include <variant>
@@ -132,6 +142,104 @@ int main()
     }
     vk::Device device = device_context.getDevice();
 
+    vkc::Queue gfx_queue;
+    if (auto ec = gfx_queue.create(device_context.getLogicalQueue(graphics_queue_key))) {
+        lcf_log_error("Failed to create graphics queue: {}", ec.message());
+        return 1;
+    }
+
+    lcf::Image texture_data;
+    lcf::ImageInfo texture_file_info {std::filesystem::path(IMAGE_ASSETS_DIR) / "vulkanlogo.png"};
+    if (auto ec = texture_data.loadFromFileGpuFriendly(texture_file_info)) {
+        lcf_log_error("Failed to load texture: {}", ec.message());
+        return 1;
+    }
+    vk::BufferCreateInfo staging_buffer_info;
+    staging_buffer_info.setSize(texture_data.getDataSpan().size_bytes())
+        .setUsage(vk::BufferUsageFlagBits::eTransferSrc)
+        .setSharingMode(vk::SharingMode::eExclusive);
+    vkc::MemoryAllocationInfo staging_allocation_info;
+    staging_allocation_info.setAccess(vkc::MemoryAccess::eHostSequentialWrite);
+    auto expected_staging_memory = device_context.getMemoryAllocator().allocateBuffer(staging_buffer_info, staging_allocation_info);
+    if (not expected_staging_memory) {
+        lcf_log_error("Failed to allocate texture staging buffer: {}", expected_staging_memory.error().message());
+        return 1;
+    }
+    if (auto result = expected_staging_memory->get().copyFromMemory(texture_data.getDataSpan()); result != vk::Result::eSuccess) {
+        lcf_log_error("Failed to copy texture data: {}", vk::make_error_code(result).message());
+        return 1;
+    }
+    if (auto result = expected_staging_memory->get().flush(); result != vk::Result::eSuccess) {
+        lcf_log_error("Failed to flush texture data: {}", vk::make_error_code(result).message());
+        return 1;
+    }
+    vkc::Buffer staging_buffer {
+        vkc::utils::ResourceHandle<vkc::details::Memory<vk::Buffer>> {std::move(*expected_staging_memory)}
+    };
+
+    vk::ImageCreateInfo texture_image_info;
+    texture_image_info.setImageType(vk::ImageType::e2D)
+        .setFormat(vk::Format::eR8G8B8A8Srgb)
+        .setExtent({texture_data.getWidth(), texture_data.getHeight(), 1u})
+        .setMipLevels(1u)
+        .setArrayLayers(1u)
+        .setSamples(vk::SampleCountFlagBits::e1)
+        .setTiling(vk::ImageTiling::eOptimal)
+        .setUsage(vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled)
+        .setSharingMode(vk::SharingMode::eExclusive)
+        .setInitialLayout(vk::ImageLayout::eUndefined);
+    vkc::MemoryAllocationInfo texture_allocation_info;
+    texture_allocation_info.setAccess(vkc::MemoryAccess::eDeviceLocal);
+    vkc::Image texture_image;
+    if (auto ec = texture_image.create(device_context.getMemoryAllocator(), texture_image_info, texture_allocation_info)) {
+        lcf_log_error("Failed to create texture image: {}", ec.message());
+        return 1;
+    }
+    vk::ImageSubresourceRange texture_subresource_range {vk::ImageAspectFlagBits::eColor, 0u, 1u, 0u, 1u};
+    auto expected_texture_view = texture_image.createView(texture_subresource_range, vk::ImageViewType::e2D);
+    if (not expected_texture_view) {
+        lcf_log_error("Failed to create texture view: {}", expected_texture_view.error().message());
+        return 1;
+    }
+    vkc::ImageView texture_view = std::move(*expected_texture_view);
+
+    vkc::SamplerInfo sampler_info;
+    sampler_info.setMinMagFilter(vk::Filter::eLinear, vk::Filter::eLinear)
+        .setMipmapMode(vk::SamplerMipmapMode::eLinear)
+        .setAddressMode(vk::SamplerAddressMode::eClampToEdge);
+    vkc::Sampler sampler;
+    if (auto ec = sampler.create(device, sampler_info)) {
+        lcf_log_error("Failed to create sampler: {}", ec.message());
+        return 1;
+    }
+
+    vkc::DescriptorSetLayoutInfo descriptor_set_layout_info;
+    descriptor_set_layout_info.addBindingInfo(vk::DescriptorType::eSampledImage, 1u, vk::ShaderStageFlagBits::eFragment)
+        .addBindingInfo(vk::DescriptorType::eSampler, 1u, vk::ShaderStageFlagBits::eFragment);
+    vkc::dsp::DescriptorSetLayout descriptor_set_layout;
+    if (auto ec = descriptor_set_layout.create(device, descriptor_set_layout_info)) {
+        lcf_log_error("Failed to create descriptor set layout: {}", ec.message());
+        return 1;
+    }
+    vkc::dsp::DescriptorSetAllocatorInfo descriptor_allocator_info;
+    std::array descriptor_pool_sizes {
+        vk::DescriptorPoolSize {vk::DescriptorType::eSampledImage, 8u},
+        vk::DescriptorPoolSize {vk::DescriptorType::eSampler, 8u}
+    };
+    descriptor_allocator_info.setPoolSizes(descriptor_pool_sizes).setMaxSetsPerPool(8u);
+    vkc::dsp::DescriptorSetAllocator descriptor_allocator;
+    if (auto ec = descriptor_allocator.create(device, descriptor_allocator_info)) {
+        lcf_log_error("Failed to create descriptor set allocator: {}", ec.message());
+        return 1;
+    }
+    vkc::dsp::DescriptorSetProxy descriptor_set;
+    if (auto ec = descriptor_set.create(descriptor_allocator, descriptor_set_layout)) {
+        lcf_log_error("Failed to create descriptor set proxy: {}", ec.message());
+        return 1;
+    }
+    descriptor_set.setImage(0u, texture_view, vk::ImageLayout::eShaderReadOnlyOptimal)
+        .setSampler(1u, sampler);
+
     vkc::wsi::probed::Swapchain swapchain;
     if (auto ec = swapchain.create(
         std::move(surface),
@@ -162,6 +270,7 @@ int main()
             .setEntryPoint(spv_unit.getEntryPoint());
         shader_program_info.addStageInfo(std::move(shader_stage_info));
     }
+    shader_program_info.addDescriptorSetLayout(0u, descriptor_set_layout.handle());
 
     //- declare the attachment set: one color attachment, no resolve, no depth stencil
     vkc::AttachmentSetInfoBuilder attachment_set_builder;
@@ -210,6 +319,14 @@ int main()
     viewport_state_info.addViewport(0, 0, width, height)
         .addScissor(0, 0, width, height);
     vkc::ColorBlendStateInfo color_blend_state_info {attachment_set.getColorAttachmentCount()};
+    color_blend_state_info.setColorBlendAttachmentState(
+        0u,
+        vk::BlendFactor::eSrcAlpha,
+        vk::BlendFactor::eOneMinusSrcAlpha,
+        vk::BlendOp::eAdd,
+        vk::BlendFactor::eOne,
+        vk::BlendFactor::eOneMinusSrcAlpha,
+        vk::BlendOp::eAdd);
     vkc::GraphicsPipelineInfo graphic_pipeline_info;
     graphic_pipeline_info.setShaderProgramInfo(shader_program_info)
         .setViewportStateInfo(viewport_state_info)
@@ -233,9 +350,59 @@ int main()
         return 1;
     }
 
+    vkc::CommandBufferAllocateInfo upload_cmd_alloc_info;
+    upload_cmd_alloc_info.setLevel(vk::CommandBufferLevel::ePrimary).setCount(1u);
+    auto expected_upload_batch = gfx_queue.allocateCommandBufferBatch(upload_cmd_alloc_info);
+    if (not expected_upload_batch) {
+        lcf_log_error("Failed to allocate texture upload command buffer: {}", expected_upload_batch.error().message());
+        return 1;
+    }
+    auto & upload_batch = *expected_upload_batch;
+    auto expected_upload_cmd = upload_batch.acquireProxy();
+    if (not expected_upload_cmd) {
+        lcf_log_error("Failed to acquire texture upload command buffer: {}", expected_upload_cmd.error().message());
+        return 1;
+    }
+    auto & upload_cmd = *expected_upload_cmd;
+    upload_cmd.begin(vk::CommandBufferBeginInfo {vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+    vk::ImageMemoryBarrier2 to_transfer_dst;
+    to_transfer_dst.setSrcStageMask(vk::PipelineStageFlagBits2::eNone)
+        .setSrcAccessMask(vk::AccessFlagBits2::eNone)
+        .setDstStageMask(vk::PipelineStageFlagBits2::eCopy)
+        .setDstAccessMask(vk::AccessFlagBits2::eTransferWrite)
+        .setOldLayout(vk::ImageLayout::eUndefined)
+        .setNewLayout(vk::ImageLayout::eTransferDstOptimal)
+        .setImage(texture_image.handle())
+        .setSubresourceRange(texture_subresource_range);
+    vk::DependencyInfo to_transfer_dependency;
+    to_transfer_dependency.setImageMemoryBarriers(to_transfer_dst);
+    upload_cmd.pipelineBarrier2(to_transfer_dependency);
+    vk::BufferImageCopy copy_region;
+    copy_region.setImageSubresource({vk::ImageAspectFlagBits::eColor, 0u, 0u, 1u})
+        .setImageExtent(texture_image_info.extent);
+    upload_cmd.copyBufferToImage(staging_buffer.handle(), texture_image.handle(), vk::ImageLayout::eTransferDstOptimal, copy_region);
+    vk::ImageMemoryBarrier2 to_shader_read;
+    to_shader_read.setSrcStageMask(vk::PipelineStageFlagBits2::eCopy)
+        .setSrcAccessMask(vk::AccessFlagBits2::eTransferWrite)
+        .setDstStageMask(vk::PipelineStageFlagBits2::eFragmentShader)
+        .setDstAccessMask(vk::AccessFlagBits2::eShaderSampledRead)
+        .setOldLayout(vk::ImageLayout::eTransferDstOptimal)
+        .setNewLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
+        .setImage(texture_image.handle())
+        .setSubresourceRange(texture_subresource_range);
+    vk::DependencyInfo to_shader_dependency;
+    to_shader_dependency.setImageMemoryBarriers(to_shader_read);
+    upload_cmd.pipelineBarrier2(to_shader_dependency);
+    upload_cmd.pinLease(staging_buffer.lease()).pinLease(texture_image.lease());
+    upload_cmd.end();
+    upload_batch.collect(std::move(upload_cmd));
+    auto expected_upload_submit = gfx_queue.submit(std::move(upload_batch));
+    if (not expected_upload_submit) {
+        lcf_log_error("Failed to submit texture upload: {}", expected_upload_submit.error().message());
+        return 1;
+    }
+
     //- render loop
-    vkc::Queue gfx_queue;
-    gfx_queue.create(device_context.getLogicalQueue(graphics_queue_key));
     std::atomic<bool> running {true};
     std::thread render_thread([&] {
         static uint64_t frame = 0;
@@ -263,7 +430,8 @@ int main()
 
             dynamic_render.begin(cmd, render_target);
             dynamic_graphics_pipeline.bind(cmd);
-            cmd.draw(3, 1, 0, 0);
+            descriptor_set.bind(cmd, vk::PipelineBindPoint::eGraphics, dynamic_graphics_pipeline.getPipelineLayout());
+            cmd.draw(6, 1, 0, 0);
             dynamic_render.end(cmd);
 
             cmd.end();
@@ -303,7 +471,6 @@ int main()
             }
         }
     }
-
     render_thread.join();
     device_context.getDevice().waitIdle();
     return 0;

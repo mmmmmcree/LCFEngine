@@ -10,6 +10,7 @@ target_link_libraries(${PROJECT_NAME}
         vkc_examples_common
         shader_core
         utilities_log
+        image
 )
 
 vkc_configure_probe(
@@ -20,6 +21,7 @@ vkc_configure_probe(
 target_compile_definitions(${PROJECT_NAME}
     PRIVATE
         SHADER_ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders/"
+        IMAGE_ASSETS_DIR="${CMAKE_SOURCE_DIR}/examples/assets/images/"
 )
 
 set_target_properties(${PROJECT_NAME} PROPERTIES
