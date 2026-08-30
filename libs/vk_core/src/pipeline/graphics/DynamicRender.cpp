@@ -4,7 +4,7 @@
 #include "vk_core/pipeline/graphics/RenderTarget.h"
 #include "vk_core/pipeline/graphics/info_structs.h"
 #include "vk_core/command/CommandBufferProxy.h"
-#include "vk_core/utils/vk_enums_traits.h"
+#include "vk_core/utils/enum/vk_enums_traits.h"
 #include <ranges>
 
 namespace lcf::vkc::entry {

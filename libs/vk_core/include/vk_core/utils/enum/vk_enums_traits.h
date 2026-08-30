@@ -3,10 +3,12 @@
 #include <cstdint>
 #include <utility>
 #include <vulkan/vulkan_enums.hpp>
-#include "enums/enum_traits.h"
+#include "vk_core/utils/enum/enum_traits.h"
+
+namespace lcf::vkc {
 
 template <>
-struct lcf::enum_traits<vk::ShaderStageFlagBits>
+struct enum_traits<vk::ShaderStageFlagBits>
 {
 private:
     using Stage = vk::ShaderStageFlagBits;
@@ -64,7 +66,7 @@ public:
 };
 
 template <>
-struct lcf::enum_traits<vk::DescriptorType>
+struct enum_traits<vk::DescriptorType>
 {
 private:
     using DescriptorType = vk::DescriptorType;
@@ -90,7 +92,7 @@ public:
 };
 
 template <>
-struct lcf::enum_traits<vk::Format>
+struct enum_traits<vk::Format>
 {
     static constexpr bool is_depth_format(vk::Format format) noexcept
     {
@@ -107,7 +109,7 @@ struct lcf::enum_traits<vk::Format>
 };
 
 template <>
-struct lcf::enum_traits<vk::AttachmentLoadOp>
+struct enum_traits<vk::AttachmentLoadOp>
 {
     static constexpr bool is_discarding(vk::AttachmentLoadOp load_op) noexcept
     {
@@ -119,15 +121,15 @@ struct lcf::enum_traits<vk::AttachmentLoadOp>
         vk::AttachmentLoadOp stencil_load_op) noexcept
     {
         bool load_discards = is_discarding(load_op);
-        if (not lcf::enum_traits<vk::Format>::is_stencil_format(format)) { return load_discards; }
+        if (not enum_traits<vk::Format>::is_stencil_format(format)) { return load_discards; }
         bool stencil_load_discards = is_discarding(stencil_load_op);
-        if (not lcf::enum_traits<vk::Format>::is_depth_format(format)) { return stencil_load_discards; }
+        if (not enum_traits<vk::Format>::is_depth_format(format)) { return stencil_load_discards; }
         return load_discards and stencil_load_discards;
     }
 };
 
 template <>
-struct lcf::enum_traits<vk::AttachmentStoreOp>
+struct enum_traits<vk::AttachmentStoreOp>
 {
     static constexpr bool is_discarding(vk::AttachmentStoreOp store_op) noexcept
     {
@@ -139,15 +141,15 @@ struct lcf::enum_traits<vk::AttachmentStoreOp>
         vk::AttachmentStoreOp stencil_store_op) noexcept
     {
         bool store_discards = is_discarding(store_op);
-        if (not lcf::enum_traits<vk::Format>::is_stencil_format(format)) { return store_discards; }
+        if (not enum_traits<vk::Format>::is_stencil_format(format)) { return store_discards; }
         bool stencil_store_discards = is_discarding(stencil_store_op);
-        if (not lcf::enum_traits<vk::Format>::is_depth_format(format)) { return stencil_store_discards; }
+        if (not enum_traits<vk::Format>::is_depth_format(format)) { return stencil_store_discards; }
         return store_discards and stencil_store_discards;
     }
 };
 
 template <>
-struct lcf::enum_traits<vk::ImageLayout>
+struct enum_traits<vk::ImageLayout>
 {
     static constexpr vk::ImageLayout to_unified(vk::ImageLayout specific_layout) noexcept
     {
@@ -160,3 +162,5 @@ struct lcf::enum_traits<vk::ImageLayout>
         }
     }
 };
+
+} // namespace lcf::vkc

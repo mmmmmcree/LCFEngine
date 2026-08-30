@@ -1,3 +1,3 @@
 #pragma once
 
-#include "vk_core/utils/vk_enums_traits.h"
+#include "vk_core/utils/enum/vk_enums_traits.h"

@@ -2,7 +2,7 @@
 
 #include "enums/enum_traits.h"
 #include <vulkan/vulkan_enums.hpp>
-#include "vk_core/utils/vk_enums_traits.h"
+#include "vk_core/utils/enum/vk_enums_traits.h"
 
 namespace lcf::vkc {
 
@@ -19,13 +19,10 @@ enum class AttachmentUsage : uint8_t
     ePresent,
 };
 
-} // namespace lcf::vkc
-
 template <>
-struct lcf::enum_traits<lcf::vkc::AttachmentUsage> : lcf::enum_basic_traits<lcf::vkc::AttachmentUsage>
+struct enum_traits<AttachmentUsage> : lcf::enum_basic_traits<AttachmentUsage>
 {
 private:
-    using AttachmentUsage = lcf::vkc::AttachmentUsage;
     struct Attributes
     {
         vk::ImageLayout image_layout;
@@ -83,7 +80,7 @@ private:
     };
     static_assert(std::size(attributes_list) == lcf::enum_count_v<AttachmentUsage>,
         "AttachmentUsage attribute table is out of sync with the enum");
-    static constexpr const Attributes & get_attributes(lcf::vkc::AttachmentUsage usage) noexcept
+    static constexpr const Attributes & get_attributes(AttachmentUsage usage) noexcept
     {
         return attributes_list[std::to_underlying(usage)];
     }
@@ -91,9 +88,9 @@ public:
     static constexpr vk::ImageLayout layout_of(AttachmentUsage usage, bool unified_enabled = false) noexcept
     {
         vk::ImageLayout image_layout = get_attributes(usage).image_layout;
-        return unified_enabled ? lcf::enum_traits<vk::ImageLayout>::to_unified(image_layout) : image_layout;
+        return unified_enabled ? enum_traits<vk::ImageLayout>::to_unified(image_layout) : image_layout;
     }
-    template <lcf::vkc::AttachmentUsage usage>
+    template <AttachmentUsage usage>
     static constexpr vk::ImageLayout layout_of(bool unified_enabled = false) noexcept
     {
         return layout_of(usage, unified_enabled); 
@@ -117,3 +114,5 @@ public:
         return stage_access_flags_of(usage); 
     }
 };
+
+} // namespace lcf::vkc
