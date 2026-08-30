@@ -180,13 +180,12 @@ void Manifest::upsert(const stdfs::path & source_path, ManifestEntry entry) noex
     }
     m_pending_orphan_hashes.insert_range(it->second.getProductHashes());
     if (same_dependency_paths(it->second, entry)) {
-        auto & existing_map = it.value().getProductHashMap();
-        for (auto & [key, hash] : entry.getProductHashMap()) {
-            existing_map.insert_or_assign(std::move(key), hash);
+        auto & new_product_hashes = entry.getProductHashMap();
+        for (const auto & [key, hash] : it->second.getProductHashMap()) {
+            new_product_hashes.try_emplace(key, hash);
         }
-    } else {
-        it.value() = std::move(entry);
     }
+    it.value() = std::move(entry);
 }
 
 std::error_code Manifest::shutdown() noexcept

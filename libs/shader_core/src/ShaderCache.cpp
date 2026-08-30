@@ -6,6 +6,9 @@
 #include "bytes.h"
 #include <format>
 #include <cstring>
+#include <algorithm>
+#include <span>
+#include <vector>
 
 using namespace lcf;
 using namespace lcf::sc;
@@ -45,6 +48,40 @@ namespace {
         uint64_t m_spv_size_in_bytes = 0;
     };
 
+    bool refers_to_same_file(const stdfs::path & lhs, const stdfs::path & rhs) noexcept
+    {
+        std::error_code ec;
+        if (stdfs::equivalent(lhs, rhs, ec)) { return true; }
+        ec.clear();
+        auto normalized_lhs = stdfs::weakly_canonical(lhs, ec);
+        if (ec) { return false; }
+        auto normalized_rhs = stdfs::weakly_canonical(rhs, ec);
+        return not ec and normalized_lhs == normalized_rhs;
+    }
+
+    bool tracks_source_file(const ManifestEntry & entry, const stdfs::path & source_path) noexcept
+    {
+        return std::ranges::any_of(entry.getFileRecords(), [&source_path](const FileRecord & record) {
+            return refers_to_same_file(record.getPath(), source_path);
+        });
+    }
+
+    std::vector<stdfs::path> make_tracked_paths(
+        const stdfs::path & source_path,
+        std::span<const stdfs::path> dependency_paths)
+    {
+        std::vector<stdfs::path> tracked_paths;
+        tracked_paths.reserve(dependency_paths.size() + 1u);
+        tracked_paths.emplace_back(source_path);
+        for (const auto & dependency_path : dependency_paths) {
+            const bool already_tracked = std::ranges::any_of(tracked_paths, [&dependency_path](const stdfs::path & tracked_path) {
+                return refers_to_same_file(tracked_path, dependency_path);
+            });
+            if (not already_tracked) { tracked_paths.emplace_back(dependency_path); }
+        }
+        return tracked_paths;
+    }
+
 }
 
 namespace lcf::sc::spirv {
@@ -78,7 +115,7 @@ std::optional<spirv::UnitList> spirv::ShaderCache::tryLoad(
 {
     auto & manifest = get_manifest_instance();
     const ManifestEntry * entry = manifest.find(source_path);
-    if (not entry or entry->isOutdated()) { return std::nullopt; }
+    if (not entry or not tracks_source_file(*entry, source_path) or entry->isOutdated()) { return std::nullopt; }
     auto product_hash_opt = entry->getProductHash(compile_command);
     if (not product_hash_opt) { return std::nullopt; }
 
@@ -129,7 +166,8 @@ void spirv::ShaderCache::store(
     if (ec) { return; }
     ec = write_file(make_cache_entry_path(compile_result.getCacheHash()), as_bytes(writer.getBuffer()));
 
-    ManifestEntry new_entry {compile_result.getDependencyPaths()};
+    auto tracked_paths = make_tracked_paths(source_path, compile_result.getDependencyPaths());
+    ManifestEntry new_entry {tracked_paths};
     new_entry.addProductHash(compile_command, compile_result.getCacheHash());
     auto & manifest = get_manifest_instance();
     manifest.upsert(source_path, std::move(new_entry));
