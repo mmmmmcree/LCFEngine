@@ -35,6 +35,7 @@ public:
         const DynamicRenderScopeInfo & render_scope_info) noexcept;
     void bind(CommandBufferProxy & cmd) const noexcept;
     const vk::Pipeline & handle() const noexcept { return m_pipeline.get(); }
+    const vk::PipelineLayout & getPipelineLayout() const noexcept { return m_pipeline_layout.get(); }
 private:
     vk::UniquePipeline m_pipeline;
     vk::UniquePipelineLayout m_pipeline_layout;
