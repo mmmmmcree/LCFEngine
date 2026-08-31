@@ -22,6 +22,7 @@ if(LCF_VKC_ONLY)
         libs/vk_core
         libs/window
         libs/shader_core
+        libs/image
         examples/vkc_examples)
 elseif(LCF_TESTS_ONLY)
     set(LCF_SUBDIRS
