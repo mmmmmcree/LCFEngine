@@ -16,6 +16,7 @@
 #include <algorithm>
 
 using namespace lcf;
+using namespace lcf::img;
 namespace stdv = std::views;
 namespace stdr = std::ranges;
 

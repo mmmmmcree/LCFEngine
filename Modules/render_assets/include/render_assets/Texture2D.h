@@ -4,9 +4,9 @@
 #include "image/Image.h"
 
 namespace lcf {
-    class Texture2D : public Image, public Texture2DPointerDefs
+    class Texture2D : public img::Image, public Texture2DPointerDefs
     {
     public:
-        using Image::Image;
+        using img::Image::Image;
     };
 }

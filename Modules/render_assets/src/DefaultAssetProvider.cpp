@@ -7,6 +7,7 @@
 #include <vector>
 
 using namespace lcf;
+using namespace lcf::img;
 
 DefaultAssetProvider::DefaultAssetProvider()
 {

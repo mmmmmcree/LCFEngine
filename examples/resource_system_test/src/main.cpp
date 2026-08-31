@@ -9,6 +9,7 @@
 #include "ResourceSystem.h"
 
 using namespace lcf;
+using namespace lcf::img;
 
 struct SomeResource
 {

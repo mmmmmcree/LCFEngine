@@ -2,11 +2,12 @@
 
 #include "common/render_enums.h"
 #include "shader_core/shader_core_enums.h"
-#include "image/image_enums.h"
+#include "image/enum/image_enums.h"
 #include <vulkan/vulkan_enums.hpp>
 #include "enums/enum_cast.h"
 
 namespace lcf::render::vkenums {
+
     enum class DescriptorSetStrategy : uint8_t //- only 2bits is used
     {
         eIndividual = 0,   // Long-lived, individually freeable
@@ -181,32 +182,32 @@ namespace lcf {
     };
 
     template <>
-    struct enum_mapping_traits<ImageFormat, vk::Format>
+    struct enum_mapping_traits<img::ImageFormat, vk::Format>
     {
-        static constexpr std::tuple<ImageFormat, vk::Format> mappings[] = {
-            { ImageFormat::eInvalid, vk::Format::eUndefined },
-            { ImageFormat::eGray8Uint, vk::Format::eR8Unorm },
-            { ImageFormat::eGray16Uint, vk::Format::eR16Uint },
-            { ImageFormat::eGray16Float, vk::Format::eR16Sfloat },
-            { ImageFormat::eGray32Float, vk::Format::eR32Sfloat },
-            { ImageFormat::eGrayAlpha8Uint, vk::Format::eR8G8Unorm },
-            { ImageFormat::eGrayAlpha16Uint, vk::Format::eR16G16Uint },
-            { ImageFormat::eGrayAlpha16Float, vk::Format::eR16G16Sfloat },
-            { ImageFormat::eGrayAlpha32Float, vk::Format::eR32G32Sfloat },
-            { ImageFormat::eRGB8Uint, vk::Format::eR8G8B8Unorm },
-            { ImageFormat::eRGB16Uint, vk::Format::eR16G16B16Uint },
-            { ImageFormat::eRGB16Float, vk::Format::eR16G16B16Sfloat },
-            { ImageFormat::eRGB32Float, vk::Format::eR32G32B32Sfloat },
-            { ImageFormat::eRGBA8Uint, vk::Format::eR8G8B8A8Unorm },
-            { ImageFormat::eRGBA16Uint, vk::Format::eR16G16B16A16Uint },
-            { ImageFormat::eRGBA16Float, vk::Format::eR16G16B16A16Sfloat },
-            { ImageFormat::eRGBA32Float, vk::Format::eR32G32B32A32Sfloat },
-            { ImageFormat::eBGR8Uint, vk::Format::eB8G8R8Unorm },
-            { ImageFormat::eBGRA8Uint, vk::Format::eB8G8R8A8Unorm },
-            { ImageFormat::eARGB8Uint, vk::Format::eUndefined },
-            { ImageFormat::eCMYK8Uint, vk::Format::eUndefined },
-            { ImageFormat::eYCbCr8Uint, vk::Format::eUndefined },
-            { ImageFormat::eYCCK8Uint, vk::Format::eUndefined },
+        static constexpr std::tuple<img::ImageFormat, vk::Format> mappings[] = {
+            { img::ImageFormat::eInvalid, vk::Format::eUndefined },
+            { img::ImageFormat::eGray8Uint, vk::Format::eR8Unorm },
+            { img::ImageFormat::eGray16Uint, vk::Format::eR16Uint },
+            { img::ImageFormat::eGray16Float, vk::Format::eR16Sfloat },
+            { img::ImageFormat::eGray32Float, vk::Format::eR32Sfloat },
+            { img::ImageFormat::eGrayAlpha8Uint, vk::Format::eR8G8Unorm },
+            { img::ImageFormat::eGrayAlpha16Uint, vk::Format::eR16G16Uint },
+            { img::ImageFormat::eGrayAlpha16Float, vk::Format::eR16G16Sfloat },
+            { img::ImageFormat::eGrayAlpha32Float, vk::Format::eR32G32Sfloat },
+            { img::ImageFormat::eRGB8Uint, vk::Format::eR8G8B8Unorm },
+            { img::ImageFormat::eRGB16Uint, vk::Format::eR16G16B16Uint },
+            { img::ImageFormat::eRGB16Float, vk::Format::eR16G16B16Sfloat },
+            { img::ImageFormat::eRGB32Float, vk::Format::eR32G32B32Sfloat },
+            { img::ImageFormat::eRGBA8Uint, vk::Format::eR8G8B8A8Unorm },
+            { img::ImageFormat::eRGBA16Uint, vk::Format::eR16G16B16A16Uint },
+            { img::ImageFormat::eRGBA16Float, vk::Format::eR16G16B16A16Sfloat },
+            { img::ImageFormat::eRGBA32Float, vk::Format::eR32G32B32A32Sfloat },
+            { img::ImageFormat::eBGR8Uint, vk::Format::eB8G8R8Unorm },
+            { img::ImageFormat::eBGRA8Uint, vk::Format::eB8G8R8A8Unorm },
+            { img::ImageFormat::eARGB8Uint, vk::Format::eUndefined },
+            { img::ImageFormat::eCMYK8Uint, vk::Format::eUndefined },
+            { img::ImageFormat::eYCbCr8Uint, vk::Format::eUndefined },
+            { img::ImageFormat::eYCCK8Uint, vk::Format::eUndefined },
         };
     };
 }

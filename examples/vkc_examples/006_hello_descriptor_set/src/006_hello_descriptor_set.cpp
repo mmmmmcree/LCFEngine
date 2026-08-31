@@ -148,9 +148,13 @@ int main()
         return 1;
     }
 
-    lcf::Image texture_data;
-    lcf::ImageInfo texture_file_info {std::filesystem::path(IMAGE_ASSETS_DIR) / "vulkanlogo.png"};
-    if (auto ec = texture_data.loadFromFileGpuFriendly(texture_file_info)) {
+    lcf::img::Image texture_data;
+    auto expected_texture_file_info = lcf::img::read_image_info(std::filesystem::path(IMAGE_ASSETS_DIR) / "vulkanlogo.png");
+    if (not expected_texture_file_info) {
+        lcf_log_error("Failed to read texture info: {}", expected_texture_file_info.error().message());
+        return 1;
+    }
+    if (auto ec = texture_data.loadFromFileGpuFriendly(*expected_texture_file_info)) {
         lcf_log_error("Failed to load texture: {}", ec.message());
         return 1;
     }

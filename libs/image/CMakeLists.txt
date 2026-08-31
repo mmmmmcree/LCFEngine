@@ -1,7 +1,10 @@
 project(image)
 
 file(GLOB_RECURSE HEADERS "include/*.h")
-file(GLOB_RECURSE SOURCES "src/*.cpp")
+set(SOURCES
+    src/Image.cpp
+    src/error.cpp
+)
 
 add_library(${PROJECT_NAME} SHARED
     ${HEADERS}
@@ -17,14 +20,6 @@ if(WIN32)
 endif()   
 
 find_package(Stb REQUIRED)
-find_package(Boost REQUIRED COMPONENTS gil)
-find_package(PNG REQUIRED)    
-find_package(JPEG REQUIRED)
-
-include_directories(
-  ${CMAKE_CURRENT_SOURCE_DIR}/include 
-)
- 
 target_include_directories(${PROJECT_NAME}
     PUBLIC
         $<INSTALL_INTERFACE:include>
@@ -34,13 +29,7 @@ target_include_directories(${PROJECT_NAME}
         ${Stb_INCLUDE_DIR} 
 )
 
-target_link_libraries(${PROJECT_NAME} 
+target_link_libraries(${PROJECT_NAME}
   PUBLIC
     utilities_core
-    utilities_enums
-    utilities_log
-  PRIVATE
-    Boost::gil
-    PNG::PNG
-    JPEG::JPEG
-)    
+)
