@@ -458,6 +458,10 @@ int main()
 
             cmd.begin(cmd_begin_info);
 
+            // 当前 bind 同时承担 descriptor buffer 的脏数据更新和绑定：更新阶段可能录制
+            // vkCmdPipelineBarrier2/vkCmdCopyBuffer，不能处于 dynamic rendering scope 内，
+            // 因此先在 dynamic_render.begin() 外调用。TODO: 拆分为 updateIfDirty() 和 bind()，
+            // 之后 updateIfDirty() 保持在 scope 外，纯 bind() 可以在 scope 内切换 descriptor set。
             dsb_descriptor_set.bind(cmd, vk::PipelineBindPoint::eGraphics, dynamic_graphics_pipeline.getPipelineLayout());
             dynamic_render.begin(cmd, render_target);
             // dsp_descriptor_set.bind(cmd, vk::PipelineBindPoint::eGraphics, dynamic_graphics_pipeline.getPipelineLayout());
