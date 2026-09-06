@@ -299,8 +299,8 @@ int main()
             .setEntryPoint(spv_unit.getEntryPoint());
         shader_program_info.addStageInfo(std::move(shader_stage_info));
     }
-    shader_program_info.addDescriptorSetLayout(0u, dsp_descriptor_set_layout.handle());
-    // shader_program_info.addDescriptorSetLayout(0u, dsb_descriptor_set_layout.handle());
+    // shader_program_info.addDescriptorSetLayout(0u, dsp_descriptor_set_layout.handle()); // dsp
+    shader_program_info.addDescriptorSetLayout(0u, dsb_descriptor_set_layout.handle()); // dsb
 
     //- declare the attachment set: one color attachment, no resolve, no depth stencil
     vkc::AttachmentSetInfoBuilder attachment_set_builder;
@@ -358,9 +358,9 @@ int main()
         vk::BlendOp::eAdd);
     vkc::GraphicsPipelineInfo graphic_pipeline_info;
     graphic_pipeline_info.setShaderProgramInfo(shader_program_info)
+        .addFlags(vk::PipelineCreateFlagBits::eDescriptorBufferEXT) // dsb
         .setViewportStateInfo(viewport_state_info)
         .setColorBlendStateInfo(color_blend_state_info);
-        // .addFlags(vk::PipelineCreateFlagBits::eDescriptorBufferEXT);
 
     vkc::DynamicRenderInfo dynamic_render_info {attachment_set};
     dynamic_render_info.setLoadStoreOp(color_key, vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore)
@@ -458,9 +458,9 @@ int main()
 
             cmd.begin(cmd_begin_info);
 
-            dsp_descriptor_set.bind(cmd, vk::PipelineBindPoint::eGraphics, dynamic_graphics_pipeline.getPipelineLayout());
-            // dsb_descriptor_set.bind(cmd, vk::PipelineBindPoint::eGraphics, dynamic_graphics_pipeline.getPipelineLayout());
+            dsb_descriptor_set.bind(cmd, vk::PipelineBindPoint::eGraphics, dynamic_graphics_pipeline.getPipelineLayout());
             dynamic_render.begin(cmd, render_target);
+            // dsp_descriptor_set.bind(cmd, vk::PipelineBindPoint::eGraphics, dynamic_graphics_pipeline.getPipelineLayout());
             dynamic_graphics_pipeline.bind(cmd);
             cmd.draw(6, 1, 0, 0);
             dynamic_render.end(cmd);
