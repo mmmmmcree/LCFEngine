@@ -4,6 +4,12 @@
 #include <string>
 #include <variant>
 
+namespace vk {
+
+enum class Result;
+
+}
+
 namespace lcf::vkc {
 
 enum class errc

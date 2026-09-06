@@ -32,6 +32,7 @@ public:
     std::error_code create(
         vk::Instance instance, vk::PhysicalDevice physical_device, vk::Device device,
         const MemoryAllocatorCreateInfo & create_info) noexcept;
+    const vk::PhysicalDevice & getPhysicalDevice() const noexcept { return m_physical_device; }
     const vk::Device & getDevice() const noexcept { return m_device; }
     std::expected<details::UniqueBufferMemory, std::error_code> allocateBuffer(
         const vk::BufferCreateInfo & buffer_info,
@@ -39,7 +40,9 @@ public:
     std::expected<details::UniqueImageMemory, std::error_code> allocateImage(
         const vk::ImageCreateInfo & image_info,
         const MemoryAllocationInfo & alloc_info) const noexcept;
+    bool isBufferDeviceAddressEnabled() const noexcept { return m_bda_enabled; }
 private:
+    vk::PhysicalDevice m_physical_device;
     vk::Device m_device;
     std::unique_ptr<details::VMAllocator> m_allocator_up;
     bool m_bda_enabled = false;

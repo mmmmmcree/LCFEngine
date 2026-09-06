@@ -159,7 +159,7 @@ std::vector<vk::WriteDescriptorSet> make_writes(vk::DescriptorSet descriptor_set
 
 } // anonymous namespace
 
-void DescriptorSetProxy::bind(CommandBufferProxy & cmd, vk::PipelineBindPoint bind_point, vk::PipelineLayout pipeline_layout) noexcept
+std::error_code DescriptorSetProxy::bind(CommandBufferProxy & cmd, vk::PipelineBindPoint bind_point, vk::PipelineLayout pipeline_layout) noexcept
 {
     while (not m_in_use_descriptor_sets.empty()) {
         auto & descriptor_set = m_in_use_descriptor_sets.front();
@@ -169,7 +169,7 @@ void DescriptorSetProxy::bind(CommandBufferProxy & cmd, vk::PipelineBindPoint bi
     }
     if (m_available_descriptor_sets.empty()) {
         auto allocation_result = m_allocator_p->allocate(m_layout, std::max(1u, static_cast<uint32_t>(m_in_use_descriptor_sets.size()) * 2));
-        if (not allocation_result) { return; }
+        if (not allocation_result) { return allocation_result.error(); }
         auto allocation = std::move(*allocation_result);
         for (const auto & ds : allocation.m_descriptor_sets) {
             m_available_descriptor_sets.emplace_back(DescriptorSet {
@@ -192,6 +192,7 @@ void DescriptorSetProxy::bind(CommandBufferProxy & cmd, vk::PipelineBindPoint bi
         for (const auto & binding : bindings) { cmd.pinLeases(binding.m_resource_leases); }
     }
     m_in_use_descriptor_sets.emplace_back(std::move(descriptor_set));
+    return {};
 }
 
 } // namespace lcf::vkc::dsp

@@ -45,6 +45,7 @@ class DescriptorSetLayoutInfo
     using BindingList = std::vector<vk::DescriptorSetLayoutBinding>;
     using BindingFlagsList = std::vector<vk::DescriptorBindingFlags>;
 public:
+    Self & addLayoutFlags(vk::DescriptorSetLayoutCreateFlags flags) noexcept { m_layout_flags |= flags; return *this; }
     Self & addBindingInfo(
         vk::DescriptorType descriptor_type,
         uint32_t descriptor_count,
@@ -64,9 +65,11 @@ public:
             binding_info.getStageFlags(),
             binding_info.getBindingFlags());
     };
+    const vk::DescriptorSetLayoutCreateFlags & getLayoutFlags() const noexcept { return m_layout_flags; }
     const BindingList & getBindings() const noexcept { return m_bindings; }
     const BindingFlagsList & getBindingFlags() const noexcept { return m_flags_list; }
 private:
+    vk::DescriptorSetLayoutCreateFlags m_layout_flags {};
     BindingList m_bindings;
     BindingFlagsList m_flags_list;
 };

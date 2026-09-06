@@ -12,10 +12,17 @@
 #include "vk_core/memory/Buffer.h"
 #include "vk_core/memory/Image.h"
 #include "vk_core/descriptor_set/info_structs.h"
+// descriptor set pool
 #include "vk_core/descriptor_set/pool/info_structs.h"
 #include "vk_core/descriptor_set/pool/DescriptorSetLayout.h"
 #include "vk_core/descriptor_set/pool/DescriptorSetAllocator.h"
 #include "vk_core/descriptor_set/pool/DescriptorSetProxy.h"
+// descriptor set buffer
+#include "vk_core/descriptor_set/buffer/entry.h"
+#include "vk_core/descriptor_set/buffer/DescriptorSetLayout.h"
+#include "vk_core/descriptor_set/buffer/DescriptorSetAllocator.h"
+#include "vk_core/descriptor_set/buffer/DescriptorSetProxy.h"
+
 #include "vk_core/sampler/info_structs.h"
 #include "vk_core/sampler/Sampler.h"
 #include "vk_core/error.h"
@@ -46,7 +53,7 @@
 using namespace lcf;
 namespace stdv = std::views;
 
-constexpr const char * k_window_title = "hello descriptor set - descriptor pool";
+constexpr const char * k_window_title = "hello descriptor set - descriptor buffer";
 
 namespace lcf {
 template <>
@@ -77,6 +84,7 @@ int main()
     vkc::probe::CapabilityRegistry capabilities {inst_ext_manifest, device_ext_manifest};
     vkc::probe::register_capabilities(capabilities);
     vkc::entry::register_dynamic_render(device_ext_manifest);
+    vkc::entry::register_descriptor_buffer(device_ext_manifest);
     //- in this example, we use shader constants to draw a triangle, so we should enable shaderDrawParameters feature
     device_ext_manifest.addRequiredFeature(vkc::utils::t_feature_bit<&vk::PhysicalDeviceVulkan13Features::synchronization2>)
         .addRequiredFeature(vkc::utils::t_feature_bit<&vk::PhysicalDeviceVulkan11Features::shaderDrawParameters>);
@@ -140,6 +148,7 @@ int main()
         lcf_log_error("Failed to create render_device_context: {}", ec.message());
         return 1;
     }
+    const vkc::MemoryAllocator & memory_allocator = device_context.getMemoryAllocator();
     vk::Device device = device_context.getDevice();
 
     vkc::Queue gfx_queue;
@@ -164,22 +173,19 @@ int main()
         .setSharingMode(vk::SharingMode::eExclusive);
     vkc::MemoryAllocationInfo staging_allocation_info;
     staging_allocation_info.setAccess(vkc::MemoryAccess::eHostSequentialWrite);
-    auto expected_staging_memory = device_context.getMemoryAllocator().allocateBuffer(staging_buffer_info, staging_allocation_info);
-    if (not expected_staging_memory) {
-        lcf_log_error("Failed to allocate texture staging buffer: {}", expected_staging_memory.error().message());
+    vkc::Buffer staging_buffer;
+    if (auto ec = staging_buffer.create(memory_allocator, staging_buffer_info, staging_allocation_info)) {
+        lcf_log_error("Failed to create texture staging buffer: {}", ec.message());
         return 1;
     }
-    if (auto result = expected_staging_memory->get().copyFromMemory(texture_data.getDataSpan()); result != vk::Result::eSuccess) {
-        lcf_log_error("Failed to copy texture data: {}", vk::make_error_code(result).message());
+    if (auto ec = staging_buffer.copyFromMemory(texture_data.getDataSpan())) {
+        lcf_log_error("Failed to copy texture data: {}", ec.message());
         return 1;
     }
-    if (auto result = expected_staging_memory->get().flush(); result != vk::Result::eSuccess) {
-        lcf_log_error("Failed to flush texture data: {}", vk::make_error_code(result).message());
+    if (auto ec = staging_buffer.flush()) {
+        lcf_log_error("Failed to flush texture data: {}", ec.message());
         return 1;
     }
-    vkc::Buffer staging_buffer {
-        vkc::utils::ResourceHandle<vkc::details::Memory<vk::Buffer>> {std::move(*expected_staging_memory)}
-    };
 
     vk::ImageCreateInfo texture_image_info;
     texture_image_info.setImageType(vk::ImageType::e2D)
@@ -195,7 +201,7 @@ int main()
     vkc::MemoryAllocationInfo texture_allocation_info;
     texture_allocation_info.setAccess(vkc::MemoryAccess::eDeviceLocal);
     vkc::Image texture_image;
-    if (auto ec = texture_image.create(device_context.getMemoryAllocator(), texture_image_info, texture_allocation_info)) {
+    if (auto ec = texture_image.create(memory_allocator, texture_image_info, texture_allocation_info)) {
         lcf_log_error("Failed to create texture image: {}", ec.message());
         return 1;
     }
@@ -220,28 +226,47 @@ int main()
     vkc::DescriptorSetLayoutInfo descriptor_set_layout_info;
     descriptor_set_layout_info.addBindingInfo(vk::DescriptorType::eSampledImage, 1u, vk::ShaderStageFlagBits::eFragment)
         .addBindingInfo(vk::DescriptorType::eSampler, 1u, vk::ShaderStageFlagBits::eFragment);
-    vkc::dsp::DescriptorSetLayout descriptor_set_layout;
-    if (auto ec = descriptor_set_layout.create(device, descriptor_set_layout_info)) {
+    // descriptor set pool
+    vkc::dsp::DescriptorSetLayout dsp_descriptor_set_layout;
+    if (auto ec = dsp_descriptor_set_layout.create(device, descriptor_set_layout_info)) {
         lcf_log_error("Failed to create descriptor set layout: {}", ec.message());
         return 1;
     }
-    vkc::dsp::DescriptorSetAllocatorInfo descriptor_allocator_info;
+    vkc::dsp::DescriptorSetAllocatorInfo dsp_descriptor_allocator_info;
     std::array descriptor_pool_sizes {
         vk::DescriptorPoolSize {vk::DescriptorType::eSampledImage, 8u},
         vk::DescriptorPoolSize {vk::DescriptorType::eSampler, 8u}
     };
-    descriptor_allocator_info.setPoolSizes(descriptor_pool_sizes).setMaxSetsPerPool(8u);
-    vkc::dsp::DescriptorSetAllocator descriptor_allocator;
-    if (auto ec = descriptor_allocator.create(device, descriptor_allocator_info)) {
+    dsp_descriptor_allocator_info.setPoolSizes(descriptor_pool_sizes).setMaxSetsPerPool(8u);
+    vkc::dsp::DescriptorSetAllocator dsp_descriptor_allocator;
+    if (auto ec = dsp_descriptor_allocator.create(device, dsp_descriptor_allocator_info)) {
         lcf_log_error("Failed to create descriptor set allocator: {}", ec.message());
         return 1;
     }
-    vkc::dsp::DescriptorSetProxy descriptor_set;
-    if (auto ec = descriptor_set.create(descriptor_allocator, descriptor_set_layout)) {
+    vkc::dsp::DescriptorSetProxy dsp_descriptor_set;
+    if (auto ec = dsp_descriptor_set.create(dsp_descriptor_allocator, dsp_descriptor_set_layout)) {
         lcf_log_error("Failed to create descriptor set proxy: {}", ec.message());
         return 1;
     }
-    descriptor_set.setImage(0u, texture_view, vk::ImageLayout::eShaderReadOnlyOptimal)
+    dsp_descriptor_set.setImage(0u, texture_view, vk::ImageLayout::eShaderReadOnlyOptimal)
+        .setSampler(1u, sampler);
+    // descriptor set buffer
+    vkc::dsb::DescriptorSetLayout dsb_descriptor_set_layout;
+    if (auto ec = dsb_descriptor_set_layout.create(device, descriptor_set_layout_info)) {
+        lcf_log_error("Failed to create descriptor set layout: {}", ec.message());
+        return 1;
+    }
+    vkc::dsb::DescriptorSetAllocator dsb_descriptor_allocator;
+    if (auto ec = dsb_descriptor_allocator.create(memory_allocator)) {
+        lcf_log_error("Failed to create descriptor set allocator: {}", ec.message());
+        return 1;
+    }
+    vkc::dsb::DescriptorSetProxy dsb_descriptor_set;
+    if (auto ec = dsb_descriptor_set.create(dsb_descriptor_allocator, dsb_descriptor_set_layout)) {
+        lcf_log_error("Failed to create descriptor set proxy: {}", ec.message());
+        return 1;
+    }
+    dsb_descriptor_set.setImage(0u, texture_view, vk::ImageLayout::eShaderReadOnlyOptimal)
         .setSampler(1u, sampler);
 
     vkc::wsi::probed::Swapchain swapchain;
@@ -274,13 +299,13 @@ int main()
             .setEntryPoint(spv_unit.getEntryPoint());
         shader_program_info.addStageInfo(std::move(shader_stage_info));
     }
-    shader_program_info.addDescriptorSetLayout(0u, descriptor_set_layout.handle());
+    shader_program_info.addDescriptorSetLayout(0u, dsp_descriptor_set_layout.handle());
+    // shader_program_info.addDescriptorSetLayout(0u, dsb_descriptor_set_layout.handle());
 
     //- declare the attachment set: one color attachment, no resolve, no depth stencil
     vkc::AttachmentSetInfoBuilder attachment_set_builder;
     vkc::ColorAttachmentKey color_key = attachment_set_builder.addColorAttachment();
     vkc::AttachmentSetInfo attachment_set = attachment_set_builder.build();
-
     //- create render targets
     auto [width, height] = window.getPixelSize();
     vkc::RenderTargetInfo render_target_info {attachment_set};
@@ -301,7 +326,7 @@ int main()
             .setInitialLayout(vk::ImageLayout::eUndefined);
         vkc::MemoryAllocationInfo mem_alloc_info;
         mem_alloc_info.setAccess(vkc::MemoryAccess::eDeviceLocal);
-        if (auto ec = image.create(device_context.getMemoryAllocator(), image_info, mem_alloc_info)) {
+        if (auto ec = image.create(memory_allocator, image_info, mem_alloc_info)) {
             lcf_log_error("Failed to create image: {}", ec.message());
             return 1;
         }
@@ -335,6 +360,7 @@ int main()
     graphic_pipeline_info.setShaderProgramInfo(shader_program_info)
         .setViewportStateInfo(viewport_state_info)
         .setColorBlendStateInfo(color_blend_state_info);
+        // .addFlags(vk::PipelineCreateFlagBits::eDescriptorBufferEXT);
 
     vkc::DynamicRenderInfo dynamic_render_info {attachment_set};
     dynamic_render_info.setLoadStoreOp(color_key, vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore)
@@ -432,9 +458,10 @@ int main()
 
             cmd.begin(cmd_begin_info);
 
+            dsp_descriptor_set.bind(cmd, vk::PipelineBindPoint::eGraphics, dynamic_graphics_pipeline.getPipelineLayout());
+            // dsb_descriptor_set.bind(cmd, vk::PipelineBindPoint::eGraphics, dynamic_graphics_pipeline.getPipelineLayout());
             dynamic_render.begin(cmd, render_target);
             dynamic_graphics_pipeline.bind(cmd);
-            descriptor_set.bind(cmd, vk::PipelineBindPoint::eGraphics, dynamic_graphics_pipeline.getPipelineLayout());
             cmd.draw(6, 1, 0, 0);
             dynamic_render.end(cmd);
 

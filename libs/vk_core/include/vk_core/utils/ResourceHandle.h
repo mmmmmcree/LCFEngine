@@ -72,6 +72,7 @@ public:
     explicit operator bool() const noexcept { return m_control_block_p; }
 public:
     const Handle & get() const noexcept { return m_handle; }
+    Handle * operator->() noexcept { return &m_handle; }
     const Handle * operator->() const noexcept { return &m_handle; }
     ResourceLease lease() const noexcept { return ResourceLease(m_control_block_p); }
 private:

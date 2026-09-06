@@ -63,29 +63,29 @@ public:
         vmaGetAllocationMemoryProperties(m_allocator, m_allocation, &flags);
         return static_cast<vk::MemoryPropertyFlags>(flags);
     }
-    vk::Result flush(vk::DeviceSize offset_in_bytes = 0, vk::DeviceSize size_in_bytes = vk::WholeSize) const noexcept
+    std::error_code flush(vk::DeviceSize offset_in_bytes = 0, vk::DeviceSize size_in_bytes = vk::WholeSize) const noexcept
     {
-        return static_cast<vk::Result>(vmaFlushAllocation(m_allocator, m_allocation, offset_in_bytes, size_in_bytes));
+        return vk::make_error_code(static_cast<vk::Result>(vmaFlushAllocation(m_allocator, m_allocation, offset_in_bytes, size_in_bytes)));
     }
-    vk::Result invalidate(vk::DeviceSize offset_in_bytes = 0, vk::DeviceSize size_in_bytes = vk::WholeSize) const noexcept
+    std::error_code invalidate(vk::DeviceSize offset_in_bytes = 0, vk::DeviceSize size_in_bytes = vk::WholeSize) const noexcept
     {
-        return static_cast<vk::Result>(vmaInvalidateAllocation(m_allocator, m_allocation, offset_in_bytes, size_in_bytes));
+        return vk::make_error_code(static_cast<vk::Result>(vmaInvalidateAllocation(m_allocator, m_allocation, offset_in_bytes, size_in_bytes)));
     }
-    vk::Result copyFromMemory(ReadableByteSpan src, vk::DeviceSize offset_in_bytes = 0) noexcept
+    std::error_code copyFromMemory(ReadableByteSpan src, vk::DeviceSize offset_in_bytes = 0) const noexcept
     {
         auto mapped_mem_span = this->getMappedMemorySpan();
-        if (mapped_mem_span.empty()) { return vk::Result::eErrorMemoryMapFailed; }
+        if (mapped_mem_span.empty()) { return vk::make_error_code(vk::Result::eErrorMemoryMapFailed); }
         std::ranges::copy(src, mapped_mem_span.begin() + offset_in_bytes);
-        return vk::Result::eSuccess;
+        return {};
     }
-    vk::Result copyToMemory(ByteSpan dst, vk::DeviceSize offset_in_bytes = 0) const noexcept
+    std::error_code copyToMemory(ByteSpan dst, vk::DeviceSize offset_in_bytes = 0) const noexcept
     {
         auto mapped_mem_span = this->getMappedMemorySpan();
-        if (mapped_mem_span.empty()) { return vk::Result::eErrorMemoryMapFailed; }
+        if (mapped_mem_span.empty()) { return vk::make_error_code(vk::Result::eErrorMemoryMapFailed); }
         std::ranges::copy(mapped_mem_span.begin() + offset_in_bytes, dst);
-        return vk::Result::eSuccess;
+        return {};
     }
-private:
+public:
     ByteSpan getMappedMemorySpan() const noexcept
     {
         VmaAllocationInfo info {};

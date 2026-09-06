@@ -16,7 +16,7 @@ std::error_code DescriptorSetLayout::create(vk::Device device, const DescriptorS
     for (const auto & flags : binding_flags_list) { binding_flags |= flags; }
     vk::DescriptorSetLayoutCreateInfo layout_info;
     vk::DescriptorSetLayoutBindingFlagsCreateInfo binding_flags_info;
-    vk::DescriptorSetLayoutCreateFlags layout_flags {};
+    vk::DescriptorSetLayoutCreateFlags layout_flags = info.getLayoutFlags();
     if (binding_flags & vk::DescriptorBindingFlagBits::eUpdateAfterBind) {
         layout_flags |= vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool;
     }

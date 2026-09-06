@@ -1,9 +1,9 @@
 #pragma once
 
-#include "details/info_structs.h"
-#include "vk_core/utils/ResourceHandle.h"
+#include "vk_core/memory/Buffer.h"
 #include "DescriptorSetLayout.h"
-#include <deque>
+#include <array>
+#include <vector>
 #include <variant>
 
 namespace lcf::vkc {
@@ -13,37 +13,22 @@ class Buffer;
 class ImageView;
 class Sampler;
 
-} 
+}
 
-namespace lcf::vkc::dsp {
+namespace lcf::vkc::dsb {
 
 class DescriptorSetAllocator;
-struct DescriptorSetAllocation;
 
 class DescriptorSetProxy
 {
     using Self = DescriptorSetProxy;
-    using DescriptorInfo = std::variant<vk::DescriptorBufferInfo, vk::DescriptorImageInfo>;
+    using DescriptorInfo = std::variant<vk::DescriptorAddressInfoEXT, vk::DescriptorImageInfo>;
     struct AuthorityBinding
     {
         DescriptorInfo m_descriptor_info;
         std::array<ResourceLease, 2> m_resource_leases;
     };
-    struct DescriptorSet
-    {
-        operator DescriptorSetAllocation() const noexcept;
-        bool isAvailable() const noexcept;
-        const vk::DescriptorSet & handle() const noexcept { return m_descriptor_set.get(); }
-        ResourceLease lease() const noexcept { return m_descriptor_set.lease(); }
-
-        vk::DescriptorPool m_pool;
-        vk::DescriptorPoolCreateFlags m_pool_key;
-        utils::ResourceHandle<vk::DescriptorSet> m_descriptor_set;
-        uint32_t m_version = 0u;
-    };
     using AuthorityBindingMap = std::vector<std::vector<AuthorityBinding>>;
-    using DescriptorSetList = std::vector<DescriptorSet>;
-    using DescriptorSetQueue = std::deque<DescriptorSet>;
 public:
     ~DescriptorSetProxy() noexcept;
     DescriptorSetProxy() noexcept = default;
@@ -65,11 +50,11 @@ public:
 private:
     DescriptorSetAllocator * m_allocator_p = nullptr;
     uint32_t m_set_index = 0u;
-    uint32_t m_version = 0u;
+    uint32_t m_authority_version = 0u;
+    uint32_t m_descriptor_set_buffer_version = 0u;
     DescriptorSetLayout m_layout;
     AuthorityBindingMap m_authority_bindings;
-    DescriptorSetQueue m_in_use_descriptor_sets;
-    DescriptorSetList m_available_descriptor_sets;
+    vkc::Buffer m_descriptor_set_buffer;
 };
 
 } // namespace lcf::vkc::dsb

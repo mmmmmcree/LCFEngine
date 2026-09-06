@@ -1,6 +1,7 @@
 #include "vk_core/memory/MemoryAllocator.h"
 #include "vk_core/memory/info_structs.h"
 #include "vk_core/memory/details/Allocator.h"
+#include "vk_core/error.h"
 
 namespace lcf::vkc {
 
@@ -16,6 +17,8 @@ std::error_code MemoryAllocator::create(
     vk::Instance instance, vk::PhysicalDevice physical_device, vk::Device device,
     const MemoryAllocatorCreateInfo &create_info) noexcept
 {
+    if (m_physical_device or m_device) { return make_error_code(errc::already_created); }
+    m_physical_device = physical_device;
     m_device = device;
     m_bda_enabled = create_info.isBufferDeviceAddressEnabled();
     m_allocator_up = std::make_unique<details::VMAllocator>();

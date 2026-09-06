@@ -1,9 +1,10 @@
 #include "vk_core/memory/Image.h"
 #include "vk_core/memory/MemoryAllocator.h"
 #include "vk_core/memory/info_structs.h"
+#include "vk_core/error.h"
+
 
 namespace lcf::vkc {
-
 
 std::error_code ImageView::create(vk::Device device, const vk::ImageViewCreateInfo & view_info, ResourceLease image_lease) noexcept
 {
@@ -25,6 +26,7 @@ std::error_code Image::create(
     const vk::ImageCreateInfo & image_info,
     const MemoryAllocationInfo & alloc_info) noexcept
 {
+    if (m_memory_rh) { return make_error_code(errc::already_created); }
     auto expected_memory = allocator.allocateImage(image_info, alloc_info);
     if (not expected_memory) { return expected_memory.error(); }
     m_memory_rh = std::move(expected_memory.value());
