@@ -11,6 +11,11 @@
 # variables (VCPKG_ROOT_DIR, VCPKG_TARGET_TRIPLET, VCPKG_EXE, VCPKG_BASELINE)
 # and otherwise contains no platform conditionals.
 
+set(DEPS_VCPKG_RETRIES "2" CACHE STRING
+    "Number of retries for transient vcpkg download failures")
+set(DEPS_VCPKG_RETRY_DELAY "2" CACHE STRING
+    "Seconds to wait between vcpkg download retries")
+
 # --- Helpers: platform / environment / vcpkg-deployment routing ----------------
 
 # Resolve which vcpkg installation to use. Order:
@@ -80,6 +85,65 @@ function(_vcpkg_locate_root OUT_VAR)
     endif()
 
     set(${OUT_VAR} "" PARENT_SCOPE)
+endfunction()
+
+function(_vcpkg_validate_tool VCPKG_ROOT_DIR VCPKG_EXE)
+    set(_metadata "${VCPKG_ROOT_DIR}/scripts/vcpkg-tool-metadata.txt")
+    if(NOT EXISTS "${_metadata}")
+        return()
+    endif()
+
+    file(STRINGS "${_metadata}" _release_line
+         REGEX "^VCPKG_TOOL_RELEASE_TAG=")
+    if(NOT _release_line)
+        return()
+    endif()
+    string(REGEX REPLACE "^VCPKG_TOOL_RELEASE_TAG=" ""
+           _required_release "${_release_line}")
+
+    execute_process(
+        COMMAND "${VCPKG_EXE}" version --disable-metrics
+        OUTPUT_VARIABLE _version_output
+        ERROR_VARIABLE  _version_error
+        RESULT_VARIABLE _version_rc
+        TIMEOUT 10
+    )
+    if(NOT "${_version_rc}" STREQUAL "0")
+        message(FATAL_ERROR
+            "vcpkg executable '${VCPKG_EXE}' could not be queried "
+            "(rc=${_version_rc}). ${_version_error}")
+    endif()
+
+    string(REGEX MATCH
+           "version[\\t ]+([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9])"
+           _version_match "${_version_output}")
+    if(_version_match AND
+       "${CMAKE_MATCH_1}" VERSION_LESS "${_required_release}")
+        message(FATAL_ERROR
+            "vcpkg tool '${CMAKE_MATCH_1}' is older than the checked-out "
+            "vcpkg tree's '${_required_release}'. Run the official "
+            "bootstrap-vcpkg script in '${VCPKG_ROOT_DIR}', then reconfigure.")
+    endif()
+endfunction()
+
+# vcpkg's downloader intentionally gives up on some errors it classifies as
+# non-transient. A connection can still recover on a subsequent command, so
+# let the caller retry only failures that look like transport/download errors;
+# compiler and portfile failures must remain fail-fast.
+function(_vcpkg_is_network_failure OUTPUT ERROR OUT_VAR)
+    set(_text "${OUTPUT}\n${ERROR}")
+    string(TOLOWER "${_text}" _text)
+    string(CONCAT _network_error_pattern
+        "curl operation failed|download failed|could not connect|"
+        "connection refused|connection reset|connection timed out|"
+        "failure when receiving|recv failure|send failure|empty reply|"
+        "ssl connect error|timed out|couldn't resolve|could not resolve|"
+        "temporary failure|network error")
+    if(_text MATCHES "${_network_error_pattern}")
+        set(${OUT_VAR} TRUE PARENT_SCOPE)
+    else()
+        set(${OUT_VAR} FALSE PARENT_SCOPE)
+    endif()
 endfunction()
 
 # Resolve the macOS target triplet from an explicit deployment architecture
@@ -171,7 +235,7 @@ function(_vcpkg_read_baseline VCPKG_ROOT_DIR OUT_VAR)
         RESULT_VARIABLE _rc
         ERROR_QUIET
     )
-    if(_rc EQUAL 0 AND _sha)
+    if("${_rc}" STREQUAL "0" AND _sha)
         set(${OUT_VAR} "${_sha}" PARENT_SCOPE)
         return()
     endif()
@@ -288,6 +352,7 @@ function(deps_install_vcpkg DEPS_JSON)
     if(NOT VCPKG_EXE)
         message(FATAL_ERROR "no vcpkg executable under '${VCPKG_ROOT_DIR}'")
     endif()
+    _vcpkg_validate_tool("${VCPKG_ROOT_DIR}" "${VCPKG_EXE}")
 
     _vcpkg_read_baseline("${VCPKG_ROOT_DIR}" VCPKG_BASELINE)
     if(NOT VCPKG_BASELINE)
@@ -300,12 +365,20 @@ function(deps_install_vcpkg DEPS_JSON)
     set(_install_root "${CMAKE_BINARY_DIR}/vcpkg_installed")
     set(_blds_root    "${_install_root}/vcpkg/blds")
     set(_pkgs_root    "${_install_root}/vcpkg/pkgs")
-    set(_downloads_root "${_install_root}/vcpkg/downloads")
+    # Respect vcpkg's standard shared download cache when one is configured;
+    # otherwise keep downloads isolated with this preset's install tree.
+    if(VCPKG_DOWNLOADS)
+        set(_downloads_root "${VCPKG_DOWNLOADS}")
+    elseif(DEFINED ENV{VCPKG_DOWNLOADS} AND NOT "$ENV{VCPKG_DOWNLOADS}" STREQUAL "")
+        set(_downloads_root "$ENV{VCPKG_DOWNLOADS}")
+    else()
+        set(_downloads_root "${_install_root}/vcpkg/downloads")
+    endif()
     set(_manifest_dir "${CMAKE_BINARY_DIR}/_vcpkg_aggregate")
 
-    # Keep vcpkg's writable work directories inside this preset's build tree.
     # Fresh vcpkg clones do not contain buildtrees/, and some vcpkg-tool
-    # releases try to lock it before creating the parent directory.
+    # releases try to lock it before creating the parent directory. Downloads
+    # may intentionally point at a shared VCPKG_DOWNLOADS cache above.
     file(MAKE_DIRECTORY "${_blds_root}" "${_pkgs_root}" "${_downloads_root}")
 
     string(JSON _len LENGTH "${DEPS_JSON}" dependencies)
@@ -368,7 +441,8 @@ ${_deps_block}
 
     # 4) Run vcpkg install. Buildtrees/packages are pinned under the install
     #    root for per-preset isolation. With DEPS_KEEP_SOURCES=ON, disable the
-    #    binary cache so the build is forced to extract source.
+    #    binary cache so the build is forced to extract source. Transport
+    #    failures are retried below; port/build failures remain fail-fast.
     # Pin the host triplet to the target. Otherwise vcpkg defaults the host
     # triplet to its detected host (x64-windows on Windows), so any dep with a
     # host-tool dependency forces an x64-windows build — which needs Visual
@@ -379,7 +453,6 @@ ${_deps_block}
         "--x-install-root=${_install_root}"
         "--triplet=${VCPKG_TARGET_TRIPLET}"
         "--host-triplet=${VCPKG_TARGET_TRIPLET}"
-        "--feature-flags=manifests,versions"
         "--x-buildtrees-root=${_blds_root}"
         "--x-packages-root=${_pkgs_root}"
         "--downloads-root=${_downloads_root}"
@@ -388,13 +461,52 @@ ${_deps_block}
         list(APPEND _install_args "--no-binarycaching")
     endif()
 
-    execute_process(
-        COMMAND "${VCPKG_EXE}" install ${_install_args}
-        RESULT_VARIABLE _rc
-    )
-    if(NOT _rc EQUAL 0)
-        message(FATAL_ERROR "vcpkg install failed (rc=${_rc})")
+    if(NOT "${DEPS_VCPKG_RETRIES}" MATCHES "^[0-9]+$")
+        message(FATAL_ERROR
+            "DEPS_VCPKG_RETRIES must be a non-negative integer, got "
+            "'${DEPS_VCPKG_RETRIES}'.")
     endif()
+    if(NOT "${DEPS_VCPKG_RETRY_DELAY}" MATCHES "^[0-9]+$")
+        message(FATAL_ERROR
+            "DEPS_VCPKG_RETRY_DELAY must be a non-negative integer, got "
+            "'${DEPS_VCPKG_RETRY_DELAY}'.")
+    endif()
+    math(EXPR _max_attempts "${DEPS_VCPKG_RETRIES} + 1")
+    set(_attempt 0)
+    while(TRUE)
+        math(EXPR _attempt "${_attempt} + 1")
+        if(_attempt GREATER 1)
+            message(STATUS
+                "vcpkg: retrying install (${_attempt}/${_max_attempts})")
+            execute_process(
+                COMMAND "${CMAKE_COMMAND}" -E sleep "${DEPS_VCPKG_RETRY_DELAY}"
+            )
+        endif()
+
+        execute_process(
+            COMMAND "${VCPKG_EXE}" install ${_install_args}
+            RESULT_VARIABLE _rc
+            OUTPUT_VARIABLE _vcpkg_output
+            ERROR_VARIABLE  _vcpkg_error
+            ECHO_OUTPUT_VARIABLE
+            ECHO_ERROR_VARIABLE
+        )
+        if("${_rc}" STREQUAL "0")
+            break()
+        endif()
+
+        _vcpkg_is_network_failure(
+            "${_vcpkg_output}" "${_vcpkg_error}" _network_failure)
+        if(NOT _network_failure OR _attempt GREATER_EQUAL _max_attempts)
+            message(FATAL_ERROR
+                "vcpkg install failed (rc=${_rc}).\n"
+                "See the vcpkg output above for the underlying error.\n"
+                "${_vcpkg_error}")
+        endif()
+        message(WARNING
+            "vcpkg install encountered a network/download error; it will be "
+            "retried automatically.")
+    endwhile()
 
     list(APPEND CMAKE_PREFIX_PATH "${_install_root}/${VCPKG_TARGET_TRIPLET}")
 
