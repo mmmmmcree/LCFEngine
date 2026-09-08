@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -46,6 +47,7 @@ namespace lcf {
 
     class ResourceLease
     {
+        friend class WeakResourceLease;
         template <typename R>
         friend class ResourceWeakRef;
     public:
@@ -97,6 +99,53 @@ namespace lcf {
                     delete m_control_block_p;
                 }
                 m_control_block_p = nullptr;
+            }
+        }
+    private:
+        ResourceControlBlock * m_control_block_p = nullptr;
+    };
+
+    // Observes lifetime without retaining the resource or exposing its type.
+    class WeakResourceLease
+    {
+        template <typename R>
+        friend class ResourceWeakPtr;
+    public:
+        WeakResourceLease() noexcept = default;
+        explicit WeakResourceLease(const ResourceLease & lease) noexcept : WeakResourceLease(lease.m_control_block_p) { }
+        ~WeakResourceLease() noexcept { this->releaseWeak(); }
+        WeakResourceLease(const WeakResourceLease & other) noexcept : WeakResourceLease(other.m_control_block_p) { }
+        WeakResourceLease & operator=(const WeakResourceLease & other) noexcept
+        {
+            if (this == &other) { return *this; }
+            this->releaseWeak();
+            m_control_block_p = other.m_control_block_p;
+            if (m_control_block_p) { m_control_block_p->increaseWeakRefCount(); }
+            return *this;
+        }
+        WeakResourceLease(WeakResourceLease && other) noexcept : m_control_block_p(std::exchange(other.m_control_block_p, nullptr)) {}
+        WeakResourceLease & operator=(WeakResourceLease && other) noexcept
+        {
+            if (this == &other) { return *this; }
+            this->releaseWeak();
+            m_control_block_p = std::exchange(other.m_control_block_p, nullptr);
+            return *this;
+        }
+        operator bool() const noexcept { return not this->isExpired(); }
+    public:
+        bool isExpired() const noexcept { return not m_control_block_p or m_control_block_p->getRefCount() == 0; }
+        ResourceLease lock() const noexcept { return ResourceLease(m_control_block_p); }
+        void reset() noexcept { this->releaseWeak(); }
+    private:
+        explicit WeakResourceLease(ResourceControlBlock * control_block_p) noexcept : m_control_block_p(control_block_p)
+        {
+            if (m_control_block_p) { m_control_block_p->increaseWeakRefCount(); }
+        }
+        void releaseWeak() noexcept
+        {
+            auto * control_block_p = std::exchange(m_control_block_p, nullptr);
+            if (control_block_p and control_block_p->decreaseWeakRefCountAndShouldDelete()) {
+                delete control_block_p;
             }
         }
     private:
@@ -297,8 +346,9 @@ namespace lcf {
             this->stealFrom(other);
             return *this;
         }
-        operator bool() const noexcept { return not expired(); }
+        operator bool() const noexcept { return not isExpired(); }
     public:
+        WeakResourceLease getWeakLease() const noexcept { return WeakResourceLease(m_control_block_p); }
         ResourcePtr<Resource> lock() const noexcept
         {
             if (not m_control_block_p or not m_control_block_p->tryIncrementStrongCount()) { return {}; }
@@ -308,7 +358,7 @@ namespace lcf {
             m_control_block_p->increaseWeakRefCount();
             return result;
         }
-        bool expired() const noexcept
+        bool isExpired() const noexcept
         {
             if (not m_control_block_p) { return true; }
             return m_control_block_p->getRefCount() == 0;
@@ -489,12 +539,12 @@ namespace lcf {
         ResourceWeakRef & operator=(ResourceWeakRef && other) = delete;
         ~ResourceWeakRef() noexcept { this->releaseWeak(); }
     public:
-        bool expired() const noexcept
+        bool isExpired() const noexcept
         {
             if (not m_control_block_p) { return true; }
             return m_control_block_p->getRefCount() == 0;
         }
-        operator bool() const noexcept { return not this->expired(); }
+        operator bool() const noexcept { return not this->isExpired(); }
         std::optional<ResourceStrongRef<Resource>> lock() const noexcept
         {
             ResourceLease lease(m_control_block_p);
