@@ -42,6 +42,9 @@ public:
 // private:
     // void deallocate(DescriptorSetAllocation allocation) noexcept;
 private:
+    const MemoryAllocator & getMemoryAllocator() const noexcept { return *m_memory_allocator_p; }
+    const vk::PhysicalDeviceDescriptorBufferPropertiesEXT & getDescriptorBufferProperties() const noexcept { return m_descriptor_buffer_properties; }
+private:
     const MemoryAllocator * m_memory_allocator_p = nullptr;
     vk::PhysicalDeviceDescriptorBufferPropertiesEXT m_descriptor_buffer_properties;
 };
