@@ -22,6 +22,12 @@
 #include "vk_core/descriptor_set/buffer/DescriptorSetLayout.h"
 #include "vk_core/descriptor_set/buffer/DescriptorSetAllocator.h"
 #include "vk_core/descriptor_set/buffer/DescriptorSetProxy.h"
+// descriptor heap
+#include "vk_core/descriptor_set/heap/entry.h"
+#include "vk_core/descriptor_set/heap/DescriptorHeapLayout.h"
+#include "vk_core/descriptor_set/heap/DescriptorHeapAllocator.h"
+#include "vk_core/descriptor_set/heap/DescriptorHeap.h"
+#include "vk_core/descriptor_set/heap/DescriptorHeapAccess.h"
 
 #include "vk_core/sampler/info_structs.h"
 #include "vk_core/sampler/Sampler.h"
@@ -85,6 +91,7 @@ int main()
     vkc::probe::register_capabilities(capabilities);
     vkc::entry::register_dynamic_render(device_ext_manifest);
     vkc::entry::register_descriptor_buffer(device_ext_manifest);
+    vkc::entry::register_descriptor_heap(device_ext_manifest);
     //- in this example, we use shader constants to draw a triangle, so we should enable shaderDrawParameters feature
     device_ext_manifest.addRequiredFeature(vkc::utils::t_feature_bit<&vk::PhysicalDeviceVulkan13Features::synchronization2>)
         .addRequiredFeature(vkc::utils::t_feature_bit<&vk::PhysicalDeviceVulkan11Features::shaderDrawParameters>);
@@ -268,6 +275,22 @@ int main()
     }
     dsb_descriptor_set.setImage(0u, texture_view, vk::ImageLayout::eShaderReadOnlyOptimal)
         .setSampler(1u, sampler);
+
+    // descriptor heap mapping path (kept alongside pool/buffer for comparison)
+    vkc::dsh::DescriptorHeapLayout dsh_layout;
+    dsh_layout.setImageCount(1u).setSamplerCount(1u);
+    vkc::dsh::DescriptorHeapAllocator dsh_allocator;
+    if (auto ec = dsh_allocator.create(memory_allocator)) {
+        lcf_log_error("Failed to create descriptor heap allocator: {}", ec.message());
+        return 1;
+    }
+    vkc::dsh::DescriptorHeap dsh_heap;
+    if (auto ec = dsh_heap.create(dsh_allocator, dsh_layout)) {
+        lcf_log_error("Failed to create descriptor heap: {}", ec.message());
+        return 1;
+    }
+    dsh_heap.setImage(0u, vk::DescriptorType::eSampledImage, vk::ImageLayout::eShaderReadOnlyOptimal, texture_view)
+        .setSampler(0u, sampler);
 
     vkc::wsi::probed::Swapchain swapchain;
     if (auto ec = swapchain.create(
@@ -458,12 +481,12 @@ int main()
 
             cmd.begin(cmd_begin_info);
 
-            // 当前 bind 同时承担 descriptor buffer 的脏数据更新和绑定：更新阶段可能录制
-            // vkCmdPipelineBarrier2/vkCmdCopyBuffer，不能处于 dynamic rendering scope 内，
-            // 因此先在 dynamic_render.begin() 外调用。TODO: 拆分为 updateIfDirty() 和 bind()，
-            // 之后 updateIfDirty() 保持在 scope 外，纯 bind() 可以在 scope 内切换 descriptor set。
-            dsb_descriptor_set.bind(cmd, vk::PipelineBindPoint::eGraphics, dynamic_graphics_pipeline.getPipelineLayout());
+            vkc::dsh::DescriptorHeapAccess dsh_access {dsh_heap};
+            dsh_access.updateIfDirty(cmd);
             dynamic_render.begin(cmd, render_target);
+            dsh_access.bind(cmd);
+            // The descriptor-buffer path remains active until the pipeline mapping is wired.
+            // dsb_descriptor_set.bind(cmd, vk::PipelineBindPoint::eGraphics, dynamic_graphics_pipeline.getPipelineLayout());
             // dsp_descriptor_set.bind(cmd, vk::PipelineBindPoint::eGraphics, dynamic_graphics_pipeline.getPipelineLayout());
             dynamic_graphics_pipeline.bind(cmd);
             cmd.draw(6, 1, 0, 0);
