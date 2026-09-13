@@ -14,8 +14,40 @@ class MemoryAllocator;
 
 class MemoryAllocationInfo;
 
+class Buffer;
+
+class BufferView
+{
+    using Self = BufferView;
+    using Memory = details::Memory<vk::Buffer>;
+    using ResourceHandle = utils::ResourceHandle<Memory>;
+public:
+    ~BufferView() noexcept = default;
+    BufferView() noexcept = default;
+    BufferView(const Self &) noexcept = default;
+    Self & operator=(const Self &) noexcept = default;
+    BufferView(Self &&) noexcept = default;
+    Self & operator=(Self &&) noexcept = default;
+    operator const vk::Buffer &() const noexcept { return this->handle(); }
+public:
+    std::error_code create(const Buffer & buffer, vk::DeviceSize offset = 0u, vk::DeviceSize range = vk::WholeSize) noexcept;
+    const vk::Buffer & handle() const noexcept { return m_memory_rh->handle(); }
+    ResourceLease lease() const noexcept { return m_memory_rh.lease(); }
+    const vk::DeviceSize & getSizeInBytes() const noexcept { return m_range; }
+    const vk::DeviceAddress & getDeviceAddress() const noexcept { return m_device_address; }
+    std::span<std::byte> getMappedMemorySpan() const noexcept;
+    std::error_code copyFromMemory(std::span<const std::byte> src, vk::DeviceSize offset_in_bytes = 0u) noexcept;
+    std::error_code flush(vk::DeviceSize offset = 0u, vk::DeviceSize size = vk::WholeSize) const noexcept;
+private:
+    ResourceHandle m_memory_rh;
+    vk::DeviceSize m_offset = 0u;
+    vk::DeviceSize m_range = 0u;
+    vk::DeviceAddress m_device_address = 0u;
+};
+
 class Buffer
 {
+    friend class BufferView;
     using Self = Buffer;
     using Memory = details::Memory<vk::Buffer>;
     using ResourceHandle = utils::ResourceHandle<Memory>;
@@ -39,6 +71,7 @@ public:
     std::span<std::byte> getMappedMemorySpan() const noexcept;
     std::error_code copyFromMemory(std::span<const std::byte> src, vk::DeviceSize offset_in_bytes = 0) noexcept;
     std::error_code flush(vk::DeviceSize offset = 0u, vk::DeviceSize size = vk::WholeSize) const noexcept;
+    std::expected<BufferView, std::error_code> createView(vk::DeviceSize offset = 0u, vk::DeviceSize range = vk::WholeSize) const noexcept;
 private:
     ResourceHandle m_memory_rh;
     vk::DeviceAddress m_device_address = 0u;

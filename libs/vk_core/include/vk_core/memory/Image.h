@@ -93,6 +93,7 @@ class ImageView
 {
     using Self = ImageView;
     using ResourceHandle = utils::ResourceHandle<vk::ImageView>;
+    using ImageResourceHandle = utils::ResourceHandle<details::Memory<vk::Image>>;
 public:
     ~ImageView() noexcept = default;
     ImageView() noexcept = default;
@@ -101,11 +102,31 @@ public:
     ImageView(Self &&) noexcept = default;
     Self & operator=(Self &&) noexcept = default;
 public:
-    std::error_code create(vk::Device device, const vk::ImageViewCreateInfo & view_info, ResourceLease image_lease) noexcept;
+    std::error_code create(
+        vk::Device device,
+        ImageResourceHandle image_resource_handle,
+        vk::ImageViewType view_type,
+        vk::Format format,
+        const vk::ImageSubresourceRange & range) noexcept;
     const vk::ImageView & handle() const noexcept { return m_view_rh.get(); }
     ResourceLease lease() const noexcept { return m_view_rh.lease(); }
+    const vk::ImageViewType & getViewType() const noexcept { return m_view_type; }
+    const vk::Format & getFormat() const noexcept { return m_format; }
+    const vk::ImageSubresourceRange & getRange() const noexcept { return m_range; }
+    vk::ImageViewCreateInfo makeInfo() const noexcept
+    {
+        return vk::ImageViewCreateInfo {}
+            .setImage(m_image_rh->handle())
+            .setViewType(m_view_type)
+            .setFormat(m_format)
+            .setSubresourceRange(m_range);
+    }
 private:
     ResourceHandle m_view_rh;
+    ImageResourceHandle m_image_rh;
+    vk::ImageViewType m_view_type;
+    vk::Format m_format;
+    vk::ImageSubresourceRange m_range;
 };
 
 class Image

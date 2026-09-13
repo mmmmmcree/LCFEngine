@@ -6,18 +6,32 @@
 
 namespace lcf::vkc {
 
-std::error_code ImageView::create(vk::Device device, const vk::ImageViewCreateInfo & view_info, ResourceLease image_lease) noexcept
+std::error_code ImageView::create(
+    vk::Device device,
+    ImageResourceHandle image_resource_handle,
+    vk::ImageViewType view_type,
+    vk::Format format,
+    const vk::ImageSubresourceRange & range) noexcept
 {
+    m_image_rh = std::move(image_resource_handle);
+    vk::ImageViewCreateInfo view_info;
+    view_info.setImage(m_image_rh->handle())
+        .setViewType(view_type)
+        .setFormat(format)
+        .setSubresourceRange(range);
     vk::ImageView view;
     try {
         view = device.createImageView(view_info);
     } catch (const vk::SystemError & e) {
         return e.code();
     }
-    m_view_rh = ResourceHandle {view, [device, view, image_lease = std::move(image_lease)]() mutable noexcept {
+    m_view_rh = ResourceHandle {view, [device, view, image_lease = m_image_rh.lease()]() mutable noexcept {
         device.destroyImageView(view);
         image_lease = {};
     }};
+    m_view_type = view_type;
+    m_format = format;
+    m_range = range;
     return {};
 }
 
@@ -59,7 +73,7 @@ std::expected<ImageView, std::error_code> Image::createView(
         .setFormat(m_desc.getFormat())
         .setSubresourceRange(range);
     ImageView view;
-    if (auto ec = view.create(m_device, view_info, m_memory_rh.lease())) {
+    if (auto ec = view.create(m_device, m_memory_rh, view_type, m_desc.getFormat(), range)) {
         return std::unexpected(ec);
     }
     return view;
