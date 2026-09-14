@@ -11,10 +11,13 @@ namespace lcf::vkc::utils {
 template <typename T, typename Root>
 concept struct_extends_c = static_cast<bool>(vk::StructExtends<T, Root>::value);
 
-template <typename Root>
+template <typename T, typename... Roots>
+concept struct_extends_any_c = (struct_extends_c<T, Roots> or ...);
+
+template <typename Root, typename ExtensionRoot = Root, typename... ExtensionRoots>
 class DynamicStructureChain
 {
-    using Self = DynamicStructureChain<Root>;
+    using Self = DynamicStructureChain<Root, ExtensionRoot, ExtensionRoots...>;
     struct Node
     {
         std::any value;
@@ -37,21 +40,25 @@ public:
 public:
     const Root & root() const noexcept { return std::any_cast<const Root &>(m_nodes.at(typeid(Root)).value); }
     Root & root() noexcept { return std::any_cast<Root &>(m_nodes.at(typeid(Root)).value); }
-    template <struct_extends_c<Root> Extension>
+    template <typename Extension>
+    requires struct_extends_any_c<Extension, ExtensionRoot, ExtensionRoots...>
     const Extension & get() const { return std::any_cast<const Extension &>(m_nodes.at(typeid(Extension)).value); }
-    template <struct_extends_c<Root> Extension>
+    template <typename Extension>
+    requires struct_extends_any_c<Extension, ExtensionRoot, ExtensionRoots...>
     const Extension * tryGet() const noexcept
     {
         auto it = m_nodes.find(typeid(Extension));
         return it == m_nodes.end() ? nullptr : &std::any_cast<const Extension &>(it->second.value);
     }
-    template <struct_extends_c<Root> Extension>
+    template <typename Extension>
+    requires struct_extends_any_c<Extension, ExtensionRoot, ExtensionRoots...>
     Extension & request() noexcept
     {
         auto it = m_nodes.find(typeid(Extension));
         if (it != m_nodes.end()) { return std::any_cast<Extension &>(it->second.value); }
         auto & extension = std::any_cast<Extension &>(this->emplaceNode<Extension>().value);
-        extension.pNext = std::exchange(this->root().pNext, &extension);
+        auto * extension_base = reinterpret_cast<vk::BaseOutStructure *>(&extension);
+        extension.pNext = std::exchange(this->root().pNext, extension_base);
         return extension;
     }
 private:
