@@ -503,7 +503,8 @@ public:
     Self & operator=(const Self & other) = default;
     Self & operator=(Self && other) noexcept = default;
 public:
-    Self & addFlags(vk::PipelineCreateFlagBits flags) noexcept { m_flags |= flags; return *this; }
+    Self & addFlags(vk::PipelineCreateFlags flags) noexcept { m_flags |= flags; return *this; }
+    Self & addFlags(vk::PipelineCreateFlags2 flags) noexcept { m_flags2 |= flags; return *this; }
     Self & setShaderProgramInfo(ShaderProgramInfo info) { m_shader_program_info = std::move(info); return *this; }
     Self & setVertexInputInfo(VertexInputInfo info) { m_vertex_input_info = std::move(info); return *this; }
     Self & setInputAssemblyStateInfo(const InputAssemblyStateInfo & info) { m_input_assembly_info = info; return *this; }
@@ -516,6 +517,7 @@ public:
     Self & setDynamicStateInfo(DynamicStateInfo info) { m_dynamic_state_info = std::move(info); return *this; }
 
     const vk::PipelineCreateFlags & getFlags() const noexcept { return m_flags; }
+    const vk::PipelineCreateFlags2 & getFlags2() const noexcept { return m_flags2; }
     const ShaderProgramInfo & getShaderProgramInfo() const noexcept { return m_shader_program_info; }
     const VertexInputInfo & getVertexInputInfo() const noexcept { return m_vertex_input_info; }
     const InputAssemblyStateInfo & getInputAssemblyStateInfo() const noexcept { return m_input_assembly_info; }
@@ -528,6 +530,7 @@ public:
     const DynamicStateInfo & getDynamicStateInfo() const noexcept { return m_dynamic_state_info; }
 private:
     vk::PipelineCreateFlags m_flags = {};
+    vk::PipelineCreateFlags2 m_flags2 = {};
     ShaderProgramInfo m_shader_program_info;
     VertexInputInfo m_vertex_input_info;
     InputAssemblyStateInfo m_input_assembly_info;

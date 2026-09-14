@@ -10,12 +10,16 @@
 #include "concepts/range_concept.h"
 #include "bytes.h"
 #include "vk_core/pipeline/shader/enums.h"
+#include "vk_core/utils/DynamicStructureChain.h"
 
 namespace lcf::vkc {
 
 class ShaderStageInfo
 {
     using Self = ShaderStageInfo;
+    using PipelineShaderStageRoot = vk::PipelineShaderStageCreateInfo;
+    using ShaderObjectRoot = vk::ShaderCreateInfoEXT;
+    using PNextChain = utils::DynamicStructureChain<vk::BaseOutStructure, PipelineShaderStageRoot, ShaderObjectRoot>;
     using Code = std::vector<uint32_t>;
     using CodeView = std::span<const uint32_t>;
     using PushConstantRangeList = std::vector<vk::PushConstantRange>;
@@ -53,13 +57,18 @@ public:
             .setData<std::byte>(m_specialization_data);
         return *this;
     }
+    template <typename T>
+    requires utils::struct_extends_any_c<T, PipelineShaderStageRoot, ShaderObjectRoot>
+    T & requestExtension() noexcept { return m_shader_stage.template request<T>(); }
     const vk::ShaderStageFlagBits & getStage() const noexcept { return m_stage; }
+    const void * getPNext() const noexcept { return m_shader_stage.root().pNext; }
     const Code & getCode() const noexcept { return m_code; }
     const std::string & getEntryPoint() const noexcept { return m_entry_point; }
     const PushConstantRangeList & getPushConstantRanges() const noexcept { return m_push_constant_ranges; }
     const vk::SpecializationInfo & getSpecializationInfo() const noexcept { return m_specialization_info; }
 private:
     vk::ShaderStageFlagBits m_stage = {};
+    PNextChain m_shader_stage;
     Code m_code;
     std::string m_entry_point;
     PushConstantRangeList m_push_constant_ranges;
@@ -85,7 +94,8 @@ public:
 public:
     Self & addStageInfo(ShaderStageInfo stage_info) noexcept
     {
-        m_stage_infos.emplace(stage_info.getStage(), std::move(stage_info));
+        auto stage = stage_info.getStage();
+        m_stage_infos.emplace(stage, std::move(stage_info));
         return *this;
     }
     Self & addDescriptorSetLayout(uint32_t set, vk::DescriptorSetLayout descriptor_set_layout) noexcept

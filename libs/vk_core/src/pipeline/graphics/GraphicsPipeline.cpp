@@ -3,6 +3,7 @@
 #include "vk_core/pipeline/graphics/DynamicRender.h"
 #include "vk_core/pipeline/graphics/info_structs.h"
 #include "vk_core/command/CommandBufferProxy.h"
+#include "vk_core/utils/ExtensionLinker.h"
 #include <ranges>
 
 namespace stdr = std::ranges;
@@ -34,20 +35,31 @@ std::error_code GraphicsPipeline::create(
         pipeline_shader_stage_info.setStage(stage_info.getStage())
             .setModule(m_shader_modules.back().get())
             .setPName(stage_info.getEntryPoint().c_str())
-            .setPSpecializationInfo(&stage_info.getSpecializationInfo());
+            .setPSpecializationInfo(&stage_info.getSpecializationInfo())
+            .setPNext(stage_info.getPNext());
         pipeline_shader_stage_infos.emplace_back(pipeline_shader_stage_info);
         push_constant_ranges.append_range(stage_info.getPushConstantRanges());
     } 
-    auto descriptor_set_layouts = shader_program_info.viewDescriptorSetLayouts() | stdr::to<std::vector>();
-    vk::PipelineLayoutCreateInfo pipeline_layout_create_info;
-    pipeline_layout_create_info.setPushConstantRanges(push_constant_ranges)
-        .setSetLayouts(descriptor_set_layouts);
-    try {
-        m_pipeline_layout = device.createPipelineLayoutUnique(pipeline_layout_create_info);
-    } catch (const vk::SystemError & e) {
-        return e.code();
+    const bool uses_descriptor_heap = static_cast<bool>(pipeline_info.getFlags2() & vk::PipelineCreateFlagBits2::eDescriptorHeapEXT);
+    m_pipeline_layout.reset();
+    if (not uses_descriptor_heap) {
+        auto descriptor_set_layouts = shader_program_info.viewDescriptorSetLayouts() | stdr::to<std::vector>();
+        vk::PipelineLayoutCreateInfo pipeline_layout_create_info;
+        pipeline_layout_create_info.setPushConstantRanges(push_constant_ranges)
+            .setSetLayouts(descriptor_set_layouts);
+        try {
+            m_pipeline_layout = device.createPipelineLayoutUnique(pipeline_layout_create_info);
+        } catch (const vk::SystemError & e) {
+            return e.code();
+        }
     }
     vk::GraphicsPipelineCreateInfo pipeline_create_info;
+    vk::PipelineCreateFlags2CreateInfo flags2_create_info;
+    utils::ExtensionLinker<vk::GraphicsPipelineCreateInfo> pipeline_extension_linker;
+    if (pipeline_info.getFlags2()) {
+        flags2_create_info.setFlags(pipeline_info.getFlags2());
+        pipeline_extension_linker.link(flags2_create_info);
+    }
     pipeline_create_info.setFlags(pipeline_info.getFlags())
         .setStages(pipeline_shader_stage_infos)
         .setPVertexInputState(&static_cast<const vk::PipelineVertexInputStateCreateInfo &>(pipeline_info.getVertexInputInfo()))
@@ -59,6 +71,7 @@ std::error_code GraphicsPipeline::create(
         .setPDepthStencilState(&static_cast<const vk::PipelineDepthStencilStateCreateInfo &>(pipeline_info.getDepthStencilStateInfo()))
         .setPColorBlendState(&static_cast<const vk::PipelineColorBlendStateCreateInfo &>(pipeline_info.getColorBlendStateInfo()))
         .setPDynamicState(&static_cast<const vk::PipelineDynamicStateCreateInfo &>(pipeline_info.getDynamicStateInfo()))
+        .setPNext(pipeline_extension_linker.getPNext())
         .setLayout(m_pipeline_layout.get())
         .setRenderPass(render_scope_info.getRenderPass())
         .setSubpass(render_scope_info.getSubpassIndex());
@@ -96,26 +109,38 @@ std::error_code GraphicsPipeline::create(
         pipeline_shader_stage_info.setStage(stage_info.getStage())
             .setModule(m_shader_modules.back().get())
             .setPName(stage_info.getEntryPoint().c_str())
-            .setPSpecializationInfo(&stage_info.getSpecializationInfo());
+            .setPSpecializationInfo(&stage_info.getSpecializationInfo())
+            .setPNext(stage_info.getPNext());
         pipeline_shader_stage_infos.emplace_back(pipeline_shader_stage_info);
         push_constant_ranges.append_range(stage_info.getPushConstantRanges());
     }
-    auto descriptor_set_layouts = shader_program_info.viewDescriptorSetLayouts() | stdr::to<std::vector>();
-    vk::PipelineLayoutCreateInfo pipeline_layout_create_info;
-    pipeline_layout_create_info.setPushConstantRanges(push_constant_ranges)
-        .setSetLayouts(descriptor_set_layouts);
-    try {
-        m_pipeline_layout = device.createPipelineLayoutUnique(pipeline_layout_create_info);
-    } catch (const vk::SystemError & e) {
-        return e.code();
+    const bool uses_descriptor_heap = static_cast<bool>(pipeline_info.getFlags2() & vk::PipelineCreateFlagBits2::eDescriptorHeapEXT);
+    m_pipeline_layout.reset();
+    if (not uses_descriptor_heap) {
+        auto descriptor_set_layouts = shader_program_info.viewDescriptorSetLayouts() | stdr::to<std::vector>();
+        vk::PipelineLayoutCreateInfo pipeline_layout_create_info;
+        pipeline_layout_create_info.setPushConstantRanges(push_constant_ranges)
+            .setSetLayouts(descriptor_set_layouts);
+        try {
+            m_pipeline_layout = device.createPipelineLayoutUnique(pipeline_layout_create_info);
+        } catch (const vk::SystemError & e) {
+            return e.code();
+        }
     }
     vk::PipelineRenderingCreateInfo rendering_create_info;
     rendering_create_info.setViewMask(render_scope_info.getViewMask())
         .setColorAttachmentFormats(render_scope_info.getColorFormats())
         .setDepthAttachmentFormat(render_scope_info.getDepthFormat())
         .setStencilAttachmentFormat(render_scope_info.getStencilFormat());
+    vk::PipelineCreateFlags2CreateInfo flags2_create_info;
+    utils::ExtensionLinker<vk::GraphicsPipelineCreateInfo> pipeline_extension_linker;
+    pipeline_extension_linker.link(rendering_create_info);
+    if (pipeline_info.getFlags2()) {
+        flags2_create_info.setFlags(pipeline_info.getFlags2());
+        pipeline_extension_linker.link(flags2_create_info);
+    }
     vk::GraphicsPipelineCreateInfo pipeline_create_info;
-    pipeline_create_info.setPNext(&rendering_create_info)
+    pipeline_create_info.setPNext(pipeline_extension_linker.getPNext())
         .setFlags(pipeline_info.getFlags())
         .setStages(pipeline_shader_stage_infos)
         .setPVertexInputState(&static_cast<const vk::PipelineVertexInputStateCreateInfo &>(pipeline_info.getVertexInputInfo()))

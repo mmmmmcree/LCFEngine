@@ -159,8 +159,9 @@ std::vector<vk::WriteDescriptorSet> make_writes(vk::DescriptorSet descriptor_set
 
 } // anonymous namespace
 
-std::error_code DescriptorSetProxy::bind(CommandBufferProxy & cmd, vk::PipelineBindPoint bind_point, vk::PipelineLayout pipeline_layout) noexcept
+std::error_code DescriptorSetProxy::updateIfDirty(CommandBufferProxy & cmd) noexcept
 {
+    static_cast<void>(cmd);
     while (not m_in_use_descriptor_sets.empty()) {
         auto & descriptor_set = m_in_use_descriptor_sets.front();
         if (not descriptor_set.isAvailable()) { break; }
@@ -179,20 +180,26 @@ std::error_code DescriptorSetProxy::bind(CommandBufferProxy & cmd, vk::PipelineB
             });
         }
     }
-    DescriptorSet descriptor_set = std::move(m_available_descriptor_sets.back());
-    m_available_descriptor_sets.pop_back();
+    auto & descriptor_set = m_available_descriptor_sets.back();
     if (descriptor_set.m_version != m_version) {
         auto writes = make_writes(descriptor_set.handle(), m_layout.getBindings(), m_authority_bindings);
         m_allocator_p->m_device.updateDescriptorSets(writes, nullptr);
         descriptor_set.m_version = m_version;
     }
+    return {};
+}
+
+void DescriptorSetProxy::bind(CommandBufferProxy & cmd, vk::PipelineBindPoint bind_point, vk::PipelineLayout pipeline_layout) noexcept
+{
+    assert(not m_available_descriptor_sets.empty());
+    auto descriptor_set = std::move(m_available_descriptor_sets.back());
+    m_available_descriptor_sets.pop_back();
     cmd.bindDescriptorSets(bind_point, pipeline_layout, m_set_index, descriptor_set.handle(), nullptr);
     cmd.pinLease(descriptor_set.m_descriptor_set.lease());
     for (const auto & bindings : m_authority_bindings) {
         for (const auto & binding : bindings) { cmd.pinLeases(binding.m_resource_leases); }
     }
     m_in_use_descriptor_sets.emplace_back(std::move(descriptor_set));
-    return {};
 }
 
 } // namespace lcf::vkc::dsp

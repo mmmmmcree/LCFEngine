@@ -61,7 +61,8 @@ public:
     Self & setImage(uint32_t binding, const vkc::ImageView & image_view, vk::ImageLayout image_layout) noexcept;
     Self & setSampler(uint32_t binding, uint32_t array_index, const vkc::Sampler & sampler) noexcept;
     Self & setSampler(uint32_t binding, const vkc::Sampler & sampler) noexcept;
-    std::error_code bind(CommandBufferProxy & cmd, vk::PipelineBindPoint bind_point, vk::PipelineLayout pipeline_layout) noexcept;
+    std::error_code updateIfDirty(CommandBufferProxy & cmd) noexcept;
+    void bind(CommandBufferProxy & cmd, vk::PipelineBindPoint bind_point, vk::PipelineLayout pipeline_layout) noexcept;
 private:
     DescriptorSetAllocator * m_allocator_p = nullptr;
     uint32_t m_set_index = 0u;

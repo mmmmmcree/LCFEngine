@@ -27,7 +27,6 @@
 #include "vk_core/descriptor_set/heap/DescriptorHeapLayout.h"
 #include "vk_core/descriptor_set/heap/DescriptorHeapAllocator.h"
 #include "vk_core/descriptor_set/heap/DescriptorHeap.h"
-#include "vk_core/descriptor_set/heap/DescriptorHeapAccess.h"
 
 #include "vk_core/sampler/info_structs.h"
 #include "vk_core/sampler/Sampler.h"
@@ -284,7 +283,7 @@ int main()
         lcf_log_error("Failed to create descriptor heap allocator: {}", ec.message());
         return 1;
     }
-    vkc::dsh::DescriptorHeap dsh_heap;
+    vkc::dsh::DescriptorHeapProxy dsh_heap;
     if (auto ec = dsh_heap.create(dsh_allocator, dsh_layout)) {
         lcf_log_error("Failed to create descriptor heap: {}", ec.message());
         return 1;
@@ -312,6 +311,27 @@ int main()
     lcf_log_info("Shader compiled successfully.");
     auto & spv_units = expected_compile_result.value();
 
+    std::array<vk::DescriptorSetAndBindingMappingEXT, 2> descriptor_mappings {
+        vk::DescriptorSetAndBindingMappingEXT {}
+            .setDescriptorSet(0u)
+            .setFirstBinding(0u)
+            .setBindingCount(1u)
+            .setResourceMask(vk::SpirvResourceTypeFlagBitsEXT::eSampledImage)
+            .setSource(vk::DescriptorMappingSourceEXT::eHeapWithConstantOffset)
+            .setSourceData(vk::DescriptorMappingSourceDataEXT {
+                vk::DescriptorMappingSourceConstantOffsetEXT {}.setHeapOffset(0u)
+            }),
+        vk::DescriptorSetAndBindingMappingEXT {}
+            .setDescriptorSet(0u)
+            .setFirstBinding(1u)
+            .setBindingCount(1u)
+            .setResourceMask(vk::SpirvResourceTypeFlagBitsEXT::eSampler)
+            .setSource(vk::DescriptorMappingSourceEXT::eHeapWithConstantOffset)
+            .setSourceData(vk::DescriptorMappingSourceDataEXT {
+                vk::DescriptorMappingSourceConstantOffsetEXT {}.setSamplerHeapOffset(0u)
+            })
+    };
+
     vkc::ShaderProgramInfo shader_program_info;
     for (const auto & spv_unit : spv_units) {
         vk::ShaderStageFlagBits stage = enum_cast<vk::ShaderStageFlagBits>(spv_unit.getStage());
@@ -320,10 +340,13 @@ int main()
         shader_stage_info.setStage(stage)
             .setCode(spv_unit.getCode())
             .setEntryPoint(spv_unit.getEntryPoint());
+        auto & descriptor_mapping_info = shader_stage_info.requestExtension<vk::ShaderDescriptorSetAndBindingMappingInfoEXT>();
+        descriptor_mapping_info.setMappingCount(static_cast<uint32_t>(descriptor_mappings.size()))
+            .setPMappings(descriptor_mappings.data()); // dsh
         shader_program_info.addStageInfo(std::move(shader_stage_info));
     }
     // shader_program_info.addDescriptorSetLayout(0u, dsp_descriptor_set_layout.handle()); // dsp
-    shader_program_info.addDescriptorSetLayout(0u, dsb_descriptor_set_layout.handle()); // dsb
+    // shader_program_info.addDescriptorSetLayout(0u, dsb_descriptor_set_layout.handle()); // dsb
 
     //- declare the attachment set: one color attachment, no resolve, no depth stencil
     vkc::AttachmentSetInfoBuilder attachment_set_builder;
@@ -381,7 +404,7 @@ int main()
         vk::BlendOp::eAdd);
     vkc::GraphicsPipelineInfo graphic_pipeline_info;
     graphic_pipeline_info.setShaderProgramInfo(shader_program_info)
-        .addFlags(vk::PipelineCreateFlagBits::eDescriptorBufferEXT) // dsb
+        .addFlags(vk::PipelineCreateFlagBits2::eDescriptorHeapEXT)
         .setViewportStateInfo(viewport_state_info)
         .setColorBlendStateInfo(color_blend_state_info);
 
@@ -481,11 +504,9 @@ int main()
 
             cmd.begin(cmd_begin_info);
 
-            vkc::dsh::DescriptorHeapAccess dsh_access {dsh_heap};
-            dsh_access.updateIfDirty(cmd);
+            dsh_heap.updateIfDirty(cmd);
             dynamic_render.begin(cmd, render_target);
-            dsh_access.bind(cmd);
-            // The descriptor-buffer path remains active until the pipeline mapping is wired.
+            dsh_heap.bind(cmd);
             // dsb_descriptor_set.bind(cmd, vk::PipelineBindPoint::eGraphics, dynamic_graphics_pipeline.getPipelineLayout());
             // dsp_descriptor_set.bind(cmd, vk::PipelineBindPoint::eGraphics, dynamic_graphics_pipeline.getPipelineLayout());
             dynamic_graphics_pipeline.bind(cmd);

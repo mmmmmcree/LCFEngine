@@ -7,8 +7,7 @@
 
 namespace lcf::vkc::dsh {
 
-class DescriptorHeap;
-class DescriptorHeapAccess;
+class DescriptorHeapProxy;
 
 struct DescriptorHeapAllocateInfo
 {
@@ -28,8 +27,7 @@ struct DescriptorHeapAllocation
 
 class DescriptorHeapAllocator
 {
-    friend class DescriptorHeap;
-    friend class DescriptorHeapAccess;
+    friend class DescriptorHeapProxy;
     using Self = DescriptorHeapAllocator;
 public:
     ~DescriptorHeapAllocator() noexcept = default;

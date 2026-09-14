@@ -6,6 +6,7 @@
 #include "vk_core/memory/Image.h"
 #include "vk_core/sampler/Sampler.h"
 #include <flat_map>
+#include <system_error>
 #include <variant>
 
 namespace lcf::vkc {
@@ -22,13 +23,11 @@ namespace lcf::vkc::dsh {
 
 class DescriptorHeapAllocateInfo;
 class DescriptorHeapAllocator;
-class DescriptorHeapAccess;
 class DescriptorHeapLayout;
 
-class DescriptorHeap
+class DescriptorHeapProxy
 {
-    friend class DescriptorHeapAccess;
-    using Self = DescriptorHeap;
+    using Self = DescriptorHeapProxy;
     struct AuthorityBufferBinding
     {
         vk::DescriptorType m_type;
@@ -48,12 +47,12 @@ class DescriptorHeap
     using AuthorityImageMap = std::flat_map<uint32_t, AuthorityImageBinding>;
     using AuthoritySamplerMap = std::flat_map<uint32_t, AuthoritySamplerBinding>;
 public:
-    ~DescriptorHeap() noexcept = default;
-    DescriptorHeap() noexcept = default;
-    DescriptorHeap(const Self &) = delete;
-    DescriptorHeap(Self &&) = default;
-    DescriptorHeap & operator=(const Self &) = delete;
-    DescriptorHeap & operator=(Self &&) = default;
+    ~DescriptorHeapProxy() noexcept = default;
+    DescriptorHeapProxy() noexcept = default;
+    DescriptorHeapProxy(const Self &) = delete;
+    DescriptorHeapProxy(Self &&) = default;
+    DescriptorHeapProxy & operator=(const Self &) = delete;
+    DescriptorHeapProxy & operator=(Self &&) = default;
 public:
     std::error_code create(DescriptorHeapAllocator & allocator, const DescriptorHeapLayout & layout) noexcept;
     Self & setBuffer(
@@ -66,6 +65,8 @@ public:
         vk::ImageLayout image_layout,
         const vkc::ImageView & image_view) noexcept;
     Self & setSampler(uint32_t index, const vkc::Sampler & sampler) noexcept;
+    std::error_code updateIfDirty(CommandBufferProxy & cmd) noexcept;
+    void bind(CommandBufferProxy & cmd) const noexcept;
 private:
     DescriptorHeapAllocator * m_allocator_p = nullptr;
     AuthorityBufferMap m_authority_buffers;

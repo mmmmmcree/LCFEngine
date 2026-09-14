@@ -79,7 +79,8 @@ std::error_code ShaderObjectGroup::create(
             .setPName(stage_info.getEntryPoint().c_str())
             .setSetLayouts(set_layouts)
             .setPushConstantRanges(stage_info.getPushConstantRanges())
-            .setPSpecializationInfo(&stage_info.getSpecializationInfo());
+            .setPSpecializationInfo(&stage_info.getSpecializationInfo())
+            .setPNext(stage_info.getPNext());
     }
     try {
         auto [result, shaders] = device.createShadersEXTUnique(shader_infos);

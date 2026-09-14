@@ -120,9 +120,8 @@ auto DescriptorSetProxy::setSampler(uint32_t binding, const vkc::Sampler & sampl
     return this->setSampler(binding, 0u, sampler);
 }
 
-std::error_code DescriptorSetProxy::bind(CommandBufferProxy & cmd, vk::PipelineBindPoint bind_point, vk::PipelineLayout pipeline_layout) noexcept
+std::error_code DescriptorSetProxy::updateIfDirty(CommandBufferProxy & cmd) noexcept
 {
-    if (not m_allocator_p) { return std::make_error_code(std::errc::invalid_argument); }
     if (m_descriptor_set_buffer_version != m_authority_version) {
         vk::DeviceSize layout_size = m_layout.getLayoutSize();
         vk::BufferCreateInfo staging_buffer_info;
@@ -171,6 +170,11 @@ std::error_code DescriptorSetProxy::bind(CommandBufferProxy & cmd, vk::PipelineB
         cmd.pinLease(staging_buffer.lease());
         m_descriptor_set_buffer_version = m_authority_version;
     }
+    return {};
+}
+
+void DescriptorSetProxy::bind(CommandBufferProxy & cmd, vk::PipelineBindPoint bind_point, vk::PipelineLayout pipeline_layout) noexcept
+{
     vk::DescriptorBufferBindingInfoEXT binding_info;
     binding_info.setAddress(m_descriptor_set_buffer.getDeviceAddress())
         .setUsage(vk::BufferUsageFlagBits::eResourceDescriptorBufferEXT | vk::BufferUsageFlagBits::eSamplerDescriptorBufferEXT);
@@ -182,7 +186,6 @@ std::error_code DescriptorSetProxy::bind(CommandBufferProxy & cmd, vk::PipelineB
     for (const auto & bindings : m_authority_bindings) {
         for (const auto & binding : bindings) { cmd.pinLeases(binding.m_resource_leases); }
     }
-    return {};
 }
 
 } // namespace lcf::vkc::dsb
