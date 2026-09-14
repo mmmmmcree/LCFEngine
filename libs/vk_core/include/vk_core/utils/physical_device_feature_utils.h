@@ -2,6 +2,7 @@
 
 #include <vulkan/vulkan.hpp>
 #include "vk_core/utils/DynamicStructureChain.h"
+#include "vk_core/utils/concepts/structure_concepts.h"
 #include "type_traits/member_pointer_traits.h"
 
 namespace lcf::vkc::utils {
