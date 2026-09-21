@@ -1,8 +1,10 @@
 #pragma once
 
+#include "concepts/enum_concept.h"
+
 namespace lcf::vkc {
 
-template <typename Enum>
+template <enum_c Enum>
 struct enum_traits;
 
 } // namespace lcf::vkc
