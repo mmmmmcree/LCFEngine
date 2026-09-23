@@ -2,34 +2,26 @@
 
 namespace lcf::shader_toy {
 
-void SystemScheduler::drainAndRoute()
+void SystemScheduler::tick() noexcept
 {
-    for (auto & [_, registration] : m_registrations) {
-        registration.poll_events([&](details::EventPacket & packet) {
-            const auto route_it = registration.routes.find(packet.m_id);
-            if (route_it == registration.routes.end()) { return; }
-            const auto target_it = m_registrations.find(route_it->second.target_system_p);
-            if (target_it == m_registrations.end()) { return; }
-            details::EventPacket forwarded = std::move(packet);
-            forwarded.m_id = route_it->second.dest_id;
-            target_it->second.queue_event(std::move(forwarded));
-        });
+    Registration * current_registration = nullptr;
+    EventVisitor visitor = [&](details::EventPacket & packet) noexcept {
+        const auto & registration = *current_registration;
+        const auto route_it = registration.m_routes.find(packet.m_id);
+        if (route_it == registration.m_routes.end()) { return; }
+        const auto & [system_p, dest_event_id] = route_it->second;
+        const auto target_it = m_registrations.find(system_p);
+        if (target_it == m_registrations.end()) { return; }
+        packet.m_id = dest_event_id;
+        target_it.value().m_queue_event(std::move(packet));
+    };
+    for (auto it = m_registrations.begin(); it != m_registrations.end(); ++it) {
+        current_registration = &it.value();
+        current_registration->m_poll_events(visitor);
     }
-    for (auto & [_, registration] : m_registrations) {
-        registration.publish_events();
+    for (auto it = m_registrations.begin(); it != m_registrations.end(); ++it) {
+        it.value().m_publish_events();
     }
-}
-
-std::error_code SystemScheduler::tick() noexcept
-{
-    try {
-        this->drainAndRoute();
-    } catch (const std::system_error & e) {
-        return e.code();
-    } catch (...) {
-        return std::make_error_code(std::errc::io_error);
-    }
-    return {};
 }
 
 } // namespace lcf::shader_toy

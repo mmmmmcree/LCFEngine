@@ -14,7 +14,7 @@ target_include_directories(shader_toy_task_system
 
 target_link_libraries(shader_toy_task_system
     PUBLIC
-        shader_toy_system
+        shader_toy_event
         asio::asio
 )
 

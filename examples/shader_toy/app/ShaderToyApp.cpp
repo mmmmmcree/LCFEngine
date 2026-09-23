@@ -92,17 +92,8 @@ std::error_code App::Impl::run() noexcept
 {
     if (auto ec = m_file_system.run()) { return ec; }
     if (auto ec = m_task_system.run()) { return ec; }
-
     std::atomic_bool running = true;
     std::error_code scheduler_ec;
-    std::jthread scheduler_thread{[&](std::stop_token) {
-        while (running.load(std::memory_order_acquire)) {
-            if (auto ec = m_scheduler.tick()) {
-                scheduler_ec = ec;
-                running.store(false, std::memory_order_release);
-            }
-        }
-    }};
     while (running.load(std::memory_order_acquire)) {
         for (const win::WindowEvent & event : m_window.pollEvents()) {
             if (std::holds_alternative<win::CloseEvent>(event)) {
@@ -110,10 +101,9 @@ std::error_code App::Impl::run() noexcept
                 break;
             }
         }
+        m_scheduler.tick();
     }
     running.store(false, std::memory_order_release);
-    scheduler_thread.request_stop();
-    scheduler_thread.join();
     m_file_system.stop();
     m_task_system.stop();
     return scheduler_ec;

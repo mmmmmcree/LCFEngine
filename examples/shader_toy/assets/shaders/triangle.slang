@@ -13,11 +13,11 @@ VSOut vs_main(uint vertex_id: SV_VertexID)
     VSOut vs_out;
     vs_out.pos = float4(k_positions[vertex_id], 0, 1);
     vs_out.color = k_colors[vertex_id];
-    return vs_out;
+    return vs_out; 
 }
-
+ 
 [shader("fragment")]
 float4 fs_main(VSOut fs_in) : SV_Target
 {
-    return float4(fs_in.color, 1.0);    
+    return float4(fs_in.color, 1.0); 
 }  

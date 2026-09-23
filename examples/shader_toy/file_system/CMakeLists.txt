@@ -21,7 +21,7 @@ find_package(readerwriterqueue CONFIG REQUIRED)
 
 target_link_libraries(shader_toy_file_system
     PUBLIC
-        shader_toy_system
+        shader_toy_event
     PRIVATE
         efsw::efsw
         readerwriterqueue::readerwriterqueue

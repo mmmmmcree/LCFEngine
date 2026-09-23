@@ -2,7 +2,6 @@ project(shader_toy)
 
 add_subdirectory(utils)
 add_subdirectory(event)
-add_subdirectory(system)
 add_subdirectory(system_scheduler)
 add_subdirectory(file_system)
 add_subdirectory(task_system)

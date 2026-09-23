@@ -23,4 +23,8 @@ inline constexpr bool is_event_v<Event<Payload, system_id, state>> = true;
 template <typename E>
 concept event_c = is_event_v<std::remove_cvref_t<E>>;
 
+template <event_c L, event_c R>
+inline constexpr bool is_compatible_v = std::same_as<typename L::payload_type, typename R::payload_type>;
+
+
 } // namespace lcf::shader_toy

@@ -13,7 +13,6 @@ target_include_directories(shader_toy_system_scheduler
 target_link_libraries(shader_toy_system_scheduler
     PUBLIC
         shader_toy_event
-        shader_toy_system
 )
 
 if(WIN32)
