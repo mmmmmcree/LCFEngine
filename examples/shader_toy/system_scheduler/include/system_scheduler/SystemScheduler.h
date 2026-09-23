@@ -12,9 +12,8 @@
 namespace lcf::shader_toy {
 
 template <typename System>
-concept system_c = requires(System & system, details::EventPacket queued) {
+concept system_c = requires(System & system) {
     system.pollEvents();
-    system.queueEvent(std::move(queued));
     system.publishEvents();
 };
 
@@ -54,7 +53,7 @@ public:
     {
         m_registrations.emplace(&system, Registration{
             [&system](EventVisitor & visitor) noexcept { for (auto && packet : system.pollEvents()) { visitor(packet); } },
-            [&system](details::EventPacket packet) noexcept { system.queueEvent(std::move(packet)); },
+            [&system](details::EventPacket packet) noexcept { system.queuePacket(std::move(packet)); },
             [&system] noexcept { system.publishEvents(); }
         });
     }

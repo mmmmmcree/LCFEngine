@@ -3,7 +3,6 @@ project(shader_toy)
 add_subdirectory(utils)
 add_subdirectory(event)
 add_subdirectory(system_scheduler)
-add_subdirectory(file_system)
 add_subdirectory(task_system)
 add_subdirectory(render_system)
 add_subdirectory(app)
@@ -21,7 +20,6 @@ target_link_libraries(${PROJECT_NAME}
     PRIVATE
         shader_toy_app
         shader_toy_system_scheduler
-        shader_toy_file_system
         shader_toy_task_system
         shader_toy_render_system
         utilities_log

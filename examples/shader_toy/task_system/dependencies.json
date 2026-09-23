@@ -1,5 +1,6 @@
 {
   "dependencies": [
-    { "name": "asio" }
+    { "name": "asio" },
+    { "name": "efsw" }
   ]
 }

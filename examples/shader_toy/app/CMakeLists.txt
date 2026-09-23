@@ -12,7 +12,6 @@ target_link_libraries(shader_toy_app
     PUBLIC
         window
         shader_toy_system_scheduler
-        shader_toy_file_system
         shader_toy_task_system
         shader_core
         utilities_log

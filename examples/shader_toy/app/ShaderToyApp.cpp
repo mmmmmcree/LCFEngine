@@ -1,6 +1,4 @@
 #include "app/ShaderToyApp.h"
-#include "file_system/FileSystem.h"
-#include "file_system/file_system_events.h"
 #include "system_scheduler/SystemScheduler.h"
 #include "task_system/TaskSystem.h"
 #include "task_system/task_system_events.h"
@@ -8,37 +6,8 @@
 #include "log.h"
 #include "VirtualPathRegistry.h"
 #include <atomic>
-#include <chrono>
-#include <filesystem>
-#include <thread>
+#include <utility>
 #include <variant>
-
-namespace {
-
-using namespace lcf::shader_toy;
-
-using FileModifiedFSRequest = Event<
-    FileModifiedPayload,
-    k_file_system_id,
-    EventState::eRequest
->;
-using FileModifiedTSRequest = Event<
-    FileModifiedPayload,
-    k_task_system_id,
-    EventState::eRequest
->;
-using FileModifiedTSCompletion = Event<
-    FileModifiedPayload,
-    k_task_system_id,
-    EventState::eCompletion
->;
-using FileModifiedFSCompletion = Event<
-    FileModifiedPayload,
-    k_file_system_id,
-    EventState::eCompletion
->;
-
-} // namespace
 
 namespace lcf::shader_toy {
 
@@ -49,7 +18,6 @@ struct App::Impl
 
     win::Window m_window;
     SystemScheduler m_scheduler;
-    FileSystem m_file_system;
     TaskSystem m_task_system;
 };
 
@@ -59,38 +27,20 @@ std::error_code App::Impl::create() noexcept
     window_info.setTitle("shader toy");
     if (auto ec = m_window.create(window_info)) { return ec; }
     if (auto ec = m_window.show()) { return ec; }
-    if (auto ec = m_file_system.addWatchedDirectory(SHADER_ASSETS_DIR)) { return ec; }
-    if (auto ec = m_file_system.watch()) { return ec; }
-
-    m_file_system.registerHandler<FileModifiedFSCompletion>(
-        [](const FileModifiedFSCompletion & event) noexcept -> std::error_code {
-            lcf_log_info("file_system ack: {}", event.path.string());
+    if (auto ec = m_task_system.registerService(TaskSystemService::eFileWatcher)) { return ec; }
+    m_task_system.registerHandler<FileModifiedEvent>(
+        [](const FileModifiedEvent & event) noexcept -> std::error_code {
+            lcf_log_info("file modified: {}", event.path.string());
             return {};
         }
     );
-    m_task_system.registerHandler<FileModifiedTSRequest>(
-        [](const FileModifiedTSRequest & event) noexcept -> std::error_code {
-            lcf_log_info("task_system log: {}", event.path.string());
-            return {};
-        }
-    );
-
-    m_scheduler.registerSystem(m_file_system);
     m_scheduler.registerSystem(m_task_system);
-    m_scheduler.registerRoute<FileModifiedFSRequest, FileModifiedTSRequest>(
-        m_file_system,
-        m_task_system
-    );
-    m_scheduler.registerRoute<FileModifiedTSCompletion, FileModifiedFSCompletion>(
-        m_task_system,
-        m_file_system
-    );
+    m_task_system.queueEvent(std::move(WatchDirectoryEvent {{.path = SHADER_ASSETS_DIR}}));
     return {};
 }
 
 std::error_code App::Impl::run() noexcept
 {
-    if (auto ec = m_file_system.run()) { return ec; }
     if (auto ec = m_task_system.run()) { return ec; }
     std::atomic_bool running = true;
     std::error_code scheduler_ec;
@@ -104,7 +54,6 @@ std::error_code App::Impl::run() noexcept
         m_scheduler.tick();
     }
     running.store(false, std::memory_order_release);
-    m_file_system.stop();
     m_task_system.stop();
     return scheduler_ec;
 }

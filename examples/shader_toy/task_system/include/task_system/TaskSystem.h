@@ -1,15 +1,16 @@
 #pragma once
 
 #include "event/EventHandler.h"
+#include "event/Event.h"
 #include "event/EventQueue.h"
 #include "containers/RobinMap.h"
-
+#include "task_system/enums.h"
 #include <asio/executor_work_guard.hpp>
 #include <asio/io_context.hpp>
-#include <asio/post.hpp>
 
-#include <concepts>
+#include <atomic>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <system_error>
 #include <thread>
@@ -19,6 +20,8 @@
 namespace lcf::shader_toy {
 
 class TaskSystem;
+class FileWatcher;
+class SystemScheduler;
 
 namespace details {
 
@@ -37,22 +40,24 @@ struct make_task_event_handler
 
 class TaskSystem
 {
-    using Self = TaskSystem;
-    using WorkGuard = asio::executor_work_guard<asio::io_context::executor_type>;
-
     template <event_c E, EventState State>
     friend struct details::make_task_event_handler;
+    friend class SystemScheduler;
+    using Self = TaskSystem;
+    using WorkGuard = asio::executor_work_guard<asio::io_context::executor_type>;
 public:
     ~TaskSystem() noexcept;
-    TaskSystem() noexcept = default;
+    TaskSystem() noexcept;
     TaskSystem(const Self &) = delete;
     TaskSystem(Self &&) = delete;
     Self & operator=(const Self &) = delete;
     Self & operator=(Self &&) = delete;
 public:
     auto pollEvents() noexcept { return m_out_mailbox.pollEvents(); }
-    void queueEvent(details::EventPacket packet) noexcept { m_in_mailbox.push(std::move(packet)); }
+    template <event_c E>
+    void queueEvent(E && event) noexcept { m_in_mailbox.push(std::forward<E>(event)); }
     void publishEvents() noexcept;
+    std::error_code registerService(TaskSystemService service) noexcept;
     template <event_c E, typename F>
     requires std::is_nothrow_invocable_r_v<std::error_code, F &, const E &>
     void registerHandler(F && handler)
@@ -68,20 +73,23 @@ public:
     std::error_code run() noexcept;
     void stop() noexcept;
 private:
+    void queuePacket(details::EventPacket packet) noexcept { m_in_mailbox.push(std::move(packet)); }
     template <typename E>
     requires event_c<std::remove_cvref_t<E>>
     void emit(E && event)
     {
         m_out_mailbox.push(std::forward<E>(event));
     }
-public:
+private:
     asio::io_context m_io_context;
     std::optional<WorkGuard> m_work_guard_opt;
+    std::atomic_bool m_publish_scheduled = false;
     EventQueue m_in_mailbox;
     EventQueue m_out_mailbox;
     RobinMap<EventId, EventHandler> m_handlers;
     RobinMap<std::error_code, EventErrorHandler, ErrorCodeHash> m_error_handlers;
     std::jthread m_worker;
+    std::unique_ptr<FileWatcher> m_file_watcher_up;
 };
 
 namespace details {

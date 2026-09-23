@@ -19,5 +19,5 @@ VSOut vs_main(uint vertex_id: SV_VertexID)
 [shader("fragment")]
 float4 fs_main(VSOut fs_in) : SV_Target
 {
-    return float4(fs_in.color, 1.0); 
-}  
+    return float4(fs_in.color, 1.0);  
+}   

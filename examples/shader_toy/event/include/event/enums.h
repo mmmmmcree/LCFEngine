@@ -11,4 +11,4 @@ enum class EventState : std::uint8_t
     eCompletion,
 };
 
-} // namespace lcf::shader_toy
+} 
