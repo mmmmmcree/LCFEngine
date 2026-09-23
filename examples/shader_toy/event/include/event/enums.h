@@ -4,6 +4,11 @@
 
 namespace lcf::shader_toy {
 
-inline constexpr std::uint16_t k_task_system_id = 2;
+enum class EventState : std::uint8_t
+{
+    eNone,
+    eRequest,
+    eCompletion,
+};
 
 } // namespace lcf::shader_toy

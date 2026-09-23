@@ -10,6 +10,12 @@ target_include_directories(shader_toy_system_scheduler
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
+target_link_libraries(shader_toy_system_scheduler
+    PUBLIC
+        shader_toy_event
+        shader_toy_system
+)
+
 if(WIN32)
     set_target_properties(shader_toy_system_scheduler PROPERTIES
         WINDOWS_EXPORT_ALL_SYMBOLS ON

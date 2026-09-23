@@ -1,5 +1,6 @@
 {
   "dependencies": [
-    { "name": "efsw" }
+    { "name": "efsw" },
+    { "name": "readerwriterqueue" }
   ]
 }

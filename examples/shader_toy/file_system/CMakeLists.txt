@@ -1,21 +1,30 @@
 add_library(shader_toy_file_system SHARED
     src/FileSystem.cpp
+    src/FileWatcher.cpp
 )
 
-file(GLOB_RECURSE HEADERS CONFIGURE_DEPENDS "include/*.h")
+file(GLOB_RECURSE HEADERS CONFIGURE_DEPENDS
+    "include/*.h"
+    "src/private_include/*.h"
+)
 target_sources(shader_toy_file_system PRIVATE ${HEADERS})
 
 target_include_directories(shader_toy_file_system
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/private_include
 )
 
 find_package(efsw CONFIG REQUIRED)
+find_package(readerwriterqueue CONFIG REQUIRED)
 
 target_link_libraries(shader_toy_file_system
+    PUBLIC
+        shader_toy_system
     PRIVATE
-        shader_toy_system_scheduler
         efsw::efsw
+        readerwriterqueue::readerwriterqueue
 )
 
 if(WIN32)
