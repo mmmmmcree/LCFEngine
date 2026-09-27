@@ -59,55 +59,65 @@ struct FrameContext
 
 std::error_code render_frame(FrameContext & context) noexcept
 {
-    context.m_time = std::chrono::duration<float>(std::chrono::steady_clock::now() - context.start_time).count();
+    auto & graphics_queue = context.graphics_queue;
+    auto & swapchain = context.swapchain;
+    auto & static_render = context.static_render;
+    auto & graphics_pipeline = context.graphics_pipeline;
+    auto & render_targets = context.render_targets;
+    auto & color_key = context.color_key;
+    auto & present_tokens = context.present_tokens;
+    auto & frame = context.frame;
+    auto & start_time = context.start_time;
+    auto & m_time = context.m_time;
+    m_time = std::chrono::duration<float>(std::chrono::steady_clock::now() - start_time).count();
     vkc::CommandBufferAllocateInfo cmd_alloc_info;
     cmd_alloc_info.setLevel(vk::CommandBufferLevel::ePrimary).setCount(1u);
-    auto expected_cmd_buffer_batch = context.graphics_queue.allocateCommandBufferBatch(cmd_alloc_info);
+    auto expected_cmd_buffer_batch = graphics_queue.allocateCommandBufferBatch(cmd_alloc_info);
     if (not expected_cmd_buffer_batch) { return expected_cmd_buffer_batch.error(); }
     auto & cmd_buffer_batch = expected_cmd_buffer_batch.value();
     auto expected_cmd_proxy = cmd_buffer_batch.acquireProxy();
     if (not expected_cmd_proxy) { return expected_cmd_proxy.error(); }
     auto cmd = std::move(expected_cmd_proxy.value());
-    auto & render_target = context.render_targets[context.frame % context.render_targets.size()];
+    auto & render_target = render_targets[frame % render_targets.size()];
     vk::PushConstantsInfo push_constants_info;
     ShaderToyParams params {
-        .m_time = context.m_time
+        .m_time = m_time
     };
     push_constants_info
-        .setLayout(context.graphics_pipeline.getPipelineLayout())
+        .setLayout(graphics_pipeline.getPipelineLayout())
         .setStageFlags(vk::ShaderStageFlagBits::eFragment)
         .setOffset(0u)
         .setSize(sizeof(ShaderToyParams))
         .setValues<ShaderToyParams>(params);
     vk::CommandBufferBeginInfo cmd_begin_info {};
     cmd.begin(cmd_begin_info);
-    context.static_render.begin(cmd, render_target);
-    context.graphics_pipeline.bind(cmd);
+    static_render.begin(cmd, render_target);
+    graphics_pipeline.bind(cmd);
     cmd.pushConstants2(push_constants_info);
     cmd.draw(6u, 1u, 0u, 0u);
-    context.static_render.end(cmd);
+    static_render.end(cmd);
     cmd.end();
-    cmd.addWaitInfo(context.present_tokens[context.frame % context.present_tokens.size()]);
+    cmd.addWaitInfo(present_tokens[frame % present_tokens.size()]);
     cmd_buffer_batch.collect(std::move(cmd));
 
-    auto expected_submit_result = context.graphics_queue.submit(std::move(cmd_buffer_batch));
-    context.graphics_queue.collectGarbage();
+    auto expected_submit_result = graphics_queue.submit(std::move(cmd_buffer_batch));
+    graphics_queue.collectGarbage();
     if (not expected_submit_result) { return expected_submit_result.error(); }
 
-    const auto & attachment = render_target.getAttachment(context.color_key);
+    const auto & attachment = render_target.getAttachment(color_key);
     const auto [width, height] = render_target.getMaxExtent();
     std::array<vk::Offset3D, 2> src_offsets {
         vk::Offset3D {0, 0, 0},
         vk::Offset3D {static_cast<int32_t>(width), static_cast<int32_t>(height), 1}
     };
-    auto expected_present_result = context.swapchain.present(
+    auto expected_present_result = swapchain.present(
         src_offsets,
         attachment.getImage().handle(),
         attachment.getImage().lease(),
         expected_submit_result.value());
     if (not expected_present_result) { return expected_present_result.error(); }
-    context.present_tokens[context.frame % context.present_tokens.size()] = expected_present_result.value();
-    ++context.frame;
+    present_tokens[frame % present_tokens.size()] = expected_present_result.value();
+    ++frame;
     return {};
 }
 
@@ -144,7 +154,8 @@ std::error_code RenderSystem::create(const RenderSystemInfo &info) noexcept
         .setApiVersion(vk::HeaderVersionComplete);
 
     vkc::InstanceContextCreateInfo instance_info;
-    instance_info.setApplicationInfo(app_info)
+    instance_info
+        .setApplicationInfo(app_info)
         .addRequiredInstanceLayer("VK_LAYER_KHRONOS_validation")
         .setRequiredInstanceExtensionManifest(inst_ext_manifest);
 
