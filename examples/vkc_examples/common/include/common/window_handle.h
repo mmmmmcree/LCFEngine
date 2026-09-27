@@ -8,15 +8,12 @@
 
 namespace vkce {
 
-inline lcf::vkc::wsi::WindowHandle to_wsi_window_handle(
-    const lcf::win::WindowHandle & window_handle) noexcept
+inline lcf::vkc::wsi::WindowHandle to_wsi_window_handle(const lcf::win::WindowHandle & window_handle) noexcept
 {
     namespace vkc = lcf::vkc;
     namespace win = lcf::win;
-
     return std::visit([](const auto & handle) -> vkc::wsi::WindowHandle {
         using T = std::decay_t<decltype(handle)>;
-
         if constexpr (std::is_same_v<T, win::win32::WindowHandle>) {
             return vkc::wsi::win32::WindowHandle(handle.m_hinstance, handle.m_hwnd);
         } else if constexpr (std::is_same_v<T, win::xcb::WindowHandle>) {

@@ -1,5 +1,6 @@
 #include "app/ShaderToyApp.h"
 #include "system_scheduler/SystemScheduler.h"
+#include "render_system/RenderSystem.h"
 #include "task_system/TaskSystem.h"
 #include "task_system/task_system_events.h"
 #include "win/Window.h"
@@ -8,6 +9,14 @@
 #include <atomic>
 #include <utility>
 #include <variant>
+
+namespace {
+
+using namespace lcf;
+
+vkc::wsi::WindowHandle to_wsi_window_handle(const win::WindowHandle & window_handle) noexcept;
+
+}
 
 namespace lcf::shader_toy {
 
@@ -18,6 +27,7 @@ struct App::Impl
 
     win::Window m_window;
     SystemScheduler m_scheduler;
+    RenderSystem m_render_system;
     TaskSystem m_task_system;
 };
 
@@ -26,7 +36,10 @@ std::error_code App::Impl::create() noexcept
     win::WindowCreateInfo window_info;
     window_info.setTitle("shader toy");
     if (auto ec = m_window.create(window_info)) { return ec; }
-    if (auto ec = m_window.show()) { return ec; }
+    RenderSystemInfo render_system_info {
+        .m_window_handle = to_wsi_window_handle(m_window.handle())
+    };
+    if (auto ec = m_render_system.create(render_system_info))
     if (auto ec = m_task_system.registerService(TaskSystemService::eFileWatcher)) { return ec; }
     m_task_system.registerHandler<FileModifiedEvent>(
         [](const FileModifiedEvent & event) noexcept -> std::error_code {
@@ -36,11 +49,19 @@ std::error_code App::Impl::create() noexcept
     );
     m_scheduler.registerSystem(m_task_system);
     m_task_system.queueEvent(std::move(WatchDirectoryEvent {{.path = SHADER_ASSETS_DIR}}));
+
+    m_window.setResizeCallback([this, &render_system_info](const win::ResizeEvent &) {
+        if (auto ec = m_render_system.resizeToFit(render_system_info.m_window_handle); ec and ec != vkc::errc::surface_zero_size) {
+            lcf_log_error("resizeToFit failed: {}", ec.message());
+        }
+    });
     return {};
 }
 
 std::error_code App::Impl::run() noexcept
 {
+    if (auto ec = m_render_system.run()) { return ec; }
+    if (auto ec = m_window.show()) { return ec; }
     if (auto ec = m_task_system.run()) { return ec; }
     std::atomic_bool running = true;
     std::error_code scheduler_ec;
@@ -54,6 +75,7 @@ std::error_code App::Impl::run() noexcept
         m_scheduler.tick();
     }
     running.store(false, std::memory_order_release);
+    m_render_system.stop();
     m_task_system.stop();
     return scheduler_ec;
 }
@@ -65,11 +87,7 @@ App::~App() noexcept = default;
 std::error_code App::create() noexcept
 {
     if (m_impl_up) { return std::make_error_code(std::errc::operation_canceled); }
-    try {
-        m_impl_up = std::make_unique<Impl>();
-    } catch (const std::system_error & e) {
-        return e.code();
-    }
+    m_impl_up = std::make_unique<Impl>();
     return m_impl_up->create();
 }
 
@@ -80,3 +98,24 @@ std::error_code App::run() noexcept
 }
 
 } // namespace lcf::shader_toy
+
+
+namespace {
+vkc::wsi::WindowHandle to_wsi_window_handle(const win::WindowHandle & window_handle) noexcept
+{
+    return std::visit([](const auto & handle) -> vkc::wsi::WindowHandle {
+        using T = std::decay_t<decltype(handle)>;
+        if constexpr (std::is_same_v<T, win::win32::WindowHandle>) {
+            return vkc::wsi::win32::WindowHandle(handle.m_hinstance, handle.m_hwnd);
+        } else if constexpr (std::is_same_v<T, win::xcb::WindowHandle>) {
+            return vkc::wsi::xcb::WindowHandle(handle.m_connection, handle.m_window);
+        } else if constexpr (std::is_same_v<T, win::xlib::WindowHandle>) {
+            return vkc::wsi::xlib::WindowHandle(handle.m_display, handle.m_window);
+        } else if constexpr (std::is_same_v<T, win::wayland::WindowHandle>) {
+            return vkc::wsi::wayland::WindowHandle(handle.m_display, handle.m_surface);
+        } else {
+            return vkc::wsi::metal::WindowHandle(handle.m_layer);
+        }
+    }, window_handle);
+}
+}

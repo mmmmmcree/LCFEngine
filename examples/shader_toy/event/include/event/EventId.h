@@ -1,6 +1,6 @@
 #pragma once
 
-#include "enums/enum_traits.h"
+#include "enums/shader_toy_enum_traits.h"
 #include "event/enums.h"
 
 #include <cstdint>

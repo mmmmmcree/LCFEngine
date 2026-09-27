@@ -741,6 +741,7 @@ class ColorAttachmentKey
     using Self = ColorAttachmentKey;
 public:
     ~ColorAttachmentKey() noexcept = default;
+    ColorAttachmentKey() noexcept = default;
     ColorAttachmentKey(uint32_t set_id, uint32_t index) noexcept :
         m_set_id(set_id), m_index(index) {}
     ColorAttachmentKey(const Self & other) noexcept = default;
