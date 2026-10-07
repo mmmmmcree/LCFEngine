@@ -2,6 +2,7 @@ set(RENDER_SYSTEM_TARGET shader_toy_render_system)
 
 add_library(${RENDER_SYSTEM_TARGET} SHARED
     src/RenderSystem.cpp
+    src/ShaderToyInstance.cpp
 )
 
 file(GLOB_RECURSE HEADERS CONFIGURE_DEPENDS "include/*.h")

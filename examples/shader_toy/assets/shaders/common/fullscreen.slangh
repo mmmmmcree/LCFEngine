@@ -1,0 +1,13 @@
+struct VSOut
+{
+    float4 pos : SV_Position;
+};
+
+[shader("vertex")]
+VSOut vs_main(uint vertex_id : SV_VertexID)
+{
+    float2 uv = float2((vertex_id << 1) & 2, vertex_id & 2);
+    VSOut output;
+    output.pos = float4(uv * 2.0 - 1.0, 0.0, 1.0);
+    return output;
+}

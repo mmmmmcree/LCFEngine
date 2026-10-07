@@ -5,7 +5,7 @@
 #include "vk_core/WSI/WindowHandle.h"
 #include "vk_core/pipeline/graphics/GraphicsPipeline.h"
 #include "vk_core/pipeline/graphics/info_structs.h"
-#include "vk_core/pipeline/graphics/StaticRender.h"
+#include "vk_core/pipeline/graphics/DynamicRender.h"
 #include "vk_core/pipeline/graphics/RenderTarget.h"
 #include "vk_core/memory/Image.h"
 #include "vk_core/queue/Queue.h"
@@ -46,7 +46,7 @@ private:
     vkc::ColorAttachmentKey m_color_key;
     std::array<vkc::Image, 2> m_render_target_images;
     std::array<vkc::RenderTarget, 2> m_render_targets;
-    vkc::StaticRender m_static_render;
+    vkc::DynamicRender m_dynamic_render;
     vkc::GraphicsPipeline m_graphics_pipeline;
     vkc::Queue m_graphics_queue;
     std::jthread m_worker;

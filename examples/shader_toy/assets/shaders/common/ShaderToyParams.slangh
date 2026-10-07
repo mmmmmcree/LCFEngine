@@ -1,0 +1,6 @@
+[[vk::push_constant]]
+cbuffer ShaderToyParams
+{
+    float3 iResolution;
+    float iTime;
+};

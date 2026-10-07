@@ -8,6 +8,7 @@
 #include "vk_core/WSI/create_surface.h"
 #include "vk_core/memory/info_structs.h"
 #include "vk_core/command/CommandBufferProxy.h"
+#include "vk_core/pipeline/graphics/entry.h"
 #include "vk_core/pipeline/graphics/info_structs.h"
 #include "vk_core/pipeline/shader/info_structs.h"
 #include "shader_core/ShaderCompiler.h"
@@ -47,7 +48,7 @@ struct FrameContext
 {
     vkc::Queue & graphics_queue;
     vkc::wsi::Swapchain & swapchain;
-    vkc::StaticRender & static_render;
+    vkc::DynamicRender & dynamic_render;
     vkc::GraphicsPipeline & graphics_pipeline;
     std::array<vkc::RenderTarget, 2> & render_targets;
     const vkc::ColorAttachmentKey & color_key;
@@ -61,7 +62,7 @@ std::error_code render_frame(FrameContext & context) noexcept
 {
     auto & graphics_queue = context.graphics_queue;
     auto & swapchain = context.swapchain;
-    auto & static_render = context.static_render;
+    auto & dynamic_render = context.dynamic_render;
     auto & graphics_pipeline = context.graphics_pipeline;
     auto & render_targets = context.render_targets;
     auto & color_key = context.color_key;
@@ -91,11 +92,11 @@ std::error_code render_frame(FrameContext & context) noexcept
         .setValues<ShaderToyParams>(params);
     vk::CommandBufferBeginInfo cmd_begin_info {};
     cmd.begin(cmd_begin_info);
-    static_render.begin(cmd, render_target);
+    dynamic_render.begin(cmd, render_target);
     graphics_pipeline.bind(cmd);
     cmd.pushConstants2(push_constants_info);
-    cmd.draw(6u, 1u, 0u, 0u);
-    static_render.end(cmd);
+    cmd.draw(3u, 1u, 0u, 0u);
+    dynamic_render.end(cmd);
     cmd.end();
     cmd.addWaitInfo(present_tokens[frame % present_tokens.size()]);
     cmd_buffer_batch.collect(std::move(cmd));
@@ -147,6 +148,8 @@ std::error_code RenderSystem::create(const RenderSystemInfo &info) noexcept
     vkc::probe::CapabilityRegistry capabilities {inst_ext_manifest, device_ext_manifest};
     vkc::probe::register_capabilities(capabilities);
 
+    vkc::entry::register_dynamic_render(device_ext_manifest);
+
     vk::ApplicationInfo app_info;
     app_info
         .setApplicationVersion(vk::makeVersion(1, 0, 0))
@@ -197,8 +200,9 @@ std::error_code RenderSystem::create(const RenderSystemInfo &info) noexcept
     //- end of render system setup
 
     sc::ShaderCompiler shader_compiler;
+    shader_compiler.addIncludeDirectory(SHADER_ASSETS_DIR);
     auto expected_compile_result = shader_compiler.compileSlangSourceToSpv(
-        std::filesystem::path {SHADER_ASSETS_DIR} / "triangle.slang");
+        std::filesystem::path {SHADER_ASSETS_DIR} / "test.slang");
     if (not expected_compile_result) { return expected_compile_result.error(); }
     lcf_log_info("Shader compiled successfully.");
     auto & spv_units = expected_compile_result.value();
@@ -256,17 +260,16 @@ std::error_code RenderSystem::create(const RenderSystemInfo &info) noexcept
         .setViewportStateInfo(viewport_state_info)
         .setColorBlendStateInfo(color_blend_state_info);
 
-    vkc::StaticRenderInfo static_render_info {attachment_set};
-    vkc::SubpassDescriptionInfo subpass_info;
-    subpass_info
-        .setBindPoint(vk::PipelineBindPoint::eGraphics)
-        .addColorAttachment(static_render_info.makeAttachmentReference(m_color_key));
-    static_render_info
+    vkc::DynamicRenderInfo dynamic_render_info {attachment_set};
+    dynamic_render_info
         .setLoadStoreOp(m_color_key, vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore)
-        .setInitialFinalLayout(m_color_key, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferSrcOptimal)
-        .addSubpass(std::move(subpass_info));
-    if (auto ec = m_static_render.create(m_device_ctx.getDevice(), static_render_info)) { return ec; }
-    if (auto ec = m_graphics_pipeline.create(m_device_ctx.getDevice(), graphics_pipeline_info, m_static_render.makeScopeInfo(0u))) { return ec; }
+        .setExitAttributes(m_color_key,
+            vk::ImageLayout::eTransferSrcOptimal,
+            vk::PipelineStageFlagBits2::eBlit,
+            vk::AccessFlagBits2::eTransferRead,
+            vk::ImageUsageFlagBits::eTransferSrc);
+    if (auto ec = m_dynamic_render.create(dynamic_render_info)) { return ec; }
+    if (auto ec = m_graphics_pipeline.create(m_device_ctx.getDevice(), graphics_pipeline_info, m_dynamic_render.makeScopeInfo())) { return ec; }
     if (auto ec = m_graphics_queue.create(m_device_ctx.getLogicalQueue(graphics_queue_key))) { return ec; }
 
     return {};
@@ -282,7 +285,7 @@ std::error_code RenderSystem::run() noexcept
         FrameContext frame_context {
             m_graphics_queue,
             m_swapchains.begin()->second,
-            m_static_render,
+            m_dynamic_render,
             m_graphics_pipeline,
             m_render_targets,
             m_color_key,
