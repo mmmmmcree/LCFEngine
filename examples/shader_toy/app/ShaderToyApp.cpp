@@ -39,7 +39,7 @@ std::error_code App::Impl::create() noexcept
     RenderSystemInfo render_system_info {
         .m_window_handle = to_wsi_window_handle(m_window.handle())
     };
-    if (auto ec = m_render_system.create(render_system_info))
+    if (auto ec = m_render_system.create(render_system_info)) { return ec; }
     if (auto ec = m_task_system.registerService(TaskSystemService::eFileWatcher)) { return ec; }
     m_task_system.registerHandler<FileModifiedEvent>(
         [](const FileModifiedEvent & event) noexcept -> std::error_code {
@@ -50,8 +50,8 @@ std::error_code App::Impl::create() noexcept
     m_scheduler.registerSystem(m_task_system);
     m_task_system.queueEvent(std::move(WatchDirectoryEvent {{.path = SHADER_ASSETS_DIR}}));
 
-    m_window.setResizeCallback([this, &render_system_info](const win::ResizeEvent &) {
-        if (auto ec = m_render_system.resizeToFit(render_system_info.m_window_handle); ec and ec != vkc::errc::surface_zero_size) {
+    m_window.setResizeCallback([this, window_handle = render_system_info.m_window_handle](const win::ResizeEvent &) {
+        if (auto ec = m_render_system.resizeToFit(window_handle); ec and ec != vkc::errc::surface_zero_size) {
             lcf_log_error("resizeToFit failed: {}", ec.message());
         }
     });

@@ -3,20 +3,18 @@
 #include "vk_core/context/InstanceContext.h"
 #include "vk_core/context/DeviceContext.h"  
 #include "vk_core/WSI/WindowHandle.h"
-#include "vk_core/pipeline/graphics/GraphicsPipeline.h"
-#include "vk_core/pipeline/graphics/info_structs.h"
-#include "vk_core/pipeline/graphics/DynamicRender.h"
-#include "vk_core/pipeline/graphics/RenderTarget.h"
-#include "vk_core/memory/Image.h"
+#include "vk_core/descriptor_set/pool/DescriptorSetAllocator.h"
 #include "vk_core/queue/Queue.h"
 #include <vkc_config.h>
 #include "render_system/WindowHandleHash.h"
-#include <array>
+#include <memory>
 #include <unordered_map>
 #include <system_error>
 #include <thread>
 
 namespace lcf::shader_toy {
+
+class ShaderToyInstance;
 
 struct RenderSystemInfo
 {
@@ -26,16 +24,17 @@ struct RenderSystemInfo
 class RenderSystem
 {
     using Self = RenderSystem;
+    using InstancePointer = std::unique_ptr<ShaderToyInstance>;
     using SwapchainMap = std::unordered_map<
         vkc::wsi::WindowHandle,
         vkc::wsi::probed::Swapchain,
         WindowHandleHash,
         WindowHandleEqual>;
 public:
-    ~RenderSystem() noexcept = default;
-    RenderSystem() noexcept = default;
+    ~RenderSystem() noexcept;
+    RenderSystem() noexcept;
 public:
-    std::error_code create(const RenderSystemInfo &info) noexcept;
+    std::error_code create(const RenderSystemInfo & render_system_info) noexcept;
     std::error_code run() noexcept;
     void stop() noexcept;
     std::error_code resizeToFit(const vkc::wsi::WindowHandle &window_handle) noexcept;
@@ -43,12 +42,10 @@ private:
     vkc::InstanceContext m_instance_ctx;
     vkc::DeviceContext m_device_ctx;
     SwapchainMap m_swapchains;
-    vkc::ColorAttachmentKey m_color_key;
-    std::array<vkc::Image, 2> m_render_target_images;
-    std::array<vkc::RenderTarget, 2> m_render_targets;
-    vkc::DynamicRender m_dynamic_render;
-    vkc::GraphicsPipeline m_graphics_pipeline;
     vkc::Queue m_graphics_queue;
+    vkc::dsp::DescriptorSetAllocator m_descriptor_allocator;
+    InstancePointer m_shader_toy_instance_up;
+    vkc::SubmissionToken m_upload_token;
     std::jthread m_worker;
 };
 
