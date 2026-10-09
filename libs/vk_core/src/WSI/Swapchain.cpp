@@ -88,18 +88,22 @@ std::expected<vk::SemaphoreSubmitInfo, std::error_code> Swapchain::_present(
         .setOldLayout(vk::ImageLayout::eUndefined)
         .setNewLayout(vk::ImageLayout::eTransferDstOptimal)
         .setSubresourceRange({vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1})
-        .setSrcStageMask(vk::PipelineStageFlagBits2::eTopOfPipe)
+        .setSrcStageMask(vk::PipelineStageFlagBits2::eBlit)
         .setSrcAccessMask(vk::AccessFlagBits2::eNone)
         .setDstStageMask(vk::PipelineStageFlagBits2::eBlit)
-        .setDstAccessMask(vk::AccessFlagBits2::eTransferWrite);
+        .setDstAccessMask(vk::AccessFlagBits2::eTransferWrite)
+        .setSrcQueueFamilyIndex(vk::QueueFamilyIgnored)
+        .setDstQueueFamilyIndex(vk::QueueFamilyIgnored);
     to_present_src_barrier.setImage(dst_image)
         .setOldLayout(vk::ImageLayout::eTransferDstOptimal)
         .setNewLayout(vk::ImageLayout::ePresentSrcKHR)
         .setSubresourceRange({vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1})
         .setSrcStageMask(vk::PipelineStageFlagBits2::eBlit)
         .setSrcAccessMask(vk::AccessFlagBits2::eTransferWrite)
-        .setDstStageMask(vk::PipelineStageFlagBits2::eBottomOfPipe)
-        .setDstAccessMask(vk::AccessFlagBits2::eNone);
+        .setDstStageMask(vk::PipelineStageFlagBits2::eNone)
+        .setDstAccessMask(vk::AccessFlagBits2::eNone)
+        .setSrcQueueFamilyIndex(vk::QueueFamilyIgnored)
+        .setDstQueueFamilyIndex(vk::QueueFamilyIgnored);
 
     vk::DependencyInfo to_transfer_dst_barrier_dep_info, to_present_src_barrier_dep_info;
     to_transfer_dst_barrier_dep_info.setImageMemoryBarriers(to_transfer_dst_barrier);
@@ -128,9 +132,9 @@ std::expected<vk::SemaphoreSubmitInfo, std::error_code> Swapchain::_present(
     target_available_wait.setSemaphore(target_available.get())
       .setStageMask(vk::PipelineStageFlagBits2::eBlit);
     present_ready_signal.setSemaphore(present_ready.get())
-      .setStageMask(vk::PipelineStageFlagBits2::eBlit);
+      .setStageMask(vk::PipelineStageFlagBits2::eAllCommands);
     vk::SemaphoreSubmitInfo blit_timeline_signal = m_blit_timeline.advanceTarget().generateSubmitInfo();
-    blit_timeline_signal.setStageMask(vk::PipelineStageFlagBits2::eBlit);
+    blit_timeline_signal.setStageMask(vk::PipelineStageFlagBits2::eAllCommands);
     std::array<vk::SemaphoreSubmitInfo, 2> waits { target_available_wait, wait_info };
     std::array<vk::SemaphoreSubmitInfo, 2> signals { present_ready_signal, blit_timeline_signal };
     uint32_t wait_count = waits.size() - (not wait_info.semaphore);
@@ -167,7 +171,6 @@ std::expected<vk::SemaphoreSubmitInfo, std::error_code> Swapchain::_present(
     m_pending_resources_queue.emplace(std::exchange(m_present_resources, {}));
     this->tryRecyclePendingResources();
     if (present_result == vk::Result::eSuccess or present_result == vk::Result::eSuboptimalKHR) {
-        blit_timeline_signal.setStageMask(vk::PipelineStageFlagBits2::eColorAttachmentOutput);
         return blit_timeline_signal;
     }
     return std::unexpected(present_result);

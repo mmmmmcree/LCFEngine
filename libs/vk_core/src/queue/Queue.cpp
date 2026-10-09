@@ -41,6 +41,7 @@ std::expected<SubmissionToken, std::error_code> Queue::submit(CommandBufferBatch
 {
     if (batch.getValidationData() != this) { return std::unexpected(make_error_code(errc::command_buffer_batch_queue_mismatch)); }
     SubmissionToken timeline_signal = m_timeline.advanceTarget().generateSubmitInfo();
+    timeline_signal.setStageMask(vk::PipelineStageFlagBits2::eAllCommands);
     auto cmd_submit_infos = batch.getCommandBuffers() |
         stdv::transform([](vk::CommandBuffer cmd) { return vk::CommandBufferSubmitInfo {cmd}; }) |
         stdr::to<std::vector>();

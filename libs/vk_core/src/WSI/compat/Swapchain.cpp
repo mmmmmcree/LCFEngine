@@ -76,13 +76,17 @@ std::expected<vk::SemaphoreSubmitInfo, std::error_code> Swapchain::_present(
         .setNewLayout(vk::ImageLayout::eTransferDstOptimal)
         .setSubresourceRange({vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1})
         .setSrcAccessMask(vk::AccessFlagBits::eNone)
-        .setDstAccessMask(vk::AccessFlagBits::eTransferWrite);
+        .setDstAccessMask(vk::AccessFlagBits::eTransferWrite)
+        .setSrcQueueFamilyIndex(vk::QueueFamilyIgnored)
+        .setDstQueueFamilyIndex(vk::QueueFamilyIgnored);
     to_present_src_barrier.setImage(dst_image)
         .setOldLayout(vk::ImageLayout::eTransferDstOptimal)
         .setNewLayout(vk::ImageLayout::ePresentSrcKHR)
         .setSubresourceRange({vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1})
         .setSrcAccessMask(vk::AccessFlagBits::eTransferWrite)
-        .setDstAccessMask(vk::AccessFlagBits::eNone);
+        .setDstAccessMask(vk::AccessFlagBits::eNone)
+        .setSrcQueueFamilyIndex(vk::QueueFamilyIgnored)
+        .setDstQueueFamilyIndex(vk::QueueFamilyIgnored);
 
     vk::ImageBlit blit_region = {};
     blit_region.setSrcSubresource(src_subresource_layers)
@@ -92,7 +96,7 @@ std::expected<vk::SemaphoreSubmitInfo, std::error_code> Swapchain::_present(
 
     cmd.begin(vk::CommandBufferBeginInfo(vk::CommandBufferUsageFlagBits::eOneTimeSubmit));
     cmd.pipelineBarrier(
-        vk::PipelineStageFlagBits::eTopOfPipe,
+        vk::PipelineStageFlagBits::eTransfer,
         vk::PipelineStageFlagBits::eTransfer,
         {}, {}, {}, to_transfer_dst_barrier);
     cmd.blitImage(
@@ -149,7 +153,7 @@ std::expected<vk::SemaphoreSubmitInfo, std::error_code> Swapchain::_present(
     m_pending_resources_queue.emplace(std::exchange(m_present_resources, {}));
     this->tryRecyclePendingResources();
     if (present_result == vk::Result::eSuccess or present_result == vk::Result::eSuboptimalKHR) {
-        blit_timeline_signal.setStageMask(vk::PipelineStageFlagBits2::eColorAttachmentOutput);
+        blit_timeline_signal.setStageMask(vk::PipelineStageFlagBits2::eAllCommands);
         return blit_timeline_signal;
     }
     return std::unexpected(vk::make_error_code(present_result));
