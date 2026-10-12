@@ -2,6 +2,8 @@ set(RENDER_SYSTEM_TARGET shader_toy_render_system)
 
 add_library(${RENDER_SYSTEM_TARGET} SHARED
     src/RenderSystem.cpp
+    src/RenderTaskSystem.cpp
+    src/ShaderToyResourceTasks.cpp
     src/ShaderToyInstance.cpp
 )
 
@@ -14,6 +16,7 @@ target_include_directories(${RENDER_SYSTEM_TARGET}
 )
 
 find_package(imgui CONFIG REQUIRED)
+find_package(asio CONFIG REQUIRED)
 
 target_link_libraries(${RENDER_SYSTEM_TARGET}
     PUBLIC
@@ -24,6 +27,7 @@ target_link_libraries(${RENDER_SYSTEM_TARGET}
         shader_core
         image
         imgui::imgui
+        asio::asio
 )
 
 target_compile_definitions(${RENDER_SYSTEM_TARGET}
@@ -41,6 +45,7 @@ target_include_directories(${RENDER_SYSTEM_TARGET} BEFORE PUBLIC
 )
 
 if(WIN32)
+    target_link_libraries(${RENDER_SYSTEM_TARGET} PRIVATE ws2_32 mswsock)
     set_target_properties(${RENDER_SYSTEM_TARGET} PROPERTIES
         WINDOWS_EXPORT_ALL_SYMBOLS ON
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>

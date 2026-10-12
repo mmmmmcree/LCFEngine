@@ -8,4 +8,15 @@ set(BUILD_SHARED_LIBS ON)
 add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
 add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 
+if(WIN32)
+    if(NOT DEFINED LCF_WINDOWS_TARGET_VERSION)
+        set(LCF_WINDOWS_TARGET_VERSION "0x0601")
+    endif()
+    set(LCF_WINDOWS_TARGET_VERSION "${LCF_WINDOWS_TARGET_VERSION}" CACHE STRING
+        "Minimum Windows API version for _WIN32_WINNT and WINVER")
+    add_compile_definitions(
+        _WIN32_WINNT=${LCF_WINDOWS_TARGET_VERSION}
+        WINVER=${LCF_WINDOWS_TARGET_VERSION})
+endif()
+
 option(LCF_DEPLOY "Deploy mode: bundle assets next to executable" OFF)

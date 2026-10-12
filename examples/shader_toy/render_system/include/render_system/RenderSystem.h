@@ -15,6 +15,8 @@
 namespace lcf::shader_toy {
 
 class ShaderToyInstance;
+class RenderTaskSystem;
+struct RenderFrameContext;
 
 struct RenderSystemInfo
 {
@@ -25,6 +27,8 @@ class RenderSystem
 {
     using Self = RenderSystem;
     using InstancePointer = std::unique_ptr<ShaderToyInstance>;
+    using TaskContextPointer = std::unique_ptr<RenderTaskSystem>;
+    using FrameContextPointer = std::unique_ptr<RenderFrameContext>;
     using SwapchainMap = std::unordered_map<
         vkc::wsi::WindowHandle,
         vkc::wsi::probed::Swapchain,
@@ -43,9 +47,11 @@ private:
     vkc::DeviceContext m_device_ctx;
     SwapchainMap m_swapchains;
     vkc::Queue m_graphics_queue;
+    vkc::Queue m_gfx_task_queue;
     vkc::dsp::DescriptorSetAllocator m_descriptor_allocator;
+    TaskContextPointer m_task_context_up;
     InstancePointer m_shader_toy_instance_up;
-    vkc::SubmissionToken m_upload_token;
+    FrameContextPointer m_frame_context_up;
     std::jthread m_worker;
 };
 

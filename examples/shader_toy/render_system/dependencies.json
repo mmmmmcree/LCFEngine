@@ -1,5 +1,6 @@
 {
   "dependencies": [
+    { "name": "asio" },
     {
       "name": "imgui",
       "features": ["vulkan-binding"]
