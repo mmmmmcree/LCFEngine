@@ -10,6 +10,7 @@ Living document. Updated by the agent on every style correction from the human (
 - **Avoid C++ keywords as identifiers** even where context-sensitive (`module`); prefer encoding identity in the variable name over a name/tag field.
 - **No stutter with the enclosing namespace**: inside `namespace manifest` the type is `Entry`, not `ManifestEntry`.
 - Pointer-typed locals/members carry `_p` suffix (`entry_p`, `m_head_p`); optionals carry `_opt`.
+- Name configuration objects after the configured object and retain the `_info` suffix (`image_pass_info`, `shader_toy_instance_info`); reserve `image_pass` for an actual pass. Avoid generic `info` when it obscures the concrete role.
 
 ## File layout (.cpp)
 
@@ -25,6 +26,10 @@ Top-down readability: the design first, the plumbing last.
 - Singletons: class-static `instance()` method with private constructor — not a free accessor function.
 - `using Self = ClassName;` idiom for the rule-of-five declarations.
 - Value types intended to cross API boundaries: movable, copy deleted unless copying is meaningful.
+- Declare `using` aliases for container types used by a class or struct; use the aliases for members and interfaces so the container can be replaced independently.
+- Prefer file-local helpers in the `.cpp` anonymous namespace over private methods for implementation plumbing that does not require a member interface.
+- Qualify calls to methods on the current object with `this->`; calls on other member objects keep their explicit receiver.
+- Avoid deep conditional nesting; use early returns to keep the main execution path flat.
 
 ## Comments
 
