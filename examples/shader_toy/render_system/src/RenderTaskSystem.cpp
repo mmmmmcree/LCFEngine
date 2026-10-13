@@ -21,35 +21,34 @@ std::error_code RenderTaskSystem::run() noexcept
 {
     if (m_gfx_worker.joinable()) { return std::make_error_code(std::errc::operation_in_progress); }
     if (m_error) { return m_error; }
-    m_render_tasks.restart();
-    m_gfx_tasks.restart();
-    m_cpu_tasks.restart();
+    m_spawn_thread_io_context.restart();
+    m_gfx_io_context.restart();
+    m_cpu_io_context.restart();
     m_cpu_workers.reserve(k_cpu_worker_count);
     for (uint32_t index = 0u; index < k_cpu_worker_count; ++index) {
         m_cpu_workers.emplace_back([this](std::stop_token token) {
-            std::stop_callback stop_callback(token, [this] { m_cpu_tasks.stop(); });
-            m_cpu_tasks.run();
+            std::stop_callback stop_callback(token, [this] { m_cpu_io_context.stop(); });
+            m_cpu_io_context.run();
         });
     }
     m_gfx_worker = std::jthread([this](std::stop_token token) {
-        std::stop_callback stop_callback(token, [this] { m_gfx_tasks.stop(); });
-        m_gfx_tasks.run();
+        std::stop_callback stop_callback(token, [this] { m_gfx_io_context.stop(); });
+        m_gfx_io_context.run();
     });
     return {};
 }
 
-std::error_code RenderTaskSystem::processTasks(bool has_frame) noexcept
+std::error_code RenderTaskSystem::processOne() noexcept
 {
-    if (has_frame) { m_render_tasks.poll_one(); }
-    else { m_render_tasks.run_one_for(std::chrono::milliseconds {10}); }
+    m_spawn_thread_io_context.poll_one();
     return m_error;
 }
 
 void RenderTaskSystem::stop() noexcept
 {
-    m_render_tasks.stop();
-    m_gfx_tasks.stop();
-    m_cpu_tasks.stop();
+    m_spawn_thread_io_context.stop();
+    m_gfx_io_context.stop();
+    m_cpu_io_context.stop();
     m_gfx_worker.request_stop();
     for (auto & worker : m_cpu_workers) { worker.request_stop(); }
 }
@@ -63,7 +62,7 @@ void RenderTaskSystem::join() noexcept
     m_cpu_workers.clear();
 }
 
-namespace task_details {
+namespace details {
 
 std::error_code exception_error(std::exception_ptr exception) noexcept
 {

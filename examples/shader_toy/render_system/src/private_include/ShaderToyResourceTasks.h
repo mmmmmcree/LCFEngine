@@ -21,7 +21,7 @@ struct ShaderToyTaskContext
 {
     using QueueFamilyIndices = std::array<uint32_t, 2>;
 
-    RenderTaskSystem & m_tasks;
+    RenderTaskSystem & m_task_system;
     const vkc::DeviceContext & m_device_context;
     vkc::Queue & m_gfx_task_queue;
     vkc::Queue & m_graphics_queue;

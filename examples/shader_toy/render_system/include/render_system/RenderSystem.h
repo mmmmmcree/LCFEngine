@@ -26,9 +26,6 @@ struct RenderSystemInfo
 class RenderSystem
 {
     using Self = RenderSystem;
-    using InstancePointer = std::unique_ptr<ShaderToyInstance>;
-    using TaskContextPointer = std::unique_ptr<RenderTaskSystem>;
-    using FrameContextPointer = std::unique_ptr<RenderFrameContext>;
     using SwapchainMap = std::unordered_map<
         vkc::wsi::WindowHandle,
         vkc::wsi::probed::Swapchain,
@@ -49,9 +46,9 @@ private:
     vkc::Queue m_graphics_queue;
     vkc::Queue m_gfx_task_queue;
     vkc::dsp::DescriptorSetAllocator m_descriptor_allocator;
-    TaskContextPointer m_task_context_up;
-    InstancePointer m_shader_toy_instance_up;
-    FrameContextPointer m_frame_context_up;
+    std::unique_ptr<RenderTaskSystem> m_task_system_up;
+    std::unique_ptr<ShaderToyInstance> m_shader_toy_instance_up;
+    std::unique_ptr<RenderFrameContext> m_frame_context_up;
     std::jthread m_worker;
 };
 
