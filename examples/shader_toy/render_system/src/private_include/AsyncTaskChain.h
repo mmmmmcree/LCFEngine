@@ -249,12 +249,6 @@ public:
                 std::invoke(completion, result_node_sp->result());
             });
     }
-    template <typename Completion>
-    void start(Completion completion) &&
-    {
-        auto executor = std::move(m_executor);
-        std::move(*this).start(std::move(executor), std::move(completion));
-    }
     auto getResult() const noexcept { return ResultHandle {m_node_sp}; }
 private:
     AsyncTaskChain(NodeSharedPtr node_sp, asio::any_io_executor executor) noexcept :

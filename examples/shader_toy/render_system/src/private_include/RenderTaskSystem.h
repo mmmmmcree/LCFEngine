@@ -1,9 +1,9 @@
 #pragma once
 
+#include <thread>
 #include "AsyncTaskChain.h"
 #include <asio/executor_work_guard.hpp>
 #include <asio/io_context.hpp>
-#include <thread>
 #include <utility>
 #include <vector>
 
@@ -22,10 +22,10 @@ public:
     RenderTaskSystem(Self &&) = delete;
     Self & operator=(Self &&) = delete;
 public:
-    template <typename T>
-    void enqueue(AsyncTaskChain<T> && chain)
+    template <typename Task>
+    void enqueue(Task && task)
     {
-        std::move(chain).start(m_spawn_thread_io_context.get_executor(), [this](const auto & result) {
+        std::move(task).start(m_spawn_thread_io_context.get_executor(), [this](const auto & result) {
             if (not result) { m_error = result.error(); }
         });
     }
