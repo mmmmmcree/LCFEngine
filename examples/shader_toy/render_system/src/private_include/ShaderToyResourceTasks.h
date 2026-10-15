@@ -1,6 +1,7 @@
 #pragma once
 
 #include "RenderTaskSystem.h"
+#include <asio/awaitable.hpp>
 #include "ShaderToyInstance.h"
 #include "image/Image.h"
 #include "shader_core/spirv.h"

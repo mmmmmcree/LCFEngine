@@ -14,6 +14,8 @@
 #include <mutex>
 #include <tuple>
 #include <asio/steady_timer.hpp>
+#include <asio/this_coro.hpp>
+#include <asio/use_awaitable.hpp>
 
 namespace {
 

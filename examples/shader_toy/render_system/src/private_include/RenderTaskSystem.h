@@ -1,9 +1,10 @@
 #pragma once
 
 #include <thread>
-#include "AsyncTaskChain.h"
+#include <asio/any_io_executor.hpp>
 #include <asio/executor_work_guard.hpp>
 #include <asio/io_context.hpp>
+#include <system_error>
 #include <utility>
 #include <vector>
 

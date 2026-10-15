@@ -1,261 +1,215 @@
 #pragma once
 
-#include <asio/any_io_executor.hpp>
-#include <asio/awaitable.hpp>
+#include "async_task_common.h"
 #include <asio/co_spawn.hpp>
-#include <asio/use_awaitable.hpp>
 #include <atomic>
 #include <cassert>
-#include <concepts>
-#include <cstdint>
-#include <exception>
-#include <expected>
-#include <functional>
-#include <memory>
-#include <optional>
-#include <system_error>
-#include <tuple>
-#include <type_traits>
-#include <utility>
-#include <variant>
+#include <stdexcept>
 
-namespace lcf::shader_toy {
-
-template <typename T> class AsyncTaskChain;
-
-/*
- * TODO(async-task-chain):
- * - Constrain function and dependency templates with concepts.
- * - Measure shared-node allocation fragmentation and evaluate pooled or co-allocated storage for cross-thread result handles.
- * - Add coverage for one-shot consumption, predecessor ordering, failure short-circuiting, and variadic dependencies.
- */
-
-template <typename T>
-class AsyncChainTaskFuture
-{
-    template <typename> friend class AsyncTaskChain;
-    using Self = AsyncChainTaskFuture;
-public:
-    ~AsyncChainTaskFuture() noexcept = default;
-    AsyncChainTaskFuture() noexcept = delete;
-    AsyncChainTaskFuture(const Self &) noexcept = default;
-    Self & operator=(const Self &) noexcept = default;
-    AsyncChainTaskFuture(Self &&) noexcept = default;
-    Self & operator=(Self &&) noexcept = default;
-private:
-    explicit AsyncChainTaskFuture(std::shared_ptr<void> node_sp) noexcept : m_node_sp(std::move(node_sp)) {}
-private:
-    std::shared_ptr<void> m_node_sp;
-};
+namespace lcf::async::task {
 
 namespace details {
 
-std::error_code exception_error(std::exception_ptr exception) noexcept;
-
-template <typename T>
-using TaskResult = std::expected<T, std::error_code>;
-
-enum class TaskState : std::uint8_t
-{
-    ePending,
-    eRunning,
-    eCompleted
-};
-
-template <typename T>
-struct task_value_traits
-{
-    using type = T;
-};
-
-template <typename T>
-struct task_value_traits<std::expected<T, std::error_code>> : task_value_traits<T> {};
-
-template <typename T, typename Executor>
-struct task_value_traits<asio::awaitable<T, Executor>> : task_value_traits<T> {};
-
-template <>
-struct task_value_traits<void>
-{
-    using type = std::monostate;
-};
-
-template <>
-struct task_value_traits<std::error_code> : task_value_traits<void> {};
-
-template <typename T>
-using task_value_t = typename task_value_traits<T>::type;
-
-template <typename T>
-using task_result_t = TaskResult<task_value_t<T>>;
-
-template <typename T>
-struct is_awaitable_traits : std::false_type {};
-
-template <typename T, typename Executor>
-struct is_awaitable_traits<asio::awaitable<T, Executor>> : std::true_type {};
-
-template <typename Value, typename Return>
-TaskResult<Value> as_task_result(Return result)
-{
-    if constexpr (std::same_as<Return, std::error_code>) {
-        if (result) { return std::unexpected(result); }
-        return Value {};
-    } else if constexpr (std::same_as<Return, std::expected<void, std::error_code>>) {
-        if (not result) { return std::unexpected(result.error()); }
-        return Value {};
-    } else {
-        return std::move(result);
-    }
-}
-
-template <typename Function, typename... Values>
-asio::awaitable<task_result_t<std::invoke_result_t<Function &, const Values &...>>>
-invoke_task(Function function, const Values &... values)
-{
-    using Return = std::invoke_result_t<Function &, const Values &...>;
-    using Value = task_value_t<Return>;
-    if constexpr (is_awaitable_traits<Return>::value) {
-        if constexpr (std::is_void_v<typename Return::value_type>) {
-            co_await std::invoke(function, values...);
-            co_return TaskResult<Value> {Value {}};
-        } else {
-            co_return as_task_result<Value>(co_await std::invoke(function, values...));
-        }
-    } else if constexpr (std::is_void_v<Return>) {
-        std::invoke(function, values...);
-        co_return TaskResult<Value> {Value {}};
-    } else {
-        co_return as_task_result<Value>(std::invoke(function, values...));
-    }
-}
+template <typename Handle>
+concept chain_result_handle_c = requires {
+    typename std::remove_cvref_t<Handle>::value_type;
+    typename Chain<typename std::remove_cvref_t<Handle>::value_type>::ResultHandle;
+} and std::same_as<std::remove_cvref_t<Handle>,
+    typename Chain<typename std::remove_cvref_t<Handle>::value_type>::ResultHandle>;
 
 }
 
-template <typename ReturnType>
-class AsyncTaskChain
+template <details::value_c T>
+class Chain
 {
-    template <typename> friend class AsyncTaskChain;
-    using Self = AsyncTaskChain;
-    struct Node
+    template <details::value_c> friend class Chain;
+    template <details::value_c> friend class Flow;
+    using Self = Chain;
+    class Node
     {
-        using Result = details::TaskResult<ReturnType>;
-        using Operation = std::move_only_function<asio::awaitable<void>()>;
-
-        void publish(Result result) noexcept
+        using Operation = std::move_only_function<asio::awaitable<std::optional<Result<T>>>()>;
+    public:
+        void publish(Result<T> result)
         {
-            if (m_state.load(std::memory_order_relaxed) == details::TaskState::eCompleted) {
-                assert(false && "an async task node can only publish once");
-                return;
-            }
+            assert(not this->isReady());
             m_result_opt.emplace(std::move(result));
-            m_state.store(details::TaskState::eCompleted, std::memory_order_release);
+            m_state.store(State::eCompleted, std::memory_order_release);
         }
         bool tryStart() noexcept
         {
-            auto expected = details::TaskState::ePending;
+            auto expected = State::ePending;
             return m_state.compare_exchange_strong(
-                expected, details::TaskState::eRunning, std::memory_order_acq_rel, std::memory_order_acquire);
+                expected, State::eRunning, std::memory_order_acq_rel, std::memory_order_acquire);
         }
-        bool isReady() const noexcept
+        bool isReady() const noexcept { return m_state.load(std::memory_order_acquire) == State::eCompleted; }
+        const Result<T> & result() const noexcept
         {
-            return m_state.load(std::memory_order_acquire) == details::TaskState::eCompleted;
-        }
-        const Result & result() const noexcept
-        {
+            assert(this->isReady());
             return *m_result_opt;
         }
-
-        std::optional<Result> m_result_opt;
+    public:
         Operation m_operation;
     private:
-        std::atomic<details::TaskState> m_state = details::TaskState::ePending;
+        std::optional<Result<T>> m_result_opt;
+        std::atomic<State> m_state = State::ePending;
     };
     using NodeSharedPtr = std::shared_ptr<Node>;
-    using Result = typename Node::Result;
-    using ResultHandle = AsyncChainTaskFuture<ReturnType>;
-
-    static asio::awaitable<void> run_node(NodeSharedPtr node)
-    {
-        try {
-            if (node->isReady()) { co_return; }
-            const bool started = node->tryStart();
-            assert(started && "an async task node must only be started once");
-            if (not started) { co_return; }
-            co_await node->m_operation();
-        } catch (...) {
-            if (not node->isReady()) {
-                node->publish(std::unexpected(details::exception_error(std::current_exception())));
-            }
-        }
-    }
-
 public:
-    ~AsyncTaskChain() noexcept = default;
-    AsyncTaskChain(ReturnType initial_value, asio::any_io_executor executor) :
+    using value_type = T;
+    class ResultHandle
+    {
+        template <details::value_c> friend class Chain;
+        using Self = ResultHandle;
+    public:
+        using value_type = T;
+    public:
+        ~ResultHandle() noexcept = default;
+        ResultHandle() = delete;
+        ResultHandle(const Self &) noexcept = default;
+        ResultHandle(Self &&) noexcept = default;
+        Self & operator=(const Self &) noexcept = default;
+        Self & operator=(Self &&) noexcept = default;
+    public:
+        bool isReady() const noexcept { return m_node_sp and m_node_sp->isReady(); }
+        const Result<T> & getResult() const
+        {
+            if (not this->isReady()) { throw std::logic_error("a chain result is not ready"); }
+            return m_node_sp->result();
+        }
+    private:
+        explicit ResultHandle(NodeSharedPtr node_sp) noexcept : m_node_sp(std::move(node_sp)) {}
+    private:
+        NodeSharedPtr m_node_sp;
+    };
+public:
+    ~Chain() noexcept = default;
+    template <typename Value>
+        requires (not std::is_void_v<T> and std::same_as<std::remove_cvref_t<Value>, T>
+            and std::constructible_from<T, Value>)
+    Chain(Value && initial_value, asio::any_io_executor executor) :
         m_node_sp(std::make_shared<Node>()), m_executor(std::move(executor))
     {
-        m_node_sp->publish(Result {std::in_place, std::move(initial_value)});
+        m_node_sp->publish(Result<T> {std::in_place, std::forward<Value>(initial_value)});
     }
-    AsyncTaskChain(const Self &) = delete;
+    explicit Chain(asio::any_io_executor executor) requires std::is_void_v<T> :
+        m_node_sp(std::make_shared<Node>()), m_executor(std::move(executor))
+    {
+        m_node_sp->publish(Result<void> {});
+    }
+    Chain(const Self &) = delete;
+    Chain(Self &&) noexcept = default;
     Self & operator=(const Self &) = delete;
-    AsyncTaskChain(Self &&) noexcept = default;
     Self & operator=(Self &&) noexcept = default;
 public:
-    template <typename Function, typename... DependencyTypes>
-    auto link(Function function, AsyncChainTaskFuture<DependencyTypes>... dependencies) &&
+    template <typename Function, details::chain_result_handle_c... Handles>
+        requires details::task_function_c<Function, T, typename Handles::value_type...>
+    auto link(Function function, Handles... dependencies) &&
     {
         return std::move(*this).link(m_executor, std::move(function), std::move(dependencies)...);
     }
-
-    template <typename Function, typename... DependencyTypes>
-    auto link(asio::any_io_executor executor, Function function,
-        AsyncChainTaskFuture<DependencyTypes>... dependencies) &&
+    template <typename Function, details::chain_result_handle_c... Handles>
+        requires details::task_function_c<Function, T, typename Handles::value_type...>
+    auto link(asio::any_io_executor executor, Function function, Handles... dependencies) &&
     {
-        using LinkedReturnType = typename details::task_value_traits<std::invoke_result_t<
-            Function &, const ReturnType &, const DependencyTypes &...>>::type;
-        auto node_sp = std::make_shared<typename AsyncTaskChain<LinkedReturnType>::Node>();
+        this->requireValid();
+        if ((... or not dependencies.m_node_sp)) { throw std::logic_error("a chain dependency has been consumed"); }
+        using Value = details::task_value_t<details::function_return_t<Function, T, typename Handles::value_type...>>;
         auto input_sp = std::move(m_node_sp);
-        auto dependency_sps = std::tuple<std::shared_ptr<typename AsyncTaskChain<DependencyTypes>::Node>...> {
-            std::static_pointer_cast<typename AsyncTaskChain<DependencyTypes>::Node>(std::move(dependencies).m_node_sp)...
-        };
-        auto * output_node_p = node_sp.get();
-        node_sp->m_operation = [input_sp = std::move(input_sp), dependency_sps = std::move(dependency_sps),
-                                    output_node_p, executor, function = std::move(function)]() mutable -> asio::awaitable<void> {
-            co_await AsyncTaskChain::run_node(input_sp);
-            const auto & input_result = input_sp->result();
-            if (not input_result) {
-                output_node_p->publish(std::unexpected(input_result.error()));
-                co_return;
-            }
-            // A dependency is an earlier node in this chain and is complete with input_sp.
-            auto result = co_await std::apply(
-                [&](const auto &... dependency_sp) {
-                    return asio::co_spawn(executor, details::invoke_task(
-                        std::move(function), input_result.value(), dependency_sp->result().value()...), asio::use_awaitable);
+        auto dependency_sps = std::tuple {std::move(dependencies.m_node_sp)...};
+        return Chain<Value>::from_operation(executor,
+            [input_sp = std::move(input_sp), dependency_sps = std::move(dependency_sps),
+                executor, function = std::move(function)]() mutable -> asio::awaitable<std::optional<Result<Value>>> {
+                co_await Self::run_node(input_sp);
+                const auto & input_result = input_sp->result();
+                if (not input_result) { co_return Result<Value> {std::unexpected(input_result.error())}; }
+                // Handles refer to earlier nodes in this chain; they do not start independent work.
+                const bool dependencies_ready = std::apply([](const auto &... dependency_sp) {
+                    return (... and dependency_sp->isReady());
                 }, dependency_sps);
-            output_node_p->publish(std::move(result));
-        };
-        return AsyncTaskChain<LinkedReturnType> {std::move(node_sp), std::move(executor)};
-    }
-    template <typename Completion>
-    void start(asio::any_io_executor executor, Completion completion) &&
-    {
-        auto node_sp = std::move(m_node_sp);
-        auto result_node_sp = node_sp;
-        asio::co_spawn(executor, AsyncTaskChain::run_node(std::move(node_sp)),
-            [result_node_sp = std::move(result_node_sp), completion = std::move(completion)](std::exception_ptr exception) mutable {
-                if (exception) { std::rethrow_exception(exception); }
-                std::invoke(completion, result_node_sp->result());
+                if (not dependencies_ready) { throw std::logic_error("a chain dependency is not an earlier completed node"); }
+                auto arguments = std::apply([&](const auto &... dependency_sp) {
+                    return std::tuple_cat(details::result_arguments_traits<T>::get(input_result),
+                        details::result_arguments_traits<typename Handles::value_type>::get(dependency_sp->result())...);
+                }, dependency_sps);
+                co_return co_await asio::co_spawn(executor,
+                    details::invoke_task(std::move(function), std::move(arguments)), asio::use_awaitable);
             });
     }
-    auto getResult() const noexcept { return ResultHandle {m_node_sp}; }
+    asio::awaitable<ResultView<T>> run() &&
+    {
+        this->requireValid();
+        return run_owned(std::move(m_node_sp));
+    }
+    template <typename Completion>
+        requires details::completion_c<Completion, T>
+    void start(asio::any_io_executor executor, Completion completion) &&
+    {
+        auto operation = std::move(*this).run();
+        asio::co_spawn(executor, std::move(operation),
+            [completion = std::move(completion)](std::exception_ptr exception, ResultView<T> result_sp) mutable {
+                if (exception) {
+                    const Result<T> result {std::unexpected(details::exception_error(exception))};
+                    std::invoke(completion, result);
+                    return;
+                }
+                std::invoke(completion, *result_sp);
+            });
+    }
+    template <typename Completion>
+        requires details::completion_c<Completion, T>
+    void start(Completion completion) && { std::move(*this).start(m_executor, std::move(completion)); }
+    ResultHandle getResult() const
+    {
+        this->requireValid();
+        return ResultHandle {m_node_sp};
+    }
+    asio::any_io_executor getExecutor() const
+    {
+        this->requireValid();
+        return m_executor;
+    }
 private:
-    AsyncTaskChain(NodeSharedPtr node_sp, asio::any_io_executor executor) noexcept :
+    Chain(NodeSharedPtr node_sp, asio::any_io_executor executor) noexcept :
         m_node_sp(std::move(node_sp)), m_executor(std::move(executor)) {}
+    void requireValid() const
+    {
+        if (not m_node_sp) { throw std::logic_error("an async chain has been consumed"); }
+    }
+    template <typename Operation>
+    static Self from_operation(asio::any_io_executor executor, Operation operation)
+    {
+        auto node_sp = std::make_shared<Node>();
+        node_sp->m_operation = std::move(operation);
+        return Self {std::move(node_sp), std::move(executor)};
+    }
+    static asio::awaitable<void> run_node(NodeSharedPtr node_sp)
+    {
+        if (node_sp->isReady()) { co_return; }
+        if (not node_sp->tryStart()) { throw std::logic_error("an async chain cannot run concurrently"); }
+        try {
+            auto result_opt = co_await node_sp->m_operation();
+            node_sp->publish(std::move(result_opt).value());
+        } catch (...) {
+            if (not node_sp->isReady()) {
+                node_sp->publish(std::unexpected(details::exception_error(std::current_exception())));
+            }
+        }
+        node_sp->m_operation = {};
+    }
+    static asio::awaitable<ResultView<T>> run_owned(NodeSharedPtr node_sp)
+    {
+        co_await run_node(node_sp);
+        const auto * result_p = &node_sp->result();
+        co_return ResultView<T> {std::move(node_sp), result_p};
+    }
 private:
     NodeSharedPtr m_node_sp;
     asio::any_io_executor m_executor;
 };
+
+template <typename T>
+Chain(T, asio::any_io_executor) -> Chain<T>;
+
+Chain(asio::any_io_executor) -> Chain<void>;
 
 }

@@ -1,5 +1,4 @@
 #include "private_include/RenderTaskSystem.h"
-#include "log.h"
 
 namespace {
 
@@ -60,19 +59,6 @@ void RenderTaskSystem::join() noexcept
         if (worker.joinable()) { worker.join(); }
     }
     m_cpu_workers.clear();
-}
-
-namespace details {
-
-std::error_code exception_error(std::exception_ptr exception) noexcept
-{
-    try { std::rethrow_exception(exception); }
-    catch (const std::system_error & error) { return error.code(); }
-    catch (const std::exception & error) { lcf_log_error("render task exception: {}", error.what()); }
-    catch (...) { lcf_log_error("render task exception"); }
-    return std::make_error_code(std::errc::io_error);
-}
-
 }
 
 }

@@ -1,5 +1,5 @@
 #include "render_system/RenderSystem.h"
-#include "private_include/AsyncTaskFlow.h"
+#include "private_include/async_task_interop.h"
 #include "private_include/ShaderToyResourceTasks.h"
 #include "private_include/RenderFrameContext.h"
 #include "vk_core/manifest/InstanceExtensionManifest.h"
@@ -42,7 +42,7 @@ struct CloudSeaPacket
 using CloudSeaPacketPointer = std::shared_ptr<CloudSeaPacket>;
 
 std::error_code render_frame(RenderFrameContext & context) noexcept;
-AsyncTaskFlow<void> create_cloud_sea_task_flow(const ShaderToyTaskContext & context,
+async::task::Chain<void> create_cloud_sea_tasks(const ShaderToyTaskContext & context,
     vkc::wsi::Swapchain & swapchain, InstancePointer & destination, FrameContextPointer & frame_context);
 std::expected<CloudSeaPacketPointer, std::error_code> create_cloud_sea_packet(
     const ShaderToyTaskContext & context, const ShaderToyImageResourceInfo & noise_resource_info) noexcept;
@@ -138,7 +138,7 @@ std::error_code RenderSystem::create(const RenderSystemInfo & render_system_info
         *m_task_system_up, m_device_ctx, m_gfx_task_queue, m_graphics_queue,
         m_descriptor_allocator, queue_family_indices
     };
-    m_task_system_up->enqueue(create_cloud_sea_task_flow(task_context, swapchain, m_shader_toy_instance_up, m_frame_context_up));
+    m_task_system_up->enqueue(create_cloud_sea_tasks(task_context, swapchain, m_shader_toy_instance_up, m_frame_context_up));
     return {};
 }
 
@@ -188,18 +188,18 @@ std::error_code RenderSystem::resizeToFit(const vkc::wsi::WindowHandle & window_
 
 namespace {
 
-AsyncTaskFlow<void> create_cloud_sea_task_flow(const ShaderToyTaskContext & context,
+async::task::Chain<void> create_cloud_sea_tasks(const ShaderToyTaskContext & context,
     vkc::wsi::Swapchain & swapchain, InstancePointer & destination, FrameContextPointer & frame_context)
 {
     auto asset_directory = std::filesystem::path {SHADER_ASSETS_DIR} / "up-in-the-cloud-sea";
     auto gfx_executor = context.m_task_system.getGfxExecutor();
     auto cpu_executor = context.m_task_system.getCpuExecutor();
-    auto packet_flow = AsyncTaskFlow {asset_directory / "image.png", cpu_executor}
+    auto packet_chain = async::task::Chain {asset_directory / "image.png", cpu_executor}
         .link(load_image)
         .link(gfx_executor, [context](const img::Image & pixels) { return upload_image(context, pixels); })
         .link([context](const ShaderToyImageResourceInfo & image_resource_info) { return create_cloud_sea_packet(context, image_resource_info); });
     const ShaderPathList shader_paths {asset_directory / "buffer_a.slang", asset_directory / "image.slang"};
-    auto shader_flow = AsyncTaskFlow {shader_paths, cpu_executor}
+    auto shader_chain = async::task::Chain {shader_paths, cpu_executor}
         .link([](const ShaderPathList & shader_paths) -> std::expected<ShaderSourceList, std::error_code> {
             ShaderSourceList sources;
             for (std::size_t index = 0u; index < sources.size(); ++index) {
@@ -225,7 +225,7 @@ AsyncTaskFlow<void> create_cloud_sea_task_flow(const ShaderToyTaskContext & cont
             }
             return shader_program_infos;
         });
-    return packet_flow.merge(shader_flow)
+    return async::task::merge(std::move(packet_chain), std::move(shader_chain))
         .link(gfx_executor, [context](const CloudSeaPacketPointer & packet,
             const ShaderProgramInfoList & shader_program_infos) {
             return prepare_cloud_sea_passes(context, packet, shader_program_infos);
