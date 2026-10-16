@@ -34,11 +34,7 @@ class Chain
             m_ready.store(true, std::memory_order_release);
         }
         bool isReady() const noexcept { return m_ready.load(std::memory_order_acquire); }
-        const Result<T> & result() const noexcept
-        {
-            assert(this->isReady());
-            return *m_result_placeholder;
-        }
+        const Result<T> & result() const noexcept { return *m_result_placeholder; }
         Operation m_operation;
         details::ResultPlaceholder<T> m_result_placeholder;
         std::atomic_bool m_ready = false;
@@ -103,8 +99,10 @@ public:
                 co_await run_node(input_sp);
                 const auto & input_result = input_sp->result();
                 if (not input_result) { co_return Result<Value> {std::unexpected(input_result.error())}; }
-                // Handles refer to earlier nodes in this chain; they do not start independent work.
                 auto arguments = std::apply([&](const auto &... dependency_sp) {
+                    assert((... and dependency_sp->isReady()) and
+                        "a ResultHandle dependency must already be completed; link() only waits for its direct predecessor, "
+                        "so handles from independent unfinished chains cannot be used as dependencies");
                     return std::tuple_cat(details::result_to_arguments(input_result),
                         details::result_to_arguments(dependency_sp->result())...);
                 }, dependency_sps);

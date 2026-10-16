@@ -27,6 +27,12 @@ asio::awaitable<std::string> prepare_asset(std::string name, std::chrono::millis
     co_return name + " ready";
 }
 
+std::string write_asset(std::string name, std::chrono::milliseconds delay)
+{
+    std::this_thread::sleep_for(delay);
+    return name;
+}
+
 }
 
 int main()
@@ -34,10 +40,13 @@ int main()
     try {
         asio::io_context render;
         asio::thread_pool workers {2};
+        bool chain_finished = false;;
         auto image = task::Chain {std::string {"image"}, workers.get_executor()}
-            .link([](const std::string & name) { return prepare_asset(name, 15ms); });
+            .link([](const std::string & name) { return prepare_asset(name, 150ms); })
+            .link([](const std::string & name) { return write_asset(name, 100ms); });
         auto shader = task::Chain {std::string {"shader"}, workers.get_executor()}
-            .link([](const std::string & name) { return prepare_asset(name, 10ms); });
+            .link([](const std::string & name) { return prepare_asset(name, 100ms); })
+            .link([](const std::string & name) { return write_asset(name, 150ms); });
         auto tasks = task::merge(std::move(image), std::move(shader))
             .link(render.get_executor(), [](const std::string & image, const std::string & shader) {
                 std::cout << "merge on render " << std::this_thread::get_id() << '\n';
@@ -51,8 +60,19 @@ int main()
             }
             std::cout << result.value() << '\n';
             exit_code = 0;
+            chain_finished = true;
         });
-        render.run();
+        
+        auto now = std::chrono::steady_clock::now();
+        // render.run();
+        uint64_t total_count = 0;
+        while (not chain_finished) {
+            auto count = render.poll_one();
+            total_count += count;
+            if (count) { std::cout << "render count: " << count << '\n'; }
+        }
+        std::cout << "render time: " << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - now).count() << "ms\n";
+        std::cout << "total polls: " << total_count << '\n';
         workers.join();
         return exit_code;
     } catch (const std::exception & error) {
