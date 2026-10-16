@@ -61,20 +61,20 @@ public:
         using Value = typename Task::value_type;
         struct Completion
         {
-            task::ResultView<Value> m_result_sp;
+            task::ResultView<Value> m_result_rv;
             std::exception_ptr m_exception;
             bool m_done = false;
         };
         auto completion_sp = std::make_shared<Completion>();
         asio::co_spawn(m_control, std::move(operation).run(),
-            [completion_sp](std::exception_ptr exception, task::ResultView<Value> result_sp) {
+            [completion_sp](std::exception_ptr exception, task::ResultView<Value> result_rv) {
                 completion_sp->m_exception = exception;
-                completion_sp->m_result_sp = std::move(result_sp);
+                completion_sp->m_result_rv = std::move(result_rv);
                 completion_sp->m_done = true;
             });
         this->pumpUntil([&] { return completion_sp->m_done; });
         if (completion_sp->m_exception) { std::rethrow_exception(completion_sp->m_exception); }
-        return completion_sp->m_result_sp;
+        return completion_sp->m_result_rv;
     }
 private:
     asio::io_context m_control;

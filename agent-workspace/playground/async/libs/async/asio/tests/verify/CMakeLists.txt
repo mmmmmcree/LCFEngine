@@ -1,5 +1,6 @@
 add_executable(async_verify_tests
     chain_test.cpp
+    error_handling_test.cpp
     flow_test.cpp
     contracts_test.cpp
 )

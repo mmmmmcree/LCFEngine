@@ -37,6 +37,7 @@ endif()
 
 set(async_header_sources
     include/async/task.h include/async/task/common.h
+    include/async/task/error_handling.h
     include/async/task/Chain.h include/async/task/Flow.h include/async/task/interop.h)
 
 if(LCF_ASYNC_USE_MODULES)

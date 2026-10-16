@@ -5,6 +5,7 @@
 #include <asio/experimental/concurrent_channel.hpp>
 #include <asio/this_coro.hpp>
 #include <cassert>
+#include <stdexcept>
 #include <variant>
 #include <vector>
 
@@ -50,7 +51,7 @@ asio::awaitable<void> wait_node(std::shared_ptr<NodeType> node_sp)
 
 }
 
-template <details::value_c T>
+template <details::result_value_c T>
 class Flow
 {
     friend struct details::FlowAccess;
@@ -84,10 +85,10 @@ class Flow
         {
             this->publishStored(StoredResult {std::in_place_index<0>, std::move(result)});
         }
-        void publish(ResultView<T> result_sp)
+        void publish(ResultView<T> result_rv)
         {
-            if (not result_sp) { throw std::logic_error("a flow result view must own a result"); }
-            this->publishStored(StoredResult {std::in_place_index<1>, std::move(result_sp)});
+            if (not result_rv) { throw std::logic_error("a flow result view must own a result"); }
+            this->publishStored(StoredResult {std::in_place_index<1>, std::move(result_rv)});
         }
         void publishError(std::error_code error) { this->publish(Result<T> {std::unexpected(error)}); }
         const Result<T> & result() const
@@ -95,7 +96,7 @@ class Flow
             std::lock_guard lock {m_mutex};
             assert(m_state == State::eCompleted);
             return std::visit([](const auto & stored) -> const Result<T> & {
-                if constexpr (std::same_as<std::remove_cvref_t<decltype(stored)>, Result<T>>) { return stored; }
+                if constexpr (details::is_result_v<decltype(stored)>) { return stored; }
                 else { return *stored; }
             }, *m_result_opt);
         }
@@ -153,15 +154,30 @@ public:
     auto link(asio::any_io_executor executor, Function function) const
     {
         this->requireValid();
-        using Value = details::task_value_t<details::function_return_t<Function, T>>;
+        using Value = details::function_value_t<Function, T>;
         return Chain<Value>::from_operation(executor,
-            [input = *this, executor, function = std::move(function)]() mutable -> asio::awaitable<std::optional<Result<Value>>> {
-                auto result_sp = co_await input.run();
-                if (not *result_sp) { co_return Result<Value> {std::unexpected(result_sp->error())}; }
-                auto arguments = details::result_arguments_traits<T>::get(*result_sp);
+            [input = *this, executor, function = std::move(function)]() mutable -> asio::awaitable<details::ResultPlaceholder<Value>> {
+                auto result_rv = co_await input.run();
+                if (not *result_rv) { co_return Result<Value> {std::unexpected(result_rv->error())}; }
+                auto arguments = details::result_to_arguments(*result_rv);
                 co_return co_await asio::co_spawn(executor,
                     details::invoke_task(std::move(function), std::move(arguments)), asio::use_awaitable);
             });
+    }
+    template <typename Function, typename Handler>
+        requires (details::task_function_c<Function, T>
+            and details::error_handler_c<Handler, details::function_value_t<Function, T>>)
+    auto link(Function function, ErrorHandler<Handler> error_handler) const
+    {
+        return this->link(m_executor, std::move(function), std::move(error_handler));
+    }
+    template <typename Function, typename Handler>
+        requires (details::task_function_c<Function, T>
+            and details::error_handler_c<Handler, details::function_value_t<Function, T>>)
+    auto link(asio::any_io_executor executor, Function function, ErrorHandler<Handler> error_handler) const
+    {
+        return this->link(std::move(executor),
+            details::ErrorHandledTask {std::move(function), std::move(error_handler.m_function)});
     }
     asio::awaitable<ResultView<T>> run() const
     {
@@ -174,13 +190,13 @@ public:
     {
         this->requireValid();
         asio::co_spawn(executor, run_owned(std::move(m_node_sp)),
-            [completion = std::move(completion)](std::exception_ptr exception, ResultView<T> result_sp) mutable {
+            [completion = std::move(completion)](std::exception_ptr exception, ResultView<T> result_rv) mutable {
                 if (exception) {
                     const Result<T> result {std::unexpected(details::exception_error(exception))};
                     std::invoke(completion, result);
                     return;
                 }
-                std::invoke(completion, *result_sp);
+                std::invoke(completion, *result_rv);
             });
     }
     template <typename Completion>
@@ -225,7 +241,7 @@ private:
         details::ensure_started(node_sp, executor);
         co_await details::wait_node(node_sp);
         const auto * result_p = &node_sp->result();
-        co_return ResultView<T> {std::move(node_sp), result_p};
+        co_return make_result_view(std::move(node_sp), result_p);
     }
 private:
     NodeSharedPtr m_node_sp;

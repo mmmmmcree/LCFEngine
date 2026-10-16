@@ -37,9 +37,9 @@ TEST(Flow, StartsBothChainsBeforeAwaitingEither)
     auto shader = task::Chain {1, runtime.cpu()}.link(work);
     auto joined = task::merge(std::move(image), std::move(shader))
         .link([](const int & a, const int & b) { return a + b; });
-    auto result_sp = runtime.run(std::move(joined));
-    ASSERT_TRUE(*result_sp);
-    EXPECT_EQ(result_sp->value(), 3);
+    auto result_rv = runtime.run(std::move(joined));
+    ASSERT_TRUE(*result_rv);
+    EXPECT_EQ(result_rv->value(), 3);
     EXPECT_NE(threads[0], threads[1]);
 }
 
@@ -67,10 +67,10 @@ TEST(Flow, SharedStartsRaceWithoutRepeatingTheSource)
             ++completions;
         });
         auto joined = task::merge(a, b).link([](const int & a, const int & b) { return a + b; });
-        auto result_sp = runtime.run(std::move(joined));
+        auto result_rv = runtime.run(std::move(joined));
         runtime.pumpUntil([&] { return completions == 2; });
-        ASSERT_TRUE(*result_sp);
-        EXPECT_EQ(result_sp->value(), 17);
+        ASSERT_TRUE(*result_rv);
+        EXPECT_EQ(result_rv->value(), 17);
         EXPECT_EQ(failures, 0u);
         EXPECT_EQ(source_runs, 1u);
         EXPECT_EQ(*runtime.run(source)->value(), 7);
@@ -82,14 +82,17 @@ TEST(Flow, AdapterRetainsTheExactMoveOnlyResult)
 {
     Runtime runtime;
     auto chain = task::Chain {runtime.cpu()}.link([] { return std::make_unique<int>(42); });
-    auto handle = chain.getResult();
+    auto original_rh = chain.getResult();
     auto source = task::as_flow(std::move(chain));
-    auto result_sp = runtime.run(source);
-    ASSERT_TRUE(*result_sp);
-    EXPECT_EQ(*result_sp->value(), 42);
-    EXPECT_EQ(&source.getResult(), &handle.getResult());
-    EXPECT_EQ(&source.getResult(), result_sp.get());
-    EXPECT_EQ(*handle.getResult().value(), 42);
+    auto result_rv = runtime.run(source);
+    ASSERT_TRUE(*result_rv);
+    EXPECT_EQ(*result_rv->value(), 42);
+    EXPECT_EQ(&source.getResult(), result_rv.get());
+    auto checked = source.link([](const std::unique_ptr<int> & value_up) { return &value_up; })
+        .link([](const std::unique_ptr<int> * const & value_p, const std::unique_ptr<int> & original_up) {
+            return value_p == &original_up;
+        }, original_rh);
+    EXPECT_TRUE(runtime.run(std::move(checked))->value());
 }
 
 TEST(Flow, NestedDuplicateAndVoidInputsPreserveArgumentOrder)
@@ -115,11 +118,38 @@ TEST(Flow, MergeDrainsSiblingsBeforeReportingFailure)
         .link([&](const int & value) { drained = true; return value; });
     auto joined = task::merge(std::move(failed), std::move(sibling))
         .link([&](const int &, const int &) { ++forbidden_runs; });
-    auto result_sp = runtime.run(std::move(joined));
-    ASSERT_FALSE(*result_sp);
-    EXPECT_EQ(result_sp->error(), failure);
+    auto result_rv = runtime.run(std::move(joined));
+    ASSERT_FALSE(*result_rv);
+    EXPECT_EQ(result_rv->error(), failure);
     EXPECT_TRUE(drained);
     EXPECT_EQ(forbidden_runs, 0u);
+}
+
+TEST(Flow, MergeConvertsChainExceptionsAndDrainsSiblings)
+{
+    Runtime runtime;
+    const auto failure = std::make_error_code(std::errc::invalid_argument);
+    std::atomic_uint source_runs = 0;
+    std::atomic_bool drained = false;
+    std::atomic_uint forbidden_runs = 0;
+    auto failed = task::as_flow(task::Chain {runtime.cpu()}.link([&]() -> int {
+        ++source_runs;
+        throw std::system_error(failure);
+    }));
+    auto sibling = task::Chain {2, runtime.cpu()}
+        .link([](const int & value) { return delayed_value(value); })
+        .link([&](const int & value) { drained = true; return value; });
+    auto joined = task::merge(failed, std::move(sibling))
+        .link([&](const int &, const int &) { ++forbidden_runs; });
+    auto result_rv = runtime.run(std::move(joined));
+    ASSERT_FALSE(*result_rv);
+    EXPECT_EQ(result_rv->error(), failure);
+    EXPECT_TRUE(drained);
+    EXPECT_EQ(forbidden_runs, 0u);
+    auto repeated_rv = runtime.run(failed);
+    ASSERT_FALSE(*repeated_rv);
+    EXPECT_EQ(repeated_rv->error(), failure);
+    EXPECT_EQ(source_runs, 1u);
 }
 
 TEST(Flow, FailureOrderPreservesUnexpectedWithZeroErrorCode)
@@ -129,9 +159,9 @@ TEST(Flow, FailureOrderPreservesUnexpectedWithZeroErrorCode)
     auto second = task::Chain {runtime.cpu()}.link([]() -> task::Result<int> {
         return std::unexpected(std::make_error_code(std::errc::invalid_argument));
     });
-    auto result_sp = runtime.run(task::merge(std::move(first), std::move(second)));
-    ASSERT_FALSE(*result_sp);
-    EXPECT_FALSE(result_sp->error());
+    auto result_rv = runtime.run(task::merge(std::move(first), std::move(second)));
+    ASSERT_FALSE(*result_rv);
+    EXPECT_FALSE(result_rv->error());
 }
 
 }

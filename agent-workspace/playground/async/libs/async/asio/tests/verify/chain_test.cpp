@@ -59,22 +59,19 @@ TEST(Chain, HandlesRetainEarlierValuesAndOmitVoidArguments)
 {
     Runtime runtime;
     auto seed = task::Chain {7, runtime.cpu()};
-    const task::Chain<int>::ResultHandle input = seed.getResult();
+    const task::Chain<int>::ResultHandle input_rh = seed.getResult();
     auto empty = std::move(seed).link([](const int &) {});
-    auto empty_handle = empty.getResult();
+    auto empty_rh = empty.getResult();
     auto text = std::move(empty).link([] { return std::string {"text"}; });
-    auto text_handle = text.getResult();
+    auto text_rh = text.getResult();
     auto value = std::move(text).link([](const std::string & value) { return static_cast<int>(value.size()); });
     auto tail = std::move(value).link(
         [](const int & current, const int & input, const std::string & text, const int & repeated) {
             return current + input + static_cast<int>(text.size()) + repeated;
-        }, input, std::move(empty_handle), text_handle, input);
-    EXPECT_FALSE(empty_handle.isReady());
-    auto result_sp = runtime.run(std::move(tail));
-    ASSERT_TRUE(*result_sp);
-    EXPECT_EQ(result_sp->value(), 22);
-    EXPECT_EQ(input.getResult().value(), 7);
-    EXPECT_EQ(text_handle.getResult().value(), "text");
+        }, input_rh, std::move(empty_rh), text_rh, input_rh);
+    auto result_rv = runtime.run(std::move(tail));
+    ASSERT_TRUE(*result_rv);
+    EXPECT_EQ(result_rv->value(), 22);
 }
 
 TEST(Chain, NormalizesVoidStatusAndAwaitableResults)
@@ -86,9 +83,9 @@ TEST(Chain, NormalizesVoidStatusAndAwaitableResults)
         .link([] { return task::Result<void> {}; })
         .link(wait_once)
         .link([] { return MoveOnlyValue {42}; });
-    auto result_sp = runtime.run(std::move(chain));
-    ASSERT_TRUE(*result_sp);
-    EXPECT_EQ(result_sp->value().m_value, 42);
+    auto result_rv = runtime.run(std::move(chain));
+    ASSERT_TRUE(*result_rv);
+    EXPECT_EQ(result_rv->value().m_value, 42);
 }
 
 TEST(Chain, SupportsMoveOnlyCallablesAndKeepsOrdinaryTuplesIntact)
@@ -106,49 +103,96 @@ TEST(Chain, TemporaryRunOwnsItsStateAndReleasesCompletedCaptures)
     auto token_sp = std::make_shared<int>(19);
     std::weak_ptr<int> token_wp = token_sp;
     auto chain = task::Chain {runtime.cpu()}.link([token_sp] { return *token_sp; });
-    auto handle = chain.getResult();
+    [[maybe_unused]] auto result_rh = chain.getResult();
     token_sp.reset();
-    auto result_sp = runtime.run(std::move(chain));
-    ASSERT_TRUE(*result_sp);
-    EXPECT_EQ(result_sp->value(), 19);
-    EXPECT_EQ(handle.getResult().value(), 19);
+    auto result_rv = runtime.run(std::move(chain));
+    ASSERT_TRUE(*result_rv);
+    EXPECT_EQ(result_rv->value(), 19);
     EXPECT_TRUE(token_wp.expired());
 
-    std::optional<task::ResultView<int>> temporary_result_opt;
+    std::optional<task::ResultView<int>> temporary_result_rv_opt;
     asio::io_context context;
     asio::co_spawn(context,
         task::Chain {23, context.get_executor()}.link([](const int & value) { return value + 1; }).run(),
-        [&](std::exception_ptr exception, task::ResultView<int> result_sp) {
+        [&](std::exception_ptr exception, task::ResultView<int> result_rv) {
             if (exception) { std::rethrow_exception(exception); }
-            temporary_result_opt = std::move(result_sp);
+            temporary_result_rv_opt = std::move(result_rv);
         });
     context.run();
-    ASSERT_TRUE(temporary_result_opt);
-    EXPECT_EQ((*temporary_result_opt)->value(), 24);
+    ASSERT_TRUE(temporary_result_rv_opt);
+    EXPECT_EQ((*temporary_result_rv_opt)->value(), 24);
 }
 
-TEST(Chain, ConvertsExceptionsAndSkipsFailedSuccessors)
+TEST(Chain, ReturnedFailureSkipsSuccessors)
 {
     Runtime runtime;
     const auto failure = std::make_error_code(std::errc::invalid_argument);
     std::atomic_uint forbidden_runs = 0;
-    auto chain = task::Chain {runtime.cpu()}
-        .link([&]() -> task::Result<int> { return std::unexpected(failure); })
-        .link([&](const int &) { ++forbidden_runs; return 0; });
-    auto failed_sp = runtime.run(std::move(chain));
-    ASSERT_FALSE(*failed_sp);
-    EXPECT_EQ(failed_sp->error(), failure);
+    auto failed = task::Chain {runtime.cpu()}.link([&]() -> task::Result<int> { return std::unexpected(failure); });
+    auto chain = std::move(failed).link([&](const int &) { ++forbidden_runs; return 0; });
+    auto failed_rv = runtime.run(std::move(chain));
+    ASSERT_FALSE(*failed_rv);
+    EXPECT_EQ(failed_rv->error(), failure);
     EXPECT_EQ(forbidden_runs, 0u);
+}
 
-    auto throwing = task::Chain {runtime.cpu()}.link([&]() -> MoveOnlyValue { throw std::system_error(failure); });
-    auto exception_sp = runtime.run(std::move(throwing));
-    ASSERT_FALSE(*exception_sp);
-    EXPECT_EQ(exception_sp->error(), failure);
+TEST(Chain, RunPropagatesExceptionsAndReleasesCaptures)
+{
+    Runtime runtime;
+    const auto failure = std::make_error_code(std::errc::invalid_argument);
+    std::atomic_uint forbidden_runs = 0;
+    auto token_sp = std::make_shared<int>(19);
+    std::weak_ptr<int> token_wp = token_sp;
+    auto throwing = task::Chain {runtime.cpu()}.link([token_sp, failure]() -> asio::awaitable<int> {
+        co_await wait_once();
+        if (failure) { throw std::system_error(failure); }
+        co_return *token_sp;
+    });
+    [[maybe_unused]] auto failed_rh = throwing.getResult();
+    auto tail = std::move(throwing).link([&](const int &) { ++forbidden_runs; return 0; });
+    [[maybe_unused]] auto tail_rh = tail.getResult();
+    token_sp.reset();
+    try {
+        runtime.run(std::move(tail));
+        FAIL() << "run() must propagate the task exception";
+    } catch (const std::system_error & error) {
+        EXPECT_EQ(error.code(), failure);
+    }
+    EXPECT_EQ(forbidden_runs, 0u);
+    EXPECT_TRUE(token_wp.expired());
 
     auto unknown = task::Chain {runtime.cpu()}.link([] { throw std::runtime_error("failure"); });
-    auto unknown_sp = runtime.run(std::move(unknown));
-    ASSERT_FALSE(*unknown_sp);
-    EXPECT_EQ(unknown_sp->error(), std::errc::io_error);
+    EXPECT_THROW(runtime.run(std::move(unknown)), std::runtime_error);
+}
+
+TEST(Chain, StartConvertsExceptionsAtTheCompletionBoundary)
+{
+    Runtime runtime;
+    const auto control_thread = std::this_thread::get_id();
+    const auto failure = std::make_error_code(std::errc::invalid_argument);
+    for (bool system_failure : {true, false}) {
+        unsigned completions = 0;
+        auto chain = task::Chain {runtime.cpu()}.link([failure, system_failure] {
+            if (system_failure) { throw std::system_error(failure); }
+            throw std::runtime_error("failure");
+        });
+        std::move(chain).start(runtime.control(), [&](const task::Result<void> & result) {
+            EXPECT_EQ(std::this_thread::get_id(), control_thread);
+            EXPECT_FALSE(result);
+            EXPECT_EQ(result.error(), system_failure ? failure : std::make_error_code(std::errc::io_error));
+            ++completions;
+        });
+        runtime.pumpUntil([&] { return completions != 0; });
+        EXPECT_EQ(completions, 1u);
+    }
+}
+
+TEST(Chain, CompletionExceptionsEscapeToTheContextCaller)
+{
+    asio::io_context context;
+    auto chain = task::Chain {context.get_executor()}.link([] {});
+    std::move(chain).start([](const task::Result<void> &) { throw std::runtime_error("completion"); });
+    EXPECT_THROW(context.run(), std::runtime_error);
 }
 
 }

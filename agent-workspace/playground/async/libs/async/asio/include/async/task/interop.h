@@ -34,21 +34,22 @@ Flow<T> to_flow(Flow<T> flow)
 }
 
 template <typename... Values, std::size_t... Indices>
-asio::awaitable<Result<MergedValues<Values...>>> merge_results(
+asio::awaitable<Result<MergedResultViews<Values...>>> merge_results(
     std::tuple<Flow<Values>...> inputs, std::index_sequence<Indices...>)
 {
+    using Value = MergedResultViews<Values...>;
     auto executor = co_await asio::this_coro::executor;
     (FlowAccess::start(std::get<Indices>(inputs), executor), ...);
     // Start every input before awaiting any one input; retain all results until the join completes.
-    auto results = std::tuple<ResultView<Values>...> {co_await std::get<Indices>(inputs).run()...};
+    auto result_rvs = Value {co_await std::get<Indices>(inputs).run()...};
     std::optional<std::error_code> failure_opt;
-    std::apply([&](const auto &... result_sp) {
+    std::apply([&](const auto &... result_rv) {
         ([&] {
-            if (not failure_opt and not *result_sp) { failure_opt = result_sp->error(); }
+            if (not failure_opt and not *result_rv) { failure_opt = result_rv->error(); }
         }(), ...);
-    }, results);
+    }, result_rvs);
     if (failure_opt) { co_return std::unexpected(*failure_opt); }
-    co_return Result<MergedValues<Values...>> {std::in_place, MergedValues<Values...> {std::move(results)}};
+    co_return Result<Value> {std::in_place, std::move(result_rvs)};
 }
 
 }
@@ -57,7 +58,7 @@ template <typename... Sources>
     requires (sizeof...(Sources) >= 2u and (details::source_c<Sources> and ...))
 auto merge(Sources &&... sources)
 {
-    using Value = details::MergedValues<details::source_value_t<Sources>...>;
+    using Value = details::MergedResultViews<details::source_value_t<Sources>...>;
     auto inputs = std::tuple {details::to_flow(std::forward<Sources>(sources))...};
     auto executor = std::get<0>(inputs).getExecutor();
     return details::FlowAccess::make<Value>(std::move(executor),

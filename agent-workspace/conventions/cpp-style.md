@@ -6,7 +6,10 @@
 - Use `m_snake_case` for data members and `k_snake_case` for constexpr objects and file-scope constants. Ordinary local `const` variables retain snake_case.
 - Use `ePascalCase` for ordinary enum values.
 - Follow standard-library naming for traits and related template utilities: `enum_traits`, `value_type`, `value`, `*_t`, `*_v`, and snake_case query functions. Use `snake_case_c` for concepts.
-- Mark variables with different access semantics using these suffixes: raw pointer `_p`, unique_ptr `_up`, shared_ptr `_sp`, weak_ptr `_wp`, optional `_opt`, ResourceHandle `_rh`, iterator `_it`. Combine with `m_` for members.
+- Extract repeated trait compositions into semantic `*_t` aliases and reuse them consistently instead of repeating nested template expressions.
+- Mark variables with different access semantics using these suffixes: raw pointer `_p`, unique_ptr `_up`, shared_ptr `_sp`, weak_ptr `_wp`, optional `_opt`, ResourceHandle `_rh`, ResultView `_rv`, iterator `_it`. Combine with `m_` for members.
+- Choose suffixes from the semantic type rather than its underlying storage: a `ResultView<T>` uses `_rv` even when implemented with `shared_ptr`. Combine wrapper suffixes, such as `_rv_opt` for `optional<ResultView<T>>`.
+- Name construction helpers after the semantic type and use them at call sites, such as `make_result_view`; keep underlying storage construction such as `make_shared` inside the helper.
 - Name configuration objects after what they configure and retain `_info`, such as `image_pass_info`. Avoid generic `info` when it obscures the role.
 - Use full words for folders and ordinary types. Reuse established namespace abbreviations such as `vkc`, `bs`, and `dsp`; ask before introducing new abbreviations.
 - Avoid C++ keywords as identifiers, including contextual keywords such as `module`.
@@ -73,6 +76,9 @@ private:
 
 ## Control Flow
 
+- Rely on invariants established by construction and the surrounding call flow. Do not repeat checks for excluded states or catch exceptions already handled at an outer boundary.
+- Before retaining an `assert`, trace its callers and construct a concrete failing scenario. Prefer interface and ownership constraints that prevent invalid usage over adding assertions.
+- Include the known cause and violated contract in assertion diagnostics rather than reporting only the failed condition.
 - Keep the main path flat. Check preconditions and errors early, then return immediately.
 - Filter loop iterations with `continue` instead of wrapping the main work in another conditional.
 - Do not wrap the remaining path in `else` after a branch that already exits.
