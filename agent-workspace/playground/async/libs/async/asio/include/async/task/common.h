@@ -1,12 +1,11 @@
 #pragma once
 
-#include <mutex>
 #include <asio/any_io_executor.hpp>
 #include <asio/awaitable.hpp>
+#include <asio/co_spawn.hpp>
 #include <asio/post.hpp>
 #include <asio/use_awaitable.hpp>
 #include <concepts>
-#include <cstdint>
 #include <exception>
 #include <expected>
 #include <functional>
@@ -23,24 +22,12 @@ template <typename T>
 using Result = std::expected<T, std::error_code>;
 
 template <typename T>
-using ResultView = std::shared_ptr<const Result<T>>;
-
-enum class State : std::uint8_t
-{
-    ePending,
-    eRunning,
-    eCompleted
-};
+using ResultHandle = std::shared_ptr<const Result<T>>;
 
 namespace details {
 
-struct FlowAccess;
-
-template <typename T>
-using ResultPlaceholder = std::optional<Result<T>>;
-
-template <typename... Values>
-using MergedResultViews = std::tuple<ResultView<Values>...>;
+template <typename... Types>
+inline constexpr bool are_nothrow_move_constructible_v = (std::is_nothrow_move_constructible_v<Types> and ...);
 
 inline std::error_code exception_error(std::exception_ptr exception) noexcept
 {
@@ -76,16 +63,11 @@ constexpr auto result_to_arguments(const Result<T> & result) noexcept(noexcept(r
 }
 
 template <typename... Values>
-struct result_to_arguments_traits<MergedResultViews<Values...>>
+constexpr auto merge_results_to_arguments(const Result<Values> &... results)
+    noexcept(noexcept(std::tuple_cat(result_to_arguments(results)...)))
 {
-    using type = results_to_arguments_t<Values...>;
-    static constexpr type get(const Result<MergedResultViews<Values...>> & result)
-    {
-        return std::apply([](const auto &... result_rv) {
-            return std::tuple_cat(result_to_arguments(*result_rv)...);
-        }, result.value());
-    }
-};
+    return std::tuple_cat(result_to_arguments(results)...);
+}
 
 template <typename T>
 struct normalized_value_traits : std::type_identity<T> {};
@@ -148,7 +130,7 @@ template <typename T>
 inline constexpr bool is_error_code_v = std::same_as<std::remove_cvref_t<T>, std::error_code>;
 
 template <typename Return>
-inline constexpr bool is_nothrow_result_conversion_v = is_error_code_v<Return>
+inline constexpr bool is_nothrow_result_conversion_v = std::is_void_v<Return> or is_error_code_v<Return>
     or std::is_nothrow_constructible_v<normalized_result_t<Return>, std::add_rvalue_reference_t<Return>>;
 
 template <typename T>
@@ -160,21 +142,14 @@ concept result_value_c = std::same_as<T, void> or
 
 }
 
-template <details::result_value_c T, typename... Arguments>
-    requires std::constructible_from<Result<T>, Arguments...>
-ResultView<T> make_result_view(Arguments &&... arguments)
-{
-    return std::make_shared<const Result<T>>(std::forward<Arguments>(arguments)...);
-}
-
 template <details::result_value_c T, typename Owner>
-ResultView<T> make_result_view(std::shared_ptr<Owner> owner_sp, const Result<T> * result_p) noexcept
+ResultHandle<T> make_result_handle(std::shared_ptr<Owner> owner_sp, const Result<T> * result_p) noexcept
 {
-    return ResultView<T> {std::move(owner_sp), result_p};
+    return ResultHandle<T> {std::move(owner_sp), result_p};
 }
 
 template <details::result_value_c T> class Chain;
-template <details::result_value_c T> class Flow;
+template <details::result_value_c... Values> class ChainJunction;
 
 namespace details {
 
@@ -202,6 +177,8 @@ requires std::invocable<Function &, Arguments...>
 struct invocation_traits<Function, std::tuple<Arguments...>>
 {
     using return_type = std::invoke_result_t<Function &, Arguments...>;
+    static constexpr bool is_nothrow_result = std::is_nothrow_invocable_v<Function &, Arguments...>
+        and is_nothrow_result_conversion_v<return_type>;
 };
 
 template <typename Function, typename Arguments>
@@ -212,9 +189,6 @@ using normalized_invocation_value_t = normalized_value_t<invocation_return_t<Fun
 
 template <typename Function, typename Arguments>
 using normalized_invocation_return_t = normalized_result_t<invocation_return_t<Function, Arguments>>;
-
-template <typename Function, typename Arguments>
-using invocation_placeholder_t = ResultPlaceholder<normalized_invocation_value_t<Function, Arguments>>;
 
 template <typename Function, typename Arguments>
 concept function_c = std::move_constructible<Function>
@@ -246,9 +220,37 @@ constexpr normalized_result_t<Return> as_task_result(Return && result) noexcept(
     }
 }
 
+template <typename T>
+asio::awaitable<T> spawn_result(asio::any_io_executor executor, asio::awaitable<T> task)
+{
+    std::optional<T> result_opt;
+    co_await asio::co_spawn(
+        executor,
+        [](asio::awaitable<T> task, std::optional<T> & result_opt) -> asio::awaitable<void> {
+            result_opt.emplace(co_await std::move(task));
+        }(std::move(task), result_opt),
+        asio::use_awaitable);
+    co_return std::move(*result_opt);
+}
+
+template <typename Function, typename Arguments>
+requires (function_c<Function, Arguments> and not is_awaitable_v<invocation_return_t<Function, Arguments>>)
+constexpr normalized_invocation_return_t<Function, Arguments>
+invoke_task_result(Function & function, Arguments & arguments)
+    noexcept(invocation_traits<Function, Arguments>::is_nothrow_result)
+{
+    using Return = invocation_return_t<Function, Arguments>;
+    if constexpr (std::is_void_v<Return>) {
+        std::apply(function, arguments);
+        return {};
+    } else {
+        return as_task_result(std::apply(function, arguments));
+    }
+}
+
 template <typename Function, typename Arguments>
 requires function_c<Function, Arguments>
-asio::awaitable<invocation_placeholder_t<Function, Arguments>>
+asio::awaitable<normalized_invocation_return_t<Function, Arguments>>
 invoke_task(Function function, Arguments arguments)
 {
     using Return = invocation_return_t<Function, Arguments>;
@@ -261,40 +263,9 @@ invoke_task(Function function, Arguments arguments)
             co_return as_task_result(co_await std::apply(function, arguments));
         }
     } else {
-        if constexpr (std::is_void_v<Return>) {
-            std::apply(function, arguments);
-            co_return Result<void> {};
-        } else {
-            co_return as_task_result(std::apply(function, arguments));
-        }
-   }
+        co_return invoke_task_result(function, arguments);
+    }
 }
-
-template <typename T>
-struct source_traits {};
-
-template <typename T>
-struct source_traits<Chain<T>>
-{
-    using value_type = T;
-    static constexpr bool k_shared = false;
-};
-
-template <typename T>
-struct source_traits<Flow<T>>
-{
-    using value_type = T;
-    static constexpr bool k_shared = true;
-};
-
-template <typename T>
-concept source_c = not std::is_volatile_v<std::remove_reference_t<T>>
-    and requires { typename source_traits<std::remove_cvref_t<T>>::value_type; }
-    and (source_traits<std::remove_cvref_t<T>>::k_shared
-    or (not std::is_lvalue_reference_v<T> and not std::is_const_v<std::remove_reference_t<T>>));
-
-template <typename T>
-using source_value_t = typename source_traits<std::remove_cvref_t<T>>::value_type;
 
 }
 

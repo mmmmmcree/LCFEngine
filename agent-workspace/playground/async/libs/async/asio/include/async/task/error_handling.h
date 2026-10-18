@@ -9,10 +9,10 @@
 
 namespace lcf::async::task {
 
-class ErrorContext
+class ErrorHandleContext
 {
 public:
-    ErrorContext(std::error_code error, std::size_t attempt) noexcept : m_error(error), m_attempt_count(attempt) {}
+    ErrorHandleContext(std::error_code error, std::size_t attempt) noexcept : m_error(error), m_attempt_count(attempt) {}
 public:
     std::error_code getErrorCode() const noexcept { return m_error; }
     std::size_t getAttemptCount() const noexcept { return m_attempt_count; }
@@ -20,6 +20,14 @@ private:
     std::error_code m_error;
     std::size_t m_attempt_count;
 };
+
+namespace details {
+
+template <typename Handler>
+concept error_handler_function_c = std::move_constructible<Handler>
+    and std::invocable<Handler &, const ErrorHandleContext &>;
+
+}
 
 struct RetryAfter
 {
@@ -29,13 +37,13 @@ struct RetryAfter
 template <details::result_value_c T>
 using ErrorAction = std::variant<Result<T>, RetryAfter>;
 
-template <typename Handler>
+template <details::error_handler_function_c Handler>
 struct ErrorHandler
 {
     Handler m_function;
 };
 
-template <std::move_constructible Handler>
+template <details::error_handler_function_c Handler>
 auto on_error(Handler handler) noexcept(std::is_nothrow_move_constructible_v<Handler>)
 {
     return ErrorHandler<Handler> {std::move(handler)};
@@ -69,15 +77,19 @@ template <typename Return, typename Value>
 inline constexpr bool is_supported_error_handler_return_v = supported_error_handler_return_traits<Return, Value>::value;
 
 template <typename Handler>
-using error_handler_return_t = invocation_return_t<Handler, std::tuple<const ErrorContext &>>;
+using error_handler_return_t = invocation_return_t<Handler, std::tuple<const ErrorHandleContext &>>;
 
 template <typename Handler, typename Value>
-concept error_handler_c = std::move_constructible<Handler>
-    and std::invocable<Handler &, const ErrorContext &>
+concept error_handler_c = error_handler_function_c<Handler>
     and is_supported_error_handler_return_v<error_handler_return_t<Handler>, Value>;
 
-template <typename Value, typename Handler>
-asio::awaitable<ErrorAction<Value>> invoke_error_handler(Handler & handler, const ErrorContext & context)
+template <typename Handler, typename Function, typename... Inputs>
+concept task_error_handler_c = task_function_c<Function, Inputs...>
+    and error_handler_c<Handler, function_value_t<Function, Inputs...>>;
+
+template <typename Value, error_handler_function_c Handler>
+requires error_handler_c<Handler, Value>
+asio::awaitable<ErrorAction<Value>> invoke_error_handler(Handler & handler, const ErrorHandleContext & context)
 {
     if constexpr (is_awaitable_v<error_handler_return_t<Handler>>) {
         co_return ErrorAction<Value> {co_await std::invoke(handler, context)};
@@ -86,15 +98,17 @@ asio::awaitable<ErrorAction<Value>> invoke_error_handler(Handler & handler, cons
     }
 }
 
-template <typename Function, typename Handler, typename Arguments>
+template <typename Function, error_handler_function_c Handler, typename Arguments>
+requires (function_c<Function, Arguments>
+    and error_handler_c<Handler, normalized_invocation_value_t<Function, Arguments>>)
 asio::awaitable<normalized_invocation_return_t<Function, Arguments>>
 invoke_task_with_error_handler(Function function, Handler handler, Arguments arguments)
 {
     using Value = normalized_invocation_value_t<Function, Arguments>;
     for (std::size_t attempt = 1; ; ++attempt) {
-        auto result_placeholder = co_await invoke_task(std::ref(function), arguments);
-        if (*result_placeholder) { co_return std::move(*result_placeholder); }
-        const ErrorContext context {result_placeholder->error(), attempt};
+        auto result = co_await invoke_task(std::ref(function), arguments);
+        if (result) { co_return std::move(result); }
+        const ErrorHandleContext context {result.error(), attempt};
         auto action = co_await invoke_error_handler<Value>(handler, context);
         if (const auto * retry_p = std::get_if<RetryAfter>(&action)) {
             if (retry_p->m_delay > std::chrono::steady_clock::duration::zero()) {
@@ -108,11 +122,12 @@ invoke_task_with_error_handler(Function function, Handler handler, Arguments arg
     }
 }
 
-template <typename Function, typename Handler>
+template <std::move_constructible Function, error_handler_function_c Handler>
 class ErrorHandledTask
 {
 public:
-    ErrorHandledTask(Function function, Handler handler) :
+    ErrorHandledTask(Function function, Handler handler)
+        noexcept(are_nothrow_move_constructible_v<Function, Handler>) :
         m_function(std::move(function)), m_handler(std::move(handler)) {}
 public:
     template <typename... Arguments>

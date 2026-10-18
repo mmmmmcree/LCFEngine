@@ -1,7 +1,7 @@
 add_executable(async_verify_tests
     chain_test.cpp
     error_handling_test.cpp
-    flow_test.cpp
+    chain_junction_test.cpp
     contracts_test.cpp
 )
 target_link_libraries(async_verify_tests PRIVATE lcf::async_asio GTest::gtest_main)
@@ -25,6 +25,7 @@ if(LCF_ASYNC_USE_MODULES)
 endif()
 gtest_discover_tests(async_verify_tests
     DISCOVERY_MODE PRE_TEST
+    NO_PRETTY_VALUES
     PROPERTIES LABELS async TIMEOUT 30
 )
 
@@ -35,5 +36,4 @@ add_custom_target(async_verify
     USES_TERMINAL
     COMMENT "Running async verification"
 )
-add_dependencies(async_verify async_compile)
 set_target_properties(async_verify PROPERTIES FOLDER "async/tests/verify")

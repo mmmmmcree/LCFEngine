@@ -96,10 +96,14 @@ void merge_two_chains(benchmark::State & state)
     for (auto iteration : state) {
         state.PauseTiming();
         context.restart();
-        auto joined = task::merge(make_chain(context.get_executor(), length), make_chain(context.get_executor(), length))
-            .link([](const int & a, const int & b) { return a + b; });
+        auto first = make_chain(context.get_executor(), length);
+        auto second = make_chain(context.get_executor(), length);
+        auto joined = task::merge(first.getResultToken(), second.getResultToken())
+            .link(context.get_executor(), [](const int & a, const int & b) { return a + b; });
         int output = -1;
         state.ResumeTiming();
+        std::move(first).start(context.get_executor(), [](const auto &) {});
+        std::move(second).start(context.get_executor(), [](const auto &) {});
         std::move(joined).start(context.get_executor(), [&](const task::Result<int> & result) {
             if (result) { output = result.value(); }
         });

@@ -23,15 +23,11 @@
             "inherits": "dev",
             "binaryDir": "${sourceDir}/build/msvc-2026",
             "cacheVariables": {
-                "CMAKE_CXX_COMPILER": "cl.exe",
+                "CMAKE_CXX_COMPILER": "cl",
                 "LCF_ASYNC_USE_MODULES": "ON"
             },
             "architecture": {
                 "value": "x64",
-                "strategy": "external"
-            },
-            "toolset": {
-                "value": "v145,host=x64,version=14.51",
                 "strategy": "external"
             }
         },
@@ -41,15 +37,11 @@
             "inherits": "dev",
             "binaryDir": "${sourceDir}/build/clang",
             "cacheVariables": {
-                "CMAKE_CXX_COMPILER": "clang++.exe",
+                "CMAKE_CXX_COMPILER": "clang++",
                 "LCF_ASYNC_USE_MODULES": "ON"
             },
             "architecture": {
                 "value": "x64",
-                "strategy": "external"
-            },
-            "toolset": {
-                "value": "v145,host=x64,version=14.51",
                 "strategy": "external"
             }
         },
@@ -59,7 +51,7 @@
             "inherits": "dev",
             "binaryDir": "${sourceDir}/build/gcc",
             "cacheVariables": {
-                "CMAKE_CXX_COMPILER": "g++.exe",
+                "CMAKE_CXX_COMPILER": "g++",
                 "LCF_ASYNC_USE_MODULES": "OFF"
             }
         }

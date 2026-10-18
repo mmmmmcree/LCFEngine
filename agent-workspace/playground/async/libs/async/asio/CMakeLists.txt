@@ -6,11 +6,12 @@ endif()
 
 option(LCF_ASYNC_USE_MODULES "Use the lcf.async module through async/task.h" OFF)
 option(LCF_ASYNC_BUILD_VERIFY "Provide the async verification target" ON)
+option(LCF_ASYNC_BUILD_SANDBOX "Provide the async sandbox target" ON)
 option(LCF_ASYNC_BUILD_BENCHMARKS "Provide the async benchmark target" ON)
 option(LCF_ASYNC_TESTS_IN_MAIN_BUILD "Configure test executables in this build instead of on demand" OFF)
 mark_as_advanced(LCF_ASYNC_TESTS_IN_MAIN_BUILD)
 
-if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR AND LCF_ASYNC_BUILD_VERIFY)
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR AND (LCF_ASYNC_BUILD_VERIFY OR LCF_ASYNC_BUILD_SANDBOX))
     enable_testing()
 endif()
 
@@ -60,8 +61,9 @@ endif()
 
 set(async_header_sources
     include/async/task.h include/async/task/common.h
+    include/async/task/chain_details.h
     include/async/task/error_handling.h
-    include/async/task/Chain.h include/async/task/Flow.h include/async/task/interop.h)
+    include/async/task/Chain.h include/async/task/ChainJunction.h)
 
 if(LCF_ASYNC_USE_MODULES)
     # Keep Asio in the global module and compile its runtime once. This also
@@ -82,10 +84,6 @@ if(LCF_ASYNC_USE_MODULES)
     target_compile_definitions(async_asio INTERFACE LCF_ASYNC_USE_MODULES=1)
     target_link_libraries(async_asio PUBLIC async_asio_runtime)
     set_target_properties(async_asio PROPERTIES CXX_EXTENSIONS OFF)
-    add_library(async_module_compile OBJECT EXCLUDE_FROM_ALL tests/compile/compile.cpp)
-    set(async_compile_checks async_module_compile)
-    add_custom_target(async_compile DEPENDS "$<TARGET_FILE:async_asio>" async_module_compile)
-    set_target_properties(async_compile PROPERTIES FOLDER "async/tests/compile")
 else()
     set(async_implementation_sources ${async_header_sources})
     add_library(async_asio INTERFACE)
@@ -93,17 +91,11 @@ else()
     target_include_directories(async_asio INTERFACE
         "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
     target_link_libraries(async_asio INTERFACE asio::asio)
-    add_library(async_compile OBJECT EXCLUDE_FROM_ALL tests/compile/compile.cpp)
-    set(async_compile_checks async_compile)
 endif()
 add_library(lcf::async_asio ALIAS async_asio)
 set_target_properties(async_asio PROPERTIES FOLDER "async")
 list(TRANSFORM async_implementation_sources PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/")
 
-target_link_libraries(${async_compile_checks} PRIVATE lcf::async_asio)
-set_target_properties(${async_compile_checks} PROPERTIES
-    CXX_EXTENSIONS OFF FOLDER "async/tests/compile")
-
-if(LCF_ASYNC_BUILD_VERIFY OR LCF_ASYNC_BUILD_BENCHMARKS)
+if(LCF_ASYNC_BUILD_VERIFY OR LCF_ASYNC_BUILD_SANDBOX OR LCF_ASYNC_BUILD_BENCHMARKS)
     add_subdirectory(tests)
 endif()

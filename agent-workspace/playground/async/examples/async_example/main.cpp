@@ -47,12 +47,15 @@ int main()
         auto shader = task::Chain {std::string {"shader"}, workers.get_executor()}
             .link([](const std::string & name) { return prepare_asset(name, 100ms); })
             .link([](const std::string & name) { return write_asset(name, 150ms); });
-        auto tasks = task::merge(std::move(image), std::move(shader))
+        // auto tasks = task::merge(std::move(image), std::move(shader))
+        int exit_code = 1;
+        auto tasks = task::merge(image.getResultToken(), shader.getResultToken())
             .link(render.get_executor(), [](const std::string & image, const std::string & shader) {
                 std::cout << "merge on render " << std::this_thread::get_id() << '\n';
                 return image + " + " + shader;
             });
-        int exit_code = 1;
+        std::move(image).start(workers.get_executor(), [&](const task::Result<std::string> & result) {});
+        std::move(shader).start(workers.get_executor(), [&](const task::Result<std::string> & result) {});
         std::move(tasks).start(render.get_executor(), [&](const task::Result<std::string> & result) {
             if (not result) {
                 std::cerr << "async failed: " << result.error().message() << '\n';

@@ -1,6 +1,6 @@
 include(ExternalProject)
 
-# The outer project exposes entry targets without configuring either framework.
+# The outer project exposes entry targets without configuring the test frameworks.
 # Each requested target configures, builds and runs only its own test project.
 set(async_test_cmake_args
     -DLCF_ASYNC_TESTS_IN_MAIN_BUILD:BOOL=ON
@@ -36,17 +36,25 @@ if(TARGET async_asio_download)
     list(APPEND async_test_dependencies async_asio_download)
 endif()
 
-foreach(async_operation verify benchmark)
+foreach(async_operation verify sandbox benchmark)
     if(async_operation STREQUAL "verify")
         if(NOT LCF_ASYNC_BUILD_VERIFY)
             continue()
         endif()
-        set(async_operation_args -DLCF_ASYNC_BUILD_VERIFY:BOOL=ON -DLCF_ASYNC_BUILD_BENCHMARKS:BOOL=OFF)
+        set(async_operation_args -DLCF_ASYNC_BUILD_VERIFY:BOOL=ON
+            -DLCF_ASYNC_BUILD_SANDBOX:BOOL=OFF -DLCF_ASYNC_BUILD_BENCHMARKS:BOOL=OFF)
+    elseif(async_operation STREQUAL "sandbox")
+        if(NOT LCF_ASYNC_BUILD_SANDBOX)
+            continue()
+        endif()
+        set(async_operation_args -DLCF_ASYNC_BUILD_VERIFY:BOOL=OFF
+            -DLCF_ASYNC_BUILD_SANDBOX:BOOL=ON -DLCF_ASYNC_BUILD_BENCHMARKS:BOOL=OFF)
     else()
         if(NOT LCF_ASYNC_BUILD_BENCHMARKS)
             continue()
         endif()
-        set(async_operation_args -DLCF_ASYNC_BUILD_VERIFY:BOOL=OFF -DLCF_ASYNC_BUILD_BENCHMARKS:BOOL=ON
+        set(async_operation_args -DLCF_ASYNC_BUILD_VERIFY:BOOL=OFF
+            -DLCF_ASYNC_BUILD_SANDBOX:BOOL=OFF -DLCF_ASYNC_BUILD_BENCHMARKS:BOOL=ON
             "-DLCF_ASYNC_BENCHMARK_RESULTS_DIRECTORY:PATH=${CMAKE_CURRENT_BINARY_DIR}/benchmark/results")
     endif()
 
@@ -76,7 +84,14 @@ foreach(async_operation verify benchmark)
     set_target_properties(async_${async_operation}_project PROPERTIES FOLDER "async/tests/${async_operation}/internal")
 endforeach()
 
+set(async_ctest_operations "")
 if(LCF_ASYNC_BUILD_VERIFY)
+    list(APPEND async_ctest_operations verify)
+endif()
+if(LCF_ASYNC_BUILD_SANDBOX)
+    list(APPEND async_ctest_operations sandbox)
+endif()
+if(async_ctest_operations)
     configure_file("${CMAKE_CURRENT_LIST_DIR}/deferred_ctest.cmake.in"
         "${CMAKE_CURRENT_BINARY_DIR}/deferred_ctest.cmake" @ONLY)
     set_property(DIRECTORY APPEND PROPERTY TEST_INCLUDE_FILES

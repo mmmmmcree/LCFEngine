@@ -6,10 +6,11 @@
 - Use `m_snake_case` for data members and `k_snake_case` for constexpr objects and file-scope constants. Ordinary local `const` variables retain snake_case.
 - Use `ePascalCase` for ordinary enum values.
 - Follow standard-library naming for traits and related template utilities: `enum_traits`, `value_type`, `value`, `*_t`, `*_v`, and snake_case query functions. Use `snake_case_c` for concepts.
-- Extract repeated trait compositions into semantic `*_t` aliases and reuse them consistently instead of repeating nested template expressions.
-- Mark variables with different access semantics using these suffixes: raw pointer `_p`, unique_ptr `_up`, shared_ptr `_sp`, weak_ptr `_wp`, optional `_opt`, ResourceHandle `_rh`, ResultView `_rv`, iterator `_it`. Combine with `m_` for members.
-- Choose suffixes from the semantic type rather than its underlying storage: a `ResultView<T>` uses `_rv` even when implemented with `shared_ptr`. Combine wrapper suffixes, such as `_rv_opt` for `optional<ResultView<T>>`.
-- Name construction helpers after the semantic type and use them at call sites, such as `make_result_view`; keep underlying storage construction such as `make_shared` inside the helper.
+- Extract repeated or long trait compositions into semantic `*_t` aliases or `*_v` traits and reuse them in constraints and `noexcept` specifications. Use a variadic trait when applying the same condition to multiple types.
+- Mark variables with different access semantics using these suffixes: raw pointer `_p`, unique_ptr `_up`, shared_ptr `_sp`, weak_ptr `_wp`, optional `_opt`, ResourceHandle or ResultHandle `_rh`, iterator `_it`. Combine with `m_` for members.
+- Choose suffixes from the semantic type rather than its underlying storage: a `ResultHandle<T>` uses `_rh` even when implemented with `shared_ptr`. Combine wrapper suffixes, such as `_rh_opt` for `optional<ResultHandle<T>>`.
+- Name construction helpers after the semantic type and use them at call sites, such as `make_result_handle`; keep underlying storage construction such as `make_shared` inside the helper.
+- Make pointer-like access apparent in type names, using names such as `*Ptr` or `*Handle`. Use `*Token` for opaque identifiers passed to another operation.
 - Name configuration objects after what they configure and retain `_info`, such as `image_pass_info`. Avoid generic `info` when it obscures the role.
 - Use full words for folders and ordinary types. Reuse established namespace abbreviations such as `vkc`, `bs`, and `dsp`; ask before introducing new abbreviations.
 - Avoid C++ keywords as identifiers, including contextual keywords such as `module`.
@@ -83,6 +84,33 @@ private:
 - Filter loop iterations with `continue` instead of wrapping the main work in another conditional.
 - Do not wrap the remaining path in `else` after a branch that already exits.
 
+## Tests
+
+### Case design
+
+- Focus each case on one observable contract so its failure narrows the implementation area to inspect. Split unrelated behaviors into separate cases.
+- Reuse setup through named parameterized cases when boundary inputs exercise the same contract. Give each parameter a semantic name and preserve that name in test-runner output, including CTest discovery.
+- Choose boundary inputs that distinguish the behavior under test: success versus failure, empty or void input, zero-valued errors, retry limits, and completion order where applicable.
+- Assert individual arguments and object identity when a combined value could hide ordering, copying, or lifetime regressions.
+- Retain focused integration and concurrency tests for guarantees that depend on interactions between components. Share setup without hiding the expected behavior in generic test infrastructure.
+
+### Layout and documentation
+
+- In GoogleTest files, keep each test's documentation, scenario function declaration, and `TEST` or `TEST_P` registration adjacent near the top as a navigable index. Keep each registration as a single call to its scenario function. Place helper definitions, parameter datasets, and scenario implementations below, with scenarios in the same order as their registrations.
+- Group related tests under matching Markdown-style section headings in the registration index and implementation section.
+- Document each case with `Objective` (contract being verified), `Input` (data, environment, and preconditions), `Procedure` (operations and triggering conditions), `Expected` (result values, exceptions, and observable postconditions), and `Failure hints` (implementation entry points and state transitions to inspect first).
+- Connect failure hints to observable symptoms, such as premature completion, an incorrect error, or retained ownership. Identify a starting point for investigation without claiming that a symptom proves a root cause.
+
+### Assertions and asynchronous execution
+
+- Assert result status before accessing its value or error so failures report the violated contract directly.
+- Add assertion messages or `SCOPED_TRACE` for the relevant stage, iteration, branch, or injected failure position. Keep independently reportable boundary cases separate from internal stress-loop iterations.
+- Control asynchronous ordering with explicit signals or gates. Use deadlines to bound waits; assert elapsed time only when timing itself is the contract being tested.
+- Record completion bookkeeping before fatal assertions in callbacks so an assertion failure does not turn into an unrelated timeout.
+- Preserve the ownership, identity, and failure status being tested in test helpers; do not replace original results with detached copies that hide lifetime or publication defects.
+
 ## Comments
 
+- Write comments in English.
+- Use `/* ... */` for long comments spanning multiple lines.
 - Code explains itself. Prefer clear names and structure over explanatory comments.

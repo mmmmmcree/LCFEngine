@@ -9,6 +9,10 @@ if(LCF_ASYNC_BUILD_VERIFY)
     add_subdirectory(verify)
 endif()
 
+if(LCF_ASYNC_BUILD_SANDBOX)
+    add_subdirectory(sandbox)
+endif()
+
 if(LCF_ASYNC_BUILD_BENCHMARKS)
     add_subdirectory(benchmark)
 endif()

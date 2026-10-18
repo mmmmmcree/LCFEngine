@@ -10,9 +10,9 @@ task::Chain<int> make_header_chain(asio::any_io_executor executor)
         .link([](const int & value) { return value + 1; });
 }
 
-task::Flow<int> share_header_chain(task::Chain<int> chain)
+task::ChainJunction<int> describe_header_chain(const task::Chain<int> & chain)
 {
-    return task::as_flow(std::move(chain));
+    return task::merge(chain.getResultToken());
 }
 
 }

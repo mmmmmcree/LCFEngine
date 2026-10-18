@@ -56,25 +56,28 @@ public:
         }
     }
     template <typename Task>
+    void start(Task operation)
+    {
+        std::move(operation).start(m_control.get_executor(), [](const auto &) {});
+    }
+    template <typename Task>
     auto run(Task operation)
     {
         using Value = typename Task::value_type;
         struct Completion
         {
-            task::ResultView<Value> m_result_rv;
-            std::exception_ptr m_exception;
+            task::ResultHandle<Value> m_result_rh;
             bool m_done = false;
         };
         auto completion_sp = std::make_shared<Completion>();
-        asio::co_spawn(m_control, std::move(operation).run(),
-            [completion_sp](std::exception_ptr exception, task::ResultView<Value> result_rv) {
-                completion_sp->m_exception = exception;
-                completion_sp->m_result_rv = std::move(result_rv);
+        auto token_sp = std::make_shared<typename Task::ResultToken>(operation.getResultToken());
+        std::move(operation).start(m_control.get_executor(),
+            [completion_sp, token_sp = std::move(token_sp)](const task::Result<Value> & result) mutable {
+                completion_sp->m_result_rh = task::make_result_handle(std::move(token_sp), &result);
                 completion_sp->m_done = true;
             });
         this->pumpUntil([&] { return completion_sp->m_done; });
-        if (completion_sp->m_exception) { std::rethrow_exception(completion_sp->m_exception); }
-        return completion_sp->m_result_rv;
+        return completion_sp->m_result_rh;
     }
 private:
     asio::io_context m_control;

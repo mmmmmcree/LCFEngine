@@ -1,7 +1,11 @@
-set(async_verify_tests_file "@CMAKE_CURRENT_BINARY_DIR@/verify-build/tests/verify/CTestTestfile.cmake")
-if(EXISTS "${async_verify_tests_file}")
-    include("${async_verify_tests_file}")
-else()
-    add_test(async.verify_build_required "@CMAKE_COMMAND@" -E echo "Build async_verify, then refresh the test list")
-    set_tests_properties(async.verify_build_required PROPERTIES DISABLED TRUE LABELS async)
-endif()
+foreach(async_operation IN ITEMS @async_ctest_operations@)
+    set(async_tests_file "@CMAKE_CURRENT_BINARY_DIR@/${async_operation}-build/tests/${async_operation}/CTestTestfile.cmake")
+    if(EXISTS "${async_tests_file}")
+        include("${async_tests_file}")
+    else()
+        add_test(async.${async_operation}_build_required "@CMAKE_COMMAND@" -E echo
+            "Build async_${async_operation}, then refresh the test list")
+        set_tests_properties(async.${async_operation}_build_required PROPERTIES
+            DISABLED TRUE LABELS "async;${async_operation}")
+    endif()
+endforeach()

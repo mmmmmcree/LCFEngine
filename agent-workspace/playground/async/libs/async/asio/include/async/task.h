@@ -5,5 +5,5 @@
     and not defined(__INTELLISENSE__)
 import lcf.async;
 #else
-#include "task/interop.h"
+#include "task/ChainJunction.h"
 #endif
