@@ -27,6 +27,7 @@
 - Align continued chained calls at one indentation level, with each subsequent `.method()` on its own line.
 - Write pointers and references as `Type * value_p`, `const Type & value`, and `Self && other`.
 - Leave a space between `template` and `<`: `template <typename T>`, `template <>`.
+- Put export annotation macros such as `LCF_ASYNC_EXPORT` on their own line before the associated declaration or template line.
 - Keep access labels aligned with the class braces, and indent declarations beneath them.
 - Do not insert blank lines between consecutive member declarations or definitions. Separate class responsibility groups with access labels rather than blank lines.
 - Use `not`, `and`, and `or` for logical operators.

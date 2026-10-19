@@ -1,0 +1,3 @@
+[submodule "async"]
+	path = async
+	url = E:/LCFEngine/agent-workspace/playground/libs/build/repositories/async.git

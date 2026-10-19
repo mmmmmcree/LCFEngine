@@ -1,0 +1,12 @@
+{
+    "dependencies": [
+        {
+            "name": "stdexec",
+            "git": "https://github.com/NVIDIA/stdexec.git",
+            "git_tag": "dfc8c95718e8c66ff5496bc3b185a9162c93821e",
+            "target": "STDEXEC::stdexec",
+            "package": "STDEXEC",
+            "include_directories": ["include"]
+        }
+    ]
+}

@@ -1,0 +1,10 @@
+include_guard(GLOBAL)
+include(CMakeDependentOption)
+
+option(LCF_ASYNC_ENABLE_ASIO "Enable the Asio implementation" ON)
+option(LCF_ASYNC_ENABLE_STDEXEC "Enable the stdexec implementation" OFF)
+option(LCF_ASYNC_USE_MODULES "Use lcf.async through async/task.h" OFF)
+option(LCF_ASYNC_BUILD_TESTS "Allow implementation development targets" OFF)
+option(LCF_ASYNC_INSTALL "Install async and export its CMake package" OFF)
+set(LCF_ASYNC_DEPENDENCY_PROVIDER "PACKAGE" CACHE STRING "Dependency source: PACKAGE, PROVIDED, or FETCH")
+set_property(CACHE LCF_ASYNC_DEPENDENCY_PROVIDER PROPERTY STRINGS PACKAGE PROVIDED FETCH)

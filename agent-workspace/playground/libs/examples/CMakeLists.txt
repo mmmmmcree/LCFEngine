@@ -1,0 +1,6 @@
+if(TARGET lcf::async_asio)
+    add_subdirectory(async_example)
+endif()
+if(TARGET lcf::async_stdexec AND NOT TARGET async_stdexec_example)
+    add_subdirectory(async_stdexec_example)
+endif()

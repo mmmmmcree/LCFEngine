@@ -1,0 +1,421 @@
+{
+    "version": 3,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 28,
+        "patch": 0
+    },
+    "configurePresets": [
+        {
+            "name": "dev",
+            "displayName": "async / Asio + stdexec",
+            "generator": "Ninja Multi-Config",
+            "binaryDir": "${sourceDir}/build/dev",
+            "cacheVariables": {
+                "CMAKE_CONFIGURATION_TYPES": "Debug;Release",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "LCF_ASYNC_USE_MODULES": "OFF",
+                "LCF_ASYNC_BUILD_TESTS": "ON",
+                "LCF_ASYNC_DEPENDENCY_PROVIDER": "FETCH",
+                "LCF_ASYNC_ENABLE_ASIO": "ON",
+                "LCF_ASYNC_ENABLE_STDEXEC": "ON",
+                "LCF_ASYNC_STDEXEC_BUILD_BENCHMARKS": "ON"
+            }
+        },
+        {
+            "name": "ide",
+            "displayName": "Asio + stdexec / headers / IDE tests",
+            "inherits": "dev",
+            "binaryDir": "${sourceDir}/build/ide",
+            "cacheVariables": {
+                "LCF_ASYNC_ASIO_TESTS_IN_MAIN_BUILD": "ON",
+                "LCF_ASYNC_STDEXEC_TESTS_IN_MAIN_BUILD": "ON",
+                "LCF_ASYNC_ASIO_BUILD_BENCHMARKS": "OFF",
+                "LCF_ASYNC_STDEXEC_BUILD_BENCHMARKS": "OFF"
+            }
+        },
+        {
+            "name": "asio",
+            "displayName": "Asio / headers / deferred tests",
+            "inherits": "dev",
+            "binaryDir": "${sourceDir}/build/asio",
+            "cacheVariables": {
+                "LCF_ASYNC_ENABLE_STDEXEC": "OFF"
+            }
+        },
+        {
+            "name": "msvc-2026",
+            "displayName": "MSVC 2026 / module",
+            "inherits": "dev",
+            "binaryDir": "${sourceDir}/build/msvc-2026",
+            "cacheVariables": {
+                "CMAKE_CXX_COMPILER": "cl",
+                "LCF_ASYNC_USE_MODULES": "ON",
+                "LCF_ASYNC_ENABLE_STDEXEC": "OFF"
+            },
+            "architecture": {
+                "value": "x64",
+                "strategy": "external"
+            }
+        },
+        {
+            "name": "clang",
+            "displayName": "Clang / module",
+            "inherits": "dev",
+            "binaryDir": "${sourceDir}/build/clang",
+            "cacheVariables": {
+                "CMAKE_CXX_COMPILER": "clang++",
+                "LCF_ASYNC_USE_MODULES": "ON",
+                "LCF_ASYNC_ENABLE_STDEXEC": "OFF"
+            },
+            "architecture": {
+                "value": "x64",
+                "strategy": "external"
+            }
+        },
+        {
+            "name": "gcc",
+            "displayName": "GCC / headers",
+            "inherits": "dev",
+            "binaryDir": "${sourceDir}/build/gcc",
+            "cacheVariables": {
+                "CMAKE_CXX_COMPILER": "g++",
+                "LCF_ASYNC_USE_MODULES": "OFF",
+                "LCF_ASYNC_ENABLE_STDEXEC": "OFF"
+            }
+        },
+        {
+            "name": "stdexec",
+            "displayName": "stdexec / headers / deferred tests",
+            "inherits": "dev",
+            "binaryDir": "${sourceDir}/build/stdexec",
+            "cacheVariables": {
+                "LCF_ASYNC_ENABLE_ASIO": "OFF",
+                "LCF_ASYNC_ENABLE_STDEXEC": "ON",
+                "LCF_ASYNC_STDEXEC_TESTS_IN_MAIN_BUILD": "OFF"
+            }
+        },
+        {
+            "name": "stdexec-ide",
+            "displayName": "stdexec / headers / IDE tests",
+            "inherits": "stdexec",
+            "binaryDir": "${sourceDir}/build/stdexec-ide",
+            "cacheVariables": {
+                "LCF_ASYNC_STDEXEC_TESTS_IN_MAIN_BUILD": "ON",
+                "LCF_ASYNC_STDEXEC_BUILD_BENCHMARKS": "OFF"
+            }
+        },
+        {
+            "name": "stdexec-msvc-2026",
+            "displayName": "stdexec / MSVC 2026 / module",
+            "inherits": "stdexec-ide",
+            "binaryDir": "${sourceDir}/build/stdexec-msvc-2026",
+            "cacheVariables": {
+                "CMAKE_CXX_COMPILER": "cl",
+                "LCF_ASYNC_USE_MODULES": "ON"
+            },
+            "architecture": {
+                "value": "x64",
+                "strategy": "external"
+            }
+        },
+        {
+            "name": "stdexec-benchmark",
+            "displayName": "stdexec / benchmark only",
+            "inherits": "stdexec",
+            "binaryDir": "${sourceDir}/build/stdexec-benchmark",
+            "cacheVariables": {
+                "LCF_ASYNC_STDEXEC_BUILD_VERIFY": "OFF",
+                "LCF_ASYNC_STDEXEC_BUILD_SANDBOX": "OFF",
+                "LCF_ASYNC_STDEXEC_BUILD_BENCHMARKS": "ON"
+            }
+        },
+        {
+            "name": "compare",
+            "displayName": "Asio vs stdexec / benchmark only",
+            "inherits": "dev",
+            "binaryDir": "${sourceDir}/build/compare",
+            "cacheVariables": {
+                "LCF_ASYNC_ENABLE_ASIO": "ON",
+                "LCF_ASYNC_ENABLE_STDEXEC": "ON",
+                "LCF_ASYNC_ASIO_BUILD_VERIFY": "OFF",
+                "LCF_ASYNC_ASIO_BUILD_SANDBOX": "OFF",
+                "LCF_ASYNC_ASIO_BUILD_BENCHMARKS": "OFF",
+                "LCF_ASYNC_STDEXEC_BUILD_TESTS": "OFF",
+                "LCF_ASYNC_BUILD_BACKEND_BENCHMARKS": "ON"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "debug",
+            "configurePreset": "dev",
+            "configuration": "Debug"
+        },
+        {
+            "name": "release",
+            "configurePreset": "dev",
+            "configuration": "Release"
+        },
+        {
+            "name": "msvc-2026-debug",
+            "configurePreset": "msvc-2026",
+            "configuration": "Debug"
+        },
+        {
+            "name": "msvc-2026-release",
+            "configurePreset": "msvc-2026",
+            "configuration": "Release"
+        },
+        {
+            "name": "clang-debug",
+            "configurePreset": "clang",
+            "configuration": "Debug"
+        },
+        {
+            "name": "clang-release",
+            "configurePreset": "clang",
+            "configuration": "Release"
+        },
+        {
+            "name": "gcc-debug",
+            "configurePreset": "gcc",
+            "configuration": "Debug"
+        },
+        {
+            "name": "gcc-release",
+            "configurePreset": "gcc",
+            "configuration": "Release"
+        },
+        {
+            "name": "stdexec-debug",
+            "configurePreset": "stdexec",
+            "configuration": "Debug"
+        },
+        {
+            "name": "stdexec-release",
+            "configurePreset": "stdexec",
+            "configuration": "Release"
+        },
+        {
+            "name": "stdexec-ide-debug",
+            "configurePreset": "stdexec-ide",
+            "configuration": "Debug"
+        },
+        {
+            "name": "stdexec-ide-release",
+            "configurePreset": "stdexec-ide",
+            "configuration": "Release"
+        },
+        {
+            "name": "stdexec-msvc-2026-debug",
+            "configurePreset": "stdexec-msvc-2026",
+            "configuration": "Debug"
+        },
+        {
+            "name": "stdexec-msvc-2026-release",
+            "configurePreset": "stdexec-msvc-2026",
+            "configuration": "Release"
+        },
+        {
+            "name": "stdexec-benchmark-debug",
+            "configurePreset": "stdexec-benchmark",
+            "configuration": "Debug"
+        },
+        {
+            "name": "stdexec-benchmark-release",
+            "configurePreset": "stdexec-benchmark",
+            "configuration": "Release"
+        },
+        {
+            "name": "compare-release",
+            "configurePreset": "compare",
+            "configuration": "Release",
+            "targets": [
+                "async_compare"
+            ]
+        },
+        {
+            "name": "ide-debug",
+            "configurePreset": "ide",
+            "configuration": "Debug"
+        },
+        {
+            "name": "ide-release",
+            "configurePreset": "ide",
+            "configuration": "Release"
+        },
+        {
+            "name": "asio-debug",
+            "configurePreset": "asio",
+            "configuration": "Debug"
+        },
+        {
+            "name": "asio-release",
+            "configurePreset": "asio",
+            "configuration": "Release"
+        }
+    ],
+    "testPresets": [
+        {
+            "name": "debug",
+            "configurePreset": "dev",
+            "configuration": "Debug",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "release",
+            "configurePreset": "dev",
+            "configuration": "Release",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "msvc-2026-debug",
+            "configurePreset": "msvc-2026",
+            "configuration": "Debug",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "msvc-2026-release",
+            "configurePreset": "msvc-2026",
+            "configuration": "Release",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "clang-debug",
+            "configurePreset": "clang",
+            "configuration": "Debug",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "clang-release",
+            "configurePreset": "clang",
+            "configuration": "Release",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "gcc-debug",
+            "configurePreset": "gcc",
+            "configuration": "Debug",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "gcc-release",
+            "configurePreset": "gcc",
+            "configuration": "Release",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "stdexec-debug",
+            "configurePreset": "stdexec",
+            "configuration": "Debug",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "stdexec-release",
+            "configurePreset": "stdexec",
+            "configuration": "Release",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "stdexec-ide-debug",
+            "configurePreset": "stdexec-ide",
+            "configuration": "Debug",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "stdexec-ide-release",
+            "configurePreset": "stdexec-ide",
+            "configuration": "Release",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "stdexec-msvc-2026-debug",
+            "configurePreset": "stdexec-msvc-2026",
+            "configuration": "Debug",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "stdexec-msvc-2026-release",
+            "configurePreset": "stdexec-msvc-2026",
+            "configuration": "Release",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "stdexec-benchmark-debug",
+            "configurePreset": "stdexec-benchmark",
+            "configuration": "Debug",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "stdexec-benchmark-release",
+            "configurePreset": "stdexec-benchmark",
+            "configuration": "Release",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "ide-debug",
+            "configurePreset": "ide",
+            "configuration": "Debug",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "ide-release",
+            "configurePreset": "ide",
+            "configuration": "Release",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "asio-debug",
+            "configurePreset": "asio",
+            "configuration": "Debug",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "asio-release",
+            "configurePreset": "asio",
+            "configuration": "Release",
+            "output": {
+                "outputOnFailure": true
+            }
+        }
+    ]
+}

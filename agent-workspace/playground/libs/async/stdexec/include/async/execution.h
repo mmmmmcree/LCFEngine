@@ -1,0 +1,18 @@
+#pragma once
+
+#include <async/dependencies.h>
+
+#if defined(LCF_ASYNC_USE_MODULES) and LCF_ASYNC_USE_MODULES \
+    and not defined(LCF_ASYNC_BUILDING_MODULE) \
+    and not defined(LCF_ASYNC_FORCE_HEADERS) \
+    and not defined(__INTELLISENSE__)
+import lcf.async;
+#else
+#include "execution/coroutine/Awaitable.h"
+#include "execution/coroutine/FrameAllocatorScope.h"
+#include "execution/coroutine/operations.h"
+#include "execution/scheduling/Context.h"
+#include "execution/synchronization/Signal.h"
+#include "execution/timer/operations.h"
+#include "execution/cancellation/operations.h"
+#endif

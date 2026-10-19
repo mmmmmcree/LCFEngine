@@ -1,0 +1,163 @@
+{
+    "version": 3,
+    "configurePresets": [
+        {
+            "name": "submodule-asio",
+            "generator": "Ninja Multi-Config",
+            "binaryDir": "${sourceDir}/build/submodule-asio",
+            "cacheVariables": {
+                "LCF_ASYNC_CONSUMPTION": "SUBDIRECTORY",
+                "LCF_ASYNC_CONSUMER_BACKEND": "asio",
+                "LCF_ASYNC_DEPENDENCY_PROVIDER": "FETCH"
+            }
+        },
+        {
+            "name": "submodule-stdexec",
+            "generator": "Ninja Multi-Config",
+            "binaryDir": "${sourceDir}/build/submodule-stdexec",
+            "cacheVariables": {
+                "LCF_ASYNC_CONSUMPTION": "SUBDIRECTORY",
+                "LCF_ASYNC_CONSUMER_BACKEND": "stdexec",
+                "LCF_ASYNC_DEPENDENCY_PROVIDER": "FETCH"
+            }
+        },
+        {
+            "name": "fetch-asio",
+            "generator": "Ninja Multi-Config",
+            "binaryDir": "${sourceDir}/build/fetch-asio",
+            "cacheVariables": {
+                "LCF_ASYNC_CONSUMPTION": "FETCH",
+                "LCF_ASYNC_CONSUMER_BACKEND": "asio",
+                "LCF_ASYNC_DEPENDENCY_PROVIDER": "FETCH"
+            }
+        },
+        {
+            "name": "fetch-stdexec",
+            "generator": "Ninja Multi-Config",
+            "binaryDir": "${sourceDir}/build/fetch-stdexec",
+            "cacheVariables": {
+                "LCF_ASYNC_CONSUMPTION": "FETCH",
+                "LCF_ASYNC_CONSUMER_BACKEND": "stdexec",
+                "LCF_ASYNC_DEPENDENCY_PROVIDER": "FETCH"
+            }
+        },
+        {
+            "name": "package-asio",
+            "generator": "Ninja Multi-Config",
+            "binaryDir": "${sourceDir}/build/package-asio",
+            "cacheVariables": {
+                "LCF_ASYNC_CONSUMPTION": "PACKAGE",
+                "LCF_ASYNC_CONSUMER_BACKEND": "asio",
+                "LCF_ASYNC_DEPENDENCY_PROVIDER": "FETCH"
+            }
+        },
+        {
+            "name": "package-stdexec",
+            "generator": "Ninja Multi-Config",
+            "binaryDir": "${sourceDir}/build/package-stdexec",
+            "cacheVariables": {
+                "LCF_ASYNC_CONSUMPTION": "PACKAGE",
+                "LCF_ASYNC_CONSUMER_BACKEND": "stdexec",
+                "LCF_ASYNC_DEPENDENCY_PROVIDER": "FETCH"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "submodule-asio-debug",
+            "configurePreset": "submodule-asio",
+            "configuration": "Debug",
+            "targets": [
+                "async_consumer"
+            ]
+        },
+        {
+            "name": "submodule-asio-release",
+            "configurePreset": "submodule-asio",
+            "configuration": "Release",
+            "targets": [
+                "async_consumer"
+            ]
+        },
+        {
+            "name": "submodule-stdexec-debug",
+            "configurePreset": "submodule-stdexec",
+            "configuration": "Debug",
+            "targets": [
+                "async_consumer"
+            ]
+        },
+        {
+            "name": "submodule-stdexec-release",
+            "configurePreset": "submodule-stdexec",
+            "configuration": "Release",
+            "targets": [
+                "async_consumer"
+            ]
+        },
+        {
+            "name": "fetch-asio-debug",
+            "configurePreset": "fetch-asio",
+            "configuration": "Debug",
+            "targets": [
+                "async_consumer"
+            ]
+        },
+        {
+            "name": "fetch-asio-release",
+            "configurePreset": "fetch-asio",
+            "configuration": "Release",
+            "targets": [
+                "async_consumer"
+            ]
+        },
+        {
+            "name": "fetch-stdexec-debug",
+            "configurePreset": "fetch-stdexec",
+            "configuration": "Debug",
+            "targets": [
+                "async_consumer"
+            ]
+        },
+        {
+            "name": "fetch-stdexec-release",
+            "configurePreset": "fetch-stdexec",
+            "configuration": "Release",
+            "targets": [
+                "async_consumer"
+            ]
+        },
+        {
+            "name": "package-asio-debug",
+            "configurePreset": "package-asio",
+            "configuration": "Debug",
+            "targets": [
+                "async_consumer"
+            ]
+        },
+        {
+            "name": "package-asio-release",
+            "configurePreset": "package-asio",
+            "configuration": "Release",
+            "targets": [
+                "async_consumer"
+            ]
+        },
+        {
+            "name": "package-stdexec-debug",
+            "configurePreset": "package-stdexec",
+            "configuration": "Debug",
+            "targets": [
+                "async_consumer"
+            ]
+        },
+        {
+            "name": "package-stdexec-release",
+            "configurePreset": "package-stdexec",
+            "configuration": "Release",
+            "targets": [
+                "async_consumer"
+            ]
+        }
+    ]
+}

@@ -1,0 +1,7 @@
+if(NOT DEFINED DEPS_FILE)
+    set(DEPS_FILE "${CMAKE_CURRENT_LIST_DIR}/../deps.json")
+endif()
+if(CMAKE_CURRENT_LIST_FILE STREQUAL CMAKE_SCRIPT_MODE_FILE)
+    set(ASYNC_DEPENDENCY_VERSIONS_RUN_CLI ON)
+endif()
+include("${CMAKE_CURRENT_LIST_DIR}/../../cmake/dependency_versions.cmake")
