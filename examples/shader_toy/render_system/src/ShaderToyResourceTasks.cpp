@@ -13,9 +13,6 @@
 #include <algorithm>
 #include <mutex>
 #include <tuple>
-#include <asio/steady_timer.hpp>
-#include <asio/this_coro.hpp>
-#include <asio/use_awaitable.hpp>
 
 namespace {
 
@@ -23,13 +20,10 @@ using namespace lcf;
 using namespace lcf::shader_toy;
 
 constexpr vk::ImageSubresourceRange k_color_range {vk::ImageAspectFlagBits::eColor, 0u, 1u, 0u, 1u};
-using SubmissionTokenList = std::vector<vkc::SubmissionToken>;
 
 void initialize_image(vkc::CommandBufferProxy & cmd, const vkc::Image & image, const vkc::Buffer & staging) noexcept;
 void initialize_buffer_image(vkc::CommandBufferProxy & cmd, ShaderToyImageResourceInfo & image_resource_info) noexcept;
 void append_submission_token(SubmissionTokenList & wait_tokens, const ShaderToyImageResourceInfo & image_resource_info) noexcept;
-std::error_code submit_dependencies(vkc::Queue & queue, vk::ArrayProxy<const vkc::SubmissionToken> wait_tokens) noexcept;
-asio::awaitable<void> wait_for_retry();
 std::error_code create_render_targets(std::span<const ShaderToyImageResourceInfo> images,
     ShaderToyPassInfo::RenderTargetList & render_targets) noexcept;
 std::error_code create_channel_descriptor_set(vk::Device device, vkc::dsp::DescriptorSetAllocator & descriptor_allocator,
@@ -110,17 +104,6 @@ std::expected<ShaderToyImageResourceInfo, std::error_code> upload_image(
     image_resource_info.m_access_flags = vk::AccessFlagBits2::eShaderSampledRead;
     image_resource_info.m_submission_token_opt = *expected_submit;
     return image_resource_info;
-}
-
-asio::awaitable<std::expected<ShaderToyImageResourceInfo, std::error_code>> prepare_sampled_image(
-    const ShaderToyTaskContext & context, const ShaderToyImageResourceInfo & image_resource_info)
-{
-    if (not image_resource_info.m_submission_token_opt) { co_return image_resource_info; }
-    const auto & token = *image_resource_info.m_submission_token_opt;
-    auto device = context.m_device_context.getDevice();
-    while (device.getSemaphoreCounterValue(token.semaphore) < token.value) { co_await wait_for_retry(); }
-    if (auto ec = submit_dependencies(context.m_graphics_queue, token)) { co_return std::unexpected(ec); }
-    co_return image_resource_info;
 }
 
 std::expected<ShaderSource, std::error_code> load_shader_source(const std::filesystem::path & path) noexcept
@@ -216,33 +199,13 @@ std::error_code prepare_pass(const ShaderToyTaskContext & context,
         output_images.front().m_image.getDescription(), pass_info.m_gfx_pipeline);
 }
 
-asio::awaitable<std::expected<InstanceInfoPointer, std::error_code>> prepare_instance_info(
-    const ShaderToyTaskContext & context, const InstanceInfoPointer & shader_toy_instance_info)
+SubmissionTokenList collect_instance_dependencies(const ShaderToyInstanceInfo & shader_toy_instance_info)
 {
-    auto device = context.m_device_context.getDevice();
-    for (;;) {
-        auto ec = shader_toy_instance_info->validate(device);
-        if (not ec) { break; }
-        if (ec != std::errc::resource_unavailable_try_again) { co_return std::unexpected(ec); }
-        co_await wait_for_retry();
-    }
     SubmissionTokenList wait_tokens;
-    for (const auto & image_resource_infos : shader_toy_instance_info->viewResourceInfos()) {
+    for (const auto & image_resource_infos : shader_toy_instance_info.viewResourceInfos()) {
         for (const auto & image_resource_info : image_resource_infos) { append_submission_token(wait_tokens, image_resource_info); }
     }
-    if (auto ec = submit_dependencies(context.m_graphics_queue, wait_tokens)) { co_return std::unexpected(ec); }
-    co_return shader_toy_instance_info;
-}
-
-}
-
-namespace {
-
-asio::awaitable<void> wait_for_retry()
-{
-    asio::steady_timer retry_timer {co_await asio::this_coro::executor};
-    retry_timer.expires_after(std::chrono::milliseconds {1});
-    co_await retry_timer.async_wait(asio::use_awaitable);
+    return wait_tokens;
 }
 
 std::error_code submit_dependencies(vkc::Queue & queue, vk::ArrayProxy<const vkc::SubmissionToken> wait_tokens) noexcept
@@ -265,6 +228,10 @@ std::error_code submit_dependencies(vkc::Queue & queue, vk::ArrayProxy<const vkc
     if (not expected_submit) { return expected_submit.error(); }
     return {};
 }
+
+}
+
+namespace {
 
 void initialize_image(vkc::CommandBufferProxy & cmd, const vkc::Image & image, const vkc::Buffer & staging) noexcept
 {

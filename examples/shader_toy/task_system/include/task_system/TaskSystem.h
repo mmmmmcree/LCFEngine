@@ -5,6 +5,7 @@
 #include "event/EventQueue.h"
 #include "containers/RobinMap.h"
 #include "task_system/enums.h"
+#include <asio/any_io_executor.hpp>
 #include <asio/executor_work_guard.hpp>
 #include <asio/io_context.hpp>
 
@@ -16,6 +17,7 @@
 #include <thread>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 namespace lcf::shader_toy {
 
@@ -45,6 +47,7 @@ class TaskSystem
     friend class SystemScheduler;
     using Self = TaskSystem;
     using WorkGuard = asio::executor_work_guard<asio::io_context::executor_type>;
+    using WorkerList = std::vector<std::jthread>;
 public:
     ~TaskSystem() noexcept;
     TaskSystem() noexcept;
@@ -52,6 +55,13 @@ public:
     TaskSystem(Self &&) = delete;
     Self & operator=(const Self &) = delete;
     Self & operator=(Self &&) = delete;
+public:
+    asio::any_io_executor getCpuExecutor() noexcept { return m_cpu_io_context.get_executor(); }
+    template <typename Task, typename Completion>
+    void enqueue(Task && task, Completion completion)
+    {
+        std::move(task).start(m_io_context.get_executor(), std::move(completion));
+    }
 public:
     auto pollEvents() noexcept { return m_out_mailbox.pollEvents(); }
     template <event_c E>
@@ -82,13 +92,16 @@ private:
     }
 private:
     asio::io_context m_io_context;
+    asio::io_context m_cpu_io_context;
     std::optional<WorkGuard> m_work_guard_opt;
+    std::optional<WorkGuard> m_cpu_work_guard_opt;
     std::atomic_bool m_publish_scheduled = false;
     EventQueue m_in_mailbox;
     EventQueue m_out_mailbox;
     RobinMap<EventId, EventHandler> m_handlers;
     RobinMap<std::error_code, EventErrorHandler, ErrorCodeHash> m_error_handlers;
     std::jthread m_worker;
+    WorkerList m_cpu_workers;
     std::unique_ptr<FileWatcher> m_file_watcher_up;
 };
 

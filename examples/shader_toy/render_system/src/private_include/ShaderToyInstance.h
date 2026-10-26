@@ -135,7 +135,8 @@ public:
     ShaderToyResourceId addResource(vk::ArrayProxy<const ShaderToyImageResourceInfo> image_resource_infos) noexcept;
     ShaderToyPassId addPass(ShaderToyPassInfo pass_info) noexcept;
     Self & setOutputResource(ShaderToyResourceId resource_id) noexcept;
-    std::error_code validate(vk::Device device) const noexcept;
+    // Validate CPU-side structure; submission tokens carry GPU execution dependencies.
+    void validate() const noexcept;
     bool isValid() const noexcept { return m_is_valid; }
     uint64_t getInstanceId() const noexcept { return m_instance_id; }
     ShaderToyResourceId getOutputResourceId() const noexcept { return m_output_resource_id; }

@@ -24,6 +24,7 @@ target_link_libraries(${RENDER_SYSTEM_TARGET}
     PRIVATE
         utilities_log
         shader_toy_system_scheduler
+        shader_toy_task_system
         shader_core
         image
         imgui::imgui

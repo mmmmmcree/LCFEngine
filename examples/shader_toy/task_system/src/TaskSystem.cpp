@@ -3,6 +3,7 @@
 #include "FileWatcher.h"
 #include <asio/post.hpp>
 
+#include <cstdint>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -10,6 +11,8 @@
 namespace {
 
 using namespace lcf::shader_toy;
+
+constexpr uint32_t k_cpu_worker_count = 2u;
 
 void dispatch_packet(
     const details::EventPacket & packet,
@@ -75,12 +78,18 @@ std::error_code TaskSystem::run() noexcept
 {
     if (m_worker.joinable()) { return std::make_error_code(std::errc::operation_in_progress); }
     m_io_context.restart();
+    m_cpu_io_context.restart();
     m_work_guard_opt.emplace(m_io_context.get_executor());
-    m_worker = std::jthread([this](std::stop_token token) {
-        std::stop_callback stop_callback(token, [this] {
-            m_work_guard_opt.reset();
-            m_io_context.stop();
+    m_cpu_work_guard_opt.emplace(m_cpu_io_context.get_executor());
+    m_cpu_workers.reserve(k_cpu_worker_count);
+    for (uint32_t index = 0u; index < k_cpu_worker_count; ++index) {
+        m_cpu_workers.emplace_back([this](std::stop_token token) {
+            std::stop_callback stop_callback(token, [this] { m_cpu_io_context.stop(); });
+            m_cpu_io_context.run();
         });
+    }
+    m_worker = std::jthread([this](std::stop_token token) {
+        std::stop_callback stop_callback(token, [this] { m_io_context.stop(); });
         m_io_context.run();
     });
     return {};
@@ -89,9 +98,16 @@ std::error_code TaskSystem::run() noexcept
 void TaskSystem::stop() noexcept
 {
     m_work_guard_opt.reset();
+    m_cpu_work_guard_opt.reset();
     m_io_context.stop();
+    m_cpu_io_context.stop();
     m_worker.request_stop();
+    for (auto & worker : m_cpu_workers) { worker.request_stop(); }
     if (m_worker.joinable()) { m_worker.join(); }
+    for (auto & worker : m_cpu_workers) {
+        if (worker.joinable()) { worker.join(); }
+    }
+    m_cpu_workers.clear();
     m_publish_scheduled.store(false, std::memory_order_release);
     m_file_watcher_up.reset();
 }

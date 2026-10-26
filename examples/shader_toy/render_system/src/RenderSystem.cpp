@@ -2,6 +2,7 @@
 #include "private_include/async_task_interop.h"
 #include "private_include/ShaderToyResourceTasks.h"
 #include "private_include/RenderFrameContext.h"
+#include "task_system/TaskSystem.h"
 #include "vk_core/manifest/InstanceExtensionManifest.h"
 #include "vk_core/manifest/DeviceExtensionManifest.h"
 #include "vk_core/context/entry.h"
@@ -40,6 +41,15 @@ struct CloudSeaPacket
 };
 
 using CloudSeaPacketPointer = std::shared_ptr<CloudSeaPacket>;
+
+struct PreparedCloudSea
+{
+    InstancePointer m_instance_up;
+    FrameContextPointer m_frame_context_up;
+    SubmissionTokenList m_wait_tokens;
+};
+
+using PreparedCloudSeaPointer = std::shared_ptr<PreparedCloudSea>;
 
 std::error_code render_frame(RenderFrameContext & context) noexcept;
 async::task::Chain<void> create_cloud_sea_tasks(const ShaderToyTaskContext & context,
@@ -129,30 +139,37 @@ std::error_code RenderSystem::create(const RenderSystemInfo & render_system_info
         .setPoolSize({vk::DescriptorType::eSampler, 32u})
         .setMaxSetsPerPool(16u);
     if (auto ec = m_descriptor_allocator.create(m_device_ctx.getDevice(), allocator_info)) { return ec; }
-    m_task_system_up = std::make_unique<RenderTaskSystem>();
+    m_render_tasks_up = std::make_unique<RenderTaskSystem>();
     const QueueFamilyIndices queue_family_indices {
         m_device_ctx.getLogicalQueue(gfx_task_queue_key).getFamilyIndex(),
         m_device_ctx.getLogicalQueue(graphics_queue_key).getFamilyIndex()
     };
     ShaderToyTaskContext task_context {
-        *m_task_system_up, m_device_ctx, m_gfx_task_queue, m_graphics_queue,
+        *m_render_tasks_up, render_system_info.m_task_system.getCpuExecutor(),
+        m_device_ctx, m_gfx_task_queue, m_graphics_queue,
         m_descriptor_allocator, queue_family_indices
     };
-    m_task_system_up->enqueue(create_cloud_sea_tasks(task_context, swapchain, m_shader_toy_instance_up, m_frame_context_up));
+    render_system_info.m_task_system.enqueue(
+        create_cloud_sea_tasks(task_context, swapchain, m_shader_toy_instance_up, m_frame_context_up),
+        [render_tasks_p = m_render_tasks_up.get()](const auto & result) {
+            if (not result) { render_tasks_p->reportError(result.error()); }
+        });
     return {};
 }
 
 std::error_code RenderSystem::run() noexcept
 {
     if (m_worker.joinable()) { return std::make_error_code(std::errc::operation_in_progress); }
-    if (not m_task_system_up) { return std::make_error_code(std::errc::operation_not_permitted); }
-    auto & task_system = *m_task_system_up;
-    if (auto ec = task_system.run()) { return ec; }
+    if (not m_render_tasks_up) { return std::make_error_code(std::errc::operation_not_permitted); }
+    auto & render_tasks = *m_render_tasks_up;
+    if (auto ec = render_tasks.run()) { return ec; }
     m_worker = std::jthread([this](std::stop_token token) {
-        auto & task_system = *m_task_system_up;
-        std::stop_callback stop_callback(token, [&task_system] { task_system.stop(); });
+        auto & render_tasks = *m_render_tasks_up;
+        std::stop_callback stop_callback(token, [&render_tasks] { render_tasks.stop(); });
         while (not token.stop_requested()) {
-            if (auto ec = task_system.processOne()) {
+            // Only explicit render links and error delivery enter this executor.
+            auto ec = m_frame_context_up ? render_tasks.processOne() : render_tasks.waitOne();
+            if (ec) {
                 lcf_log_error("render task failed: {}", ec.message());
                 break;
             }
@@ -171,9 +188,9 @@ std::error_code RenderSystem::run() noexcept
 void RenderSystem::stop() noexcept
 {
     m_worker.request_stop();
-    if (m_task_system_up) { m_task_system_up->stop(); }
+    if (m_render_tasks_up) { m_render_tasks_up->stop(); }
     if (m_worker.joinable()) { m_worker.join(); }
-    if (m_task_system_up) { m_task_system_up->join(); }
+    if (m_render_tasks_up) { m_render_tasks_up->join(); }
     if (m_device_ctx.getDevice()) { m_device_ctx.getDevice().waitIdle(); }
 }
 
@@ -192,8 +209,9 @@ async::task::Chain<void> create_cloud_sea_tasks(const ShaderToyTaskContext & con
     vkc::wsi::Swapchain & swapchain, InstancePointer & destination, FrameContextPointer & frame_context)
 {
     auto asset_directory = std::filesystem::path {SHADER_ASSETS_DIR} / "up-in-the-cloud-sea";
-    auto gfx_executor = context.m_task_system.getGfxExecutor();
-    auto cpu_executor = context.m_task_system.getCpuExecutor();
+    auto gfx_executor = context.m_render_tasks.getGfxExecutor();
+    auto render_executor = context.m_render_tasks.getRenderExecutor();
+    auto cpu_executor = context.m_cpu_executor;
     auto packet_chain = async::task::Chain {asset_directory / "image.png", cpu_executor}
         .link(load_image)
         .link(gfx_executor, [context](const img::Image & pixels) { return upload_image(context, pixels); })
@@ -230,17 +248,24 @@ async::task::Chain<void> create_cloud_sea_tasks(const ShaderToyTaskContext & con
             const ShaderProgramInfoList & shader_program_infos) {
             return prepare_cloud_sea_passes(context, packet, shader_program_infos);
         })
-        .link(context.m_task_system.getSpawnThreadExecutor(), [context](const InstanceInfoPointer & shader_toy_instance_info) {
-            return prepare_instance_info(context, shader_toy_instance_info);
+        .link(cpu_executor, [context, &swapchain](const InstanceInfoPointer & shader_toy_instance_info)
+            -> std::expected<PreparedCloudSeaPointer, std::error_code> {
+            shader_toy_instance_info->validate();
+            auto prepared_sp = std::make_shared<PreparedCloudSea>();
+            prepared_sp->m_wait_tokens = collect_instance_dependencies(*shader_toy_instance_info);
+            prepared_sp->m_instance_up = std::make_unique<ShaderToyInstance>();
+            if (auto ec = prepared_sp->m_instance_up->create(std::move(*shader_toy_instance_info))) { return std::unexpected(ec); }
+            prepared_sp->m_frame_context_up = std::make_unique<RenderFrameContext>(
+                context.m_graphics_queue, swapchain, *prepared_sp->m_instance_up);
+            return prepared_sp;
         })
-        .link([&destination](const InstanceInfoPointer & shader_toy_instance_info) -> std::error_code {
-            auto instance_up = std::make_unique<ShaderToyInstance>();
-            if (auto ec = instance_up->create(std::move(*shader_toy_instance_info))) { return ec; }
-            destination = std::move(instance_up);
+        .link(render_executor, [context, &destination, &frame_context](const PreparedCloudSeaPointer & prepared_sp) -> std::error_code {
+            if (auto ec = submit_dependencies(context.m_graphics_queue, prepared_sp->m_wait_tokens)) { return ec; }
+            destination = std::move(prepared_sp->m_instance_up);
+            frame_context = std::move(prepared_sp->m_frame_context_up);
             return {};
         })
-        .link([context, &swapchain, &destination, &frame_context] {
-            frame_context = std::make_unique<RenderFrameContext>(context.m_graphics_queue, swapchain, *destination);
+        .link(cpu_executor, [] {
             lcf_log_info("up-in-the-cloud-sea ready: noise -> Buffer A (previous A) -> Image.");
         })
         .link(gfx_executor, [context] { context.m_gfx_task_queue.collectGarbage(); });

@@ -22,6 +22,7 @@ namespace lcf::shader_toy {
 
 struct App::Impl
 {
+    ~Impl() noexcept;
     std::error_code create() noexcept;
     std::error_code run() noexcept;
 
@@ -31,13 +32,20 @@ struct App::Impl
     TaskSystem m_task_system;
 };
 
+App::Impl::~Impl() noexcept
+{
+    m_task_system.stop();
+    m_render_system.stop();
+}
+
 std::error_code App::Impl::create() noexcept
 {
     win::WindowCreateInfo window_info;
     window_info.setTitle("shader toy");
     if (auto ec = m_window.create(window_info)) { return ec; }
     RenderSystemInfo render_system_info {
-        .m_window_handle = to_wsi_window_handle(m_window.handle())
+        .m_window_handle = to_wsi_window_handle(m_window.handle()),
+        .m_task_system = m_task_system
     };
     if (auto ec = m_render_system.create(render_system_info)) { return ec; }
     if (auto ec = m_task_system.registerService(TaskSystemService::eFileWatcher)) { return ec; }
@@ -60,9 +68,9 @@ std::error_code App::Impl::create() noexcept
 
 std::error_code App::Impl::run() noexcept
 {
+    if (auto ec = m_task_system.run()) { return ec; }
     if (auto ec = m_render_system.run()) { return ec; }
     if (auto ec = m_window.show()) { return ec; }
-    if (auto ec = m_task_system.run()) { return ec; }
     std::atomic_bool running = true;
     std::error_code scheduler_ec;
     while (running.load(std::memory_order_acquire)) {
@@ -75,8 +83,9 @@ std::error_code App::Impl::run() noexcept
         m_scheduler.tick();
     }
     running.store(false, std::memory_order_release);
-    m_render_system.stop();
+    // Join background work before stopping the render/gfx schedulers it uses.
     m_task_system.stop();
+    m_render_system.stop();
     return scheduler_ec;
 }
 

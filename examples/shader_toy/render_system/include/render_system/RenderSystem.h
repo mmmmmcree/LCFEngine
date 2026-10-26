@@ -16,11 +16,13 @@ namespace lcf::shader_toy {
 
 class ShaderToyInstance;
 class RenderTaskSystem;
+class TaskSystem;
 struct RenderFrameContext;
 
 struct RenderSystemInfo
 {
     vkc::wsi::WindowHandle m_window_handle;
+    TaskSystem & m_task_system;
 };
 
 class RenderSystem
@@ -46,7 +48,7 @@ private:
     vkc::Queue m_graphics_queue;
     vkc::Queue m_gfx_task_queue;
     vkc::dsp::DescriptorSetAllocator m_descriptor_allocator;
-    std::unique_ptr<RenderTaskSystem> m_task_system_up;
+    std::unique_ptr<RenderTaskSystem> m_render_tasks_up;
     std::unique_ptr<ShaderToyInstance> m_shader_toy_instance_up;
     std::unique_ptr<RenderFrameContext> m_frame_context_up;
     std::jthread m_worker;

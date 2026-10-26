@@ -26,7 +26,6 @@ uint64_t next_instance_id() noexcept;
 void assert_resource_id(ShaderToyResourceId resource_id, uint64_t instance_id, std::size_t count) noexcept;
 void assert_image_resource_info(const ShaderToyImageResourceInfo & image_resource_info) noexcept;
 ResourceUsageList compile_resource_usage(const ShaderToyInstanceInfo & shader_toy_instance_info) noexcept;
-std::error_code check_resource_readiness(vk::Device device, const ShaderToyInstanceInfo & shader_toy_instance_info) noexcept;
 std::size_t input_image_index(std::size_t image_count, ShaderToyInputFrame input_frame, uint64_t frame) noexcept;
 bool has_write_access(vk::AccessFlags2 access_flags) noexcept;
 void transition_image(vkc::CommandBufferProxy & cmd, auto & image_resource,
@@ -118,11 +117,10 @@ ShaderToyInstanceInfo & ShaderToyInstanceInfo::setOutputResource(ShaderToyResour
     return *this;
 }
 
-std::error_code ShaderToyInstanceInfo::validate(vk::Device device) const noexcept
+void ShaderToyInstanceInfo::validate() const noexcept
 {
-    if (m_is_valid) { return {}; }
+    if (m_is_valid) { return; }
     auto resource_usage = compile_resource_usage(*this);
-    if (auto ec = check_resource_readiness(device, *this)) { return ec; }
     m_resource_types.resize(m_resources.size());
     for (std::size_t index = 0u; index < m_resources.size(); ++index) {
         const auto & usage = resource_usage[index];
@@ -130,7 +128,6 @@ std::error_code ShaderToyInstanceInfo::validate(vk::Device device) const noexcep
         m_resource_types[index] = usage.m_self_dependent ? ShaderToyResourceType::eSelfDependentBuffer : resource_type;
     }
     m_is_valid = true;
-    return {};
 }
 
 ShaderToyInstance::ShaderToyInstance(Self && other) noexcept :
@@ -312,22 +309,6 @@ ResourceUsageList compile_resource_usage(const ShaderToyInstanceInfo & shader_to
         for (const auto & image_resource_info : resource_infos[index]) { assert(image_resource_info.m_layout != vk::ImageLayout::eUndefined); }
     }
     return resource_usage;
-}
-
-std::error_code check_resource_readiness(vk::Device device, const ShaderToyInstanceInfo & shader_toy_instance_info) noexcept
-{
-    try {
-        for (const auto & image_resource_infos : shader_toy_instance_info.viewResourceInfos()) {
-            for (const auto & image_resource_info : image_resource_infos) {
-                if (not image_resource_info.m_submission_token_opt) { continue; }
-                const auto & token = *image_resource_info.m_submission_token_opt;
-                if (device.getSemaphoreCounterValue(token.semaphore) < token.value) {
-                    return std::make_error_code(std::errc::resource_unavailable_try_again);
-                }
-            }
-        }
-    } catch (const vk::SystemError & error) { return error.code(); }
-    return {};
 }
 
 std::size_t input_image_index(std::size_t image_count, ShaderToyInputFrame input_frame, uint64_t frame) noexcept
