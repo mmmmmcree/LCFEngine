@@ -3,7 +3,8 @@
 ## Naming
 
 - Use PascalCase for ordinary classes, structs, enums, and type aliases; camelCase for non-static member functions; snake_case for static member functions, free functions, parameters, and local variables.
-- Use `m_snake_case` for data members and `k_snake_case` for constexpr objects and file-scope constants. Ordinary local `const` variables retain snake_case.
+- Use `m_snake_case` for data members and `k_snake_case` for ordinary constexpr objects and file-scope constants. Ordinary local `const` variables retain snake_case.
+- Name customization point objects (CPOs) after the operation in snake_case, without `k_` or a `_cpo` suffix, even when declared `inline constexpr`. Use PascalCase for their implementation types, such as `detail::TryEnqueue` for the object `try_enqueue`.
 - Use `ePascalCase` for ordinary enum values.
 - Follow standard-library naming for traits and related template utilities: `enum_traits`, `value_type`, `value`, `*_t`, `*_v`, and snake_case query functions. Use `snake_case_c` for concepts.
 - Extract repeated or long trait compositions into semantic `*_t` aliases or `*_v` traits and reuse them in constraints and `noexcept` specifications. Use a variadic trait when applying the same condition to multiple types.
